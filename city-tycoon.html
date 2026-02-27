@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City Tycoon - K4 Games</title>
+    <style>
+        :root {
+            --primary: #3498db;
+            --secondary: #2c3e50;
+            --bg: #f0f4f8;
+            --sidebar: #ffffff;
+            --road: #555555;
+            --house: #ff9f43;
+            --office: #54a0ff;
+            --park: #1dd1a1;
+            --shop: #ee5253;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--secondary);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar UI */
+        #sidebar {
+            width: 300px;
+            background: var(--sidebar);
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+
+        .logo { font-size: 1.8rem; font-weight: 800; color: var(--primary); letter-spacing: -1px; }
+
+        .stats {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .stat-item { display: flex; justify-content: space-between; font-weight: 600; }
+
+        .palette {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .tool {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border: 2px solid #eee;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: 600;
+        }
+        .tool:hover { border-color: var(--primary); background: #f0f7ff; }
+        .tool.active { border-color: var(--primary); background: #e1f0ff; box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2); }
+        
+        .color-box { width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.1); }
+
+        /* Main View */
+        #main-content {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        #canvas-wrapper {
+            background: white;
+            padding: 10px;
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            background: #e1f5fe;
+            border-radius: 12px;
+            cursor: crosshair;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: var(--secondary); text-decoration: none;
+            background: white; padding: 8px 15px; border-radius: 8px; z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-weight: bold;
+        }
+
+        #controls-hint {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(44, 62, 80, 0.8); color: white; padding: 10px 20px;
+            border-radius: 50px; font-size: 0.9rem; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <aside id="sidebar">
+        <div class="logo">CITY TYCOON</div>
+        
+        <div class="stats">
+            <div class="stat-item"><span>Funds</span><span id="funds">$1,000</span></div>
+            <div class="stat-item"><span>Income</span><span id="income">+$0</span></div>
+            <div class="stat-item"><span>Population</span><span id="pop">0</span></div>
+            <div class="stat-item"><span>Happiness</span><span id="happy">100%</span></div>
+        </div>
+
+        <div class="palette" id="palette">
+            <div class="tool active" data-type="road">
+                <div class="color-box" style="background: var(--road)"></div> Road ($10)
+            </div>
+            <div class="tool" data-type="house">
+                <div class="color-box" style="background: var(--house)"></div> Residential ($50)
+            </div>
+            <div class="tool" data-type="office">
+                <div class="color-box" style="background: var(--office)"></div> Commercial ($100)
+            </div>
+            <div class="tool" data-type="park">
+                <div class="color-box" style="background: var(--park)"></div> Park ($150)
+            </div>
+            <div class="tool" data-type="shop">
+                <div class="color-box" style="background: var(--shop)"></div> Industrial ($200)
+            </div>
+            <div class="tool" data-type="eraser" style="margin-top: 10px; border-style: dashed;">
+                <div class="color-box" style="background: white; border: 1px dashed #ccc;"></div> Eraser
+            </div>
+        </div>
+
+        <button onclick="clearCity()" style="margin-top: auto; padding: 10px; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; background: #fff;">Clear All</button>
+    </aside>
+
+    <main id="main-content">
+        <div id="canvas-wrapper">
+            <canvas id="cityCanvas"></canvas>
+        </div>
+        <div id="controls-hint">DRAG to Build • SHIFT + DRAG to erase</div>
+    </main>
+
+    <script>
+        const TYPES = {
+            road: { color: '#555555', pop: 0, cost: 10, income: -1 },
+            house: { color: '#ff9f43', pop: 10, cost: 50, income: 5 },
+            office: { color: '#54a0ff', pop: 20, cost: 100, income: 15 },
+            park: { color: '#1dd1a1', pop: 0, cost: 150, income: -5 },
+            shop: { color: '#ee5253', pop: 5, cost: 200, income: 30 }
+        };
+
+        class CityBuilder {
+            constructor() {
+                this.canvas = document.getElementById('cityCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.gridSize = 40;
+                this.cols = 20;
+                this.rows = 15;
+                this.canvas.width = this.cols * this.gridSize;
+                this.canvas.height = this.rows * this.gridSize;
+
+                this.grid = Array.from({length: this.rows}, () => Array(this.cols).fill(null));
+                this.selectedType = 'road';
+                this.isDrawing = false;
+                this.dragStart = null;
+                this.dragEnd = null;
+                
+                this.funds = 1000;
+                this.income = 0;
+                this.lastIncomeTick = Date.now();
+
+                this.init();
+            }
+
+            init() {
+                this.setupPalette();
+                this.setupInput();
+                this.loop();
+            }
+
+            setupPalette() {
+                document.querySelectorAll('.tool').forEach(tool => {
+                    tool.onclick = () => {
+                        document.querySelectorAll('.tool').forEach(t => t.classList.remove('active'));
+                        tool.classList.add('active');
+                        this.selectedType = tool.dataset.type;
+                    };
+                });
+            }
+
+            setupInput() {
+                const getPos = (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    return {
+                        x: Math.floor((e.clientX - rect.left) / this.gridSize),
+                        y: Math.floor((e.clientY - rect.top) / this.gridSize)
+                    };
+                };
+
+                this.canvas.onmousedown = (e) => {
+                    this.isDrawing = true;
+                    this.dragStart = getPos(e);
+                    this.dragEnd = this.dragStart;
+                };
+                window.onmousemove = (e) => {
+                    if(this.isDrawing) this.dragEnd = getPos(e);
+                };
+                window.onmouseup = () => {
+                    if (this.isDrawing) {
+                        this.applyDrag();
+                        this.isDrawing = false;
+                        this.dragStart = null;
+                        this.dragEnd = null;
+                    }
+                };
+            }
+
+            applyDrag() {
+                const x0 = Math.min(this.dragStart.x, this.dragEnd.x);
+                const x1 = Math.max(this.dragStart.x, this.dragEnd.x);
+                const y0 = Math.min(this.dragStart.y, this.dragEnd.y);
+                const y1 = Math.max(this.dragStart.y, this.dragEnd.y);
+
+                for (let y = y0; y <= y1; y++) {
+                    for (let x = x0; x <= x1; x++) {
+                        if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
+                            if (this.selectedType === 'eraser') {
+                                this.grid[y][x] = null;
+                            } else {
+                                const cost = TYPES[this.selectedType].cost;
+                                if (this.funds >= cost && this.grid[y][x] !== this.selectedType) {
+                                    this.funds -= cost;
+                                    this.grid[y][x] = this.selectedType;
+                                }
+                            }
+                        }
+                    }
+                }
+                this.updateStats();
+            }
+
+            updateStats() {
+                let totalPop = 0;
+                let totalIncome = 0;
+                let happiness = 100;
+                
+                this.grid.forEach(row => row.forEach(cell => {
+                    if(cell && TYPES[cell]) {
+                        totalPop += TYPES[cell].pop;
+                        totalIncome += TYPES[cell].income;
+                        if (cell === 'shop') happiness -= 0.5;
+                        if (cell === 'park') happiness += 2;
+                    }
+                }));
+                
+                this.income = totalIncome;
+                document.getElementById('pop').textContent = totalPop.toLocaleString();
+                document.getElementById('funds').textContent = `$${Math.floor(this.funds).toLocaleString()}`;
+                document.getElementById('income').textContent = `${this.income >= 0 ? '+' : ''}$${this.income}`;
+                document.getElementById('happy').textContent = `${Math.min(100, Math.max(0, Math.floor(happiness)))}%`;
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Background grid
+                ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+                ctx.lineWidth = 1;
+                for(let i=0; i<=this.cols; i++) {
+                    ctx.beginPath(); ctx.moveTo(i*this.gridSize, 0); ctx.lineTo(i*this.gridSize, this.canvas.height); ctx.stroke();
+                }
+                for(let i=0; i<=this.rows; i++) {
+                    ctx.beginPath(); ctx.moveTo(0, i*this.gridSize); ctx.lineTo(this.canvas.width, i*this.gridSize); ctx.stroke();
+                }
+
+                // Buildings
+                this.grid.forEach((row, y) => {
+                    row.forEach((cell, x) => {
+                        if(!cell) return;
+                        this.drawBuilding(x, y, cell);
+                    });
+                });
+
+                // Preview
+                if (this.isDrawing && this.dragStart && this.dragEnd) {
+                    ctx.save();
+                    ctx.globalAlpha = 0.4;
+                    const x0 = Math.min(this.dragStart.x, this.dragEnd.x);
+                    const x1 = Math.max(this.dragStart.x, this.dragEnd.x);
+                    const y0 = Math.min(this.dragStart.y, this.dragEnd.y);
+                    const y1 = Math.max(this.dragStart.y, this.dragEnd.y);
+
+                    for (let y = y0; y <= y1; y++) {
+                        for (let x = x0; x <= x1; x++) {
+                            if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
+                                if (this.selectedType !== 'eraser') {
+                                    this.drawBuilding(x, y, this.selectedType);
+                                } else {
+                                    ctx.fillStyle = 'rgba(255,0,0,0.2)';
+                                    ctx.fillRect(x*this.gridSize, y*this.gridSize, this.gridSize, this.gridSize);
+                                }
+                            }
+                        }
+                    }
+                    ctx.restore();
+                }
+            }
+
+            drawBuilding(x, y, type) {
+                const ctx = this.ctx;
+                const px = x * this.gridSize;
+                const py = y * this.gridSize;
+                const config = TYPES[type];
+
+                ctx.fillStyle = config.color;
+                if(type === 'road') {
+                    ctx.fillRect(px, py, this.gridSize, this.gridSize);
+                } else {
+                    ctx.save();
+                    ctx.shadowBlur = 5; ctx.shadowColor = 'rgba(0,0,0,0.1)';
+                    ctx.fillRect(px+4, py+4, this.gridSize-8, this.gridSize-8);
+                    // Windows/Detail
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                    if(type === 'office') {
+                        ctx.fillRect(px+8, py+8, 6, 6); ctx.fillRect(px+24, py+8, 6, 6);
+                        ctx.fillRect(px+8, py+24, 6, 6); ctx.fillRect(px+24, py+24, 6, 6);
+                    }
+                    ctx.restore();
+                }
+            }
+
+            loop() {
+                const now = Date.now();
+                if (now - this.lastIncomeTick > 2000) {
+                    this.funds += this.income;
+                    this.lastIncomeTick = now;
+                    this.updateStats();
+                }
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        let builder = new CityBuilder();
+        function clearCity() {
+            builder.grid = Array.from({length: builder.rows}, () => Array(builder.cols).fill(null));
+            builder.updateStats();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turkey Time: Bowling Bonanza - K4 Games</title>
+    <style>
+        :root {
+            --lane: #eab308;
+            --gutter: #334155;
+            --bg: #0f172a;
+            --accent: #f59e0b;
+            --text: #f8fafc;
+            --panel: rgba(30, 41, 59, 0.8);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 20px;
+        }
+
+        /* --- Scoreboard --- */
+        #scoreboard {
+            background: var(--panel);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 15px 30px;
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .frame {
+            width: 70px;
+            height: 60px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px;
+        }
+        .frame.active { border-color: var(--accent); background: rgba(245, 158, 11, 0.1); }
+        
+        .rolls { display: flex; width: 100%; justify-content: flex-end; gap: 5px; font-size: 0.8rem; font-weight: 800; }
+        .roll { width: 20px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.2); }
+        .frame-total { font-size: 1.2rem; font-weight: 900; color: var(--accent); }
+
+        canvas {
+            background: #1e293b;
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            border: 4px solid #334155;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 12px; z-index: 1000;
+            font-weight: bold; backdrop-filter: blur(10px);
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.9);
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 2000; backdrop-filter: blur(10px); text-align: center;
+        }
+
+        .btn {
+            background: var(--accent); color: #000; border: none; padding: 15px 40px;
+            border-radius: 50px; font-weight: 800; cursor: pointer; font-size: 1.2rem;
+            margin-top: 20px; transition: 0.2s;
+        }
+        .btn:hover { transform: scale(1.05); }
+
+        .hint { margin-top: 15px; color: rgba(255,255,255,0.4); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="game-container">
+        <div id="scoreboard">
+            <!-- 10 Frames -->
+        </div>
+
+        <canvas id="gameCanvas" width="900" height="650"></canvas>
+        
+        <div class="hint">Left/Right to Move • Space to Set Angle & Power</div>
+
+        <div id="overlay">
+            <h1 id="overlay-title" style="font-size: 4rem; color: var(--accent); font-style: italic;">TURKEY TIME</h1>
+            <div id="final-stats" style="margin: 20px 0; font-size: 1.5rem; font-weight: 800;"></div>
+            <button class="btn" onclick="game.start()">START GAME</button>
+        </div>
+    </div>
+
+    <script>
+        class Bowling {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 900;
+                this.height = 650;
+
+                this.state = 'menu'; // menu, standing, angle, power, rolling, result
+                this.frames = Array.from({length: 10}, () => ({ rolls: [], score: 0, cumulative: null }));
+                this.currentFrame = 0;
+                this.ball = { x: 450, y: 580, r: 18, vx: 0, vy: 0, active: false };
+                this.standX = 450;
+                this.angle = 0;
+                this.power = 0;
+                this.angleDir = 1;
+                this.powerDir = 1;
+                
+                this.pins = [];
+                this.otherLanes = [
+                    { x: 150, ballY: 600, ballV: 0, timer: Math.random()*200 },
+                    { x: 750, ballY: 600, ballV: 0, timer: Math.random()*200 }
+                ];
+
+                this.init();
+            }
+
+            init() {
+                this.renderScoreboard();
+                window.onkeydown = (e) => this.handleInput(e);
+                this.resetPins();
+                this.loop();
+                document.getElementById('overlay').style.display = 'flex';
+            }
+
+            start() {
+                this.state = 'standing';
+                this.frames = Array.from({length: 10}, () => ({ rolls: [], score: 0, cumulative: null }));
+                this.currentFrame = 0;
+                this.renderScoreboard();
+                document.getElementById('overlay').style.display = 'none';
+            }
+
+            resetPins() {
+                this.pins = [];
+                const rows = 4;
+                const startY = 100;
+                const spacingX = 22;
+                const spacingY = 25;
+                for (let r = 0; r < rows; r++) {
+                    const pinsInRow = r + 1;
+                    const rowStartX = 450 - ((pinsInRow - 1) * spacingX) / 2;
+                    for (let i = 0; i < pinsInRow; i++) {
+                        this.pins.push({
+                            x: rowStartX + i * spacingX,
+                            y: startY + (rows - r) * spacingY,
+                            down: false
+                        });
+                    }
+                }
+            }
+
+            handleInput(e) {
+                if (this.state === 'standing') {
+                    if (e.key === 'ArrowLeft') this.standX = Math.max(400, this.standX - 5);
+                    if (e.key === 'ArrowRight') this.standX = Math.min(500, this.standX + 5);
+                    if (e.key === ' ') this.state = 'angle';
+                } else if (this.state === 'angle') {
+                    if (e.key === ' ') this.state = 'power';
+                } else if (this.state === 'power') {
+                    if (e.key === ' ') this.shoot();
+                }
+            }
+
+            shoot() {
+                this.state = 'rolling';
+                this.ball.x = this.standX;
+                this.ball.y = 580;
+                this.ball.active = true;
+                const rad = (this.angle - 90) * Math.PI / 180;
+                const p = 5 + (this.power / 100) * 10;
+                this.ball.vx = Math.cos(rad) * p;
+                this.ball.vy = Math.sin(rad) * p;
+            }
+
+            update() {
+                if (this.state === 'angle') {
+                    this.angle += this.angleDir * 2;
+                    if (this.angle > 30 || this.angle < -30) this.angleDir *= -1;
+                } else if (this.state === 'power') {
+                    this.power += this.powerDir * 3;
+                    if (this.power > 100 || this.power < 0) this.powerDir *= -1;
+                } else if (this.state === 'rolling') {
+                    this.ball.x += this.ball.vx;
+                    this.ball.y += this.ball.vy;
+
+                    // Pin collision
+                    this.pins.forEach(p => {
+                        if (!p.down && Math.hypot(p.x - this.ball.x, p.y - this.ball.y) < 25) {
+                            p.down = true;
+                        }
+                    });
+
+                    if (this.ball.y < 50 || Math.abs(this.ball.x - 450) > 60) {
+                        this.finishRoll();
+                    }
+                }
+
+                // Atmosphere Lances
+                this.otherLanes.forEach(l => {
+                    l.timer--;
+                    if (l.timer <= 0) {
+                        l.ballV = -5 - Math.random()*5;
+                        l.timer = 300 + Math.random()*500;
+                    }
+                    if (l.ballV !== 0) {
+                        l.ballY += l.ballV;
+                        if (l.ballY < 50) { l.ballY = 600; l.ballV = 0; }
+                    }
+                });
+            }
+
+            finishRoll() {
+                this.ball.active = false;
+                const knocked = this.pins.filter(p => p.down).length;
+                const frame = this.frames[this.currentFrame];
+                
+                const rollScore = knocked - (frame.rolls[0] || 0);
+                frame.rolls.push(rollScore);
+
+                if (frame.rolls[0] === 10 || frame.rolls.length === 2) {
+                    this.state = 'standing';
+                    this.standX = 450;
+                    this.angle = 0;
+                    this.power = 0;
+                    this.currentFrame++;
+                    this.calculateBowlingScore();
+                    this.resetPins();
+                    if (this.currentFrame >= 10) this.endGame();
+                } else {
+                    this.state = 'standing'; // Second roll
+                }
+                this.renderScoreboard();
+            }
+
+            calculateBowlingScore() {
+                let total = 0;
+                for (let i = 0; i <= this.currentFrame; i++) {
+                    const f = this.frames[i];
+                    if (!f) continue;
+                    let fScore = f.rolls.reduce((a,b) => a+b, 0);
+                    
+                    // Strike logic
+                    if (f.rolls[0] === 10) {
+                        const next1 = this.frames[i+1]?.rolls[0] || 0;
+                        const next2 = this.frames[i+1]?.rolls[1] ?? this.frames[i+2]?.rolls[0] ?? 0;
+                        fScore += next1 + next2;
+                    }
+                    // Spare logic
+                    else if (fScore === 10 && f.rolls.length === 2) {
+                        fScore += this.frames[i+1]?.rolls[0] || 0;
+                    }
+
+                    total += fScore;
+                    f.cumulative = total;
+                }
+            }
+
+            renderScoreboard() {
+                const sb = document.getElementById('scoreboard');
+                sb.innerHTML = this.frames.map((f, i) => `
+                    <div class="frame ${i === this.currentFrame ? 'active' : ''}">
+                        <div class="rolls">
+                            <div class="roll">${f.rolls[0] === 10 ? 'X' : (f.rolls[0] ?? '')}</div>
+                            <div class="roll">${(f.rolls[0] + f.rolls[1] === 10 && f.rolls.length === 2) ? '/' : (f.rolls[1] ?? '')}</div>
+                        </div>
+                        <div class="frame-total">${f.cumulative ?? ''}</div>
+                    </div>
+                `).join('');
+            }
+
+            endGame() {
+                this.state = 'over';
+                const total = this.frames[9].cumulative || 0;
+                const overlay = document.getElementById('overlay');
+                overlay.style.display = 'flex';
+                document.getElementById('overlay-title').textContent = total > 200 ? "TURKEY!" : "GAME OVER";
+                document.getElementById('final-stats').textContent = `FINAL SCORE: ${total}`;
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Draw 3 Lanes
+                [150, 450, 750].forEach(lx => {
+                    ctx.fillStyle = '#444'; // Gutters
+                    ctx.fillRect(lx - 60, 50, 120, 600);
+                    ctx.fillStyle = lx === 450 ? '#eab308' : '#d1d5db'; // Main vs side lanes
+                    ctx.fillRect(lx - 45, 50, 90, 600);
+                    
+                    // Lane markers
+                    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                    ctx.lineWidth = 2;
+                    for(let y=100; y<600; y+=100) {
+                        ctx.beginPath(); ctx.moveTo(lx-45, y); ctx.lineTo(lx+45, y); ctx.stroke();
+                    }
+                });
+
+                // Other Lane Balls
+                ctx.fillStyle = '#64748b';
+                this.otherLanes.forEach(l => {
+                    if (l.ballV !== 0) {
+                        ctx.beginPath(); ctx.arc(l.x, l.ballY, 15, 0, Math.PI*2); ctx.fill();
+                    }
+                });
+
+                // Pins
+                this.pins.forEach(p => {
+                    if (!p.down) {
+                        ctx.fillStyle = 'white';
+                        ctx.beginPath(); ctx.ellipse(p.x, p.y, 8, 14, 0, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = 'red'; ctx.fillRect(p.x-8, p.y-4, 16, 3);
+                    }
+                });
+
+                // Bowler Line
+                ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(390, 580); ctx.lineTo(510, 580); ctx.stroke();
+
+                // Ball
+                if (this.state !== 'menu') {
+                    const bx = this.state === 'rolling' ? this.ball.x : this.standX;
+                    const by = this.state === 'rolling' ? this.ball.y : 580;
+                    ctx.fillStyle = '#1e293b';
+                    ctx.beginPath(); ctx.arc(bx, by, 18, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+                }
+
+                // Meters
+                if (this.state === 'angle') {
+                    ctx.save(); ctx.translate(this.standX, 580); ctx.rotate(this.angle * Math.PI / 180);
+                    ctx.strokeStyle = varColor('--accent'); ctx.setLineDash([5,5]);
+                    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -100); ctx.stroke(); ctx.restore();
+                }
+                if (this.state === 'power') {
+                    ctx.fillStyle = '#334155'; ctx.fillRect(this.standX - 50, 610, 100, 10);
+                    ctx.fillStyle = varColor('--accent'); ctx.fillRect(this.standX - 50, 610, this.power, 10);
+                }
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        function varColor(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        }
+
+        const game = new Bowling();
+    </script>
+</body>
+</html>

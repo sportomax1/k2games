@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fruit Slice</title>
+    <style>
+        body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; touch-action: none; }
+        canvas { display: block; }
+        .ui { position: absolute; top: 20px; left: 20px; font-size: 2rem; pointer-events: none; text-shadow: 2px 2px 4px black; }
+        .back { position: absolute; bottom: 20px; left: 20px; color: #ff4757; text-decoration: none; font-weight: bold; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="ui">Score: <span id="score">0</span></div>
+    <canvas id="game"></canvas>
+    <a href="index.html" class="back">← HUB</a>
+
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let score = 0;
+        let fruits = [];
+        let particles = [];
+        let slash = [];
+        let isMouseDown = false;
+
+        const FRUIT_TYPES = [
+            { emoji: '🍉', color: '#ff4757' },
+            { emoji: '🍊', color: '#ffa500' },
+            { emoji: '🍎', color: '#ff6b81' },
+            { emoji: '🥝', color: '#2ecc71' },
+            { emoji: '🍍', color: '#f1c40f' },
+            { emoji: '💣', type: 'bomb' }
+        ];
+
+        function spawnFruit() {
+            const type = FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
+            fruits.push({
+                x: Math.random() * (canvas.width - 100) + 50,
+                y: canvas.height + 50,
+                vx: (Math.random() - 0.5) * 4,
+                vy: -(Math.random() * 5 + 12),
+                type: type,
+                sliced: false,
+                rot: 0,
+                vrot: (Math.random() - 0.5) * 0.2
+            });
+        }
+
+        function createParticles(x, y, color) {
+            for (let i = 0; i < 8; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10,
+                    size: Math.random() * 5 + 2,
+                    color,
+                    life: 1
+                });
+            }
+        }
+
+        function update() {
+            if (Math.random() < 0.02) spawnFruit();
+
+            fruits.forEach((f, i) => {
+                f.x += f.vx;
+                f.y += f.vy;
+                f.vy += 0.2; // Gravity
+                f.rot += f.vrot;
+
+                if (f.y > canvas.height + 100) fruits.splice(i, 1);
+
+                // Slice check
+                if (!f.sliced && isMouseDown && slash.length > 1) {
+                    for (let j = 0; j < slash.length; j++) {
+                        let dist = Math.hypot(f.x - slash[j].x, f.y - slash[j].y);
+                        if (dist < 40) {
+                            f.sliced = true;
+                            if (f.type.type === 'bomb') {
+                                alert("KABOOM! Game Over. Score: " + score);
+                                location.reload();
+                            } else {
+                                score += 10;
+                                document.getElementById('score').textContent = score;
+                                createParticles(f.x, f.y, f.type.color);
+                            }
+                            break;
+                        }
+                    }
+                }
+            });
+
+            particles.forEach((p, i) => {
+                p.x += p.vx; p.y += p.vy;
+                p.life -= 0.02;
+                if (p.life <= 0) particles.splice(i, 1);
+            });
+
+            if (slash.length > 10) slash.shift();
+            else if (slash.length > 0 && !isMouseDown) slash.shift();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw slash
+            if (slash.length > 1) {
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 5;
+                ctx.lineCap = "round";
+                ctx.beginPath();
+                ctx.moveTo(slash[0].x, slash[0].y);
+                for (let i = 1; i < slash.length; i++) ctx.lineTo(slash[i].x, slash[i].y);
+                ctx.stroke();
+            }
+
+            // Draw fruits
+            fruits.forEach(f => {
+                if (f.sliced) return;
+                ctx.save();
+                ctx.translate(f.x, f.y);
+                ctx.rotate(f.rot);
+                ctx.font = "50px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(f.type.emoji, 0, 0);
+                ctx.restore();
+            });
+
+            // Draw particles
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+
+            update();
+            requestAnimationFrame(draw);
+        }
+
+        window.onmousedown = (e) => isMouseDown = true;
+        window.onmouseup = (e) => isMouseDown = false;
+        window.onmousemove = (e) => {
+            if (isMouseDown) slash.push({ x: e.clientX, y: e.clientY });
+        };
+        // Touch support
+        window.ontouchstart = (e) => { isMouseDown = true; };
+        window.ontouchend = (e) => { isMouseDown = false; slash = []; };
+        window.ontouchmove = (e) => {
+            if (isMouseDown) slash.push({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+        };
+
+        draw();
+    </script>
+</body>
+</html>

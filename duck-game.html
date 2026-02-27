@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Untitled Duck: Chaos in the Garden - K4 Games</title>
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --panel: #ffffff;
+            --accent: #0ea5e9;
+            --duck-body: #fffde7;
+            --duck-beak: #fbbf24;
+            --grass: #dcfce7;
+            --text: #1e293b;
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background-color: #cbd5e1;
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar UI - Paper Aesthetic */
+        #sidebar {
+            width: 340px;
+            background: #fff;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.1);
+            z-index: 10;
+            border-right: 2px solid #e2e8f0;
+            background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .logo { 
+            font-size: 2rem; 
+            font-weight: 900; 
+            color: #0c4a6e; 
+            letter-spacing: -1px; 
+            font-style: italic;
+            border-bottom: 4px solid var(--duck-beak);
+            padding-bottom: 0.5rem;
+        }
+        
+        .section-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: #64748b;
+            font-weight: 800;
+            margin-top: 1rem;
+        }
+
+        .instruction-list {
+            list-style: none;
+            font-size: 0.9rem;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .instruction-list li { display: flex; align-items: center; gap: 10px; }
+        .key { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 2px 8px; border-radius: 6px; font-family: monospace; font-weight: bold; }
+
+        .todo-container {
+            background: #fffdfa;
+            border: 1px solid #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 4px;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
+            position: relative;
+        }
+        
+        .todo-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .todo-item {
+            font-size: 1rem;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            color: #475569;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            transition: all 0.3s;
+        }
+        
+        .todo-item.done {
+            color: #94a3b8;
+            text-decoration: line-through;
+        }
+        
+        .check-box { 
+            width: 20px; 
+            height: 20px; 
+            border: 2px solid #94a3b8; 
+            flex-shrink: 0; 
+            margin-top: 2px;
+            position: relative;
+        }
+        
+        .todo-item.done .check-box::after {
+            content: '✓';
+            position: absolute;
+            top: -5px;
+            left: 2px;
+            color: #ef4444;
+            font-size: 1.2rem;
+            font-weight: 900;
+        }
+
+        /* Main View */
+        #main-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            position: relative;
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas {
+            background: #ecfdf5;
+            border-radius: 8px;
+            box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.3);
+            cursor: crosshair;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: var(--text); text-decoration: none;
+            background: white; padding: 10px 20px; border-radius: 12px; z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-weight: bold;
+        }
+
+        #ui-toast {
+            position: absolute; top: 40px;
+            background: #0c4a6e; color: white; padding: 15px 40px;
+            border-radius: 50px; font-weight: 900; font-size: 1.5rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            transform: translateY(-150px); transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 50;
+        }
+        #ui-toast.show { transform: translateY(0); }
+
+        .timer-pill {
+            position: absolute; top: 30px; right: 30px;
+            background: rgba(255,255,255,0.8); backdrop-filter: blur(4px);
+            padding: 8px 20px; border-radius: 50px;
+            font-weight: 800; font-family: monospace; font-size: 1.4rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #fff;
+        }
+
+        #victory-screen {
+            position: absolute; inset: 0;
+            background: rgba(255,255,255,0.9);
+            display: none; flex-direction: column;
+            justify-content: center; align-items: center;
+            z-index: 1000; text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <aside id="sidebar">
+        <div class="logo">UNTITLED DUCK</div>
+        
+        <div class="todo-container">
+            <div class="section-title" style="margin-top:0; margin-bottom:1rem;">To-Do List</div>
+            <ul class="todo-list" id="todo-list"></ul>
+        </div>
+
+        <div>
+            <div class="section-title">Controls</div>
+            <ul class="instruction-list">
+                <li><span class="key">WASD</span> Move the Duck</li>
+                <li><span class="key">SHIFT</span> Run (Waddle faster)</li>
+                <li><span class="key">SPACE</span> HONK!</li>
+                <li><span class="key">G</span> Grab or Drop items</li>
+                <li><span class="key">P</span> Leave a gift...</li>
+            </ul>
+        </div>
+    </aside>
+
+    <main id="main-view">
+        <div id="ui-toast">HONK!!!</div>
+        <div class="timer-pill" id="timer">00:00</div>
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="victory-screen">
+            <h1 style="font-size: 5rem; color: #ef4444; margin-bottom: 1rem;">GOOSE!</h1>
+            <p style="font-size: 1.5rem; margin-bottom: 2rem;">You successfully ruined everyone's day.</p>
+            <button onclick="location.reload()" style="background:#0c4a6e; color:white; border:none; padding:15px 40px; border-radius:50px; font-weight:bold; cursor:pointer;">REPLAY CHAOS</button>
+        </div>
+    </main>
+
+    <script>
+        const TODO_DATA = [
+            { id: 'sandwich', text: 'Steal the sandwich' },
+            { id: 'scare', text: 'Scare the lady' },
+            { id: 'rake', text: 'Put the rake in the lake' },
+            { id: 'picnic', text: 'Bring an apple to the rug' },
+            { id: 'phone', text: 'Steal the phone' },
+            { id: 'hide', text: 'Hide in the tall grass' }
+        ];
+
+        class DuckGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 1000;
+                this.height = 750;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                // Game State
+                this.player = { 
+                    x: 150, y: 150, vx: 0, vy: 0, r: 25, 
+                    speed: 3.5, honking: false, held: null, 
+                    dir: 1, anim: 0, state: 'idle' 
+                };
+                this.keys = {};
+                this.npcs = [
+                    { x: 800, y: 200, emoji: '👩', name: 'Lady', state: 'idle', targetX: 800, targetY: 200, speed: 1.5 },
+                    { x: 500, y: 600, emoji: '👨', name: 'Man', hasPhone: true, state: 'idle', targetX: 500, targetY: 600, speed: 1.2 }
+                ];
+                this.items = [
+                    { id: 'sandwich', x: 750, y: 220, emoji: '🥪', w: 35, h: 35 },
+                    { id: 'apple', x: 200, y: 600, emoji: '🍎', w: 30, h: 30 },
+                    { id: 'rake', x: 400, y: 150, emoji: '🧹', w: 45, h: 45 },
+                    { id: 'bucket', x: 100, y: 650, emoji: '🪣', w: 45, h: 45, knocked: false }
+                ];
+                this.scenery = [
+                    { x: 150, y: 550, w: 120, h: 100, type: 'rug', color: '#f87171' },
+                    { x: 700, y: 500, r: 120, type: 'lake', color: '#7dd3fc' },
+                    { x: 450, y: 350, w: 100, h: 150, type: 'grass', color: '#166534' }
+                ];
+                
+                this.todo = TODO_DATA.map(t => ({ ...t, done: false }));
+                this.startTime = Date.now();
+                this.poops = [];
+                this.ripples = [];
+
+                this.init();
+            }
+
+            init() {
+                this.renderTodo();
+                window.onkeydown = (e) => {
+                    this.keys[e.code] = true;
+                    if(e.code === 'Space') this.honk();
+                    if(e.code === 'KeyG') this.toggleGrab();
+                    if(e.code === 'KeyP') this.poop();
+                };
+                window.onkeyup = (e) => this.keys[e.code] = false;
+                this.loop();
+            }
+
+            honk() {
+                if(this.player.honking) return;
+                this.player.honking = true;
+                this.showToast('HONK!!!');
+                
+                // Play Audio
+                const audio = new Audio('https://freeanimalsounds.org/wp-content/uploads/2017/07/Ente_quackt.mp3');
+                audio.volume = 0.4;
+                audio.play().catch(() => {});
+
+                // NPC React
+                this.npcs.forEach(n => {
+                    if(this.dist(this.player, n) < 150) {
+                        n.state = 'startled';
+                        n.timer = 100;
+                        if(n.name === 'Lady') this.complete('scare');
+                    }
+                });
+
+                setTimeout(() => this.player.honking = false, 600);
+            }
+
+            toggleGrab() {
+                if(this.player.held) {
+                    this.checkDrop(this.player.held);
+                    this.player.held.held = false;
+                    this.player.held = null;
+                } else {
+                    const item = this.items.find(i => this.dist(this.player, i) < 60);
+                    if(item) {
+                        item.held = true;
+                        this.player.held = item;
+                    } else {
+                        // Steal phone from Man
+                        const man = this.npcs.find(n => n.name === 'Man');
+                        if(man.hasPhone && this.dist(this.player, man) < 60) {
+                            man.hasPhone = false;
+                            const phone = { id: 'phone', emoji: '📱', w: 25, h: 25, held: true };
+                            this.items.push(phone);
+                            this.player.held = phone;
+                            this.complete('phone');
+                        }
+                    }
+                }
+            }
+
+            checkDrop(item) {
+                if(item.id === 'rake') {
+                    const lake = this.scenery.find(s => s.type === 'lake');
+                    if(this.dist(item, lake) < lake.r) this.complete('rake');
+                }
+                if(item.id === 'apple') {
+                    const rug = this.scenery.find(s => s.type === 'rug');
+                    if(item.x > rug.x && item.x < rug.x + rug.w && item.y > rug.y && item.y < rug.y + rug.h) {
+                        this.complete('picnic');
+                    }
+                }
+                if(item.id === 'sandwich') {
+                    if(item.x < 150 && item.y < 150) this.complete('sandwich');
+                }
+            }
+
+            poop() {
+                this.poops.push({ x: this.player.x, y: this.player.y, life: 1000 });
+                this.showToast('Splut!');
+            }
+
+            complete(id) {
+                const task = this.todo.find(t => t.id === id);
+                if(task && !task.done) {
+                    task.done = true;
+                    this.renderTodo();
+                    this.showToast('To-Do Updated!');
+                    
+                    if(this.todo.every(t => t.done)) {
+                        setTimeout(() => document.getElementById('victory-screen').style.display = 'flex', 2000);
+                    }
+                }
+            }
+
+            showToast(txt) {
+                const t = document.getElementById('ui-toast');
+                t.textContent = txt;
+                t.classList.add('show');
+                setTimeout(() => t.classList.remove('show'), 1500);
+            }
+
+            renderTodo() {
+                const list = document.getElementById('todo-list');
+                list.innerHTML = this.todo.map(t => `
+                    <li class="todo-item ${t.done ? 'done' : ''}">
+                        <div class="check-box"></div>
+                        <span>${t.text}</span>
+                    </li>
+                `).join('');
+            }
+
+            update() {
+                // Movement
+                let dx = 0, dy = 0;
+                if(this.keys['KeyW'] || this.keys['ArrowUp']) dy = -1;
+                if(this.keys['KeyS'] || this.keys['ArrowDown']) dy = 1;
+                if(this.keys['KeyA'] || this.keys['ArrowLeft']) dx = -1;
+                if(this.keys['KeyD'] || this.keys['ArrowRight']) dx = 1;
+
+                const moving = dx !== 0 || dy !== 0;
+                const speedMult = this.keys['ShiftLeft'] ? 1.8 : 1;
+                
+                this.player.vx = dx * this.player.speed * speedMult;
+                this.player.vy = dy * this.player.speed * speedMult;
+                this.player.x += this.player.vx;
+                this.player.y += this.player.vy;
+
+                if(moving) {
+                    this.player.anim += 0.15;
+                    if(dx !== 0) this.player.dir = dx;
+                }
+
+                // Bounds
+                this.player.x = Math.max(30, Math.min(this.width - 30, this.player.x));
+                this.player.y = Math.max(30, Math.min(this.height - 30, this.player.y));
+
+                // Water Physics
+                const lake = this.scenery.find(s => s.type === 'lake');
+                const inWater = this.dist(this.player, lake) < lake.r;
+                if(inWater) {
+                    this.player.speed = 2;
+                    this.complete('swim');
+                    if(moving && Math.random() < 0.1) this.ripples.push({x: this.player.x, y: this.player.y, r: 5, o: 1});
+                } else {
+                    this.player.speed = 3.5;
+                }
+
+                // Tall Grass Stealth
+                const grass = this.scenery.find(s => s.type === 'grass');
+                const hidden = this.player.x > grass.x && this.player.x < grass.x + grass.w && this.player.y > grass.y && this.player.y < grass.y + grass.h;
+                if(hidden) this.complete('hide');
+
+                // Item Logic
+                if(this.player.held) {
+                    this.player.held.x = this.player.x + (25 * this.player.dir);
+                    this.player.held.y = this.player.y - 10;
+                }
+
+                // NPC AI
+                this.npcs.forEach(n => {
+                    if(n.state === 'startled') {
+                        n.x += Math.sin(Date.now()/50) * 5;
+                        n.timer--;
+                        if(n.timer <= 0) n.state = 'idle';
+                    } else {
+                        // Random walk
+                        if(this.dist(n, {x: n.targetX, y: n.targetY}) < 5) {
+                            n.targetX = 100 + Math.random() * 800;
+                            n.targetY = 100 + Math.random() * 600;
+                        }
+                        const angle = Math.atan2(n.targetY - n.y, n.targetX - n.x);
+                        n.x += Math.cos(angle) * n.speed;
+                        n.y += Math.sin(angle) * n.speed;
+                    }
+                });
+
+                // Ripples
+                this.ripples.forEach((r, i) => {
+                    r.r += 1;
+                    r.o -= 0.02;
+                    if(r.o <= 0) this.ripples.splice(i, 1);
+                });
+
+                // Update Timer
+                const sec = Math.floor((Date.now() - this.startTime) / 1000);
+                const m = Math.floor(sec / 60).toString().padStart(2, '0');
+                const s = (sec % 60).toString().padStart(2, '0');
+                document.getElementById('timer').textContent = `${m}:${s}`;
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Ground Detail
+                ctx.fillStyle = '#f1f5f9';
+                ctx.fillRect(0, 0, this.width, this.height);
+                
+                // Draw scenery
+                this.scenery.forEach(s => {
+                    ctx.save();
+                    if(s.type === 'lake') {
+                        ctx.fillStyle = '#bae6fd';
+                        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
+                        ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 8; ctx.stroke();
+                    } else if(s.type === 'rug') {
+                        ctx.fillStyle = s.color;
+                        ctx.fillRect(s.x, s.y, s.w, s.h);
+                        ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.strokeRect(s.x, s.y, s.w, s.h);
+                    } else if(s.type === 'grass') {
+                        ctx.fillStyle = '#86efac';
+                        ctx.fillRect(s.x, s.y, s.w, s.h);
+                        // Blades
+                        ctx.strokeStyle = '#166534';
+                        for(let i=0; i<s.w; i+=10) {
+                            ctx.beginPath();
+                            ctx.moveTo(s.x+i, s.y+s.h);
+                            ctx.lineTo(s.x+i+Math.sin(Date.now()/500)*5, s.y);
+                            ctx.stroke();
+                        }
+                    }
+                    ctx.restore();
+                });
+
+                // Ripples
+                this.ripples.forEach(r => {
+                    ctx.strokeStyle = `rgba(255,255,255, ${r.o})`;
+                    ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, Math.PI*2); ctx.stroke();
+                });
+
+                // Poops
+                this.poops.forEach(p => {
+                    ctx.fillStyle = '#713f12';
+                    ctx.beginPath(); ctx.arc(p.x, p.y + 20, 6, 0, Math.PI*2); ctx.fill();
+                });
+
+                // Items
+                this.items.forEach(i => {
+                    ctx.font = `${i.w}px Arial`;
+                    ctx.fillText(i.emoji, i.x - i.w/2, i.y + i.h/2);
+                });
+
+                // NPCs
+                this.npcs.forEach(n => {
+                    ctx.save();
+                    ctx.font = '50px Arial';
+                    ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(0,0,0,0.1)';
+                    ctx.fillText(n.emoji, n.x - 25, n.y + 25);
+                    if(n.hasPhone) {
+                        ctx.font = '20px Arial';
+                        ctx.fillText('📱', n.x + 15, n.y);
+                    }
+                    ctx.restore();
+                });
+
+                // Duck
+                this.drawDuck();
+            }
+
+            drawDuck() {
+                const ctx = this.ctx;
+                const p = this.player;
+                const waddle = Math.sin(p.anim) * 5;
+
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                if(p.dir === -1) ctx.scale(-1, 1);
+
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                ctx.beginPath(); ctx.ellipse(0, 25, 25, 10, 0, 0, Math.PI*2); ctx.fill();
+
+                // Body
+                ctx.fillStyle = '#fff';
+                ctx.strokeStyle = '#e2e8f0';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.ellipse(0, waddle, 30, 20, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+
+                // Neck/Head
+                ctx.beginPath(); ctx.arc(25, -15 + waddle, 14, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+
+                // Beak
+                ctx.fillStyle = '#fbbf24';
+                ctx.beginPath(); ctx.ellipse(38, -15 + waddle, 10, 5, 0, 0, Math.PI*2); ctx.fill();
+
+                // Eye
+                ctx.fillStyle = '#000';
+                ctx.beginPath(); ctx.arc(28, -18 + waddle, 2.5, 0, Math.PI*2); ctx.fill();
+
+                // Honk wave
+                if(p.honking) {
+                    ctx.strokeStyle = '#fbbf24';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.arc(45, -15 + waddle, 20, -0.5, 0.5); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(55, -15 + waddle, 30, -0.5, 0.5); ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+
+            dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        const game = new DuckGame();
+    </script>
+</body>
+</html>

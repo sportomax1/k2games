@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gone Wild: Premium Zoo Sim - K4 Games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --primary: #22c55e;
+            --accent: #f59e0b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --glass: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            background-image: radial-gradient(at 0% 0%, rgba(34, 197, 94, 0.1) 0, transparent 50%);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar UI */
+        #sidebar {
+            width: 300px;
+            background: var(--surface);
+            border-right: 1px solid var(--glass-border);
+            padding: 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            z-index: 100;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.3);
+        }
+
+        .logo-area { text-align: center; margin-bottom: 1rem; }
+        .logo { font-size: 2rem; font-weight: 900; letter-spacing: -2px; color: var(--primary); }
+        .tagline { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted); }
+
+        .animal-selector {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding-right: 8px;
+        }
+
+        .animal-selector::-webkit-scrollbar { width: 4px; }
+        .animal-selector::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 10px; }
+
+        .animal-btn {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .animal-btn:hover { background: rgba(255,255,255,0.08); transform: translateX(4px); border-color: var(--primary); }
+        .animal-btn.active { background: rgba(34, 197, 94, 0.15); border-color: var(--primary); }
+        .animal-btn .info { display: flex; align-items: center; gap: 12px; }
+        .animal-btn .emoji { font-size: 1.4rem; }
+        .animal-btn .name { font-weight: 700; font-size: 0.9rem; }
+        .animal-btn .key-hint { font-family: monospace; font-size: 0.7rem; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; opacity: 0.5; }
+
+        /* Main View */
+        #main-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+        }
+
+        canvas {
+            background: #1e293b;
+            border-radius: 24px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+            border: 6px solid #334155;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: var(--glass); padding: 10px 20px; border-radius: 12px; z-index: 200;
+            font-weight: bold; border: 1px solid var(--glass-border); backdrop-filter: blur(10px);
+            transition: 0.2s;
+        }
+        .back-link:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
+
+        #controls-hint {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            background: var(--panel); padding: 12px 30px; border-radius: 50px;
+            font-size: 0.85rem; border: 1px solid var(--glass-border);
+            backdrop-filter: blur(10px); color: var(--text-muted);
+        }
+
+        /* Version Modal */
+        #version-btn {
+            position: fixed; bottom: 20px; right: 20px;
+            background: var(--glass); border: 1px solid var(--glass-border);
+            color: var(--text-muted); padding: 6px 12px; border-radius: 8px;
+            font-size: 0.7rem; cursor: pointer; z-index: 200;
+        }
+
+        .modal {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95);
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 2000; backdrop-filter: blur(15px); text-align: center; padding: 2rem;
+        }
+        .modal-content {
+            background: var(--surface); padding: 2rem; border-radius: 24px;
+            border: 1px solid var(--glass-border); max-width: 500px; width: 100%;
+        }
+        .version-item { text-align: left; margin-top: 1.5rem; }
+        .version-num { color: var(--primary); font-weight: 900; margin-bottom: 0.5rem; }
+        .version-notes { font-size: 0.9rem; color: var(--text-muted); padding-left: 1.2rem; }
+
+        .btn {
+            background: var(--primary); color: #000; border: none; padding: 12px 30px;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <aside id="sidebar">
+        <div class="logo-area">
+            <div class="logo">GONE WILD</div>
+            <div class="tagline">Zoo Simulator Elite</div>
+        </div>
+        
+        <div id="animal-list" class="animal-selector"></div>
+
+        <div style="margin-top: auto; padding: 1rem; background: var(--glass); border-radius: 16px; border: 1px solid var(--glass-border);">
+            <div style="font-weight: 800; font-size: 0.7rem; text-transform: uppercase; color: var(--primary); margin-bottom: 8px;">Zoo Status</div>
+            <div style="font-size: 0.8rem; display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span style="opacity: 0.6;">Visitors</span><span id="visitor-count">0</span>
+            </div>
+            <div style="font-size: 0.8rem; display: flex; justify-content: space-between;">
+                <span style="opacity: 0.6;">Happiness</span><span style="color: var(--primary);">100%</span>
+            </div>
+        </div>
+    </aside>
+
+    <main id="main-view">
+        <canvas id="zooCanvas" width="900" height="600"></canvas>
+        <div id="controls-hint"><b>ARROWS</b>: Move • <b>SPACE</b>: Sound • <b>KEYS</b>: Switch Animal</div>
+    </main>
+
+    <button id="version-btn" onclick="app.toggleVersion()">v1.1</button>
+
+    <div id="version-modal" class="modal">
+        <div class="modal-content">
+            <h2 style="font-size: 1.5rem; margin-bottom: 1rem;">Version History</h2>
+            <div class="version-item">
+                <div class="version-num">v1.1 (Modern Port)</div>
+                <ul class="version-notes">
+                    <li>23 interactive animals with emojis</li>
+                    <li>Themed enclosures with containment logic</li>
+                    <li>Animated visitors walking perimeter paths</li>
+                    <li>Full animal sound integration</li>
+                    <li>Sleek dark-mode glassmorphism UI</li>
+                </ul>
+            </div>
+            <button class="btn" onclick="app.toggleVersion()">CLOSE</button>
+        </div>
+    </div>
+
+    <script>
+        const ANIMALS = [
+            { name: 'Elephant', emoji: '🐘', size: 3.2, key: 'e' },
+            { name: 'Giraffe', emoji: '🦒', size: 3.0, key: 'g' },
+            { name: 'Hippopotamus', emoji: '🦛', size: 2.9, key: 'h' },
+            { name: 'Rhinoceros', emoji: '🦏', size: 2.8, key: 'r' },
+            { name: 'Lion', emoji: '🦁', size: 2.7, key: 'l' },
+            { name: 'Tiger', emoji: '🐯', size: 2.7, key: 't' },
+            { name: 'Zebra', emoji: '🦓', size: 2.6, key: 'z' },
+            { name: 'Bear', emoji: '🐻', size: 2.6, key: 'b' },
+            { name: 'Gorilla', emoji: '🦍', size: 2.6, key: 'o' },
+            { name: 'Kangaroo', emoji: '🦘', size: 2.5, key: 'k' },
+            { name: 'Camel', emoji: '🐫', size: 2.5, key: 'c' },
+            { name: 'Horse', emoji: '🐎', size: 2.5, key: 'w' },
+            { name: 'Crocodile', emoji: '🐊', size: 2.4, key: 'd' },
+            { name: 'Penguin', emoji: '🐧', size: 2.2, key: 'p' },
+            { name: 'Flamingo', emoji: '🦩', size: 2.2, key: 'f' },
+            { name: 'Parrot', emoji: '🦜', size: 2.2, key: 'a' },
+            { name: 'Peacock', emoji: '🦚', size: 2.2, key: 'q' },
+            { name: 'Otter', emoji: '🦦', size: 2.1, key: 'u' },
+            { name: 'Sloth', emoji: '🦥', size: 2.1, key: 's' },
+            { name: 'Red Panda', emoji: '🦊', size: 2.0, key: 'n' },
+            { name: 'Rabbit', emoji: '🐇', size: 2.0, key: 'v' },
+            { name: 'Meerkat', emoji: '🦦', size: 1.9, key: 'm' },
+            { name: 'Ostrich', emoji: '🐦', size: 2.3, key: 'j' }
+        ];
+
+        const PENS = [
+            { name: 'Big Cats', x: 100, y: 100, w: 220, h: 180, color: '#fef3c7', animals: ['Lion','Tiger','Jaguar','Red Panda'] },
+            { name: 'Hoofed', x: 340, y: 100, w: 220, h: 180, color: '#e0f7fa', animals: ['Zebra','Giraffe','Horse','Camel','Ostrich'] },
+            { name: 'Water Edge', x: 580, y: 100, w: 220, h: 180, color: '#f8bbd0', animals: ['Hippopotamus','Crocodile','Otter','Penguin'] },     
+            { name: 'Primates', x: 100, y: 300, w: 220, h: 180, color: '#dcedc8', animals: ['Gorilla'] },        
+            { name: 'Birds', x: 340, y: 300, w: 220, h: 180, color: '#fff9c4', animals: ['Flamingo','Parrot','Peacock'] },
+            { name: 'Wilderness', x: 580, y: 300, w: 220, h: 180, color: '#d1c4e9', animals: ['Elephant','Bear','Rabbit','Kangaroo','Sloth','Meerkat','Rhinoceros'] }
+        ];
+
+        const SOUNDS = {
+            'Dog': 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Bluthund_jault.mp3',
+            'Cat': 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Katze_miaut.mp3',
+            'Lion': 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Löwe.mp3',
+            'Elephant': 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Elefant.mp3',
+            'Horse': 'https://freeanimalsounds.org/wp-content/uploads/2017/07/pferd_whinnert.mp3',
+            'Monkey': 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Kapuzineraffe.mp3',
+            'Sheep': 'https://freeanimalsounds.org/wp-content/uploads/2017/07/schafe.mp3',
+            'Wolf': 'https://freeanimalsounds.org/wp-content/uploads/2017/07/wolf.mp3',
+            'Tiger': 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Tiger.mp3',
+            'Bird': 'https://freeanimalsounds.org/wp-content/uploads/2017/07/spatz.mp3',
+            'Duck': 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Ente_quackt.mp3',
+            'Frog': 'https://freeanimalsounds.org/wp-content/uploads/2017/08/frogs.mp3'
+        };
+
+        class GoneWild {
+            constructor() {
+                window.app = this;
+                this.canvas = document.getElementById('zooCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 900;
+                this.height = 600;
+                this.box = { x: 100, y: 100, w: 700, h: 400 };
+
+                this.entities = [];
+                this.activeIdx = 0;
+                this.keys = {};
+                this.visitors = [];
+                
+                this.init();
+            }
+
+            init() {
+                this.setupEntities();
+                this.setupVisitors();
+                this.renderSidebar();
+                
+                window.onkeydown = (e) => {
+                    this.keys[e.code] = true;
+                    // Hotkey switching
+                    const char = e.key.toLowerCase();
+                    const found = ANIMALS.findIndex(a => a.key === char);
+                    if(found !== -1) this.setActive(found);
+                    if(e.code === 'Space') this.playSound();
+                };
+                window.onkeyup = (e) => this.keys[e.code] = false;
+                
+                this.loop();
+            }
+
+            setupEntities() {
+                ANIMALS.forEach((a, i) => {
+                    const penIdx = PENS.findIndex(p => p.animals.includes(a.name));
+                    const pen = PENS[penIdx] || { x: 100, y: 100, w: 700, h: 400 };
+                    
+                    this.entities.push({
+                        ...a,
+                        x: pen.x + 40 + Math.random()*(pen.w-80),
+                        y: pen.y + 40 + Math.random()*(pen.h-80),
+                        vx: 0, vy: 0,
+                        homePen: penIdx
+                    });
+                });
+            }
+
+            setupVisitors() {
+                const perim = 2 * (this.box.w + this.box.h);
+                for(let i=0; i<12; i++) {
+                    this.visitors.push({
+                        perim: Math.random() * perim,
+                        speed: 1 + Math.random() * 0.8,
+                        dir: Math.random() < 0.5 ? 1 : -1,
+                        stopTimer: 0,
+                        x: 0, y: 0
+                    });
+                }
+                document.getElementById('visitor-count').textContent = this.visitors.length;
+            }
+
+            renderSidebar() {
+                const list = document.getElementById('animal-list');
+                list.innerHTML = this.entities.map((e, i) => `
+                    <div class="animal-btn ${i === this.activeIdx ? 'active' : ''}" onclick="app.setActive(${i})" id="btn-${i}">
+                        <div class="info">
+                            <span class="emoji">${e.emoji}</span>
+                            <span class="name">${e.name}</span>
+                        </div>
+                        <span class="key-hint">${e.key.toUpperCase()}</span>
+                    </div>
+                `).join('');
+            }
+
+            setActive(idx) {
+                this.activeIdx = idx;
+                document.querySelectorAll('.animal-btn').forEach(b => b.classList.remove('active'));
+                document.getElementById(`btn-${idx}`).classList.add('active');
+                this.playSound();
+            }
+
+            playSound() {
+                const name = this.entities[this.activeIdx].name;
+                const url = SOUNDS[name];
+                if(url) {
+                    const audio = new Audio(url);
+                    audio.volume = 0.4;
+                    audio.play().catch(() => {}); // Handle blocked autoplay
+                }
+            }
+
+            toggleVersion() {
+                const m = document.getElementById('version-modal');
+                m.style.display = m.style.display === 'flex' ? 'none' : 'flex';
+            }
+
+            update() {
+                // Update Active Animal
+                const active = this.entities[this.activeIdx];
+                if(!active) return;
+                const speed = 4;
+                if(this.keys['ArrowUp'] || this.keys['KeyW']) active.y -= speed;
+                if(this.keys['ArrowDown'] || this.keys['KeyS']) active.y += speed;
+                if(this.keys['ArrowLeft'] || this.keys['KeyA']) active.x -= speed;
+                if(this.keys['ArrowRight'] || this.keys['KeyD']) active.x += speed;
+
+                // Zoo Box Bounds
+                active.x = Math.max(100, Math.min(800, active.x));
+                active.y = Math.max(100, Math.min(500, active.y));
+
+                // Idle Movement for others
+                this.entities.forEach((e, i) => {
+                    if(i === this.activeIdx) return;
+                    
+                    const pen = PENS[e.homePen] || { x: 100, y: 100, w: 700, h: 400 };
+                    if(!e._vx || Math.random() < 0.01) {
+                        // Bias toward pen center
+                        const cx = pen.x + pen.w/2;
+                        const cy = pen.y + pen.h/2;
+                        const dx = cx - e.x;
+                        const dy = cy - e.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+                        const bias = dist > 60 ? 0.05 : 0.01;
+                        
+                        e._vx = (Math.random()-0.5)*0.8 + (dx/dist)*bias;
+                        e._vy = (Math.random()-0.5)*0.8 + (dy/dist)*bias;
+                    }
+                    e.x += e._vx;
+                    e.y += e._vy;
+                    // Enclosure Bounds
+                    e.x = Math.max(pen.x+20, Math.min(pen.x+pen.w-20, e.x));
+                    e.y = Math.max(pen.y+20, Math.min(pen.y+pen.h-20, e.y));
+                });
+
+                // Visitors Perimeter Walk
+                const perimTotal = 2 * (this.box.w + this.box.h);
+                this.visitors.forEach(v => {
+                    if(v.stopTimer > 0) {
+                        v.stopTimer--;
+                    } else {
+                        if(Math.random() < 0.003) v.stopTimer = 60 + Math.random()*100;
+                        v.perim += v.speed * v.dir;
+                        if(v.perim > perimTotal) v.perim -= perimTotal;
+                        if(v.perim < 0) v.perim += perimTotal;
+                    }
+
+                    // Map perim to x,y
+                    let p = v.perim;
+                    if(p < this.box.w) { // Top
+                        v.x = this.box.x + p; v.y = this.box.y - 20;
+                    } else if(p < this.box.w + this.box.h) { // Right
+                        v.x = this.box.x + this.box.w + 20; v.y = this.box.y + (p - this.box.w);
+                    } else if(p < 2*this.box.w + this.box.h) { // Bottom
+                        v.x = this.box.x + (this.box.w - (p - this.box.w - this.box.h)); v.y = this.box.y + this.box.h + 20;
+                    } else { // Left
+                        v.x = this.box.x - 20; v.y = this.box.y + (this.box.h - (p - 2*this.box.w - this.box.h));
+                    }
+                });
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0,0,this.width,this.height);
+
+                // Grid background
+                ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+                for(let i=0; i<this.width; i+=40) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,this.height); ctx.stroke(); }
+
+                // Pens
+                PENS.forEach(p => {
+                    ctx.save();
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = 0.15;
+                    ctx.fillRect(p.x, p.y, p.w, p.h);
+                    ctx.globalAlpha = 1;
+                    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(p.x, p.y, p.w, p.h);
+                    
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                    ctx.font = 'bold 10px Segoe UI';
+                    ctx.fillText(p.name.toUpperCase(), p.x+10, p.y+20);
+                    ctx.restore();
+                });
+
+                // Zoo Perimeter Box
+                ctx.strokeStyle = '#475569';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(this.box.x, this.box.y, this.box.w, this.box.h);
+
+                // Visitors (Stick Figures)
+                this.visitors.forEach(v => {
+                    ctx.strokeStyle = '#94a3b8';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(v.x, v.y-10, 5, 0, Math.PI*2); // Head
+                    ctx.moveTo(v.x, v.y-5); ctx.lineTo(v.x, v.y+5); // Body
+                    ctx.moveTo(v.x-5, v.y); ctx.lineTo(v.x+5, v.y); // Arms
+                    ctx.moveTo(v.x, v.y+5); ctx.lineTo(v.x-4, v.y+12); // L Leg
+                    ctx.moveTo(v.x, v.y+5); ctx.lineTo(v.x+4, v.y+12); // R Leg
+                    ctx.stroke();
+                });
+
+                // Animals
+                this.entities.forEach((e, i) => {
+                    ctx.save();
+                    ctx.font = `${e.size}rem Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    
+                    if(i === this.activeIdx) {
+                        ctx.shadowBlur = 20;
+                        ctx.shadowColor = 'var(--primary)';
+                        ctx.globalAlpha = 1.0;
+                    } else {
+                        ctx.globalAlpha = 0.6;
+                    }
+                    
+                    ctx.fillText(e.emoji, e.x, e.y);
+                    ctx.restore();
+                });
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        const app = new GoneWild();
+        window.app = app;
+    </script>
+</body>
+</html>

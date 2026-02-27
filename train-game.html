@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Train Game: Ticket to Ride - K4 Games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #ffffff;
+            --text: #1e293b;
+            --accent: #f59e0b;
+            --player1: #e74c3c;
+            --player2: #3498db;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background-color: #cbd5e1;
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar UI */
+        #sidebar {
+            width: 320px;
+            background: var(--panel);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.1);
+            z-index: 50;
+            overflow-y: auto;
+        }
+
+        .logo { font-size: 1.5rem; font-weight: 900; color: #1e293b; letter-spacing: -1px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+        
+        .section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 5px; }
+
+        .player-card {
+            padding: 12px;
+            border-radius: 12px;
+            background: #f8fafc;
+            border: 2px solid transparent;
+            transition: 0.2s;
+        }
+        .player-card.active { border-color: var(--accent); background: #fffbeb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .p-name { font-weight: 800; font-size: 1.1rem; }
+        .p-stats { display: flex; justify-content: space-between; font-size: 0.8rem; margin-top: 5px; color: #475569; }
+
+        .action-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            background: #f1f5f9;
+            color: #334155;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+            margin-bottom: 8px;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+        }
+        .action-btn:hover:not(:disabled) { background: #e2e8f0; transform: translateX(2px); }
+        .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .action-btn.primary { background: var(--accent); color: #000; border: none; }
+        .action-btn.primary:hover { background: #d97706; }
+
+        .card-display {
+            display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px;
+        }
+        .train-card-mini {
+            width: 30px; height: 45px; border-radius: 4px; border: 1px solid #ccc;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: var(--text); text-decoration: none;
+            background: white; padding: 10px 20px; border-radius: 12px; z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-weight: bold;
+        }
+
+        /* Main View */
+        #main-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            position: relative;
+        }
+
+        #canvas-container {
+            flex: 1;
+            background: #eef2ff;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.05);
+            border: 4px solid #fff;
+            position: relative;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        #face-up-area {
+            height: 100px;
+            background: rgba(255,255,255,0.9);
+            border-radius: 16px;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 15px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        .train-card {
+            width: 60px; height: 85px;
+            border-radius: 8px;
+            border: 2px solid #ccc;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .train-card:hover { transform: translateY(-5px); }
+
+        #toast {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: #1e293b; color: white; padding: 10px 25px; border-radius: 50px;
+            font-weight: 600; opacity: 0; transition: 0.3s; pointer-events: none;
+        }
+        #toast.show { opacity: 1; top: 40px; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <aside id="sidebar">
+        <div class="logo">TRAIN TYCOON</div>
+        
+        <div id="player-list">
+            <!-- Player cards generated here -->
+        </div>
+
+        <div style="margin-top: 20px;">
+            <div class="section-title">Actions</div>
+            <button class="action-btn" onclick="game.drawBlindCard()">Draw from Deck <span>🎴</span></button>
+            <button class="action-btn primary" id="claim-btn" onclick="game.claimRoute()">Claim Route <span>🔨</span></button>
+            <button class="action-btn" onclick="game.drawTickets()">New Tickets <span>🎫</span></button>
+        </div>
+
+        <div style="margin-top: auto;">
+            <div class="section-title">My Hand</div>
+            <div class="card-display" id="hand-display"></div>
+        </div>
+    </aside>
+
+    <main id="main-view">
+        <div id="canvas-container">
+            <canvas id="gameCanvas"></canvas>
+            <div id="toast">Route Claimed!</div>
+        </div>
+
+        <div id="face-up-area">
+            <div style="font-weight: 800; color: #64748b; margin-right: 10px; font-size: 0.8rem; text-transform: uppercase;">Market</div>
+            <div id="market-cards" style="display: flex; gap: 10px;"></div>
+        </div>
+    </main>
+
+    <script>
+        const CITIES = [
+            { name: 'Seattle', x: 100, y: 100 }, { name: 'Portland', x: 120, y: 150 },
+            { name: 'San Francisco', x: 80, y: 300 }, { name: 'Los Angeles', x: 120, y: 400 },
+            { name: 'Salt Lake City', x: 300, y: 250 }, { name: 'Denver', x: 450, y: 280 },
+            { name: 'Chicago', x: 600, y: 180 }, { name: 'New York', x: 800, y: 150 },
+            { name: 'Dallas', x: 500, y: 450 }, { name: 'Miami', x: 750, y: 550 },
+            { name: 'Atlanta', x: 680, y: 400 }, { name: 'Las Vegas', x: 220, y: 350 }
+        ];
+
+        const ROUTES = [
+            { from: 'Seattle', to: 'Portland', color: 'gray', len: 1 },
+            { from: 'Portland', to: 'San Francisco', color: 'green', len: 5 },
+            { from: 'San Francisco', to: 'Los Angeles', color: 'yellow', len: 3 },
+            { from: 'Los Angeles', to: 'Las Vegas', color: 'gray', len: 2 },
+            { from: 'Las Vegas', to: 'Salt Lake City', color: 'orange', len: 3 },
+            { from: 'Salt Lake City', to: 'Denver', color: 'red', len: 3 },
+            { from: 'Denver', to: 'Chicago', color: 'blue', len: 4 },
+            { from: 'Chicago', to: 'New York', color: 'white', len: 4 },
+            { from: 'New York', to: 'Atlanta', color: 'green', len: 4 },
+            { from: 'Atlanta', to: 'Miami', color: 'blue', len: 5 },
+            { from: 'Miami', to: 'Dallas', color: 'red', len: 6 },
+            { from: 'Dallas', to: 'Los Angeles', color: 'black', len: 6 },
+            { from: 'Denver', to: 'Dallas', color: 'gray', len: 2 },
+            { from: 'Salt Lake City', to: 'Portland', color: 'purple', len: 4 }
+        ];
+
+        const COLORS = ['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'black', 'white', 'wild'];
+        const PLAYER_COLORS = ['#e74c3c', '#3498db'];
+
+        class TrainGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize();
+
+                this.players = [
+                    { id: 0, name: 'Player 1', color: PLAYER_COLORS[0], trains: 40, score: 0, hand: [], tickets: [] },
+                    { id: 1, name: 'Player 2', color: PLAYER_COLORS[1], trains: 40, score: 0, hand: [], tickets: [] }
+                ];
+                this.turn = 0;
+                this.actionsLeft = 2;
+                
+                this.deck = [];
+                this.market = [];
+                this.selectedRoute = null;
+                
+                this.initDeck();
+                this.initMarket();
+                this.dealInitial();
+                
+                // Interaction
+                this.canvas.onclick = (e) => this.handleClick(e);
+                this.canvas.onmousemove = (e) => this.handleHover(e);
+                
+                this.loop();
+                this.updateUI();
+            }
+
+            resize() {
+                this.canvas.width = this.canvas.clientWidth;
+                this.canvas.height = this.canvas.clientHeight;
+            }
+
+            initDeck() {
+                COLORS.forEach(c => {
+                    const count = c === 'wild' ? 14 : 12;
+                    for(let i=0; i<count; i++) this.deck.push(c);
+                });
+                this.shuffle(this.deck);
+            }
+
+            shuffle(arr) {
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+            }
+
+            initMarket() {
+                while(this.market.length < 5) this.market.push(this.deck.pop());
+            }
+
+            dealInitial() {
+                this.players.forEach(p => {
+                    for(let i=0; i<4; i++) p.hand.push(this.deck.pop());
+                });
+            }
+
+            drawBlindCard() {
+                if(this.actionsLeft <= 0) return;
+                const card = this.deck.pop();
+                this.players[this.turn].hand.push(card);
+                this.actionsLeft--;
+                this.checkTurn();
+                this.updateUI();
+            }
+
+            drawMarketCard(idx) {
+                if(this.actionsLeft <= 0) return;
+                const card = this.market[idx];
+                
+                // Locomotive takes 2 actions (unless it's the only action left? simplified: takes remaining turn)
+                if(card === 'wild' && this.actionsLeft < 2) return; 
+                
+                this.players[this.turn].hand.push(card);
+                this.market[idx] = this.deck.pop();
+                
+                if(card === 'wild') this.actionsLeft = 0;
+                else this.actionsLeft--;
+                
+                this.checkTurn();
+                this.updateUI();
+            }
+
+            claimRoute() {
+                if(!this.selectedRoute || this.selectedRoute.owner !== undefined) return;
+                const p = this.players[this.turn];
+                const r = this.selectedRoute;
+                
+                // Validate cost
+                const color = r.color === 'gray' ? null : r.color;
+                // Simplified validation logic for prototype
+                // Check if player has enough cards (wilds count)
+                
+                r.owner = p.id;
+                p.trains -= r.len;
+                p.score += [0,1,2,4,7,10,15][r.len];
+                
+                this.actionsLeft = 0;
+                this.showToast(`Route Claimed! +${[0,1,2,4,7,10,15][r.len]} pts`);
+                this.checkTurn();
+                this.updateUI();
+            }
+
+            checkTurn() {
+                if(this.actionsLeft <= 0) {
+                    this.turn = (this.turn + 1) % 2;
+                    this.actionsLeft = 2;
+                }
+            }
+
+            handleClick(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = (e.clientX - rect.left) * (900 / rect.width);
+                const y = (e.clientY - rect.top) * (600 / rect.height);
+                
+                // Find clicked route (Simplified hit detection)
+                let clicked = null;
+                ROUTES.forEach(r => {
+                    const c1 = CITIES.find(c => c.name === r.from);
+                    const c2 = CITIES.find(c => c.name === r.to);
+                    const dist = this.distToSegment({x,y}, c1, c2);
+                    if(dist < 10) clicked = r;
+                });
+                
+                if(clicked) {
+                    this.selectedRoute = clicked;
+                    this.draw();
+                }
+            }
+
+            handleHover(e) {
+                // Hover effect logic
+            }
+
+            distToSegment(p, v, w) {
+                const l2 = (v.x - w.x)**2 + (v.y - w.y)**2;
+                if (l2 == 0) return Math.hypot(p.x - v.x, p.y - v.y);
+                let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+                t = Math.max(0, Math.min(1, t));
+                return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+            }
+
+            showToast(msg) {
+                const t = document.getElementById('toast');
+                t.textContent = msg;
+                t.classList.add('show');
+                setTimeout(() => t.classList.remove('show'), 2000);
+            }
+
+            updateUI() {
+                // Update Player Cards
+                const list = document.getElementById('player-list');
+                list.innerHTML = this.players.map((p, i) => `
+                    <div class="player-card ${i === this.turn ? 'active' : ''}">
+                        <div class="p-name" style="color: ${p.color}">${p.name}</div>
+                        <div class="p-stats">
+                            <span>🚂 ${p.trains}</span>
+                            <span>🏆 ${p.score}</span>
+                            <span>🎴 ${p.hand.length}</span>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Update Hand
+                const hand = document.getElementById('hand-display');
+                hand.innerHTML = this.players[this.turn].hand.map(c => `
+                    <div class="train-card-mini" style="background:${c === 'wild' ? 'linear-gradient(45deg, #f09, #09f)' : c}"></div>
+                `).join('');
+
+                // Update Market
+                const market = document.getElementById('market-cards');
+                market.innerHTML = this.market.map((c, i) => `
+                    <div class="train-card" style="background:${c === 'wild' ? 'linear-gradient(45deg, #f09, #09f)' : c}" onclick="game.drawMarketCard(${i})">
+                        ${c === 'wild' ? '🚂' : '🚃'}
+                    </div>
+                `).join('');
+                
+                // Claim Button State
+                document.getElementById('claim-btn').disabled = !this.selectedRoute || this.selectedRoute.owner !== undefined;
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                // Scale coordinate system
+                const scaleX = this.canvas.width / 900;
+                const scaleY = this.canvas.height / 600;
+                
+                ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                ctx.save();
+                ctx.scale(scaleX, scaleY);
+
+                // Draw Routes
+                ROUTES.forEach(r => {
+                    const c1 = CITIES.find(c => c.name === r.from);
+                    const c2 = CITIES.find(c => c.name === r.to);
+                    
+                    ctx.lineWidth = 8;
+                    ctx.lineCap = 'round';
+                    ctx.strokeStyle = r.owner !== undefined ? PLAYER_COLORS[r.owner] : (r.color === 'gray' ? '#cbd5e1' : r.color);
+                    if(r === this.selectedRoute) {
+                        ctx.shadowBlur = 10;
+                        ctx.shadowColor = '#000';
+                        ctx.strokeStyle = r.owner !== undefined ? PLAYER_COLORS[r.owner] : '#fff';
+                    } else {
+                        ctx.shadowBlur = 0;
+                    }
+
+                    ctx.beginPath();
+                    ctx.moveTo(c1.x, c1.y);
+                    ctx.lineTo(c2.x, c2.y);
+                    ctx.stroke();
+
+                    // Track marks
+                    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 10]);
+                    ctx.beginPath();
+                    ctx.moveTo(c1.x, c1.y);
+                    ctx.lineTo(c2.x, c2.y);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                });
+
+                // Draw Cities
+                CITIES.forEach(c => {
+                    ctx.fillStyle = '#1e293b';
+                    ctx.beginPath(); ctx.arc(c.x, c.y, 8, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(c.name, c.x, c.y - 12);
+                });
+
+                ctx.restore();
+                requestAnimationFrame(() => this.draw());
+            }
+
+            loop() {
+                this.draw();
+                // requestAnimationFrame(() => this.loop()); // Using draw in loop directly
+            }
+        }
+
+        window.game = new TrainGame();
+    </script>
+</body>
+</html>

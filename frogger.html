@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frogger Ultra</title>
+    <style>
+        body { margin: 0; background: #1a1a1a; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        canvas { background: #000; border: 6px solid #333; border-radius: 8px; box-shadow: 0 0 40px rgba(0,0,0,0.8); }
+        .ui { position: absolute; top: 20px; display: flex; gap: 40px; font-size: 1.5rem; font-weight: 800; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        .lives { color: #ff4757; } .score { color: #2ecc71; }
+        .controls { position: absolute; bottom: 40px; color: #666; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 2px; }
+        .back { position: absolute; bottom: 20px; left: 20px; color: #2ecc71; text-decoration: none; background: rgba(255,255,255,0.05); padding: 10px 20px; border-radius: 5px; font-weight: bold; border: 1px solid rgba(46, 204, 113, 0.3); }
+    </style>
+</head>
+<body>
+    <div class="ui">
+        <div class="score">SCORE: <span id="score">0000</span></div>
+        <div class="lives">LIVES: <span id="lives">❤❤❤</span></div>
+    </div>
+    <canvas id="frogger"></canvas>
+    <div class="controls">ARROWS TO MOVE • CROSS THE WATER • STAY ON LOGS</div>
+    <a href="index.html" class="back">← HUB</a>
+
+    <script>
+        const canvas = document.getElementById('frogger');
+        const ctx = canvas.getContext('2d');
+        const GRID = 48;
+        canvas.width = 11 * GRID; // 528
+        canvas.height = 13 * GRID; // 624
+
+        let frog = { x: 5 * GRID, y: 12 * GRID, w: 32, h: 32, dir: 'up' };
+        let score = 0, lives = 3, gameFrame = 0;
+        
+        const COLORS = {
+            grass: '#2d5a27', road: '#1e1e1e', water: '#1a4d8c', 
+            safe: '#444', goal: '#163312', car1: '#e74c3c', 
+            car2: '#f1c40f', truck: '#95a5a6', log: '#5d4037'
+        };
+
+        const rows = [
+            { y: 12*GRID, type: 'safe', color: COLORS.grass }, // Start
+            { y: 11*GRID, type: 'road', speed: -2.5, color: COLORS.road, items: [{x:0, w:40, c:COLORS.car1}, {x:200, w:40, c:COLORS.car1}, {x:400, w:40, c:COLORS.car1}] },
+            { y: 10*GRID, type: 'road', speed: 1.8, color: COLORS.road, items: [{x:50, w:80, c:COLORS.truck}, {x:300, w:80, c:COLORS.truck}] },
+            { y: 9*GRID, type: 'road', speed: -3.2, color: COLORS.road, items: [{x:10, w:40, c:COLORS.car2}, {x:180, w:40, c:COLORS.car2}, {x:350, w:40, c:COLORS.car2}] },
+            { y: 8*GRID, type: 'road', speed: 2.2, color: COLORS.road, items: [{x:0, w:40, c:COLORS.car1}, {x:250, w:40, c:COLORS.car1}] },
+            { y: 7*GRID, type: 'road', speed: -1.5, color: COLORS.road, items: [{x:100, w:120, c:COLORS.truck}, {x:400, w:120, c:COLORS.truck}] },
+            { y: 6*GRID, type: 'safe', color: COLORS.grass }, // Middle
+            { y: 5*GRID, type: 'water', speed: -1.8, color: COLORS.water, items: [{x:0, w:150}, {x:300, w:150}] },
+            { y: 4*GRID, type: 'water', speed: 2.5, color: COLORS.water, items: [{x:40, w:100}, {x:220, w:100}, {x:400, w:100}] },
+            { y: 3*GRID, type: 'water', speed: -2.8, color: COLORS.water, items: [{x:0, w:180}, {x:350, w:180}] },
+            { y: 2*GRID, type: 'water', speed: 1.2, color: COLORS.water, items: [{x:60, w:120}, {x:280, w:120}] },
+            { y: 1*GRID, type: 'water', speed: -2.0, color: COLORS.water, items: [{x:20, w:140}, {x:260, w:140}] },
+            { y: 0*GRID, type: 'goal', color: COLORS.goal }
+        ];
+
+        function draw() {
+            gameFrame++;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            let onLog = false;
+            let logSpeed = 0;
+
+            rows.forEach((r, idx) => {
+                // Draw Background Row
+                ctx.fillStyle = r.color;
+                ctx.fillRect(0, r.y, canvas.width, GRID);
+
+                // Add Details (Road lines, Water ripples)
+                if(r.type === 'road') {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                    ctx.setLineDash([20, 20]);
+                    ctx.beginPath(); ctx.moveTo(0, r.y); ctx.lineTo(canvas.width, r.y); ctx.stroke();
+                }
+                if(r.type === 'water') {
+                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    let rippleX = (gameFrame * r.speed * 0.5) % 100;
+                    for(let i=-100; i<canvas.width+100; i+=100) {
+                        ctx.fillRect(i + rippleX, r.y + 20, 40, 2);
+                    }
+                }
+
+                // Draw Items (Cars/Logs)
+                if(r.items) {
+                    r.items.forEach(item => {
+                        item.x += r.speed;
+                        if(item.x > canvas.width + 100) item.x = -150;
+                        if(item.x < -150) item.x = canvas.width + 100;
+
+                        if(r.type === 'road') {
+                            // Draw Car/Truck
+                            ctx.fillStyle = item.c;
+                            ctx.fillRect(item.x, r.y + 6, item.w, GRID - 12);
+                            // Windows
+                            ctx.fillStyle = '#222';
+                            ctx.fillRect(r.speed > 0 ? item.x + item.w - 20 : item.x + 5, r.y + 10, 15, GRID - 20);
+                            
+                            // Collision
+                            if(rectIntersect(frog.x+4, frog.y+4, frog.w-8, frog.h-8, item.x, r.y+6, item.w, GRID-12)) {
+                                die();
+                            }
+                        } else if (r.type === 'water') {
+                            // Draw Log
+                            ctx.fillStyle = COLORS.log;
+                            ctx.fillRect(item.x, r.y + 4, item.w, GRID - 8);
+                            // Bark detail
+                            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                            ctx.fillRect(item.x + 10, r.y + 10, item.w - 20, 2);
+                            ctx.fillRect(item.x + 15, r.y + 20, item.w - 30, 2);
+
+                            // Check if frog is on this log
+                            if(frog.y === r.y + (GRID-frog.h)/2) {
+                                if(frog.x + frog.w/2 > item.x && frog.x + frog.w/2 < item.x + item.w) {
+                                    onLog = true;
+                                    logSpeed = r.speed;
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Water Lethality Logic
+            const currentRow = rows.find(r => frog.y === r.y + (GRID-frog.h)/2);
+            if(currentRow && currentRow.type === 'water') {
+                if(!onLog) {
+                    die();
+                } else {
+                    frog.x += logSpeed;
+                }
+            }
+
+            // Draw Frog
+            ctx.save();
+            ctx.translate(frog.x + frog.w/2, frog.y + frog.h/2);
+            // Jump animation squeeze
+            if(gameFrame % 10 < 5) ctx.scale(1.1, 0.9);
+            
+            ctx.font = '32px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🐸', 0, 0);
+            ctx.restore();
+
+            // Bounds / Win
+            if(frog.x < -GRID || frog.x > canvas.width) die();
+            if(frog.y < GRID) {
+                score += 500;
+                resetFrog(true);
+            }
+
+            updateUI();
+            requestAnimationFrame(draw);
+        }
+
+        function rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) {
+            return x2 < x1 + w1 && x2 + w2 > x1 && y2 < y1 + h1 && y2 + h2 > y1;
+        }
+
+        function die() {
+            lives--;
+            if(lives <= 0) {
+                alert("GAME OVER! Final Score: " + score);
+                score = 0; lives = 3;
+            }
+            resetFrog();
+        }
+
+        function resetFrog(win = false) {
+            frog.x = 5 * GRID;
+            frog.y = 12 * GRID;
+            if(!win) { /* Add splat effect? */ }
+        }
+
+        function updateUI() {
+            document.getElementById('score').textContent = score.toString().padStart(4, '0');
+            document.getElementById('lives').textContent = "❤".repeat(lives);
+        }
+
+        window.onkeydown = (e) => {
+            if(e.key === 'ArrowUp' && frog.y > 0) frog.y -= GRID;
+            if(e.key === 'ArrowDown' && frog.y < 12*GRID) frog.y += GRID;
+            if(e.key === 'ArrowLeft') frog.x -= GRID;
+            if(e.key === 'ArrowRight') frog.x += GRID;
+        };
+
+        draw();
+    </script>
+</body>
+</html>

@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explore Life: Ultimate - K4 Games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --accent: #fbbf24;
+            --glass: rgba(15, 23, 42, 0.9);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: white;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 1000px;
+            height: 750px;
+            background: #000;
+            border-radius: 32px;
+            border: 8px solid #334155;
+            box-shadow: 0 50px 100px -20px rgba(0,0,0,0.8);
+            overflow: hidden;
+        }
+
+        canvas { display: block; }
+
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
+            z-index: 100;
+        }
+
+        .hud-panel {
+            position: absolute; top: 25px; right: 25px;
+            background: var(--glass); backdrop-filter: blur(16px);
+            padding: 18px 35px; border-radius: 24px; border: 1px solid var(--border);
+            text-align: right;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .location-tag {
+            font-size: 1.8rem; font-weight: 900; color: var(--accent); text-transform: uppercase; letter-spacing: 3px;
+            font-style: italic; text-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+        }
+
+        .back-link {
+            position: absolute; top: 25px; left: 25px;
+            background: var(--glass); padding: 14px 28px; border-radius: 15px;
+            color: white; text-decoration: none; font-weight: 800; pointer-events: auto;
+            border: 1px solid var(--border); transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            backdrop-filter: blur(16px);
+        }
+        .back-link:hover { background: rgba(255,255,255,0.1); transform: scale(1.05) translateY(-2px); border-color: white; }
+
+        #interact-prompt {
+            position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
+            background: var(--accent); color: #000; padding: 14px 40px;
+            border-radius: 50px; font-weight: 900; display: none;
+            box-shadow: 0 15px 35px rgba(251, 191, 36, 0.5);
+            animation: pulse 1.5s infinite;
+            font-size: 1.1rem;
+        }
+
+        @keyframes pulse { 0% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.08); } 100% { transform: translateX(-50%) scale(1); } }
+
+        .controls-hint {
+            position: absolute; bottom: 35px; left: 50%; transform: translateX(-50%);
+            background: var(--glass); padding: 12px 50px; border-radius: 50px;
+            border: 1px solid var(--border); font-size: 0.9rem; opacity: 0.9;
+            backdrop-filter: blur(16px); color: #cbd5e1;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        }
+
+        #transition-overlay {
+            position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 0.4s ease-in-out; z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="1000" height="750"></canvas>
+        <div id="transition-overlay"></div>
+        
+        <div id="ui-layer">
+            <a href="index.html" class="back-link">← HUB</a>
+            <div class="hud-panel">
+                <div id="location-name" class="location-tag">LIVING ROOM</div>
+                <div id="sub-location" style="font-size: 0.85rem; opacity: 0.7; margin-top: 6px; font-weight: 600; letter-spacing: 1px;">ELITE RESIDENCE</div>
+            </div>
+            <div id="interact-prompt">PRESS E TO INTERACT</div>
+            <div class="controls-hint">
+                <b>ARROWS / WASD</b>: Move • <b>E</b>: Interact/Door • <b>SHIFT</b>: Sprint
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ExploreLife {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 1000;
+                this.height = 750;
+
+                // Game States: 'outside', 'interior', 'vehicle'
+                this.state = 'interior'; 
+                this.room = 'living'; // living, kitchen, bedroom, bathroom, garage
+                this.vehicle = null; // car, plane, boat, bike
+
+                this.p = { x: 500, y: 400, dir: 1, anim: 0, speed: 5 };
+                this.cam = { x: 0, y: 0 };
+                
+                this.world = {
+                    w: 5000, h: 5000,
+                    house: { x: 1000, y: 1000, w: 500, h: 400 },
+                    airport: { x: 3500, y: 500, w: 1000, h: 600 },
+                    lake: { x: 1500, y: 3000, w: 2000, h: 1500 }
+                };
+
+                this.car = { x: 1300, y: 1450, angle: 0, speed: 0, type: 'car' };
+                this.bike = { x: 1100, y: 1400, angle: 0, speed: 0, type: 'bike' };
+                this.plane = { x: 4000, y: 800, angle: -Math.PI/2, speed: 0, alt: 0, type: 'plane' };
+                this.boat = { x: 2500, y: 3500, angle: 0, speed: 0, type: 'boat' };
+
+                this.keys = {};
+                this.clouds = Array(30).fill(0).map(() => ({ 
+                    x: Math.random()*5000, 
+                    y: Math.random()*5000, 
+                    s: 0.2 + Math.random()*0.6, 
+                    w: 150 + Math.random()*200 
+                }));
+
+                // Doors Logic (Inside)
+                // x, y, targetRoom, targetPos
+                this.roomDoors = {
+                    living: [
+                        { x: 50, y: 350, w: 20, h: 100, target: 'garage', tx: 880, ty: 350, label: 'Garage' },
+                        { x: 930, y: 350, w: 20, h: 100, target: 'kitchen', tx: 70, ty: 350, label: 'Kitchen' },
+                        { x: 500, y: 50, w: 100, h: 20, target: 'hallway', tx: 500, ty: 630, label: 'Hallway' },
+                        { x: 500, y: 680, w: 100, h: 20, target: 'outside', tx: 1250, ty: 1450, label: 'Outside' }
+                    ],
+                    kitchen: [
+                        { x: 50, y: 350, w: 20, h: 100, target: 'living', tx: 880, ty: 350, label: 'Living Room' }
+                    ],
+                    garage: [
+                        { x: 930, y: 350, w: 20, h: 100, target: 'living', tx: 70, ty: 350, label: 'Living Room' },
+                        { x: 400, y: 350, w: 100, h: 100, target: 'car', label: 'Enter Car' } // Car object
+                    ],
+                    hallway: [
+                        { x: 500, y: 680, w: 100, h: 20, target: 'living', tx: 500, ty: 100, label: 'Living Room' },
+                        { x: 50, y: 350, w: 20, h: 100, target: 'bedroom', tx: 880, ty: 350, label: 'Bedroom' },
+                        { x: 930, y: 350, w: 20, h: 100, target: 'bathroom', tx: 70, ty: 350, label: 'Bathroom' }
+                    ],
+                    bedroom: [
+                        { x: 930, y: 350, w: 20, h: 100, target: 'hallway', tx: 100, ty: 350, label: 'Hallway' }
+                    ],
+                    bathroom: [
+                        { x: 50, y: 350, w: 20, h: 100, target: 'hallway', tx: 880, ty: 350, label: 'Hallway' }
+                    ]
+                };
+
+                this.init();
+            }
+
+            init() {
+                window.onkeydown = (e) => {
+                    this.keys[e.code] = true;
+                    if(e.code === 'KeyE') this.handleAction();
+                };
+                window.onkeyup = (e) => this.keys[e.code] = false;
+                this.loop();
+            }
+
+            handleAction() {
+                if (this.state === 'interior') {
+                    const doors = this.roomDoors[this.room] || [];
+                    for (const d of doors) {
+                        if (this.p.x > d.x - 50 && this.p.x < d.x + d.w + 50 && this.p.y > d.y - 50 && this.p.y < d.y + d.h + 50) {
+                            if (d.target === 'car') {
+                                this.transition('vehicle', null, 'car');
+                            } else if (d.target === 'outside') {
+                                this.transition('outside', { x: d.tx, y: d.ty });
+                            } else {
+                                this.transition('interior', { x: d.tx, y: d.ty }, null, d.target);
+                            }
+                            return;
+                        }
+                    }
+                } else if (this.state === 'outside') {
+                    // Enter House
+                    if (Math.hypot(this.p.x - 1250, this.p.y - 1400) < 100) {
+                        this.transition('interior', { x: 500, y: 600 }, null, 'living');
+                    }
+                    // Enter Plane
+                    if (Math.hypot(this.p.x - this.plane.x, this.p.y - this.plane.y) < 100) this.transition('vehicle', null, 'plane');
+                    // Enter Boat
+                    if (Math.hypot(this.p.x - this.boat.x, this.p.y - this.boat.y) < 100) this.transition('vehicle', null, 'boat');
+                    // Enter Bike
+                    if (Math.hypot(this.p.x - this.bike.x, this.p.y - this.bike.y) < 80) this.transition('vehicle', null, 'bike');
+                    // Enter Car (if parked outside)
+                    if (Math.hypot(this.p.x - this.car.x, this.p.y - this.car.y) < 100) this.transition('vehicle', null, 'car');
+                } else {
+                    // Exit Vehicle
+                    const v = this[this.vehicle];
+                    this.transition('outside', { x: v.x + 80, y: v.y });
+                    this.vehicle = null;
+                }
+            }
+
+            transition(state, pos, vehicle, room) {
+                const overlay = document.getElementById('transition-overlay');
+                overlay.style.opacity = '1';
+                setTimeout(() => {
+                    this.state = state;
+                    if (pos) { this.p.x = pos.x; this.p.y = pos.y; }
+                    if (vehicle) this.vehicle = vehicle;
+                    if (room) this.room = room;
+                    overlay.style.opacity = '0';
+                }, 400);
+            }
+
+            update() {
+                if (this.state === 'interior') this.updateInterior();
+                else if (this.state === 'outside') this.updateOutside();
+                else if (this.state === 'vehicle') this.updateVehicle();
+
+                // Camera follow
+                let tx = this.p.x, ty = this.p.y;
+                if (this.state === 'vehicle') {
+                    const v = this[this.vehicle];
+                    tx = v.x; ty = v.y;
+                }
+                this.cam.x += (tx - this.cam.x - 500) * 0.1;
+                this.cam.y += (ty - this.cam.y - 375) * 0.1;
+
+                this.updateUI();
+            }
+
+            updateInterior() {
+                let dx = 0, dy = 0;
+                if (this.keys['KeyW'] || this.keys['ArrowUp']) dy = -1;
+                if (this.keys['KeyS'] || this.keys['ArrowDown']) dy = 1;
+                if (this.keys['KeyA'] || this.keys['ArrowLeft']) dx = -1;
+                if (this.keys['KeyD'] || this.keys['ArrowRight']) dx = 1;
+
+                if (dx !== 0 || dy !== 0) {
+                    this.p.x += dx * this.p.speed;
+                    this.p.y += dy * this.p.speed;
+                    this.p.anim += 0.2;
+                    if (dx !== 0) this.p.dir = dx;
+                }
+
+                // Contain within room
+                this.p.x = Math.max(50, Math.min(950, this.p.x));
+                this.p.y = Math.max(50, Math.min(700, this.p.y));
+            }
+
+            updateOutside() {
+                let dx = 0, dy = 0;
+                const speed = (this.keys['ShiftLeft'] || this.keys['ShiftRight']) ? 10 : 5;
+                if (this.keys['KeyW'] || this.keys['ArrowUp']) dy = -1;
+                if (this.keys['KeyS'] || this.keys['ArrowDown']) dy = 1;
+                if (this.keys['KeyA'] || this.keys['ArrowLeft']) dx = -1;
+                if (this.keys['KeyD'] || this.keys['ArrowRight']) dx = 1;
+
+                this.p.x += dx * speed;
+                this.p.y += dy * speed;
+                if(dx !== 0) this.p.dir = dx;
+                if(dx !== 0 || dy !== 0) this.p.anim += 0.2;
+            }
+
+            updateVehicle() {
+                const v = this[this.vehicle];
+                if (this.vehicle === 'car' || this.vehicle === 'bike') {
+                    const acc = this.vehicle === 'car' ? 0.5 : 0.3;
+                    const max = this.vehicle === 'car' ? 15 : 10;
+                    if (this.keys['KeyW'] || this.keys['ArrowUp']) v.speed = Math.min(max, v.speed + acc);
+                    if (this.keys['KeyS'] || this.keys['ArrowDown']) v.speed = Math.max(-5, v.speed - acc);
+                    v.speed *= 0.98;
+                    if (Math.abs(v.speed) > 0.5) {
+                        const steer = 0.06 * (v.speed > 0 ? 1 : -1);
+                        if (this.keys['KeyA'] || this.keys['ArrowLeft']) v.angle -= steer;
+                        if (this.keys['KeyD'] || this.keys['ArrowRight']) v.angle += steer;
+                    }
+                } else if (this.vehicle === 'plane') {
+                    v.speed = 15;
+                    if (this.keys['KeyA'] || this.keys['ArrowLeft']) v.angle -= 0.05;
+                    if (this.keys['KeyD'] || this.keys['ArrowRight']) v.angle += 0.05;
+                    if (this.keys['KeyW'] || this.keys['ArrowUp']) v.alt = Math.min(200, v.alt + 2);
+                    if (this.keys['KeyS'] || this.keys['ArrowDown']) v.alt = Math.max(0, v.alt - 2);
+                } else if (this.vehicle === 'boat') {
+                    if (this.keys['KeyW'] || this.keys['ArrowUp']) v.speed += 0.2;
+                    v.speed *= 0.99;
+                    if (this.keys['KeyA'] || this.keys['ArrowLeft']) v.angle -= 0.04;
+                    if (this.keys['KeyD'] || this.keys['ArrowRight']) v.angle += 0.04;
+                }
+
+                v.x += Math.cos(v.angle) * v.speed;
+                v.y += Math.sin(v.angle) * v.speed;
+            }
+
+            updateUI() {
+                const tag = document.getElementById('location-name');
+                const prompt = document.getElementById('interact-prompt');
+                
+                if (this.state === 'interior') {
+                    tag.textContent = this.room + " room";
+                    let near = false;
+                    const doors = this.roomDoors[this.room] || [];
+                    for (const d of doors) {
+                        if (this.p.x > d.x - 50 && this.p.x < d.x + d.w + 50 && this.p.y > d.y - 50 && this.p.y < d.y + d.h + 50) {
+                            prompt.textContent = "GOTO " + d.label.toUpperCase();
+                            near = true;
+                        }
+                    }
+                    prompt.style.display = near ? 'block' : 'none';
+                } else if (this.state === 'outside') {
+                    tag.textContent = "Exploring World";
+                    let near = false;
+                    if (Math.hypot(this.p.x - 1250, this.p.y - 1450) < 120) { prompt.textContent = "ENTER HOME"; near = true; }
+                    if (Math.hypot(this.p.x - this.plane.x, this.p.y - this.plane.y) < 120) { prompt.textContent = "FLY PLANE"; near = true; }
+                    if (Math.hypot(this.p.x - this.boat.x, this.p.y - this.boat.y) < 120) { prompt.textContent = "RIDE BOAT"; near = true; }
+                    if (Math.hypot(this.p.x - this.bike.x, this.p.y - this.bike.y) < 80) { prompt.textContent = "RIDE BIKE"; near = true; }
+                    if (Math.hypot(this.p.x - this.car.x, this.p.y - this.car.y) < 100) { prompt.textContent = "ENTER CAR"; near = true; }
+                    prompt.style.display = near ? 'block' : 'none';
+                } else {
+                    tag.textContent = "Driving " + this.vehicle;
+                    prompt.style.display = 'block';
+                    prompt.textContent = "PRESS E TO EXIT";
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                if (this.state === 'interior') {
+                    this.drawInterior(ctx);
+                } else {
+                    ctx.save();
+                    ctx.translate(-this.cam.x, -this.cam.y);
+                    this.drawWorld(ctx);
+                    ctx.restore();
+                }
+            }
+
+            drawInterior(ctx) {
+                // Room Background
+                ctx.fillStyle = '#1e293b'; ctx.fillRect(0,0,this.width,this.height);
+                
+                // Floor
+                const floorGrad = ctx.createLinearGradient(0,0,0,750);
+                floorGrad.addColorStop(0, '#f1f5f9'); floorGrad.addColorStop(1, '#cbd5e1');
+                if (this.room === 'garage') { floorGrad.addColorStop(0, '#475569'); floorGrad.addColorStop(1, '#334155'); }
+                if (this.room === 'bedroom') { floorGrad.addColorStop(0, '#fef3c7'); floorGrad.addColorStop(1, '#fde68a'); }
+                
+                ctx.fillStyle = floorGrad;
+                ctx.roundRect(50, 50, 900, 650, 30); ctx.fill();
+                ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 4; ctx.stroke();
+
+                // Draw Doors
+                const doors = this.roomDoors[this.room] || [];
+                doors.forEach(d => {
+                    ctx.fillStyle = '#451a03'; ctx.fillRect(d.x, d.y, d.w, d.h);
+                    ctx.fillStyle = '#fbbf24'; 
+                    if (d.w > d.h) ctx.beginPath(), ctx.arc(d.x + d.w/2 + 10, d.y + 10, 4, 0, Math.PI*2), ctx.fill();
+                    else ctx.beginPath(), ctx.arc(d.x + 10, d.y + d.h/2 + 10, 4, 0, Math.PI*2), ctx.fill();
+                });
+
+                // Furniture
+                ctx.textAlign = 'center';
+                if (this.room === 'living') {
+                    this.drawFurniture(ctx, 500, 350, 'Rug', '🔵', 300, 180);
+                    this.drawFurniture(ctx, 500, 100, 'TV Setup', '📺', 200, 100);
+                    this.drawFurniture(ctx, 200, 400, 'Sofa', '🛋️', 100, 200);
+                    this.drawFurniture(ctx, 800, 400, 'Plant', '🪴', 60, 60);
+                } else if (this.room === 'kitchen') {
+                    this.drawFurniture(ctx, 500, 350, 'Island', '🍴', 400, 200);
+                    this.drawFurniture(ctx, 850, 200, 'Fridge', '🧊', 80, 200);
+                    this.drawFurniture(ctx, 150, 150, 'Stove', '🍳', 100, 100);
+                } else if (this.room === 'bedroom') {
+                    this.drawFurniture(ctx, 300, 350, 'King Bed', '🛏️', 300, 400);
+                    this.drawFurniture(ctx, 700, 200, 'Wardrobe', '👕', 150, 250);
+                    this.drawFurniture(ctx, 600, 500, 'Desk', '💻', 150, 100);
+                } else if (this.room === 'bathroom') {
+                    this.drawFurniture(ctx, 500, 200, 'Bath', '🛁', 300, 150);
+                    this.drawFurniture(ctx, 200, 500, 'Toilet', '🚽', 80, 80);
+                    this.drawFurniture(ctx, 800, 500, 'Sink', '🧼', 100, 100);
+                } else if (this.room === 'garage') {
+                    this.drawFurniture(ctx, 400, 350, 'My Car', '🚗', 200, 350);
+                    this.drawFurniture(ctx, 150, 150, 'Tools', '🛠️', 150, 100);
+                }
+
+                this.drawGuy(ctx, this.p.x, this.p.y, 100, this.p.anim, this.p.dir);
+            }
+
+            drawFurniture(ctx, x, y, label, emoji, w, h) {
+                ctx.fillStyle = 'rgba(0,0,0,0.05)'; ctx.fillRect(x-w/2, y-h/2, w, h);
+                ctx.font = '60px Arial'; ctx.fillText(emoji, x, y + 20);
+                ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.font = 'bold 12px Arial'; ctx.fillText(label.toUpperCase(), x, y + h/2 + 15);
+            }
+
+            drawWorld(ctx) {
+                // Ground
+                ctx.fillStyle = '#16a34a'; ctx.fillRect(0, 0, this.world.w, this.world.h);
+                
+                // Roads
+                ctx.fillStyle = '#334155';
+                ctx.fillRect(0, 1400, 5000, 200); // Main Hwy
+                ctx.fillRect(1200, 0, 200, 5000); // Main Ave
+                
+                // Lake
+                ctx.fillStyle = '#0ea5e9';
+                ctx.beginPath(); ctx.ellipse(this.world.lake.x + 600, this.world.lake.y + 500, 1000, 700, 0, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 20; ctx.stroke();
+
+                // House & Hangar
+                ctx.fillStyle = '#f87171'; ctx.fillRect(this.world.house.x, this.world.house.y, 500, 400);
+                ctx.fillStyle = '#475569'; ctx.fillRect(this.world.airport.x, this.world.airport.y, 1000, 600);
+
+                // Vehicles
+                this.drawVehicle(ctx, this.car);
+                this.drawVehicle(ctx, this.bike);
+                this.drawVehicle(ctx, this.plane);
+                this.drawVehicle(ctx, this.boat);
+
+                if (this.state === 'outside') {
+                    this.drawGuy(ctx, this.p.x, this.p.y, 60, this.p.anim, this.p.dir);
+                }
+
+                // Clouds
+                ctx.globalAlpha = 0.5;
+                ctx.fillStyle = '#fff';
+                this.clouds.forEach(c => {
+                    ctx.beginPath(); ctx.ellipse(c.x, c.y, c.w, c.w*0.5, 0, 0, Math.PI*2); ctx.fill();
+                    c.x += c.s; if(c.x > 5000) c.x = -300;
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            drawVehicle(ctx, v) {
+                ctx.save();
+                ctx.translate(v.x, v.y);
+                if (v.type === 'plane') {
+                    const s = 1 + v.alt/100; ctx.scale(s, s);
+                    if (v.alt > 0) { ctx.shadowBlur = v.alt/2; ctx.shadowColor = 'rgba(0,0,0,0.5)'; }
+                }
+                ctx.rotate(v.angle);
+                
+                const icons = { car: '🏎️', bike: '🚲', plane: '🛩️', boat: '🚤' };
+                ctx.font = '60px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(icons[v.type], 0, 0);
+                ctx.restore();
+            }
+
+            drawGuy(ctx, x, y, size, anim, dir) {
+                ctx.save();
+                ctx.translate(x, y);
+                if (dir === -1) ctx.scale(-1, 1);
+                const bob = Math.sin(anim) * (size/10);
+                ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(255,255,255,0.5)';
+                ctx.font = `${size}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🚶', 0, bob);
+                ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        window.onload = () => { window.game = new ExploreLife(); };
+    </script>
+</body>
+</html>

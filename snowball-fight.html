@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snowball Fight</title>
+    <style>
+        body { margin: 0; background: #eaf6ff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        canvas { background: #fff; border: 4px solid #3498db; border-radius: 10px; }
+        .ui { position: absolute; top: 20px; font-size: 1.5rem; font-weight: bold; color: #2980b9; }
+        .back { position: absolute; bottom: 20px; left: 20px; color: #3498db; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="ui">Score: <span id="score">0</span> | Hits Taken: <span id="hits">0</span>/5</div>
+    <canvas id="game"></canvas>
+    <a href="index.html" class="back">← HUB</a>
+
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 800; canvas.height = 600;
+
+        let player = { x: 400, y: 500, vx: 0, vy: 0, snowballs: 1, cooldown: 0 };
+        let ais = [], snowballs = [], particles = [];
+        let score = 0, hits = 0;
+        let keys = {};
+
+        function init() {
+            // Spawn 3 Enemies
+            for(let i=0; i<3; i++) ais.push({ 
+                x: 100 + i*300, y: 100, 
+                vx: 0, vy: 0, 
+                cooldown: 0, 
+                targetX: 100 + i*300, targetY: 100 
+            });
+            loop();
+        }
+
+        function update() {
+            // Player
+            if(keys['ArrowLeft']) player.x -= 4;
+            if(keys['ArrowRight']) player.x += 4;
+            if(keys['ArrowUp']) player.y -= 4;
+            if(keys['ArrowDown']) player.y += 4;
+            player.x = Math.max(20, Math.min(780, player.x));
+            player.y = Math.max(300, Math.min(580, player.y)); // Stay in bottom half
+
+            if(keys[' '] && player.cooldown <= 0) {
+                snowballs.push({ x: player.x, y: player.y, vx: 0, vy: -8, owner: 'p' });
+                player.cooldown = 20;
+            }
+            if(player.cooldown > 0) player.cooldown--;
+
+            // AI
+            ais.forEach(ai => {
+                if(Math.random() < 0.02) {
+                    ai.targetX = Math.random() * 700 + 50;
+                    ai.targetY = Math.random() * 200 + 50;
+                }
+                ai.x += (ai.targetX - ai.x) * 0.05;
+                ai.y += (ai.targetY - ai.y) * 0.05;
+
+                if(ai.cooldown <= 0 && Math.random() < 0.02) {
+                    let dx = player.x - ai.x;
+                    let dy = player.y - ai.y;
+                    let mag = Math.hypot(dx, dy);
+                    snowballs.push({ x: ai.x, y: ai.y, vx: (dx/mag)*6, vy: (dy/mag)*6, owner: 'ai' });
+                    ai.cooldown = 60;
+                }
+                if(ai.cooldown > 0) ai.cooldown--;
+            });
+
+            // Snowballs
+            snowballs.forEach((s, i) => {
+                s.x += s.vx; s.y += s.vy;
+                
+                // Hit Player
+                if(s.owner === 'ai' && Math.hypot(s.x-player.x, s.y-player.y) < 20) {
+                    hits++;
+                    snowballs.splice(i, 1);
+                    document.getElementById('hits').textContent = hits;
+                    if(hits >= 5) { alert("Game Over!"); location.reload(); }
+                }
+
+                // Hit AI
+                if(s.owner === 'p') {
+                    ais.forEach((ai, aiIdx) => {
+                        if(Math.hypot(s.x-ai.x, s.y-ai.y) < 20) {
+                            score++;
+                            snowballs.splice(i, 1);
+                            // Respawn AI
+                            ai.x = Math.random()*800; ai.y = -50;
+                            document.getElementById('score').textContent = score;
+                        }
+                    });
+                }
+
+                if(s.x < 0 || s.x > 800 || s.y < 0 || s.y > 600) snowballs.splice(i, 1);
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Scenery
+            ctx.fillStyle = "#fff"; ctx.fillRect(0,0,800,600); // Snow
+            ctx.fillStyle = "#dfe6e9";
+            ctx.beginPath(); ctx.arc(100, 100, 40, 0, Math.PI*2); ctx.fill(); // Decor
+            ctx.beginPath(); ctx.arc(700, 200, 60, 0, Math.PI*2); ctx.fill();
+
+            // Player
+            ctx.fillStyle = "#e74c3c";
+            ctx.beginPath(); ctx.arc(player.x, player.y, 15, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#ffeaa7"; ctx.beginPath(); ctx.arc(player.x, player.y-5, 8, 0, Math.PI*2); ctx.fill(); // Head
+
+            // AI
+            ctx.fillStyle = "#3498db";
+            ais.forEach(ai => {
+                ctx.beginPath(); ctx.arc(ai.x, ai.y, 15, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "#ffeaa7"; ctx.beginPath(); ctx.arc(ai.x, ai.y-5, 8, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "#3498db"; // Reset
+            });
+
+            // Snowballs
+            ctx.fillStyle = "#fff"; ctx.strokeStyle = "#bdc3c7"; ctx.lineWidth = 2;
+            snowballs.forEach(s => {
+                ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            });
+        }
+
+        window.onkeydown = e => keys[e.key] = true;
+        window.onkeyup = e => keys[e.key] = false;
+
+        function loop() { update(); draw(); requestAnimationFrame(loop); }
+        init();
+    </script>
+</body>
+</html>

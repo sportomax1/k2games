@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tile Tapper</title>
+    <style>
+        body { margin: 0; background: #111; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        canvas { background: #222; border-radius: 10px; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+        .ui { position: absolute; top: 20px; font-size: 1.5rem; font-weight: bold; }
+        .keys { display: grid; grid-template-columns: repeat(4, 100px); gap: 10px; margin-top: 20px; }
+        .key { width: 100px; height: 60px; background: #333; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: bold; color: #FFD700; border-bottom: 4px solid #222; }
+        .active { background: #444; border-bottom: 0; transform: translateY(4px); }
+        .back { position: absolute; bottom: 20px; left: 20px; color: #FFD700; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="ui">Score: <span id="score">0</span></div>
+    <canvas id="game"></canvas>
+    <div class="keys">
+        <div class="key" id="k0">1</div>
+        <div class="key" id="k1">2</div>
+        <div class="key" id="k2">3</div>
+        <div class="key" id="k3">4</div>
+    </div>
+    <a href="index.html" class="back">← HUB</a>
+
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 400; canvas.height = 600;
+
+        let tiles = [];
+        let score = 0;
+        let speed = 3;
+        let running = true;
+        let spawnTimer = 0;
+
+        function update() {
+            if (!running) return;
+
+            spawnTimer++;
+            if (spawnTimer > 600/speed) { // Adjust spawn rate based on speed
+                spawnTimer = 0;
+                tiles.push({ col: Math.floor(Math.random() * 4), y: -150 });
+            }
+
+            tiles.forEach(t => t.y += speed);
+
+            // Miss check
+            for (let i = tiles.length - 1; i >= 0; i--) {
+                if (tiles[i].y > canvas.height) {
+                    gameOver();
+                }
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = "#222";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Lanes
+            ctx.strokeStyle = "#333";
+            for(let i=1; i<4; i++) {
+                ctx.beginPath(); ctx.moveTo(i*100, 0); ctx.lineTo(i*100, canvas.height); ctx.stroke();
+            }
+
+            // Hit Zone
+            ctx.fillStyle = "rgba(255, 215, 0, 0.1)";
+            ctx.fillRect(0, canvas.height - 120, canvas.width, 120);
+
+            // Tiles
+            ctx.fillStyle = "white";
+            tiles.forEach(t => {
+                ctx.fillRect(t.col * 100 + 5, t.y, 90, 140);
+            });
+
+            if (!running) {
+                ctx.fillStyle = "rgba(0,0,0,0.8)";
+                ctx.fillRect(0,0,400,600);
+                ctx.fillStyle = "red";
+                ctx.font = "40px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("GAME OVER", 200, 300);
+                ctx.font = "20px Arial";
+                ctx.fillStyle = "white";
+                ctx.fillText("Click to Restart", 200, 340);
+            }
+        }
+
+        function tap(col) {
+            if (!running) return;
+            
+            // Visual feedback
+            const k = document.getElementById('k'+col);
+            k.classList.add('active');
+            setTimeout(() => k.classList.remove('active'), 100);
+
+            // Check hit
+            let hit = false;
+            for (let i = 0; i < tiles.length; i++) {
+                const t = tiles[i];
+                if (t.col === col && t.y > canvas.height - 180 && t.y < canvas.height - 20) {
+                    tiles.splice(i, 1);
+                    score++;
+                    speed += 0.1;
+                    document.getElementById('score').textContent = score;
+                    hit = true;
+                    break;
+                }
+            }
+
+            if (!hit) gameOver();
+        }
+
+        function gameOver() {
+            running = false;
+            draw();
+        }
+
+        window.addEventListener('keydown', e => {
+            if (e.key === '1') tap(0);
+            if (e.key === '2') tap(1);
+            if (e.key === '3') tap(2);
+            if (e.key === '4') tap(3);
+        });
+
+        canvas.addEventListener('click', () => { if(!running) location.reload(); });
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>

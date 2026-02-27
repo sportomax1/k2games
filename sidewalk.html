@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sidewalk: Real Life - K4 Games</title>
+    <style>
+        :root {
+            --sky-day: #87ceeb;
+            --sky-sunset: #ff7e5f;
+            --sky-night: #0f172a;
+            --sidewalk: #94a3b8;
+            --grass: #22c55e;
+            --road: #334155;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: #000;
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 1200px;
+            height: 700px;
+            background: #000;
+            border-radius: 24px;
+            border: 10px solid #222;
+            box-shadow: 0 50px 100px rgba(0,0,0,0.8);
+            overflow: hidden;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 100;
+        }
+
+        .hud-card {
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(12px);
+            padding: 15px 25px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            display: inline-flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .stat-val { font-size: 1.8rem; font-weight: 900; color: #38bdf8; font-family: monospace; }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7; }
+
+        .time-display {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            text-align: right;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 12px 20px; border-radius: 12px; z-index: 200;
+            font-weight: bold; backdrop-filter: blur(10px); transition: 0.2s;
+        }
+        .back-link:hover { background: rgba(255,255,255,0.2); transform: scale(1.05); }
+
+        .hint {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            color: rgba(255,255,255,0.4); font-size: 0.9rem; font-weight: 600; letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui-layer">
+            <div>
+                <div class="hud-card">
+                    <div class="stat-label">Walk Distance</div>
+                    <div id="dist-val" class="stat-val">0.0 km</div>
+                </div>
+            </div>
+
+            <div class="time-display">
+                <div class="hud-card">
+                    <div class="stat-label">Local Time</div>
+                    <div id="time-val" class="stat-val">12:00 PM</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="hint">HOLD W OR UP TO WALK • SHIFT TO RUN</div>
+    </div>
+
+    <script>
+        class SidewalkLife {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 1200;
+                this.height = 700;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                this.cameraZ = 0;
+                this.speed = 0;
+                this.maxSpeed = 6;
+                this.accel = 0.15;
+                this.groundY = 450;
+                
+                this.objects = []; // Buildings, trees, street lights
+                this.traffic = []; // Cars
+                this.pedestrians = []; // NPCs
+                this.clouds = [];
+                this.keys = {};
+                this.timeOfDay = 0.5; // 0.0 to 1.0 (noon is 0.5)
+
+                this.init();
+            }
+
+            init() {
+                // Initial world generation
+                for(let i=0; i<30; i++) {
+                    this.spawnObject(i * 200 + 100);
+                }
+                for(let i=0; i<10; i++) {
+                    this.clouds.push({
+                        x: Math.random() * this.width,
+                        y: 50 + Math.random() * 200,
+                        w: 120 + Math.random() * 200,
+                        s: 0.1 + Math.random() * 0.3
+                    });
+                }
+
+                window.onkeydown = (e) => this.keys[e.code] = true;
+                window.onkeyup = (e) => this.keys[e.code] = false;
+
+                this.loop();
+            }
+
+            spawnObject(z) {
+                // Decide side and type
+                const side = Math.random() < 0.5 ? 'L' : 'R';
+                const rand = Math.random();
+                
+                let obj = { z, side };
+
+                if (rand < 0.4) {
+                    // Building
+                    obj.type = 'building';
+                    obj.w = 120 + Math.random() * 100;
+                    obj.h = 200 + Math.random() * 400;
+                    obj.color = `hsl(${Math.random()*360}, 20%, ${30 + Math.random()*40}%)`;
+                    obj.windows = Array.from({length: Math.floor(obj.h/40) * 3}, () => Math.random() < 0.3);
+                } else if (rand < 0.7) {
+                    // Tree
+                    obj.type = 'tree';
+                    obj.h = 80 + Math.random() * 100;
+                } else if (rand < 0.9) {
+                    // Street Light
+                    obj.type = 'light';
+                    obj.h = 150;
+                } else {
+                    // Small prop (hydrant, trash can)
+                    obj.type = 'prop';
+                    obj.propType = Math.random() < 0.5 ? 'hydrant' : 'trash';
+                }
+
+                this.objects.push(obj);
+            }
+
+            spawnCar(z) {
+                this.traffic.push({
+                    z,
+                    lane: Math.random() < 0.5 ? 0 : 1, // Two lanes
+                    speed: 15 + Math.random() * 10,
+                    color: `hsl(${Math.random()*360}, 70%, 50%)`,
+                    type: Math.random() < 0.2 ? 'truck' : 'car'
+                });
+            }
+
+            spawnNPC(z) {
+                this.pedestrians.push({
+                    z,
+                    side: Math.random() < 0.5 ? 'L' : 'R',
+                    speed: (Math.random() - 0.5) * 4, // Some walk towards, some away
+                    color: `hsl(${Math.random()*360}, 50%, 60%)`,
+                    bob: 0
+                });
+            }
+
+            update() {
+                // Movement
+                const targetMax = this.keys['ShiftLeft'] ? this.maxSpeed * 2 : this.maxSpeed;
+                if(this.keys['ArrowUp'] || this.keys['KeyW']) {
+                    this.speed = Math.min(targetMax, this.speed + this.accel);
+                } else {
+                    this.speed = Math.max(0, this.speed - this.accel * 2);
+                }
+
+                this.cameraZ += this.speed;
+                this.timeOfDay = (0.5 + (this.cameraZ / 20000)) % 1.0;
+
+                // Update UI
+                document.getElementById('dist-val').textContent = (this.cameraZ / 1000).toFixed(1) + ' km';
+                const hours = Math.floor(this.timeOfDay * 24);
+                const ampm = hours >= 12 ? 'PM' : 'AM';
+                const displayHours = hours % 12 || 12;
+                document.getElementById('time-val').textContent = `${displayHours}:00 ${ampm}`;
+
+                // Continuous Generation
+                this.objects = this.objects.filter(o => o.z - this.cameraZ > -500);
+                if(this.objects.length < 40) {
+                    const maxZ = Math.max(...this.objects.map(o => o.z), this.cameraZ);
+                    this.spawnObject(maxZ + 150);
+                }
+
+                // Traffic Logic
+                if(Math.random() < 0.02) this.spawnCar(this.cameraZ + 2000);
+                this.traffic.forEach(c => c.z -= c.speed);
+                this.traffic = this.traffic.filter(c => c.z - this.cameraZ > -500);
+
+                // NPC Logic
+                if(Math.random() < 0.01) this.spawnNPC(this.cameraZ + 1500);
+                this.pedestrians.forEach(p => {
+                    p.z += p.speed;
+                    p.bob += 0.1;
+                });
+                this.pedestrians = this.pedestrians.filter(p => Math.abs(p.z - this.cameraZ) < 2000);
+
+                // Clouds
+                this.clouds.forEach(c => {
+                    c.x += c.s;
+                    if(c.x > this.width + 200) c.x = -200;
+                });
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Get Sky Color
+                let skyColor;
+                if (this.timeOfDay < 0.2 || this.timeOfDay > 0.8) skyColor = '#0f172a'; // Night
+                else if (this.timeOfDay < 0.3 || this.timeOfDay > 0.7) skyColor = '#ff7e5f'; // Sunrise/Set
+                else skyColor = '#87ceeb'; // Day
+
+                ctx.fillStyle = skyColor;
+                ctx.fillRect(0, 0, this.width, this.groundY);
+
+                // Draw Sun/Moon
+                ctx.save();
+                const orbit = (this.timeOfDay * Math.PI * 2) - Math.PI/2;
+                const ox = this.width/2 + Math.cos(orbit) * 400;
+                const oy = this.groundY - 100 + Math.sin(orbit) * 300;
+                
+                if (this.timeOfDay > 0.25 && this.timeOfDay < 0.75) {
+                    // Sun
+                    ctx.shadowBlur = 50; ctx.shadowColor = 'yellow';
+                    ctx.fillStyle = '#fef08a';
+                    ctx.beginPath(); ctx.arc(ox, oy, 40, 0, Math.PI*2); ctx.fill();
+                } else {
+                    // Moon
+                    ctx.shadowBlur = 30; ctx.shadowColor = 'white';
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.beginPath(); ctx.arc(ox, oy, 30, 0, Math.PI*2); ctx.fill();
+                }
+                ctx.restore();
+
+                // Clouds
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                this.clouds.forEach(c => {
+                    ctx.beginPath(); ctx.ellipse(c.x, c.y, c.w, c.w*0.4, 0, 0, Math.PI*2); ctx.fill();
+                });
+
+                // --- Ground Setup ---
+                const horizonY = this.groundY;
+                
+                // Grass
+                ctx.fillStyle = '#166534';
+                ctx.fillRect(0, horizonY, this.width, this.height - horizonY);
+
+                // Road (Center-Left)
+                ctx.fillStyle = '#334155';
+                ctx.beginPath();
+                ctx.moveTo(this.width/2 - 400, this.height);
+                ctx.lineTo(this.width/2 - 50, horizonY);
+                ctx.lineTo(this.width/2 + 50, horizonY);
+                ctx.lineTo(this.width/2 + 100, this.height);
+                ctx.fill();
+
+                // Road Markings
+                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                ctx.setLineDash([20, 20]);
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(this.width/2 - 150, this.height);
+                ctx.lineTo(this.width/2, horizonY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Sidewalk (Right of road)
+                ctx.fillStyle = '#94a3b8';
+                ctx.beginPath();
+                ctx.moveTo(this.width/2 + 100, this.height);
+                ctx.lineTo(this.width/2 + 50, horizonY);
+                ctx.lineTo(this.width/2 + 150, horizonY);
+                ctx.lineTo(this.width/2 + 500, this.height);
+                ctx.fill();
+
+                // Sort everything by Z for depth
+                const allRenderables = [
+                    ...this.objects.map(o => ({...o, rType: 'obj'})),
+                    ...this.traffic.map(c => ({...c, rType: 'car'})),
+                    ...this.pedestrians.map(p => ({...p, rType: 'npc'}))
+                ].sort((a, b) => b.z - a.z);
+
+                const isDark = (this.timeOfDay < 0.25 || this.timeOfDay > 0.75);
+
+                allRenderables.forEach(item => {
+                    const dz = item.z - this.cameraZ;
+                    if (dz < 0 || dz > 3000) return;
+
+                    const scale = 600 / (dz + 600);
+                    const xSide = (item.side === 'L' || item.rType === 'car') ? -1 : 1;
+                    
+                    // Perspective Logic
+                    let cx, baseY = horizonY;
+                    if (item.rType === 'car') {
+                        cx = this.width/2 + (-150 + item.lane * 100) * scale;
+                    } else if (item.rType === 'npc') {
+                        cx = this.width/2 + (item.side === 'L' ? -250 : 250) * scale;
+                    } else {
+                        // Obj
+                        cx = this.width/2 + (xSide * 400) * scale;
+                    }
+
+                    ctx.save();
+                    ctx.translate(cx, baseY);
+                    ctx.scale(scale, scale);
+                    ctx.globalAlpha = Math.min(1, scale * 2);
+
+                    if (item.rType === 'obj') {
+                        if (item.type === 'building') {
+                            ctx.fillStyle = item.color;
+                            ctx.fillRect(-item.w/2, -item.h, item.w, item.h);
+                            // Windows
+                            ctx.fillStyle = isDark ? '#fef08a' : '#1e293b';
+                            item.windows.forEach((lit, i) => {
+                                if (lit || !isDark) {
+                                    const wx = (-item.w/2 + 15) + (i % 3) * (item.w/4);
+                                    const wy = (-item.h + 20) + Math.floor(i / 3) * 40;
+                                    ctx.fillRect(wx, wy, 15, 15);
+                                }
+                            });
+                        } else if (item.type === 'tree') {
+                            ctx.fillStyle = '#451a03';
+                            ctx.fillRect(-5, -20, 10, 20);
+                            ctx.fillStyle = '#15803d';
+                            ctx.beginPath(); ctx.arc(0, -item.h/2 - 20, item.h/2, 0, Math.PI*2); ctx.fill();
+                        } else if (item.type === 'light') {
+                            ctx.fillStyle = '#334155';
+                            ctx.fillRect(-3, -150, 6, 150);
+                            ctx.fillRect(-3, -150, 30, 8);
+                            if (isDark) {
+                                ctx.shadowBlur = 40; ctx.shadowColor = 'yellow';
+                                ctx.fillStyle = 'yellow';
+                                ctx.beginPath(); ctx.arc(25, -145, 10, 0, Math.PI*2); ctx.fill();
+                            }
+                        } else if (item.type === 'prop') {
+                            ctx.fillStyle = item.propType === 'hydrant' ? '#ef4444' : '#475569';
+                            ctx.fillRect(-8, -25, 16, 25);
+                        }
+                    } else if (item.rType === 'car') {
+                        ctx.fillStyle = item.color;
+                        ctx.fillRect(-30, -40, 60, 40);
+                        ctx.fillStyle = '#000';
+                        ctx.fillRect(-25, -10, 15, 15); ctx.fillRect(10, -10, 15, 15);
+                        if (isDark) {
+                            ctx.shadowBlur = 20; ctx.shadowColor = 'white';
+                            ctx.fillStyle = '#fff';
+                            ctx.fillRect(-25, -35, 10, 10); ctx.fillRect(15, -35, 10, 10);
+                        }
+                    } else if (item.rType === 'npc') {
+                        const bob = Math.sin(item.bob) * 5;
+                        ctx.fillStyle = item.color;
+                        ctx.fillRect(-10, -60 + bob, 20, 40);
+                        ctx.fillStyle = '#ffccaa';
+                        ctx.beginPath(); ctx.arc(0, -75 + bob, 12, 0, Math.PI*2); ctx.fill();
+                    }
+
+                    ctx.restore();
+                });
+
+                // First-person bobbing
+                const walkBob = Math.sin(this.cameraZ * 0.1) * 10 * (this.speed / this.maxSpeed);
+                ctx.save();
+                ctx.translate(0, walkBob);
+                // Hint at hands/body at the very bottom
+                ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        window.onload = () => new SidewalkLife();
+    </script>
+</body>
+</html>

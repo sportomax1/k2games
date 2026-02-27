@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rock Paper Scissors</title>
+    <style>
+        body { margin: 0; background: #2c3e50; font-family: sans-serif; overflow: hidden; color: white; }
+        .ui { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 15px; backdrop-filter: blur(10px); }
+        .emoji-cnt { text-align: center; font-size: 1.2rem; }
+        .controls { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; background: #3498db; color: white; }
+        .item { position: absolute; font-size: 30px; user-select: none; transition: transform 0.1s; }
+        .back { position: absolute; bottom: 20px; left: 20px; color: #3498db; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="ui">
+        <div class="emoji-cnt">🪨 <span id="rockCnt">0</span></div>
+        <div class="emoji-cnt">📄 <span id="paperCnt">0</span></div>
+        <div class="emoji-cnt">✂️ <span id="sciCnt">0</span></div>
+    </div>
+
+    <div id="arena"></div>
+
+    <div class="controls">
+        <button class="btn" onclick="game.start()">Restart</button>
+        <button class="btn" onclick="game.pause()">Pause</button>
+    </div>
+
+    <a href="index.html" class="back">← HUB</a>
+
+    <script>
+        class RPSGame {
+            constructor() {
+                this.arena = document.getElementById('arena');
+                this.items = [];
+                this.running = false;
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+                this.types = ['rock', 'paper', 'sci'];
+                this.emojis = { rock: '🪨', paper: '📄', sci: '✂️' };
+                this.wins = { rock: 'sci', paper: 'rock', sci: 'paper' };
+                
+                this.start();
+                this.loop();
+            }
+
+            start() {
+                this.items = [];
+                this.arena.innerHTML = '';
+                const count = 20;
+                
+                for(let i=0; i<count; i++) this.spawn('rock', 100, 100 + i*5);
+                for(let i=0; i<count; i++) this.spawn('paper', this.width-100, 100 + i*5);
+                for(let i=0; i<count; i++) this.spawn('sci', this.width/2, this.height-150 + i*5);
+                
+                this.running = true;
+            }
+
+            spawn(type, x, y) {
+                const el = document.createElement('div');
+                el.className = 'item';
+                el.textContent = this.emojis[type];
+                this.arena.appendChild(el);
+                
+                const angle = Math.random() * Math.PI * 2;
+                this.items.push({
+                    el, type, x, y,
+                    vx: Math.cos(angle) * 3,
+                    vy: Math.sin(angle) * 3
+                });
+            }
+
+            pause() { this.running = !this.running; }
+
+            update() {
+                if (!this.running) return;
+
+                const counts = { rock: 0, paper: 0, sci: 0 };
+
+                this.items.forEach(a => {
+                    counts[a.type]++;
+                    
+                    // Move
+                    a.x += a.vx; a.y += a.vy;
+
+                    // Bounce Walls
+                    if(a.x < 0 || a.x > this.width-40) a.vx *= -1;
+                    if(a.y < 0 || a.y > this.height-40) a.vy *= -1;
+                    
+                    // Clamp
+                    a.x = Math.max(0, Math.min(a.x, this.width-40));
+                    a.y = Math.max(0, Math.min(a.y, this.height-40));
+
+                    a.el.style.transform = `translate(${a.x}px, ${a.y}px)`;
+
+                    // Collision
+                    this.items.forEach(b => {
+                        if (a === b) return;
+                        const dx = a.x - b.x;
+                        const dy = a.y - b.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+
+                        if (dist < 30) {
+                            // Bounce off each other slightly
+                            /* 
+                            const angle = Math.atan2(dy, dx);
+                            a.vx = Math.cos(angle) * 3;
+                            a.vy = Math.sin(angle) * 3;
+                            */
+
+                            // Game Logic
+                            if (this.wins[a.type] === b.type) {
+                                b.type = a.type;
+                                b.el.textContent = this.emojis[a.type];
+                                b.el.style.transform += ' scale(1.2)';
+                                setTimeout(() => b.el.style.transform = b.el.style.transform.replace(' scale(1.2)', ''), 200);
+                            }
+                        }
+                    });
+                });
+
+                document.getElementById('rockCnt').textContent = counts.rock;
+                document.getElementById('paperCnt').textContent = counts.paper;
+                document.getElementById('sciCnt').textContent = counts.sci;
+            }
+
+            loop() {
+                this.update();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        const game = new RPSGame();
+    </script>
+</body>
+</html>

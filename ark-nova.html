@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ark Nova: Digital - K4 Games</title>
+    <style>
+        :root {
+            --primary: #1976d2;
+            --secondary: #388e3c;
+            --accent: #fbc02d;
+            --bg: #f0f2f5;
+            --panel: #2c3e50;
+            --text-light: #ecf0f1;
+            --card-bg: #ffffff;
+            --shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg); color: #333; overflow-x: hidden; }
+
+        #app-container { display: flex; min-height: 100vh; }
+
+        /* Sidebar Stats */
+        #sidebar {
+            width: 300px;
+            background: var(--panel);
+            color: var(--text-light);
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+
+        .logo { font-size: 2rem; font-weight: 800; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 0.5rem; margin-bottom: 1rem; }
+        
+        .stat-group { display: flex; flex-direction: column; gap: 0.8rem; }
+        .stat-item { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background: rgba(255,255,255,0.05); 
+            padding: 0.8rem 1.2rem; 
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .stat-label { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; }
+        .stat-value { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+
+        /* Main Game Area */
+        #main-view { flex: 1; padding: 2rem; display: flex; flex-direction: column; gap: 2rem; max-width: 1400px; margin: 0 auto; }
+
+        .board-section { background: white; border-radius: 20px; padding: 2rem; box-shadow: var(--shadow); position: relative; }
+        .section-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--panel); display: flex; align-items: center; gap: 10px; }
+
+        #canvas-container { width: 100%; display: flex; justify-content: center; overflow: hidden; }
+        canvas { background: #fdfdfd; border-radius: 12px; max-width: 100%; height: auto; border: 1px solid #ddd; }
+
+        /* Market */
+        #market { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.5rem; }
+        .market-card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 1.2rem;
+            border: 2px solid transparent;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            transition: all 0.2s;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .market-card:hover { transform: translateY(-5px); border-color: var(--primary); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .card-name { font-weight: 800; font-size: 1.1rem; }
+        .card-type { font-size: 0.8rem; text-transform: uppercase; color: #666; }
+        .card-cost { font-weight: 700; color: var(--primary); margin-top: auto; }
+
+        /* Action Cards Row */
+        #actions-row { display: flex; gap: 1rem; margin-top: auto; padding: 1rem 0; overflow-x: auto; }
+        .action-card {
+            min-width: 160px;
+            height: 100px;
+            background: white;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border: 2px solid #eee;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .action-card.selected { border-color: var(--primary); background: #e3f2fd; transform: scale(1.05); }
+        .action-card .name { font-weight: 700; }
+        .action-card .slot { font-size: 0.8rem; color: #999; margin-top: 4px; }
+
+        .back-btn {
+            position: fixed; top: 20px; left: 20px; z-index: 100;
+            background: var(--accent); color: #333; text-decoration: none;
+            padding: 8px 16px; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        #message-toast {
+            position: fixed; bottom: 30px; right: 30px;
+            background: var(--panel); color: white;
+            padding: 1rem 2rem; border-radius: 50px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            transform: translateY(100px); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1000;
+        }
+        #message-toast.show { transform: translateY(0); }
+
+        /* Helper rows */
+        .card-sheet {
+            display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 2rem; background: #222; margin-top: 2rem;
+        }
+        .ref-card {
+            width: 100px; height: 140px; border-radius: 8px; border: 2px solid #444; position: relative;
+            cursor: help; transition: transform 0.2s;
+        }
+        .ref-card:hover { transform: scale(1.1); z-index: 5; }
+        
+        #tooltip {
+            position: fixed; pointer-events: none; background: white; border: 2px solid var(--primary);
+            padding: 1rem; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+            z-index: 2000; display: none; max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">← HUB</a>
+
+    <div id="app-container">
+        <aside id="sidebar">
+            <div class="logo">ARK NOVA</div>
+            
+            <div class="stat-group">
+                <div class="stat-item">
+                    <span class="stat-label">Money</span>
+                    <span id="stat-money" class="stat-value">$25</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Appeal</span>
+                    <span id="stat-appeal" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Conservation</span>
+                    <span id="stat-conservation" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Reputation</span>
+                    <span id="stat-reputation" class="stat-value">1</span>
+                </div>
+            </div>
+
+            <div style="margin-top: auto;">
+                <p style="font-size: 0.8rem; opacity: 0.6; line-height: 1.4;">
+                    Build the most modern zoo. Balance business appeal with conservation goals.
+                </p>
+            </div>
+        </aside>
+
+        <main id="main-view">
+            <section class="board-section">
+                <div class="section-title">📍 ZOO MAP & BOARD</div>
+                <div id="canvas-container">
+                    <canvas id="gameCanvas" width="900" height="600"></canvas>
+                </div>
+            </section>
+
+            <section class="board-section">
+                <div class="section-title">🃏 MARKET</div>
+                <div id="market"></div>
+            </section>
+
+            <section id="actions-row"></section>
+        </main>
+    </div>
+
+    <div id="message-toast"></div>
+    <div id="tooltip"></div>
+
+    <script>
+        const ARK_NOVA_CARDS = [
+            { name: 'Cheetah', color: '#ffe082', emoji: '🐆', info: '<b>Cheetah</b><br>Sprint 3<br><i>Draw 3 cards from the deck.</i>', cost: 17, appeal: 6 },
+            { name: 'Raccoon', color: '#ffe0b2', emoji: '🦝', info: '<b>Raccoon</b><br>Boost: Association<br><i>After finishing this action, you may place your Association Action card on 1 or 5.</i>', cost: 11, appeal: 4 },
+            { name: 'Tortoise', color: '#d7ccc8', emoji: '🐢', info: '<b>African Spurred Tortoise</b><br>Sunbathing 3<br><i>You may sell up to 3 cards from your hand for 4 each.</i>', cost: 22, appeal: 1 },
+            { name: 'Eagle-Owl', color: '#b39ddb', emoji: '🦉', info: '<b>Eurasian Eagle-Owl</b><br>Perception 4<br><i>Draw 4 cards from the deck. Add 2 to your hand and discard the rest.</i>', cost: 10, appeal: 2 },
+            { name: 'Lion', color: '#ffccbc', emoji: '🦁', info: '<b>Lion</b><br>Majestic: +5 Appeal if you have 3+ predators.', cost: 25, appeal: 8 },
+            { name: 'Panda', color: '#cfd8dc', emoji: '🐼', info: '<b>Panda</b><br>Rare Breed: +1 Conservation point.', cost: 20, appeal: 4 }
+        ];
+
+        class Game {
+            constructor() {
+                this.money = 25;
+                this.appeal = 0;
+                this.conservation = 0;
+                this.reputation = 1;
+                this.actions = [
+                    { name: 'Build', slot: 1 },
+                    { name: 'Animals', slot: 2 },
+                    { name: 'Cards', slot: 3 },
+                    { name: 'Sponsors', slot: 4 },
+                    { name: 'Association', slot: 5 }
+                ];
+                this.selectedActionIdx = null;
+                this.zoo = [];
+                for(let y=0; y<5; y++) for(let x=0; x<5; x++) this.zoo.push({x, y, built: null});
+                
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.init();
+            }
+
+            init() {
+                this.renderMarket();
+                this.renderActions();
+                this.updateStats();
+                this.draw();
+                
+                this.canvas.onclick = (e) => this.handleCanvasClick(e);
+            }
+
+            showMessage(text) {
+                const toast = document.getElementById('message-toast');
+                toast.textContent = text;
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 3000);
+            }
+
+            updateStats() {
+                document.getElementById('stat-money').textContent = `$${this.money}`;
+                document.getElementById('stat-appeal').textContent = this.appeal;
+                document.getElementById('stat-conservation').textContent = this.conservation;
+                document.getElementById('stat-reputation').textContent = this.reputation;
+            }
+
+            renderMarket() {
+                const marketEl = document.getElementById('market');
+                marketEl.innerHTML = '';
+                ARK_NOVA_CARDS.forEach(card => {
+                    const div = document.createElement('div');
+                    div.className = 'market-card';
+                    div.style.borderLeft = `5px solid ${card.color}`;
+                    div.innerHTML = `
+                        <div class="card-type">Animal</div>
+                        <div class="card-name">${card.emoji} ${card.name}</div>
+                        <div class="card-cost">$${card.cost} • +${card.appeal} Appeal</div>
+                    `;
+                    div.onclick = () => this.buyCard(card);
+                    
+                    div.onmouseenter = (e) => this.showTooltip(card.info, e);
+                    div.onmouseleave = () => this.hideTooltip();
+                    
+                    marketEl.appendChild(div);
+                });
+            }
+
+            showTooltip(html, e) {
+                const tt = document.getElementById('tooltip');
+                tt.innerHTML = html;
+                tt.style.display = 'block';
+                tt.style.left = e.clientX + 10 + 'px';
+                tt.style.top = e.clientY + 10 + 'px';
+            }
+
+            hideTooltip() {
+                document.getElementById('tooltip').style.display = 'none';
+            }
+
+            renderActions() {
+                const row = document.getElementById('actions-row');
+                row.innerHTML = '';
+                this.actions.forEach((action, i) => {
+                    const div = document.createElement('div');
+                    div.className = `action-card ${this.selectedActionIdx === i ? 'selected' : ''}`;
+                    div.innerHTML = `
+                        <div class="name">${action.name}</div>
+                        <div class="slot">Power: ${action.slot}</div>
+                    `;
+                    div.onclick = () => {
+                        this.selectedActionIdx = i;
+                        this.renderActions();
+                        this.showMessage(`Action Selected: ${action.name} (Strength ${action.slot})`);
+                    };
+                    row.appendChild(div);
+                });
+            }
+
+            buyCard(card) {
+                if (this.money < card.cost) {
+                    this.showMessage("Insufficient funds!");
+                    return;
+                }
+                this.money -= card.cost;
+                this.appeal += card.appeal;
+                this.showMessage(`Successfully added ${card.name} to your zoo!`);
+                this.updateStats();
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw Zoo Grid
+                const ox = 450, oy = 300, size = 45;
+                this.zoo.forEach(hex => {
+                    const px = ox + (hex.x - 2) * size * 1.75;
+                    const py = oy + (hex.y - 2) * size * 1.5 + (hex.x % 2 ? size * 0.75 : 0);
+                    
+                    this.drawHex(px, py, size, hex.built ? '#ffd54f' : '#fff');
+                    if (hex.built) {
+                        ctx.fillStyle = '#333';
+                        ctx.font = 'bold 12px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(hex.built, px, py + 5);
+                    }
+                });
+
+                // Board decorations
+                ctx.fillStyle = '#eee';
+                ctx.fillRect(50, 50, 200, 500);
+                ctx.strokeStyle = '#ddd';
+                ctx.strokeRect(50, 50, 200, 500);
+                
+                ctx.fillStyle = '#666';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText('CONSERVATION PROJECTS', 60, 80);
+                
+                requestAnimationFrame(() => this.draw());
+            }
+
+            drawHex(x, y, size, color) {
+                const ctx = this.ctx;
+                ctx.beginPath();
+                for (let i = 0; i < 6; i++) {
+                    ctx.lineTo(x + size * Math.cos(i * Math.PI / 3), y + size * Math.sin(i * Math.PI / 3));
+                }
+                ctx.closePath();
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.strokeStyle = '#ccc';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+
+            handleCanvasClick(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const my = e.clientY - rect.top;
+                
+                // Simplified hex selection logic
+                const ox = 450, oy = 300, size = 45;
+                this.zoo.forEach(hex => {
+                    const px = ox + (hex.x - 2) * size * 1.75;
+                    const py = oy + (hex.y - 2) * size * 1.5 + (hex.x % 2 ? size * 0.75 : 0);
+                    
+                    if (Math.hypot(mx - px, my - py) < size) {
+                        if (this.selectedActionIdx !== null && this.actions[this.selectedActionIdx].name === 'Build') {
+                            hex.built = 'ENCLOSURE';
+                            this.showMessage("Building constructed!");
+                        }
+                    }
+                });
+            }
+        }
+
+        window.onload = () => new Game();
+    </script>
+</body>
+</html>

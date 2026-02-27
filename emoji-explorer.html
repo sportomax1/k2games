@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emoji Encyclopedia - K4 Games</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --bg: #f8fafc;
+            --panel: #ffffff;
+            --text: #1e293b;
+            --card-bg: #ffffff;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        #sidebar {
+            width: 280px;
+            background: var(--panel);
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            box-shadow: 10px 0 25px -5px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+
+        .logo { font-size: 1.8rem; font-weight: 900; color: var(--primary); margin-bottom: 2rem; display: flex; align-items: center; gap: 10px; }
+        
+        .filter-group { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; }
+        
+        .filter-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            padding: 10px 15px;
+            border-radius: 8px;
+            text-align: left;
+            cursor: pointer;
+            font-weight: 600;
+            color: #64748b;
+            transition: 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .filter-btn:hover { background: #f1f5f9; color: var(--primary); }
+        .filter-btn.active { background: #e0e7ff; color: var(--primary); }
+        .filter-btn.active::after { content: '✔'; font-weight: bold; }
+
+        .btn-action {
+            width: 100%; padding: 12px; border-radius: 8px; border: none;
+            background: var(--primary); color: white; font-weight: 700;
+            cursor: pointer; margin-top: 10px; transition: 0.2s;
+        }
+        .btn-action:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-outline { background: white; border: 1px solid #cbd5e1; color: #475569; }
+        .btn-outline:hover { background: #f8fafc; }
+
+        /* Main Content */
+        #main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+            overflow: hidden;
+        }
+
+        .search-bar {
+            width: 100%;
+            max-width: 600px;
+            padding: 15px 25px;
+            border-radius: 50px;
+            border: 1px solid #cbd5e1;
+            font-size: 1.1rem;
+            background: white;
+            box-shadow: var(--shadow);
+            margin: 0 auto 2rem auto;
+            display: block;
+            transition: 0.2s;
+        }
+        .search-bar:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px #e0e7ff; }
+
+        #emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 20px;
+            overflow-y: auto;
+            padding: 10px;
+            padding-bottom: 50px;
+        }
+
+        .emoji-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+            transition: 0.2s;
+            border: 1px solid #f1f5f9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .emoji-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: var(--primary); }
+        
+        .char { font-size: 3rem; line-height: 1; }
+        .name { font-size: 0.9rem; font-weight: 600; color: #475569; }
+        .type { font-size: 0.7rem; text-transform: uppercase; color: #94a3b8; font-weight: 700; background: #f1f5f9; padding: 4px 8px; border-radius: 4px; }
+
+        .back-link {
+            position: fixed; top: 20px; right: 20px; color: #64748b; text-decoration: none;
+            background: white; padding: 10px 20px; border-radius: 12px; z-index: 100;
+            box-shadow: var(--shadow); font-weight: bold; transition: 0.2s;
+        }
+        .back-link:hover { color: var(--primary); transform: translateY(-2px); }
+
+        /* Toast */
+        #toast {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: #1e293b; color: white; padding: 12px 30px; border-radius: 50px;
+            font-weight: 600; opacity: 0; transition: 0.3s; pointer-events: none;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2); z-index: 200;
+        }
+        #toast.show { opacity: 1; bottom: 50px; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <aside id="sidebar">
+        <div class="logo"><span>😀</span> EMOJI DEPOT</div>
+        
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <button class="btn-action btn-outline" onclick="app.selectAll()">All</button>
+            <button class="btn-action btn-outline" onclick="app.selectNone()">None</button>
+        </div>
+
+        <div id="filter-list" class="filter-group"></div>
+
+        <button class="btn-action" onclick="app.downloadCSV()">Download CSV 📥</button>
+    </aside>
+
+    <main id="main-content">
+        <input type="text" id="search" class="search-bar" placeholder="Search emojis (e.g., 'happy', 'cat')...">
+        <div id="emoji-grid"></div>
+    </main>
+
+    <div id="toast">Copied to clipboard!</div>
+
+    <script>
+        // Data from emoji.js
+        const EMOJI_DATA = [
+            {char:'😀', name:'Grinning Face', type:'Smileys'},
+            {char:'😃', name:'Grinning Face with Big Eyes', type:'Smileys'},
+            {char:'😄', name:'Grinning Face with Smiling Eyes', type:'Smileys'},
+            {char:'😁', name:'Beaming Face with Smiling Eyes', type:'Smileys'},
+            {char:'😆', name:'Grinning Squinting Face', type:'Smileys'},
+            {char:'😅', name:'Grinning Face with Sweat', type:'Smileys'},
+            {char:'😂', name:'Face with Tears of Joy', type:'Smileys'},
+            {char:'🤣', name:'Rolling on the Floor Laughing', type:'Smileys'},
+            {char:'😊', name:'Smiling Face with Smiling Eyes', type:'Smileys'},
+            {char:'😇', name:'Smiling Face with Halo', type:'Smileys'},
+            {char:'🙂', name:'Slightly Smiling Face', type:'Smileys'},
+            {char:'🙃', name:'Upside-Down Face', type:'Smileys'},
+            {char:'😉', name:'Winking Face', type:'Smileys'},
+            {char:'😌', name:'Relieved Face', type:'Smileys'},
+            {char:'😍', name:'Smiling Face with Heart-Eyes', type:'Smileys'},
+            {char:'🥰', name:'Smiling Face with Hearts', type:'Smileys'},
+            {char:'😘', name:'Face Blowing a Kiss', type:'Smileys'},
+            {char:'😗', name:'Kissing Face', type:'Smileys'},
+            {char:'😙', name:'Kissing Face with Smiling Eyes', type:'Smileys'},
+            {char:'😚', name:'Kissing Face with Closed Eyes', type:'Smileys'},
+            {char:'😋', name:'Face Savoring Food', type:'Smileys'},
+            {char:'😛', name:'Winking Face with Tongue', type:'Smileys'},
+            {char:'😝', name:'Squinting Face with Tongue', type:'Smileys'},
+            {char:'😜', name:'Face with Tongue', type:'Smileys'},
+            {char:'🤪', name:'Zany Face', type:'Smileys'},
+            {char:'🤨', name:'Face with Raised Eyebrow', type:'Smileys'},
+            {char:'🧐', name:'Face with Monocle', type:'Smileys'},
+            {char:'🤓', name:'Nerd Face', type:'Smileys'},
+            {char:'😎', name:'Smiling Face with Sunglasses', type:'Smileys'},
+            {char:'🤩', name:'Star-Struck', type:'Smileys'},
+            {char:'🥳', name:'Partying Face', type:'Smileys'},
+            {char:'😏', name:'Smirking Face', type:'Smileys'},
+            {char:'😒', name:'Unamused Face', type:'Smileys'},
+            {char:'😞', name:'Disappointed Face', type:'Smileys'},
+            {char:'😔', name:'Pensive Face', type:'Smileys'},
+            {char:'😟', name:'Worried Face', type:'Smileys'},
+            {char:'😕', name:'Confused Face', type:'Smileys'},
+            {char:'🙁', name:'Slightly Frowning Face', type:'Smileys'},
+            {char:'☹️', name:'Frowning Face', type:'Smileys'},
+            {char:'😣', name:'Persevering Face', type:'Smileys'},
+            {char:'😖', name:'Confounded Face', type:'Smileys'},
+            {char:'😫', name:'Tired Face', type:'Smileys'},
+            {char:'😩', name:'Weary Face', type:'Smileys'},
+            {char:'🥺', name:'Pleading Face', type:'Smileys'},
+            {char:'😢', name:'Crying Face', type:'Smileys'},
+            {char:'😭', name:'Loudly Crying Face', type:'Smileys'},
+            {char:'😤', name:'Face with Steam From Nose', type:'Smileys'},
+            {char:'😠', name:'Angry Face', type:'Smileys'},
+            {char:'😡', name:'Pouting Face', type:'Smileys'},
+            {char:'🤬', name:'Face with Symbols on Mouth', type:'Smileys'},
+            {char:'🤯', name:'Exploding Head', type:'Smileys'},
+            {char:'😳', name:'Flushed Face', type:'Smileys'},
+            {char:'🥵', name:'Hot Face', type:'Smileys'},
+            {char:'🥶', name:'Cold Face', type:'Smileys'},
+            {char:'😱', name:'Face Screaming in Fear', type:'Smileys'},
+            {char:'😨', name:'Fearful Face', type:'Smileys'},
+            {char:'😰', name:'Anxious Face with Sweat', type:'Smileys'},
+            {char:'😥', name:'Sad but Relieved Face', type:'Smileys'},
+            {char:'😓', name:'Downcast Face with Sweat', type:'Smileys'},
+            {char:'🤗', name:'Hugging Face', type:'Smileys'},
+            {char:'🤔', name:'Thinking Face', type:'Smileys'},
+            {char:'🤭', name:'Face with Hand Over Mouth', type:'Smileys'},
+            {char:'🤫', name:'Shushing Face', type:'Smileys'},
+            {char:'🤥', name:'Lying Face', type:'Smileys'},
+            {char:'😶', name:'Face Without Mouth', type:'Smileys'},
+            {char:'😐', name:'Neutral Face', type:'Smileys'},
+            {char:'😑', name:'Expressionless Face', type:'Smileys'},
+            {char:'😬', name:'Grimacing Face', type:'Smileys'},
+            {char:'🙄', name:'Face with Rolling Eyes', type:'Smileys'},
+            {char:'😯', name:'Hushed Face', type:'Smileys'},
+            {char:'😦', name:'Frowning Face with Open Mouth', type:'Smileys'},
+            {char:'😧', name:'Anguished Face', type:'Smileys'},
+            {char:'😮', name:'Face with Open Mouth', type:'Smileys'},
+            {char:'😲', name:'Astonished Face', type:'Smileys'},
+            {char:'🥱', name:'Yawning Face', type:'Smileys'},
+            {char:'😴', name:'Sleeping Face', type:'Smileys'},
+            {char:'🤤', name:'Drooling Face', type:'Smileys'},
+            {char:'😪', name:'Sleepy Face', type:'Smileys'},
+            {char:'😵', name:'Dizzy Face', type:'Smileys'},
+            {char:'🤐', name:'Zipper-Mouth Face', type:'Smileys'},
+            {char:'🥴', name:'Woozy Face', type:'Smileys'},
+            {char:'🤢', name:'Nauseated Face', type:'Smileys'},
+            {char:'🤮', name:'Face Vomiting', type:'Smileys'},
+            {char:'🤧', name:'Sneezing Face', type:'Smileys'},
+            {char:'😷', name:'Face with Medical Mask', type:'Smileys'},
+            {char:'🤒', name:'Face with Thermometer', type:'Smileys'},
+            {char:'🤕', name:'Face with Head-Bandage', type:'Smileys'},
+            {char:'🤑', name:'Money-Mouth Face', type:'Smileys'},
+            {char:'🤠', name:'Cowboy Hat Face', type:'Smileys'},
+            {char:'😈', name:'Smiling Face with Horns', type:'Smileys'},
+            {char:'👿', name:'Angry Face with Horns', type:'Smileys'},
+            {char:'👺', name:'Goblin', type:'Smileys'},
+            {char:'👻', name:'Ghost', type:'Smileys'},
+            {char:'💀', name:'Skull', type:'Smileys'},
+            {char:'☠️', name:'Skull and Crossbones', type:'Smileys'},
+            {char:'👽', name:'Alien', type:'Smileys'},
+            {char:'👾', name:'Alien Monster', type:'Smileys'},
+            {char:'🤖', name:'Robot', type:'Smileys'},
+            {char:'🎃', name:'Jack-O-Lantern', type:'Smileys'},
+            {char:'😺', name:'Grinning Cat', type:'Smileys'},
+            {char:'😸', name:'Grinning Cat with Smiling Eyes', type:'Smileys'},
+            {char:'😹', name:'Cat with Tears of Joy', type:'Smileys'},
+            {char:'😻', name:'Smiling Cat with Heart-Eyes', type:'Smileys'},
+            {char:'😼', name:'Cat with Wry Smile', type:'Smileys'},
+            {char:'😽', name:'Kissing Cat', type:'Smileys'},
+            {char:'🙀', name:'Weary Cat', type:'Smileys'},
+            {char:'😿', name:'Crying Cat', type:'Smileys'},
+            {char:'😾', name:'Pouting Cat', type:'Smileys'},
+            // Animals
+            {char:'🐶', name:'Dog Face', type:'Animals'},
+            {char:'🐱', name:'Cat Face', type:'Animals'},
+            {char:'🐭', name:'Mouse Face', type:'Animals'},
+            {char:'🐹', name:'Hamster Face', type:'Animals'},
+            {char:'🐰', name:'Rabbit Face', type:'Animals'},
+            {char:'🦊', name:'Fox Face', type:'Animals'},
+            {char:'🐻', name:'Bear Face', type:'Animals'},
+            {char:'🐼', name:'Panda Face', type:'Animals'},
+            {char:'🐨', name:'Koala', type:'Animals'},
+            {char:'🐯', name:'Tiger Face', type:'Animals'},
+            {char:'🦁', name:'Lion Face', type:'Animals'},
+            {char:'🐮', name:'Cow Face', type:'Animals'},
+            {char:'🐷', name:'Pig Face', type:'Animals'},
+            {char:'🐽', name:'Pig Nose', type:'Animals'},
+            {char:'🐸', name:'Frog Face', type:'Animals'},
+            {char:'🐵', name:'Monkey Face', type:'Animals'},
+            {char:'🙈', name:'See-No-Evil Monkey', type:'Animals'},
+            {char:'🙉', name:'Hear-No-Evil Monkey', type:'Animals'},
+            {char:'🙊', name:'Speak-No-Evil Monkey', type:'Animals'},
+            {char:'🐒', name:'Monkey', type:'Animals'},
+            {char:'🐔', name:'Chicken', type:'Animals'},
+            {char:'🐧', name:'Penguin', type:'Animals'},
+            {char:'🐦', name:'Bird', type:'Animals'},
+            {char:'🐤', name:'Baby Chick', type:'Animals'},
+            {char:'🐣', name:'Hatching Chick', type:'Animals'},
+            {char:'🐥', name:'Front-Facing Baby Chick', type:'Animals'},
+            {char:'🦆', name:'Duck', type:'Animals'},
+            {char:'🦅', name:'Eagle', type:'Animals'},
+            {char:'🦉', name:'Owl', type:'Animals'},
+            {char:'🦇', name:'Bat', type:'Animals'},
+            {char:'🐺', name:'Wolf', type:'Animals'},
+            {char:'🐗', name:'Boar', type:'Animals'},
+            {char:'🐴', name:'Horse Face', type:'Animals'},
+            {char:'🦄', name:'Unicorn Face', type:'Animals'},
+            {char:'🐝', name:'Honeybee', type:'Animals'},
+            {char:'🐛', name:'Bug', type:'Animals'},
+            {char:'🦋', name:'Butterfly', type:'Animals'},
+            {char:'🐌', name:'Snail', type:'Animals'},
+            {char:'🐞', name:'Lady Beetle', type:'Animals'},
+            {char:'🐜', name:'Ant', type:'Animals'},
+            {char:'🦗', name:'Cricket', type:'Animals'},
+            {char:'🕷️', name:'Spider', type:'Animals'},
+            {char:'🕸️', name:'Spider Web', type:'Animals'},
+            {char:'🦂', name:'Scorpion', type:'Animals'},
+            {char:'🦟', name:'Mosquito', type:'Animals'},
+            {char:'🦠', name:'Microbe', type:'Animals'},
+            {char:'🐢', name:'Turtle', type:'Animals'},
+            {char:'🐍', name:'Snake', type:'Animals'},
+            {char:'🦎', name:'Lizard', type:'Animals'},
+            {char:'🦖', name:'T-Rex', type:'Animals'},
+            {char:'🦕', name:'Sauropod', type:'Animals'},
+            {char:'🐙', name:'Octopus', type:'Animals'},
+            {char:'🦑', name:'Squid', type:'Animals'},
+            {char:'🦐', name:'Shrimp', type:'Animals'},
+            {char:'🦞', name:'Lobster', type:'Animals'},
+            {char:'🦀', name:'Crab', type:'Animals'},
+            {char:'🐡', name:'Blowfish', type:'Animals'},
+            {char:'🐠', name:'Tropical Fish', type:'Animals'},
+            {char:'🐟', name:'Fish', type:'Animals'},
+            {char:'🐬', name:'Dolphin', type:'Animals'},
+            {char:'🐳', name:'Spouting Whale', type:'Animals'},
+            {char:'🐋', name:'Whale', type:'Animals'},
+            {char:'🦈', name:'Shark', type:'Animals'},
+            {char:'🐊', name:'Crocodile', type:'Animals'},
+            {char:'🐅', name:'Tiger', type:'Animals'},
+            {char:'🐆', name:'Leopard', type:'Animals'},
+            {char:'🦓', name:'Zebra', type:'Animals'},
+            {char:'🦍', name:'Gorilla', type:'Animals'},
+            {char:'🦧', name:'Orangutan', type:'Animals'},
+            {char:'🐘', name:'Elephant', type:'Animals'},
+            {char:'🦛', name:'Hippopotamus', type:'Animals'},
+            {char:'🦏', name:'Rhinoceros', type:'Animals'},
+            {char:'🐪', name:'Camel', type:'Animals'},
+            {char:'🐫', name:'Two-Hump Camel', type:'Animals'},
+            {char:'🦒', name:'Giraffe', type:'Animals'},
+            {char:'🦘', name:'Kangaroo', type:'Animals'},
+            {char:'🐃', name:'Water Buffalo', type:'Animals'},
+            {char:'🐂', name:'Ox', type:'Animals'},
+            {char:'🐄', name:'Cow', type:'Animals'},
+            {char:'🐎', name:'Horse', type:'Animals'},
+            {char:'🐖', name:'Pig', type:'Animals'},
+            {char:'🐏', name:'Ram', type:'Animals'},
+            {char:'🐑', name:'Sheep', type:'Animals'},
+            {char:'🦙', name:'Llama', type:'Animals'},
+            {char:'🐐', name:'Goat', type:'Animals'},
+            {char:'🦌', name:'Deer', type:'Animals'},
+            {char:'🐕', name:'Dog', type:'Animals'},
+            {char:'🐩', name:'Poodle', type:'Animals'},
+            {char:'🦮', name:'Guide Dog', type:'Animals'},
+            {char:'🐕‍🦺', name:'Service Dog', type:'Animals'},
+            {char:'🐈', name:'Cat', type:'Animals'},
+            {char:'🐈‍⬛', name:'Black Cat', type:'Animals'},
+            {char:'🐓', name:'Rooster', type:'Animals'},
+            {char:'🦃', name:'Turkey', type:'Animals'},
+            {char:'🦚', name:'Peacock', type:'Animals'},
+            {char:'🦜', name:'Parrot', type:'Animals'},
+            {char:'🦢', name:'Swan', type:'Animals'},
+            {char:'🦩', name:'Flamingo', type:'Animals'},
+            {char:'🕊️', name:'Dove', type:'Animals'},
+            {char:'🐇', name:'Rabbit', type:'Animals'},
+            {char:'🦝', name:'Raccoon', type:'Animals'},
+            {char:'🦨', name:'Skunk', type:'Animals'},
+            {char:'🦡', name:'Badger', type:'Animals'},
+            {char:'🦦', name:'Otter', type:'Animals'},
+            {char:'🦥', name:'Sloth', type:'Animals'},
+            {char:'🐁', name:'Mouse', type:'Animals'},
+            {char:'🐀', name:'Rat', type:'Animals'},
+            {char:'🐿️', name:'Chipmunk', type:'Animals'},
+            {char:'🦔', name:'Hedgehog', type:'Animals'},
+            {char:'🐾', name:'Paw Prints', type:'Animals'},
+            {char:'🐉', name:'Dragon', type:'Animals'},
+            {char:'🐲', name:'Dragon Face', type:'Animals'},
+            {char:'🌵', name:'Cactus', type:'Animals'},
+            {char:'🎄', name:'Christmas Tree', type:'Animals'},
+            {char:'🌲', name:'Evergreen Tree', type:'Animals'},
+            {char:'🌳', name:'Deciduous Tree', type:'Animals'},
+            {char:'🌴', name:'Palm Tree', type:'Animals'},
+            {char:'🌱', name:'Seedling', type:'Animals'},
+            {char:'🌿', name:'Herb', type:'Animals'},
+            {char:'☘️', name:'Shamrock', type:'Animals'},
+            {char:'🍀', name:'Four Leaf Clover', type:'Animals'},
+            {char:'🎍', name:'Pine Decoration', type:'Animals'},
+            {char:'🎋', name:'Tanabata Tree', type:'Animals'},
+            {char:'🍃', name:'Leaf Fluttering in Wind', type:'Animals'},
+            {char:'🍂', name:'Fallen Leaf', type:'Animals'},
+            {char:'🍁', name:'Maple Leaf', type:'Animals'},
+            {char:'🍄', name:'Mushroom', type:'Animals'},
+            {char:'🐚', name:'Spiral Shell', type:'Animals'},
+            {char:'🌾', name:'Sheaf of Rice', type:'Animals'},
+            {char:'💐', name:'Bouquet', type:'Animals'},
+            {char:'🌷', name:'Tulip', type:'Animals'},
+            {char:'🌹', name:'Rose', type:'Animals'},
+            {char:'🥀', name:'Wilted Flower', type:'Animals'},
+            {char:'🌺', name:'Hibiscus', type:'Animals'},
+            {char:'🌸', name:'Cherry Blossom', type:'Animals'},
+            {char:'🌼', name:'Blossom', type:'Animals'},
+            {char:'🌻', name:'Sunflower', type:'Animals'},
+            {char:'🌞', name:'Sun with Face', type:'Animals'},
+            {char:'🌝', name:'Full Moon with Face', type:'Animals'},
+            {char:'🌛', name:'First Quarter Moon with Face', type:'Animals'},
+            {char:'🌜', name:'Last Quarter Moon with Face', type:'Animals'},
+            {char:'🌚', name:'New Moon with Face', type:'Animals'},
+            {char:'🌕', name:'Full Moon', type:'Animals'},
+            {char:'🌖', name:'Waning Gibbous Moon', type:'Animals'},
+            {char:'🌗', name:'Last Quarter Moon', type:'Animals'},
+            {char:'🌘', name:'Waning Crescent Moon', type:'Animals'},
+            {char:'🌑', name:'New Moon', type:'Animals'},
+            {char:'🌒', name:'Waxing Crescent Moon', type:'Animals'},
+            {char:'🌓', name:'First Quarter Moon', type:'Animals'},
+            {char:'🌔', name:'Waxing Gibbous Moon', type:'Animals'},
+            {char:'🌙', name:'Crescent Moon', type:'Animals'},
+            {char:'🌎', name:'Globe Showing Americas', type:'Animals'},
+            {char:'🌍', name:'Globe Showing Europe-Africa', type:'Animals'},
+            {char:'🌏', name:'Globe Showing Asia-Australia', type:'Animals'},
+            {char:'🪐', name:'Ringed Planet', type:'Animals'},
+            {char:'💫', name:'Dizzy', type:'Animals'},
+            {char:'⭐', name:'Star', type:'Animals'},
+            {char:'🌟', name:'Glowing Star', type:'Animals'},
+            {char:'✨', name:'Sparkles', type:'Animals'},
+            {char:'⚡', name:'High Voltage', type:'Animals'},
+            {char:'🔥', name:'Fire', type:'Animals'},
+            {char:'💥', name:'Collision', type:'Animals'},
+            {char:'☄️', name:'Comet', type:'Animals'},
+            {char:'☀️', name:'Sun', type:'Animals'},
+            {char:'🌤️', name:'Sun Behind Small Cloud', type:'Animals'},
+            {char:'⛅', name:'Sun Behind Large Cloud', type:'Animals'},
+            {char:'🌥️', name:'Sun Behind Cloud', type:'Animals'},
+            {char:'☁️', name:'Cloud', type:'Animals'},
+            {char:'🌦️', name:'Sun Behind Rain Cloud', type:'Animals'},
+            {char:'🌧️', name:'Cloud with Rain', type:'Animals'},
+            {char:'⛈️', name:'Cloud with Lightning and Rain', type:'Animals'},
+            {char:'🌩️', name:'Cloud with Lightning', type:'Animals'},
+            {char:'🌨️', name:'Cloud with Snow', type:'Animals'},
+            {char:'❄️', name:'Snowflake', type:'Animals'},
+            {char:'☃️', name:'Snowman', type:'Animals'},
+            {char:'⛄', name:'Snowman Without Snow', type:'Animals'},
+            {char:'🌬️', name:'Wind Face', type:'Animals'},
+            {char:'💨', name:'Dashing Away', type:'Animals'},
+            {char:'🌪️', name:'Tornado', type:'Animals'},
+            {char:'🌫️', name:'Fog', type:'Animals'},
+            {char:'🌈', name:'Rainbow', type:'Animals'},
+            {char:'☂️', name:'Umbrella', type:'Animals'},
+            {char:'☔', name:'Umbrella with Rain Drops', type:'Animals'},
+            {char:'💧', name:'Droplet', type:'Animals'},
+            {char:'💦', name:'Sweat Droplets', type:'Animals'},
+            {char:'🌊', name:'Water Wave', type:'Animals'},
+            // Food
+            {char:'🍏', name:'Green Apple', type:'Food'},
+            {char:'🍎', name:'Red Apple', type:'Food'},
+            {char:'🍐', name:'Pear', type:'Food'},
+            {char:'🍊', name:'Tangerine', type:'Food'},
+            {char:'🍋', name:'Lemon', type:'Food'},
+            {char:'🍌', name:'Banana', type:'Food'},
+            {char:'🍉', name:'Watermelon', type:'Food'},
+            {char:'🍇', name:'Grapes', type:'Food'},
+            {char:'🍓', name:'Strawberry', type:'Food'},
+            {char:'🍈', name:'Melon', type:'Food'},
+            {char:'🍒', name:'Cherries', type:'Food'},
+            {char:'🍑', name:'Peach', type:'Food'},
+            {char:'🍍', name:'Pineapple', type:'Food'},
+            {char:'🥭', name:'Mango', type:'Food'},
+            {char:'🥥', name:'Coconut', type:'Food'},
+            {char:'🥝', name:'Kiwi', type:'Food'},
+            {char:'🍅', name:'Tomato', type:'Food'},
+            {char:'🥑', name:'Avocado', type:'Food'},
+            {char:'🍆', name:'Eggplant', type:'Food'},
+            {char:'🥔', name:'Potato', type:'Food'},
+            {char:'🥕', name:'Carrot', type:'Food'},
+            {char:'🌽', name:'Ear of Corn', type:'Food'},
+            {char:'🌶️', name:'Hot Pepper', type:'Food'},
+            {char:'🥒', name:'Cucumber', type:'Food'},
+            {char:'🥬', name:'Leafy Green', type:'Food'},
+            {char:'🥦', name:'Broccoli', type:'Food'},
+            {char:'🧄', name:'Garlic', type:'Food'},
+            {char:'🧅', name:'Onion', type:'Food'},
+            {char:'🍄', name:'Mushroom', type:'Food'},
+            {char:'🥜', name:'Peanut', type:'Food'},
+            {char:'🌰', name:'Chestnut', type:'Food'},
+            {char:'🍞', name:'Bread', type:'Food'},
+            {char:'🥐', name:'Croissant', type:'Food'},
+            {char:'🥯', name:'Bagel', type:'Food'},
+            {char:'🥖', name:'Baguette Bread', type:'Food'},
+            {char:'🥨', name:'Pretzel', type:'Food'},
+            {char:'🧀', name:'Cheese Wedge', type:'Food'},
+            {char:'🥚', name:'Egg', type:'Food'},
+            {char:'🍳', name:'Cooking', type:'Food'},
+            {char:'🥞', name:'Pancakes', type:'Food'},
+            {char:'🥓', name:'Bacon', type:'Food'},
+            {char:'🥩', name:'Cut of Meat', type:'Food'},
+            {char:'🍗', name:'Poultry Leg', type:'Food'},
+            {char:'🍖', name:'Meat on Bone', type:'Food'},
+            {char:'🌭', name:'Hot Dog', type:'Food'},
+            {char:'🍔', name:'Hamburger', type:'Food'},
+            {char:'🍟', name:'French Fries', type:'Food'},
+            {char:'🍕', name:'Pizza', type:'Food'},
+            {char:'🥪', name:'Sandwich', type:'Food'},
+            {char:'🥙', name:'Stuffed Flatbread', type:'Food'},
+            {char:'🌮', name:'Taco', type:'Food'},
+            {char:'🌯', name:'Burrito', type:'Food'},
+            {char:'🥗', name:'Green Salad', type:'Food'},
+            {char:'🍝', name:'Spaghetti', type:'Food'},
+            {char:'🍜', name:'Steaming Bowl', type:'Food'},
+            {char:'🍲', name:'Pot of Food', type:'Food'},
+            {char:'🍛', name:'Curry Rice', type:'Food'},
+            {char:'🍣', name:'Sushi', type:'Food'},
+            {char:'🍤', name:'Fried Shrimp', type:'Food'},
+            {char:'🍙', name:'Rice Ball', type:'Food'},
+            {char:'🍚', name:'Cooked Rice', type:'Food'},
+            {char:'🍘', name:'Rice Cracker', type:'Food'},
+            {char:'🥟', name:'Dumpling', type:'Food'},
+            {char:'🍢', name:'Oden', type:'Food'},
+            {char:'🍡', name:'Dango', type:'Food'},
+            {char:'🍧', name:'Shaved Ice', type:'Food'},
+            {char:'🍨', name:'Ice Cream', type:'Food'},
+            {char:'🍦', name:'Soft Ice Cream', type:'Food'},
+            {char:'🥧', name:'Pie', type:'Food'},
+            {char:'🍰', name:'Shortcake', type:'Food'},
+            {char:'🎂', name:'Birthday Cake', type:'Food'},
+            {char:'🧁', name:'Cupcake', type:'Food'},
+            {char:'🍮', name:'Custard', type:'Food'},
+            {char:'🍭', name:'Lollipop', type:'Food'},
+            {char:'🍬', name:'Candy', type:'Food'},
+            {char:'🍫', name:'Chocolate Bar', type:'Food'},
+            {char:'🍿', name:'Popcorn', type:'Food'},
+            {char:'🍩', name:'Doughnut', type:'Food'},
+            {char:'🍪', name:'Cookie', type:'Food'},
+            {char:'🥠', name:'Moon Cake', type:'Food'},
+            {char:'🥮', name:'Fortune Cookie', type:'Food'},
+            {char:'☕', name:'Hot Beverage', type:'Food'},
+            {char:'🍵', name:'Teacup Without Handle', type:'Food'},
+            {char:'🥣', name:'Bowl with Spoon', type:'Food'},
+            {char:'🍼', name:'Baby Bottle', type:'Food'},
+            {char:'🥤', name:'Cup with Straw', type:'Food'},
+            {char:'🥛', name:'Glass of Milk', type:'Food'},
+            {char:'🍺', name:'Beer Mug', type:'Food'},
+            {char:'🍻', name:'Clinking Beer Mugs', type:'Food'},
+            {char:'🥂', name:'Clinking Glasses', type:'Food'},
+            {char:'🍷', name:'Wine Glass', type:'Food'},
+            {char:'🥃', name:'Tumbler Glass', type:'Food'},
+            {char:'🍸', name:'Cocktail Glass', type:'Food'},
+            {char:'🍹', name:'Tropical Drink', type:'Food'},
+            {char:'🍾', name:'Bottle with Popping Cork', type:'Food'},
+            {char:'🥄', name:'Spoon', type:'Food'},
+            {char:'🍴', name:'Fork and Knife', type:'Food'},
+            {char:'🍽️', name:'Fork and Knife with Plate', type:'Food'},
+            {char:'🥢', name:'Chopsticks', type:'Food'},
+            {char:'🧂', name:'Salt', type:'Food'},
+            // Activities
+            {char:'⚽', name:'Soccer Ball', type:'Activities'},
+            {char:'🏀', name:'Basketball', type:'Activities'},
+            {char:'🏈', name:'American Football', type:'Activities'},
+            {char:'⚾', name:'Baseball', type:'Activities'},
+            {char:'🎾', name:'Tennis', type:'Activities'},
+            {char:'🏐', name:'Volleyball', type:'Activities'},
+            {char:'🏉', name:'Rugby Football', type:'Activities'},
+            {char:'🎱', name:'Pool 8 Ball', type:'Activities'},
+            {char:'🏓', name:'Ping Pong', type:'Activities'},
+            {char:'🏸', name:'Badminton', type:'Activities'},
+            {char:'🥅', name:'Goal Net', type:'Activities'},
+            {char:'🏒', name:'Ice Hockey', type:'Activities'},
+            {char:'🏑', name:'Field Hockey', type:'Activities'},
+            {char:'🥍', name:'Lacrosse', type:'Activities'},
+            {char:'🏏', name:'Cricket', type:'Activities'},
+            {char:'⛳', name:'Flag in Hole', type:'Activities'},
+            {char:'🏹', name:'Bow and Arrow', type:'Activities'},
+            {char:'🎣', name:'Fishing', type:'Activities'},
+            {char:'🥊', name:'Boxing Glove', type:'Activities'},
+            {char:'🥋', name:'Martial Arts Uniform', type:'Activities'},
+            {char:'🎽', name:'Running Shirt', type:'Activities'},
+            {char:'🛹', name:'Skateboard', type:'Activities'},
+            {char:'⛸️', name:'Ice Skate', type:'Activities'},
+            {char:'🥌', name:'Curling Stone', type:'Activities'},
+            {char:'🛷', name:'Sled', type:'Activities'},
+            {char:'⛷️', name:'Skier', type:'Activities'},
+            {char:'🏂', name:'Snowboarder', type:'Activities'},
+            {char:'🏋️', name:'Weight Lifter', type:'Activities'},
+            {char:'🤼', name:'Wrestlers', type:'Activities'},
+            {char:'🤸', name:'Cartwheel', type:'Activities'},
+            {char:'⛹️', name:'Basketball Player', type:'Activities'},
+            {char:'🤾', name:'Handball Player', type:'Activities'},
+            {char:'🏇', name:'Horse Racing', type:'Activities'},
+            {char:'🏄', name:'Surfer', type:'Activities'},
+            {char:'🏊', name:'Swimmer', type:'Activities'},
+            {char:'🤽', name:'Water Polo', type:'Activities'},
+            {char:'🚣', name:'Rowboat', type:'Activities'},
+            {char:'🚴', name:'Bicyclist', type:'Activities'},
+            {char:'🧗', name:'Climber', type:'Activities'},
+            {char:'🚵', name:'Mountain Biker', type:'Activities'},
+            {char:'🎖️', name:'Military Medal', type:'Activities'},
+            {char:'🏆', name:'Trophy', type:'Activities'},
+            {char:'🏅', name:'Sports Medal', type:'Activities'},
+            {char:'🥇', name:'1st Place Medal', type:'Activities'},
+            {char:'🥈', name:'2nd Place Medal', type:'Activities'},
+            {char:'🥉', name:'3rd Place Medal', type:'Activities'},
+            {char:'🎫', name:'Ticket', type:'Activities'},
+            {char:'🎟️', name:'Admission Tickets', type:'Activities'},
+            {char:'🎪', name:'Circus Tent', type:'Activities'},
+            {char:'🤹', name:'Juggling', type:'Activities'},
+            {char:'🎭', name:'Performing Arts', type:'Activities'},
+            {char:'🎨', name:'Artist Palette', type:'Activities'},
+            {char:'🎬', name:'Clapper Board', type:'Activities'},
+            {char:'🎤', name:'Microphone', type:'Activities'},
+            {char:'🎧', name:'Headphone', type:'Activities'},
+            {char:'🎼', name:'Musical Score', type:'Activities'},
+            {char:'🎹', name:'Musical Keyboard', type:'Activities'},
+            {char:'🥁', name:'Drum', type:'Activities'},
+            {char:'🎷', name:'Saxophone', type:'Activities'},
+            {char:'🎺', name:'Trumpet', type:'Activities'},
+            {char:'🎸', name:'Guitar', type:'Activities'},
+            {char:'🎻', name:'Violin', type:'Activities'},
+            {char:'🎲', name:'Game Die', type:'Activities'},
+            {char:'♟️', name:'Chess Pawn', type:'Activities'},
+            {char:'🎯', name:'Direct Hit', type:'Activities'},
+            {char:'🎳', name:'Bowling', type:'Activities'},
+            {char:'🎮', name:'Video Game', type:'Activities'},
+            {char:'🎰', name:'Slot Machine', type:'Activities'},
+            {char:'🧩', name:'Puzzle Piece', type:'Activities'},
+            // Travel
+            {char:'🚗', name:'Car', type:'Travel'},
+            {char:'🚕', name:'Taxi', type:'Travel'},
+            {char:'🚙', name:'SUV', type:'Travel'},
+            {char:'🚌', name:'Bus', type:'Travel'},
+            {char:'🚎', name:'Trolleybus', type:'Travel'},
+            {char:'🏎️', name:'Racing Car', type:'Travel'},
+            {char:'🚓', name:'Police Car', type:'Travel'},
+            {char:'🚑', name:'Ambulance', type:'Travel'},
+            {char:'🚒', name:'Fire Engine', type:'Travel'},
+            {char:'🚐', name:'Minibus', type:'Travel'},
+            {char:'🚚', name:'Delivery Truck', type:'Travel'},
+            {char:'🚛', name:'Articulated Lorry', type:'Travel'},
+            {char:'🚜', name:'Tractor', type:'Travel'},
+            {char:'🛵', name:'Motor Scooter', type:'Travel'},
+            {char:'🏍️', name:'Motorcycle', type:'Travel'},
+            {char:'🚲', name:'Bicycle', type:'Travel'},
+            {char:'🛴', name:'Kick Scooter', type:'Travel'},
+            {char:'🚏', name:'Bus Stop', type:'Travel'},
+            {char:'🛣️', name:'Motorway', type:'Travel'},
+            {char:'🛤️', name:'Railway Track', type:'Travel'},
+            {char:'🚨', name:'Police Car Light', type:'Travel'},
+            {char:'🚔', name:'Oncoming Police Car', type:'Travel'},
+            {char:'🚍', name:'Oncoming Bus', type:'Travel'},
+            {char:'🚘', name:'Oncoming Automobile', type:'Travel'},
+            {char:'🚖', name:'Oncoming Taxi', type:'Travel'},
+            {char:'🚡', name:'Aerial Tramway', type:'Travel'},
+            {char:'🚠', name:'Mountain Cableway', type:'Travel'},
+            {char:'🚟', name:'Suspension Railway', type:'Travel'},
+            {char:'🚃', name:'Railway Car', type:'Travel'},
+            {char:'🚋', name:'Tram Car', type:'Travel'},
+            {char:'🚞', name:'Mountain Railway', type:'Travel'},
+            {char:'🚝', name:'Monorail', type:'Travel'},
+            {char:'🚄', name:'High-Speed Train', type:'Travel'},
+            {char:'🚅', name:'Bullet Train', type:'Travel'},
+            {char:'🚈', name:'Light Rail', type:'Travel'},
+            {char:'🚂', name:'Locomotive', type:'Travel'},
+            {char:'✈️', name:'Airplane', type:'Travel'},
+            {char:'🛫', name:'Airplane Departure', type:'Travel'},
+            {char:'🛬', name:'Airplane Arrival', type:'Travel'},
+            {char:'🚁', name:'Helicopter', type:'Travel'},
+            {char:'🛩️', name:'Small Airplane', type:'Travel'},
+            {char:'🛰️', name:'Satellite', type:'Travel'},
+            {char:'🚀', name:'Rocket', type:'Travel'},
+            {char:'🛸', name:'Flying Saucer', type:'Travel'},
+            {char:'🛶', name:'Canoe', type:'Travel'},
+            {char:'⛵', name:'Sailboat', type:'Travel'},
+            {char:'🚤', name:'Speedboat', type:'Travel'},
+            {char:'🛥️', name:'Motor Boat', type:'Travel'},
+            {char:'🛳️', name:'Passenger Ship', type:'Travel'},
+            {char:'⛴️', name:'Ferry', type:'Travel'},
+            {char:'🚢', name:'Ship', type:'Travel'},
+            {char:'⚓', name:'Anchor', type:'Travel'},
+            {char:'⛽', name:'Fuel Pump', type:'Travel'},
+            {char:'🚧', name:'Construction', type:'Travel'},
+            {char:'🚦', name:'Vertical Traffic Light', type:'Travel'},
+            {char:'🚥', name:'Horizontal Traffic Light', type:'Travel'},
+            {char:'🗺️', name:'World Map', type:'Travel'},
+            {char:'🗿', name:'Moai', type:'Travel'},
+            {char:'🗽', name:'Statue of Liberty', type:'Travel'},
+            {char:'🗼', name:'Tokyo Tower', type:'Travel'},
+            {char:'🏰', name:'Castle', type:'Travel'},
+            {char:'🏯', name:'Japanese Castle', type:'Travel'},
+            {char:'🏟️', name:'Stadium', type:'Travel'},
+            {char:'🎡', name:'Ferris Wheel', type:'Travel'},
+            {char:'🎢', name:'Roller Coaster', type:'Travel'},
+            {char:'🎠', name:'Carousel Horse', type:'Travel'},
+            {char:'⛲', name:'Fountain', type:'Travel'},
+            {char:'⛱️', name:'Umbrella on Ground', type:'Travel'},
+            {char:'🏖️', name:'Beach with Umbrella', type:'Travel'},
+            {char:'🏝️', name:'Desert Island', type:'Travel'},
+            {char:'🏜️', name:'Desert', type:'Travel'},
+            {char:'🌋', name:'Volcano', type:'Travel'},
+            {char:'⛰️', name:'Mountain', type:'Travel'},
+            {char:'🏔️', name:'Snow-Capped Mountain', type:'Travel'},
+            {char:'🗻', name:'Mount Fuji', type:'Travel'},
+            {char:'🏕️', name:'Camping', type:'Travel'},
+            {char:'⛺', name:'Tent', type:'Travel'},
+            {char:'🏠', name:'House', type:'Travel'},
+            {char:'🏡', name:'House with Garden', type:'Travel'},
+            {char:'🏘️', name:'Houses', type:'Travel'},
+            {char:'🏚️', name:'Derelict House', type:'Travel'},
+            {char:'🏗️', name:'Building Construction', type:'Travel'},
+            {char:'🏭', name:'Factory', type:'Travel'},
+            {char:'🏢', name:'Office Building', type:'Travel'},
+            {char:'🏬', name:'Department Store', type:'Travel'},
+            {char:'🏣', name:'Japanese Post Office', type:'Travel'},
+            {char:'🏤', name:'European Post Office', type:'Travel'},
+            {char:'🏥', name:'Hospital', type:'Travel'},
+            {char:'🏦', name:'Bank', type:'Travel'},
+            {char:'🏨', name:'Hotel', type:'Travel'},
+            {char:'🏪', name:'Convenience Store', type:'Travel'},
+            {char:'🏫', name:'School', type:'Travel'},
+            {char:'🏩', name:'Love Hotel', type:'Travel'},
+            {char:'💒', name:'Wedding', type:'Travel'},
+            {char:'🏛️', name:'Classical Building', type:'Travel'},
+            {char:'⛪', name:'Church', type:'Travel'},
+            {char:'🕌', name:'Mosque', type:'Travel'},
+            {char:'🕍', name:'Synagogue', type:'Travel'},
+            {char:'🕋', name:'Kaaba', type:'Travel'},
+            {char:'⛩️', name:'Shinto Shrine', type:'Travel'},
+            // Objects
+            {char:'⌚', name:'Watch', type:'Objects'},
+            {char:'📱', name:'Mobile Phone', type:'Objects'},
+            {char:'💻', name:'Laptop', type:'Objects'},
+            {char:'⌨️', name:'Keyboard', type:'Objects'},
+            {char:'🖥️', name:'Desktop Computer', type:'Objects'},
+            {char:'🖨️', name:'Printer', type:'Objects'},
+            {char:'🖱️', name:'Computer Mouse', type:'Objects'},
+            {char:'🖲️', name:'Trackball', type:'Objects'},
+            {char:'🕹️', name:'Joystick', type:'Objects'},
+            {char:'🗜️', name:'Clamp', type:'Objects'},
+            {char:'💽', name:'Computer Disk', type:'Objects'},
+            {char:'💾', name:'Floppy Disk', type:'Objects'},
+            {char:'💿', name:'Optical Disk', type:'Objects'},
+            {char:'📀', name:'DVD', type:'Objects'},
+            {char:'📷', name:'Camera', type:'Objects'},
+            {char:'📸', name:'Camera with Flash', type:'Objects'},
+            {char:'📹', name:'Video Camera', type:'Objects'},
+            {char:'📺', name:'Television', type:'Objects'},
+            {char:'📻', name:'Radio', type:'Objects'},
+            {char:'🎙️', name:'Studio Microphone', type:'Objects'},
+            {char:'🎚️', name:'Level Slider', type:'Objects'},
+            {char:'🎛️', name:'Control Knobs', type:'Objects'},
+            {char:'⏰', name:'Alarm Clock', type:'Objects'},
+            {char:'⏳', name:'Hourglass Not Done', type:'Objects'},
+            {char:'⌛', name:'Hourglass Done', type:'Objects'},
+            {char:'🧭', name:'Compass', type:'Objects'},
+            {char:'🔋', name:'Battery', type:'Objects'},
+            {char:'🔌', name:'Electric Plug', type:'Objects'},
+            {char:'💡', name:'Light Bulb', type:'Objects'},
+            {char:'🔦', name:'Flashlight', type:'Objects'},
+            {char:'🕯️', name:'Candle', type:'Objects'},
+            {char:'🗑️', name:'Wastebasket', type:'Objects'},
+            {char:'🛢️', name:'Oil Drum', type:'Objects'},
+            {char:'💸', name:'Money with Wings', type:'Objects'},
+            {char:'💵', name:'Dollar Banknote', type:'Objects'},
+            {char:'💴', name:'Yen Banknote', type:'Objects'},
+            {char:'💶', name:'Euro Banknote', type:'Objects'},
+            {char:'💷', name:'Pound Banknote', type:'Objects'},
+            {char:'💰', name:'Money Bag', type:'Objects'},
+            {char:'💳', name:'Credit Card', type:'Objects'},
+            {char:'💎', name:'Gem Stone', type:'Objects'},
+            {char:'⚖️', name:'Balance Scale', type:'Objects'},
+            {char:'🧰', name:'Toolbox', type:'Objects'},
+            {char:'🔧', name:'Wrench', type:'Objects'},
+            {char:'🔨', name:'Hammer', type:'Objects'},
+            {char:'⚒️', name:'Hammer and Pick', type:'Objects'},
+            {char:'🛠️', name:'Hammer and Wrench', type:'Objects'},
+            {char:'⛏️', name:'Pick', type:'Objects'},
+            {char:'🔩', name:'Nut and Bolt', type:'Objects'},
+            {char:'⚙️', name:'Gear', type:'Objects'},
+            {char:'🧱', name:'Brick', type:'Objects'},
+            {char:'⛓️', name:'Chains', type:'Objects'},
+            {char:'🧲', name:'Magnet', type:'Objects'},
+            {char:'🔫', name:'Pistol', type:'Objects'},
+            {char:'💣', name:'Bomb', type:'Objects'},
+            {char:'🧨', name:'Firecracker', type:'Objects'},
+            {char:'🪓', name:'Axe', type:'Objects'},
+            {char:'🔪', name:'Kitchen Knife', type:'Objects'},
+            {char:'🗡️', name:'Dagger', type:'Objects'},
+            {char:'⚔️', name:'Crossed Swords', type:'Objects'},
+            {char:'🛡️', name:'Shield', type:'Objects'},
+            {char:'🚬', name:'Cigarette', type:'Objects'},
+            {char:'⚰️', name:'Coffin', type:'Objects'},
+            {char:'⚱️', name:'Funeral Urn', type:'Objects'},
+            {char:'🏺', name:'Amphora', type:'Objects'},
+            {char:'🔮', name:'Crystal Ball', type:'Objects'},
+            {char:'📿', name:'Prayer Beads', type:'Objects'},
+            {char:'🧿', name:'Nazar Amulet', type:'Objects'},
+            {char:'💈', name:'Barber Pole', type:'Objects'},
+            {char:'⚗️', name:'Alembic', type:'Objects'},
+            {char:'🔭', name:'Telescope', type:'Objects'},
+            {char:'🔬', name:'Microscope', type:'Objects'},
+            {char:'🕳️', name:'Hole', type:'Objects'},
+            {char:'💊', name:'Pill', type:'Objects'},
+            {char:'💉', name:'Syringe', type:'Objects'},
+            {char:'🩸', name:'Drop of Blood', type:'Objects'},
+            {char:'🧬', name:'DNA', type:'Objects'},
+            {char:'🩹', name:'Adhesive Bandage', type:'Objects'},
+            {char:'🩺', name:'Stethoscope', type:'Objects'},
+            {char:'🚪', name:'Door', type:'Objects'},
+            {char:'🛗', name:'Elevator', type:'Objects'},
+            {char:'🪞', name:'Mirror', type:'Objects'},
+            {char:'🪟', name:'Window', type:'Objects'},
+            {char:'🛏️', name:'Bed', type:'Objects'},
+            {char:'🛋️', name:'Couch and Lamp', type:'Objects'},
+            {char:'🪑', name:'Chair', type:'Objects'},
+            {char:'🚽', name:'Toilet', type:'Objects'},
+            {char:'🪠', name:'Plunger', type:'Objects'},
+            {char:'🚿', name:'Shower', type:'Objects'},
+            {char:'🛁', name:'Bathtub', type:'Objects'},
+            {char:'🧼', name:'Soap', type:'Objects'},
+            {char:'🧽', name:'Sponge', type:'Objects'},
+            {char:'🧴', name:'Lotion Bottle', type:'Objects'},
+            {char:'🛍️', name:'Shopping Bags', type:'Objects'},
+            {char:'🎁', name:'Wrapped Gift', type:'Objects'},
+            {char:'🎈', name:'Balloon', type:'Objects'},
+            {char:'🎀', name:'Ribbon', type:'Objects'},
+            {char:'🎊', name:'Confetti Ball', type:'Objects'},
+            {char:'🎉', name:'Party Popper', type:'Objects'},
+            {char:'🎎', name:'Pine Decoration', type:'Objects'},
+            {char:'🏮', name:'Red Paper Lantern', type:'Objects'},
+            {char:'🧧', name:'Red Envelope', type:'Objects'},
+            {char:'✉️', name:'Envelope', type:'Objects'},
+            {char:'📩', name:'Envelope with Arrow', type:'Objects'},
+            {char:'📨', name:'Incoming Envelope', type:'Objects'},
+            {char:'📧', name:'E-Mail', type:'Objects'},
+            {char:'💌', name:'Love Letter', type:'Objects'},
+            {char:'📥', name:'Inbox Tray', type:'Objects'},
+            {char:'📤', name:'Outbox Tray', type:'Objects'},
+            {char:'📦', name:'Package', type:'Objects'},
+            {char:'🏷️', name:'Label', type:'Objects'},
+            {char:'📪', name:'Closed Mailbox with Lowered Flag', type:'Objects'},
+            {char:'📫', name:'Closed Mailbox with Raised Flag', type:'Objects'},
+            {char:'📬', name:'Open Mailbox with Raised Flag', type:'Objects'},
+            {char:'📭', name:'Open Mailbox with Lowered Flag', type:'Objects'},
+            {char:'📮', name:'Postbox', type:'Objects'},
+            {char:'📯', name:'Postal Horn', type:'Objects'},
+            {char:'📜', name:'Scroll', type:'Objects'},
+            {char:'📃', name:'Page with Curl', type:'Objects'},
+            {char:'📄', name:'Page Facing Up', type:'Objects'},
+            {char:'📑', name:'Bookmark Tabs', type:'Objects'},
+            {char:'🧾', name:'Receipt', type:'Objects'},
+            {char:'📊', name:'Bar Chart', type:'Objects'},
+            {char:'📈', name:'Chart Increasing', type:'Objects'},
+            {char:'📉', name:'Chart Decreasing', type:'Objects'},
+            {char:'🗒️', name:'Spiral Notepad', type:'Objects'},
+            {char:'🗓️', name:'Spiral Calendar', type:'Objects'},
+            {char:'📆', name:'Tear-Off Calendar', type:'Objects'},
+            {char:'📅', name:'Calendar', type:'Objects'},
+            {char:'📇', name:'Card Index', type:'Objects'},
+            {char:'🗃️', name:'Card File Box', type:'Objects'},
+            {char:'🗳️', name:'Ballot Box with Ballot', type:'Objects'},
+            {char:'🗄️', name:'File Cabinet', type:'Objects'},
+            {char:'📋', name:'Clipboard', type:'Objects'},
+            {char:'📁', name:'File Folder', type:'Objects'},
+            {char:'📂', name:'Open File Folder', type:'Objects'},
+            {char:'🗂️', name:'Card Index Dividers', type:'Objects'},
+            {char:'🗞️', name:'Rolled-Up Newspaper', type:'Objects'},
+            {char:'📰', name:'Newspaper', type:'Objects'},
+            {char:'📓', name:'Notebook', type:'Objects'},
+            {char:'📔', name:'Notebook with Decorative Cover', type:'Objects'},
+            {char:'📒', name:'Ledger', type:'Objects'},
+            {char:'📕', name:'Red Book', type:'Objects'},
+            {char:'📗', name:'Green Book', type:'Objects'},
+            {char:'📘', name:'Blue Book', type:'Objects'},
+            {char:'📙', name:'Orange Book', type:'Objects'},
+            {char:'📚', name:'Books', type:'Objects'},
+            {char:'📖', name:'Open Book', type:'Objects'},
+            {char:'🔖', name:'Bookmark', type:'Objects'},
+            {char:'🔗', name:'Link', type:'Objects'},
+            {char:'📎', name:'Paperclip', type:'Objects'},
+            {char:'🖇️', name:'Linked Paperclips', type:'Objects'},
+            {char:'📐', name:'Triangular Ruler', type:'Objects'},
+            {char:'📏', name:'Straight Ruler', type:'Objects'},
+            {char:'📌', name:'Pushpin', type:'Objects'},
+            {char:'📍', name:'Round Pushpin', type:'Objects'},
+            {char:'✂️', name:'Scissors', type:'Objects'},
+            {char:'🖊️', name:'Pen', type:'Objects'},
+            {char:'🖋️', name:'Fountain Pen', type:'Objects'},
+            {char:'✒️', name:'Black Nib', type:'Objects'},
+            {char:'🖌️', name:'Paintbrush', type:'Objects'},
+            {char:'🖍️', name:'Crayon', type:'Objects'},
+            {char:'📝', name:'Memo', type:'Objects'},
+            {char:'✏️', name:'Pencil', type:'Objects'},
+            {char:'🔍', name:'Magnifying Glass Tilted Left', type:'Objects'},
+            {char:'🔎', name:'Magnifying Glass Tilted Right', type:'Objects'},
+            {char:'🔏', name:'Locked with Pen', type:'Objects'},
+            {char:'🔐', name:'Locked with Key', type:'Objects'},
+            {char:'🔒', name:'Locked', type:'Objects'},
+            {char:'🔓', name:'Unlocked', type:'Objects'},
+            // Symbols
+            {char:'❤️', name:'Red Heart', type:'Symbols'},
+            {char:'🧡', name:'Orange Heart', type:'Symbols'},
+            {char:'💛', name:'Yellow Heart', type:'Symbols'},
+            {char:'💚', name:'Green Heart', type:'Symbols'},
+            {char:'💙', name:'Blue Heart', type:'Symbols'},
+            {char:'💜', name:'Purple Heart', type:'Symbols'},
+            {char:'🖤', name:'Black Heart', type:'Symbols'},
+            {char:'🤍', name:'White Heart', type:'Symbols'},
+            {char:'🤎', name:'Brown Heart', type:'Symbols'},
+            {char:'💔', name:'Broken Heart', type:'Symbols'},
+            {char:'❣️', name:'Heart Exclamation', type:'Symbols'},
+            {char:'💕', name:'Two Hearts', type:'Symbols'},
+            {char:'💞', name:'Revolving Hearts', type:'Symbols'},
+            {char:'💓', name:'Beating Heart', type:'Symbols'},
+            {char:'💗', name:'Growing Heart', type:'Symbols'},
+            {char:'💖', name:'Sparkling Heart', type:'Symbols'},
+            {char:'💘', name:'Heart with Arrow', type:'Symbols'},
+            {char:'💝', name:'Heart with Ribbon', type:'Symbols'},
+            {char:'💟', name:'Heart Decoration', type:'Symbols'},
+            {char:'☮️', name:'Peace Symbol', type:'Symbols'},
+            {char:'✝️', name:'Latin Cross', type:'Symbols'},
+            {char:'☪️', name:'Star and Crescent', type:'Symbols'},
+            {char:'🕉️', name:'Om', type:'Symbols'},
+            {char:'☸️', name:'Wheel of Dharma', type:'Symbols'},
+            {char:'✡️', name:'Star of David', type:'Symbols'},
+            {char:'🔯', name:'Six Pointed Star', type:'Symbols'},
+            {char:'🕎', name:'Menorah', type:'Symbols'},
+            {char:'☯️', name:'Yin Yang', type:'Symbols'},
+            {char:'☦️', name:'Orthodox Cross', type:'Symbols'},
+            {char:'🛐', name:'Place of Worship', type:'Symbols'},
+            {char:'⛎', name:'Ophiuchus', type:'Symbols'},
+            {char:'♈', name:'Aries', type:'Symbols'},
+            {char:'♉', name:'Taurus', type:'Symbols'},
+            {char:'♊', name:'Gemini', type:'Symbols'},
+            {char:'♋', name:'Cancer', type:'Symbols'},
+            {char:'♌', name:'Leo', type:'Symbols'},
+            {char:'♍', name:'Virgo', type:'Symbols'},
+            {char:'♎', name:'Libra', type:'Symbols'},
+            {char:'♏', name:'Scorpio', type:'Symbols'},
+            {char:'♐', name:'Sagittarius', type:'Symbols'},
+            {char:'♑', name:'Capricorn', type:'Symbols'},
+            {char:'♒', name:'Aquarius', type:'Symbols'},
+            {char:'♓', name:'Pisces', type:'Symbols'},
+            {char:'🆔', name:'ID Button', type:'Symbols'},
+            {char:'⚛️', name:'Atom Symbol', type:'Symbols'},
+            {char:'🉑', name:'Japanese Acceptable Button', type:'Symbols'},
+            {char:'🔣', name:'Input Symbols', type:'Symbols'},
+            {char:'🔢', name:'Input Numbers', type:'Symbols'},
+            {char:'#️⃣', name:'Keycap Number Sign', type:'Symbols'},
+            {char:'*️⃣', name:'Keycap Asterisk', type:'Symbols'},
+            {char:'0️⃣', name:'Keycap 0', type:'Symbols'},
+            {char:'1️⃣', name:'Keycap 1', type:'Symbols'},
+            {char:'2️⃣', name:'Keycap 2', type:'Symbols'},
+            {char:'3️⃣', name:'Keycap 3', type:'Symbols'},
+            {char:'4️⃣', name:'Keycap 4', type:'Symbols'},
+            {char:'5️⃣', name:'Keycap 5', type:'Symbols'},
+            {char:'6️⃣', name:'Keycap 6', type:'Symbols'},
+            {char:'7️⃣', name:'Keycap 7', type:'Symbols'},
+            {char:'8️⃣', name:'Keycap 8', type:'Symbols'},
+            {char:'9️⃣', name:'Keycap 9', type:'Symbols'},
+            // Flags
+            {char:'🇺🇸', name:'United States', type:'Flags'},
+            {char:'🇨🇦', name:'Canada', type:'Flags'},
+            {char:'🇬🇧', name:'United Kingdom', type:'Flags'},
+            {char:'🇫🇷', name:'France', type:'Flags'},
+            {char:'🇩🇪', name:'Germany', type:'Flags'},
+            {char:'🇯🇵', name:'Japan', type:'Flags'},
+            {char:'🇮🇳', name:'India', type:'Flags'},
+            {char:'🇧🇷', name:'Brazil', type:'Flags'},
+            {char:'🇦🇺', name:'Australia', type:'Flags'},
+            {char:'🇮🇹', name:'Italy', type:'Flags'},
+            {char:'🇪🇸', name:'Spain', type:'Flags'},
+            {char:'🇲🇽', name:'Mexico', type:'Flags'},
+            {char:'🇷🇺', name:'Russia', type:'Flags'},
+            {char:'🇨🇳', name:'China', type:'Flags'},
+            {char:'🇰🇷', name:'South Korea', type:'Flags'},
+            {char:'🇸🇪', name:'Sweden', type:'Flags'},
+            {char:'🇳🇴', name:'Norway', type:'Flags'},
+            {char:'🇩🇰', name:'Denmark', type:'Flags'},
+            {char:'🇫🇮', name:'Finland', type:'Flags'},
+            {char:'🇳🇱', name:'Netherlands', type:'Flags'},
+            {char:'🇧🇪', name:'Belgium', type:'Flags'},
+            {char:'🇨🇭', name:'Switzerland', type:'Flags'},
+            {char:'🇦🇹', name:'Austria', type:'Flags'},
+            {char:'🇵🇹', name:'Portugal', type:'Flags'},
+            {char:'🇬🇷', name:'Greece', type:'Flags'},
+            {char:'🇹🇷', name:'Turkey', type:'Flags'},
+            {char:'🇸🇦', name:'Saudi Arabia', type:'Flags'},
+            {char:'🇿🇦', name:'South Africa', type:'Flags'},
+            {char:'🇦🇷', name:'Argentina', type:'Flags'},
+            {char:'🇨🇱', name:'Chile', type:'Flags'},
+            {char:'🇳🇿', name:'New Zealand', type:'Flags'},
+            {char:'🇮🇱', name:'Israel', type:'Flags'},
+            {char:'🇵🇱', name:'Poland', type:'Flags'},
+            {char:'🇨🇿', name:'Czech Republic', type:'Flags'},
+            {char:'🇭🇺', name:'Hungary', type:'Flags'},
+            {char:'🇮🇪', name:'Ireland', type:'Flags'},
+            {char:'🇸🇬', name:'Singapore', type:'Flags'},
+            {char:'🇲🇾', name:'Malaysia', type:'Flags'},
+            {char:'🇹🇭', name:'Thailand', type:'Flags'},
+            {char:'🇻🇳', name:'Vietnam', type:'Flags'},
+        ];
+
+        class EmojiApp {
+            constructor() {
+                this.grid = document.getElementById('emoji-grid');
+                this.searchInput = document.getElementById('search');
+                this.filterList = document.getElementById('filter-list');
+                
+                this.activeTypes = new Set(['Smileys', 'Animals', 'Food', 'Activities', 'Travel', 'Objects', 'Symbols', 'Flags']);
+                this.types = ['Smileys', 'Animals', 'Food', 'Activities', 'Travel', 'Objects', 'Symbols', 'Flags'];
+
+                this.init();
+            }
+
+            init() {
+                this.renderFilters();
+                this.renderGrid();
+                this.searchInput.addEventListener('input', () => this.renderGrid());
+            }
+
+            renderFilters() {
+                this.filterList.innerHTML = this.types.map(type => `
+                    <button class="filter-btn active" onclick="app.toggleFilter('${type}', this)">
+                        ${type}
+                    </button>
+                `).join('');
+            }
+
+            toggleFilter(type, btn) {
+                if(this.activeTypes.has(type)) {
+                    this.activeTypes.delete(type);
+                    btn.classList.remove('active');
+                } else {
+                    this.activeTypes.add(type);
+                    btn.classList.add('active');
+                }
+                this.renderGrid();
+            }
+
+            selectAll() {
+                this.activeTypes = new Set(this.types);
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.add('active'));
+                this.renderGrid();
+            }
+
+            selectNone() {
+                this.activeTypes.clear();
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.renderGrid();
+            }
+
+            renderGrid() {
+                const query = this.searchInput.value.toLowerCase();
+                const filtered = EMOJI_DATA.filter(e => 
+                    this.activeTypes.has(e.type) && e.name.toLowerCase().includes(query)
+                );
+
+                this.grid.innerHTML = filtered.map(e => `
+                    <div class="emoji-card" onclick="app.copyToClipboard('${e.char}')">
+                        <div class="char">${e.char}</div>
+                        <div class="name">${e.name}</div>
+                        <div class="type">${e.type}</div>
+                    </div>
+                `).join('');
+            }
+
+            copyToClipboard(char) {
+                navigator.clipboard.writeText(char).then(() => {
+                    const t = document.getElementById('toast');
+                    t.textContent = `Copied ${char} to clipboard!`;
+                    t.classList.add('show');
+                    setTimeout(() => t.classList.remove('show'), 2000);
+                });
+            }
+
+            downloadCSV() {
+                const query = this.searchInput.value.toLowerCase();
+                const filtered = EMOJI_DATA.filter(e => 
+                    this.activeTypes.has(e.type) && e.name.toLowerCase().includes(query)
+                );
+                
+                let csvContent = "data:text/csv;charset=utf-8,Emoji,Name,Category\n";
+                filtered.forEach(e => {
+                    csvContent += `${e.char},"${e.name}",${e.type}\n`;
+                });
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "emojis.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        window.app = new EmojiApp();
+    </script>
+</body>
+</html>

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shark Raid: Deep Sea - K4 Games</title>
+    <style>
+        :root {
+            --sky: #7dd3fc;
+            --water-surface: #0ea5e9;
+            --water-deep: #1e40af;
+            --sand: #fef08a;
+            --accent: #f43f5e;
+            --panel: #ffffff;
+            --text: #1e293b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body {
+            background-color: #f1f5f9;
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 300px;
+            background: var(--panel);
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.02);
+            z-index: 50;
+        }
+
+        .logo { font-size: 1.8rem; font-weight: 900; color: var(--water-deep); letter-spacing: -1px; }
+
+        .stat-group { display: flex; flex-direction: column; gap: 10px; }
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            border: 1px solid #f1f5f9;
+        }
+        .stat-val { font-weight: 800; color: var(--water-deep); }
+
+        #game-view {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        #canvas-container {
+            position: relative;
+            background: #fff;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+            width: 900px;
+            height: 600px;
+        }
+
+        canvas { display: block; }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: var(--text); text-decoration: none;
+            background: white; padding: 8px 15px; border-radius: 8px; z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-weight: bold;
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.9);
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 1000; backdrop-filter: blur(8px); text-align: center;
+        }
+
+        .btn {
+            background: var(--water-deep); color: white; border: none; padding: 15px 40px;
+            border-radius: 50px; font-weight: 800; cursor: pointer; font-size: 1.2rem;
+            margin-top: 20px;
+        }
+
+        .difficulty-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 30px;
+        }
+        .diff-card {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+            border: 2px solid transparent;
+        }
+        .diff-card:hover { background: rgba(255,255,255,0.2); transform: translateY(-5px); }
+        .diff-card.selected { border-color: var(--sky); background: rgba(255,255,255,0.2); }
+
+        .weather-pill {
+            position: absolute; top: 20px; right: 20px;
+            background: rgba(0,0,0,0.4); padding: 8px 20px; border-radius: 50px;
+            font-weight: 800; font-size: 0.8rem; border: 1px solid rgba(255,255,255,0.1);
+            z-index: 10; color: white;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <aside id="sidebar">
+        <div class="logo">SHARK RAID</div>
+        
+        <div class="stat-group">
+            <div class="stat-item"><span>Shark Score</span><span id="score-shark" class="stat-val">0</span></div>
+            <div class="stat-item"><span>Boat Score</span><span id="score-boat" class="stat-val">0</span></div>
+            <div class="stat-item"><span>Time Left</span><span id="timer-val" class="stat-val">30s</span></div>
+            <div class="stat-item"><span>High Score</span><span id="best-val" class="stat-val">0</span></div>
+        </div>
+
+        <div style="margin-top: auto; font-size: 0.8rem; color: #64748b; line-height: 1.6;">
+            <b>MISSION:</b><br>
+            Eat as many fish as possible. Avoid the killer whale! Don't let the boat catch the fish first.<br><br>
+            • ARROWS to Swim<br>
+            • Don't get eaten!
+        </div>
+    </aside>
+
+    <main id="game-view">
+        <div id="canvas-container">
+            <div class="weather-pill" id="weather-val">☀️ SUNNY</div>
+            <canvas id="gameCanvas" width="900" height="600"></canvas>
+            <div id="overlay">
+                <h1 id="overlay-title" style="color: white; font-size: 3rem; margin-bottom: 10px;">SHARK RAID</h1>
+                <p id="overlay-msg" style="color: #cbd5e1; margin-bottom: 20px;">Rule the deep sea.</p>
+                <div id="difficulty-select" class="difficulty-grid">
+                    <div class="diff-card" onclick="game.start('easy')">🟢 Easy</div>
+                    <div class="diff-card selected" onclick="game.start('medium')">🟡 Medium</div>
+                    <div class="diff-card" onclick="game.start('hard')">🔴 Hard</div>
+                </div>
+                <button id="restart-btn" class="btn" style="display:none" onclick="game.showMenu()">PLAY AGAIN</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        class SharkRaid {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 900;
+                this.height = 600;
+
+                // Initialize empty arrays/objects to prevent errors in draw() before game starts
+                this.fish = [];
+                this.bubbles = [];
+                this.shark = { x: 0, y: 0, anim: 0 };
+                this.whale = { x: 0, y: 0, anim: 0 };
+                this.boat = { x: 0, y: 0 };
+                this.waveOffset = 0;
+                this.weather = 'sunny';
+                this.weatherTimer = 0;
+                this.rain = [];
+
+                this.highScore = parseInt(localStorage.getItem('sharkRaidHighScore') || '0');
+                document.getElementById('best-val').textContent = this.highScore;
+
+                this.init();
+            }
+
+            showMenu() {
+                this.isPlaying = false;
+                document.getElementById('overlay').style.display = 'flex';
+                document.getElementById('difficulty-select').style.display = 'grid';
+                document.getElementById('restart-btn').style.display = 'none';
+                document.getElementById('overlay-title').textContent = "SHARK RAID";
+                document.getElementById('overlay-msg').textContent = "Rule the deep sea.";
+            }
+
+            init() {
+                this.showMenu();
+                this.keys = {};
+                window.onkeydown = (e) => this.keys[e.code] = true;
+                window.onkeyup = (e) => this.keys[e.code] = false;
+                
+                if(!this.loopStarted) {
+                    this.loop();
+                    this.loopStarted = true;
+                }
+            }
+
+            start(diff) {
+                this.difficulty = diff;
+                this.score = { shark: 0, boat: 0 };
+                this.timer = 30;
+                this.isPlaying = true;
+                this.lastTime = Date.now();
+                
+                const speedMult = diff === 'easy' ? 0.7 : (diff === 'hard' ? 1.4 : 1);
+                this.shark = { x: 450, y: 400, size: 50, speed: 5 * speedMult, anim: 0, dir: 1 };
+                this.whale = { x: 100, y: 500, vx: 2 * speedMult, vy: -1.5 * speedMult, size: 80, anim: 0 };
+                this.boat = { x: 450, y: 180, vx: 3 * speedMult, dir: 1 };
+                
+                this.fish = [];
+                for(let i=0; i<15; i++) this.spawnFish();
+
+                this.bubbles = [];
+                this.waveOffset = 0;
+                this.weather = 'sunny';
+                this.weatherTimer = 0;
+                this.rain = [];
+
+                document.getElementById('overlay').style.display = 'none';
+                document.getElementById('weather-val').textContent = '☀️ SUNNY';
+            }
+
+            spawnFish() {
+                this.fish.push({
+                    x: 50 + Math.random() * 800,
+                    y: 250 + Math.random() * 300,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    alive: true,
+                    anim: Math.random() * Math.PI * 2
+                });
+            }
+
+            update() {
+                if(!this.isPlaying) return;
+
+                // Timer
+                const now = Date.now();
+                if(now - this.lastTime > 1000) {
+                    this.timer--;
+                    this.lastTime = now;
+                    if(this.timer <= 0) this.endGame("TIME'S UP!");
+                }
+
+                // Weather
+                this.weatherTimer++;
+                if (this.weatherTimer > 600) { // change every 10s
+                    const weathers = ['sunny', 'stormy', 'foggy'];
+                    this.weather = weathers[Math.floor(Math.random() * weathers.length)];
+                    document.getElementById('weather-val').textContent = this.weather.toUpperCase() === 'SUNNY' ? '☀️ SUNNY' : this.weather.toUpperCase() === 'STORMY' ? '⛈️ STORMY' : '🌫️ FOGGY';
+                    this.weatherTimer = 0;
+                }
+
+                if (this.weather === 'stormy') {
+                    if (Math.random() < 0.5) {
+                        this.rain.push({ x: Math.random() * this.width, y: -10, v: 10 + Math.random() * 5 });
+                    }
+                }
+                this.rain.forEach((r, i) => {
+                    r.y += r.v;
+                    if (r.y > 200) this.rain.splice(i, 1);
+                });
+
+                // Move Shark
+                let moved = false;
+                if(this.keys['ArrowLeft']) { this.shark.x -= this.shark.speed; this.shark.dir = -1; moved = true; }
+                if(this.keys['ArrowRight']) { this.shark.x += this.shark.speed; this.shark.dir = 1; moved = true; }
+                if(this.keys['ArrowUp']) { this.shark.y -= this.shark.speed; moved = true; }
+                if(this.keys['ArrowDown']) { this.shark.y += this.shark.speed; moved = true; }
+                
+                if (moved) this.shark.anim += 0.2;
+                
+                this.shark.x = Math.max(40, Math.min(860, this.shark.x));
+                this.shark.y = Math.max(220, Math.min(560, this.shark.y));
+
+                // Move Fish
+                this.fish.forEach(f => {
+                    if(!f.alive) return;
+                    f.x += f.vx;
+                    f.y += f.vy;
+                    f.anim += 0.1;
+                    if(f.x < 50 || f.x > 850) f.vx *= -1;
+                    if(f.y < 220 || f.y > 580) f.vy *= -1;
+
+                    // Shark eat
+                    if(Math.hypot(this.shark.x - f.x, this.shark.y - f.y) < 40) {
+                        f.alive = false;
+                        this.score.shark++;
+                        setTimeout(() => { f.alive = true; f.x = Math.random()*this.width; }, 2000);
+                    }
+                });
+
+                // Move Whale
+                this.whale.x += this.whale.vx;
+                this.whale.y += this.whale.vy;
+                this.whale.anim += 0.05;
+                if(this.whale.x < 50 || this.whale.x > 850) this.whale.vx *= -1;
+                if(this.whale.y < 220 || this.whale.y > 550) this.whale.vy *= -1;
+
+                if(Math.hypot(this.shark.x - this.whale.x, this.shark.y - this.whale.y) < 60) {
+                    this.endGame("EATEN BY WHALE!");
+                }
+
+                // Move Boat
+                this.boat.x += this.boat.vx * this.boat.dir;
+                if(this.boat.x < 100 || this.boat.x > 800) this.boat.dir *= -1;
+
+                // Boat Fishing (Simplified)
+                const hookX = this.boat.x;
+                const hookY = this.boat.y + 100 + Math.sin(Date.now()/500)*50;
+                this.fish.forEach(f => {
+                    if(f.alive && Math.hypot(hookX - f.x, hookY - f.y) < 30) {
+                        f.alive = false;
+                        this.score.boat++;
+                        setTimeout(() => { f.alive = true; f.x = Math.random()*this.width; }, 2000);
+                    }
+                });
+
+                // Bubbles
+                if(Math.random() < 0.1) this.bubbles.push({ x: Math.random()*900, y: 600, v: 1 + Math.random()*2, r: 2 + Math.random()*5 });
+                this.bubbles.forEach((b, i) => {
+                    b.y -= b.v;
+                    if(b.y < 200) this.bubbles.splice(i, 1);
+                });
+
+                this.waveOffset += 0.05;
+                this.updateUI();
+            }
+
+            updateUI() {
+                document.getElementById('score-shark').textContent = this.score.shark;
+                document.getElementById('score-boat').textContent = this.score.boat;
+                document.getElementById('timer-val').textContent = this.timer + 's';
+                
+                if(this.score.shark > this.highScore) {
+                    this.highScore = this.score.shark;
+                    localStorage.setItem('sharkRaidHighScore', this.highScore);
+                    document.getElementById('best-val').textContent = this.highScore;
+                }
+            }
+
+            endGame(msg) {
+                this.isPlaying = false;
+                document.getElementById('overlay').style.display = 'flex';
+                document.getElementById('overlay-title').textContent = "GAME OVER";
+                document.getElementById('overlay-msg').textContent = msg;
+                document.getElementById('difficulty-select').style.display = 'none';
+                document.getElementById('restart-btn').style.display = 'block';
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Sky
+                let skyFill = '#7dd3fc';
+                if (this.weather === 'stormy') skyFill = '#475569';
+                if (this.weather === 'foggy') skyFill = '#94a3b8';
+                ctx.fillStyle = skyFill;
+                ctx.fillRect(0, 0, this.width, 200);
+
+                // Weather Effects (Sky layer)
+                if (this.weather === 'stormy') {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                    ctx.lineWidth = 1;
+                    this.rain.forEach(r => {
+                        ctx.beginPath();
+                        ctx.moveTo(r.x, r.y);
+                        ctx.lineTo(r.x - 2, r.y + 10);
+                        ctx.stroke();
+                    });
+                }
+
+                // Water
+                const waterGrad = ctx.createLinearGradient(0, 200, 0, 600);
+                waterGrad.addColorStop(0, '#0ea5e9');
+                waterGrad.addColorStop(1, '#1e40af');
+                ctx.fillStyle = waterGrad;
+                ctx.fillRect(0, 200, this.width, 400);
+
+                // Waves
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                for(let i=0; i<3; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, 200 + i*10);
+                    for(let x=0; x<=900; x+=20) {
+                        ctx.lineTo(x, 200 + i*10 + Math.sin(x/50 + this.waveOffset + i)*10);
+                    }
+                    ctx.lineTo(900, 0); ctx.lineTo(0, 0); ctx.fill();
+                }
+
+                // Sand
+                ctx.fillStyle = '#fef08a';
+                ctx.fillRect(0, 580, this.width, 20);
+
+                // Seaweed
+                ctx.fillStyle = '#166534';
+                for (let i = 0; i < 10; i++) {
+                    const sx = i * 100 + 50;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, 580);
+                    ctx.quadraticCurveTo(sx + Math.sin(this.waveOffset) * 20, 500, sx + Math.sin(this.waveOffset) * 10, 480);
+                    ctx.lineWidth = 8;
+                    ctx.strokeStyle = '#166534';
+                    ctx.stroke();
+                }
+
+                // Bubbles
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                this.bubbles.forEach(b => {
+                    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.stroke();
+                });
+
+                // Boat
+                ctx.save();
+                ctx.translate(this.boat.x, this.boat.y + Math.sin(this.waveOffset) * 5);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(-40, -10, 80, 20); // Hull
+                ctx.fillRect(-5, -50, 10, 40); // Mast
+                ctx.beginPath(); ctx.moveTo(5, -50); ctx.lineTo(30, -30); ctx.lineTo(5, -10); ctx.fill(); // Sail
+                
+                // Person on Boat
+                ctx.fillStyle = '#ffccaa'; // Skin
+                ctx.beginPath(); ctx.arc(-15, -25, 6, 0, Math.PI * 2); ctx.fill(); // Head
+                ctx.fillStyle = '#3b82f6'; // Shirt
+                ctx.fillRect(-20, -19, 10, 10); // Body
+                
+                // Fishing line
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+                const lineLen = 100 + Math.sin(Date.now()/500)*50;
+                ctx.beginPath(); ctx.moveTo(-15, -10); ctx.lineTo(-15, lineLen); ctx.stroke();
+                ctx.restore();
+
+                // Fish
+                ctx.font = '24px Arial';
+                this.fish.forEach(f => {
+                    if(f.alive) {
+                        ctx.save();
+                        ctx.translate(f.x, f.y);
+                        ctx.rotate(Math.sin(f.anim) * 0.2);
+                        ctx.fillText(f.vx > 0 ? '🐟' : '🐠', -12, 12);
+                        ctx.restore();
+                    }
+                });
+
+                // Shark
+                ctx.save();
+                ctx.translate(this.shark.x, this.shark.y);
+                if (this.shark.dir === -1) ctx.scale(-1, 1);
+                ctx.rotate(Math.sin(this.shark.anim) * 0.1);
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🦈', 0, 0);
+                ctx.restore();
+
+                // Whale
+                ctx.save();
+                ctx.translate(this.whale.x, this.whale.y);
+                ctx.rotate(Math.sin(this.whale.anim) * 0.05);
+                ctx.font = '80px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🐋', 0, 0);
+                ctx.restore();
+
+                // Fog Overlay
+                if (this.weather === 'foggy') {
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                    ctx.fillRect(0, 0, this.width, this.height);
+                }
+            }
+        }
+
+        window.game = new SharkRaid();
+    </script>
+</body>
+</html>

@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inception: World within Worlds - K4 Games</title>
+    <style>
+        :root {
+            --primary: #3498db;
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --accent: #fbbf24;
+            --text: #f8fafc;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.6);
+            max-width: 95vw;
+            max-height: 80vh;
+            border: 4px solid #334155;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 12px 24px; border-radius: 12px; z-index: 10002;
+            font-weight: bold; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);
+            transition: 0.2s;
+        }
+        .back-link:hover { background: rgba(255,255,255,0.2); transform: translateY(-2px); }
+
+        #inceptionControls {
+            position: fixed; top: 80px; left: 20px; width: 280px; z-index: 20;
+        }
+
+        #inceptionScenes {
+            position: fixed; top: 80px; right: 20px; width: 220px; z-index: 20;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 1200px) {
+            #inceptionControls, #inceptionScenes {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">🏠 HUB</a>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <div id="inceptionControls">
+        <div style='background:rgba(15, 23, 42, 0.8); backdrop-filter: blur(10px); border-radius:16px; box-shadow:2px 2px 12px #0002; padding:22px; color:#eee; font-size:1rem; line-height:1.7; border: 1px solid rgba(255,255,255,0.1);'>
+            <b style='color:#FFD600; font-size:1.2rem;'>Controls</b><br>
+            <b>Move:</b> Arrow keys<br>
+            <b>E:</b> Exit car/boat/plane<br>
+            <b>Explore:</b> Walk into objects<br>
+            <b>Goal:</b> Visit all 10 locations!<br>
+        </div>
+    </div>
+
+    <div id="inceptionScenes"></div>
+
+    <script>
+        class InceptionGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // Game State
+                this.state = 'outside'; 
+                this.keys = {};
+                this.visited = new Set(['Outside']);
+                
+                // Positions
+                this.p = { x: 400, y: 300, dir: 1, anim: 0 }; 
+                this.pi = { x: 400, y: 480, dir: 1, anim: 0 }; 
+                
+                this.house = { x: 700, y: 300, r: 60 };
+                this.boat = { x: 400, y: 450, w: 100, h: 40 };
+                this.car = { x: 100, y: 550, w: 80, h: 40 };
+                this.plane = { x: 200, y: 80, w: 100, h: 40 };
+                
+                this.dog = { x: 700, y: 540, tail: 0, anim: 0 };
+                this.waveOffset = 0;
+                this.smokeParticles = [];
+                this.clouds = [
+                    {x: 100, y: 80, w: 100, s: 0.2},
+                    {x: 400, y: 120, w: 150, s: 0.1},
+                    {x: 650, y: 60, w: 120, s: 0.15}
+                ];
+                
+                this.init();
+            }
+
+            init() {
+                window.onkeydown = (e) => {
+                    this.keys[e.key] = true;
+                    if(e.key.toLowerCase() === 'e') this.exitVehicle();
+                };
+                window.onkeyup = (e) => this.keys[e.key] = false;
+                this.updateScenePanel();
+                this.loop();
+            }
+
+            exitVehicle() {
+                if(this.state === 'car') { this.state = 'outside'; this.p.x = 100; this.p.y = 550; }
+                if(this.state === 'boat') { this.state = 'outside'; this.p.x = 400; this.p.y = 450; }
+                if(this.state === 'plane') { this.state = 'outside'; this.p.x = 200; this.p.y = 150; }
+            }
+
+            updateScenePanel() {
+                const scenes = ['Outside', 'Living Room', 'Kitchen', 'Hallway', 'Office', 'Bedroom', 'Bathroom', 'Car', 'Boat', 'Plane'];
+                const current = this.formatState(this.state);
+                this.visited.add(current);
+                
+                let html = `<div style='background:rgba(15, 23, 42, 0.8); backdrop-filter: blur(10px); border-radius:16px; box-shadow:-2px 2px 12px #0002; padding:22px; color:#eee; font-size:1rem; line-height:1.7; border: 1px solid rgba(255,255,255,0.1);'>`;
+                html += `<b style='color:#FFD600; font-size:1.2rem;'>World Map</b><br>`;
+                scenes.forEach(s => {
+                    let highlight = s === current ? "font-weight:bold; color:#FFD600;" : "color:#eee;";    
+                    let check = this.visited.has(s) ? "<span style='color:#43a047; margin-left:6px;'>✔</span>" : "";
+                    html += `<div style="${highlight}">${s} ${check}</div>`;
+                });
+                html += `</div>`;
+                document.getElementById('inceptionScenes').innerHTML = html;
+            }
+
+            formatState(s) {
+                if(s === 'living') return 'Living Room';
+                return s.charAt(0).toUpperCase() + s.slice(1);
+            }
+
+            update() {
+                let dx = 0, dy = 0, speed = 5;
+                if(this.keys['ArrowUp']) dy -= speed;
+                if(this.keys['ArrowDown']) dy += speed;
+                if(this.keys['ArrowLeft']) { dx -= speed; if(this.state === 'outside' || this.state === 'boat' || this.state === 'plane') this.p.dir = -1; else this.pi.dir = -1; }
+                if(this.keys['ArrowRight']) { dx += speed; if(this.state === 'outside' || this.state === 'boat' || this.state === 'plane') this.p.dir = 1; else this.pi.dir = 1; }
+
+                const moving = dx !== 0 || dy !== 0;
+
+                if(this.state === 'outside') {
+                    this.p.x = Math.max(20, Math.min(780, this.p.x + dx));
+                    this.p.y = Math.max(20, Math.min(580, this.p.y + dy));
+                    if(moving) this.p.anim += 0.2;
+                    
+                    if(Math.hypot(this.p.x - this.house.x, this.p.y - this.house.y) < this.house.r) {
+                        this.state = 'living'; this.pi.x = 400; this.pi.y = 480;
+                    }
+                    if(this.p.x < 150 && this.p.y > 500) this.state = 'car';
+                    if(this.p.x > 350 && this.p.x < 450 && this.p.y > 350 && this.p.y < 450) this.state = 'boat';
+                    if(Math.hypot(this.p.x - this.plane.x, this.p.y - this.plane.y) < 50) this.state = 'plane';
+                    
+                    // Chimney Smoke
+                    if(Math.random() < 0.1) this.smokeParticles.push({x: this.house.x + 35, y: this.house.y - 100, r: 5, o: 1});
+                    this.smokeParticles.forEach((p, i) => { p.y -= 1; p.x += Math.sin(p.y/10); p.o -= 0.01; if(p.o <= 0) this.smokeParticles.splice(i, 1); });
+                    
+                    // Clouds
+                    this.clouds.forEach(c => { c.x += c.s; if(c.x > 900) c.x = -150; });
+
+                } else if (this.state === 'boat') {
+                    this.waveOffset += 0.05;
+                    if(this.keys['ArrowLeft']) this.p.x -= 4;
+                    if(this.keys['ArrowRight']) this.p.x += 4;
+                    this.p.x = Math.max(100, Math.min(700, this.p.x));
+                } else if (this.state === 'plane') {
+                    this.p.x += 4; if(this.p.x > 900) this.p.x = -100;
+                    if(this.keys['ArrowUp']) this.p.y -= 3;
+                    if(this.keys['ArrowDown']) this.p.y += 3;
+                    this.p.y = Math.max(50, Math.min(300, this.p.y));
+                } else {
+                    // Inside navigation
+                    this.pi.x = Math.max(20, Math.min(780, this.pi.x + dx));
+                    this.pi.y = Math.max(100, Math.min(560, this.pi.y + dy));
+                    if(moving) this.pi.anim += 0.2;
+                    this.handleRoomTransitions();
+                }
+
+                this.dog.tail += 0.2;
+                this.updateScenePanel();
+            }
+
+            handleRoomTransitions() {
+                if(this.state === 'living') {
+                    if(this.pi.x < 150 && this.pi.y < 450) { this.state = 'outside'; this.p.x = this.house.x - 60; this.p.y = this.house.y; }
+                    if(this.pi.x > 750) { this.state = 'kitchen'; this.pi.x = 50; }
+                } else if(this.state === 'kitchen') {
+                    if(this.pi.x < 20) { this.state = 'living'; this.pi.x = 750; }
+                    if(this.pi.y < 350) { this.state = 'hallway'; this.pi.x = 400; this.pi.y = 550; }
+                } else if(this.state === 'hallway') {
+                    if(this.pi.y > 560) { this.state = 'kitchen'; this.pi.y = 360; }
+                    if(this.pi.x > 750) { this.state = 'office'; this.pi.x = 400; this.pi.y = 530; }
+                } else if(this.state === 'office') {
+                    if(this.pi.y > 540) { this.state = 'hallway'; this.pi.x = 750; }
+                    if(this.pi.x > 750) { this.state = 'bedroom'; this.pi.x = 50; }
+                } else if(this.state === 'bedroom') {
+                    if(this.pi.x < 20) { this.state = 'office'; this.pi.x = 750; }
+                    if(this.pi.x > 750) { this.state = 'bathroom'; this.pi.x = 50; }
+                } else if(this.state === 'bathroom') {
+                    if(this.pi.x < 20) { this.state = 'bedroom'; this.pi.x = 750; }
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, 800, 600);
+
+                if(this.state === 'outside') this.drawOutside();
+                else if(this.state === 'living') this.drawLiving();
+                else if(this.state === 'kitchen') this.drawKitchen();
+                else if(this.state === 'hallway') this.drawHallway();
+                else if(this.state === 'office') this.drawOffice();
+                else if(this.state === 'bedroom') this.drawBedroom();
+                else if(this.state === 'bathroom') this.drawBathroom();
+                else if(this.state === 'car') this.drawCar();
+                else if(this.state === 'boat') this.drawBoat();
+                else if(this.state === 'plane') this.drawPlane();
+            }
+
+            drawOutside() {
+                const ctx = this.ctx;
+                const grad = ctx.createLinearGradient(0, 0, 0, 300);
+                grad.addColorStop(0, '#38bdf8'); grad.addColorStop(1, '#bae6fd');
+                ctx.fillStyle = grad; ctx.fillRect(0, 0, 800, 300);
+                ctx.fillStyle = '#22c55e'; ctx.fillRect(0, 300, 800, 300);
+                
+                // Clouds
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                this.clouds.forEach(c => {
+                    ctx.beginPath(); ctx.ellipse(c.x, c.y, c.w, c.w*0.4, 0, 0, Math.PI*2); ctx.fill();
+                });
+
+                // Sun
+                ctx.fillStyle = '#fbbf24'; ctx.shadowBlur = 40; ctx.shadowColor = 'yellow';
+                ctx.beginPath(); ctx.arc(100, 100, 40, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Lake
+                ctx.fillStyle = '#0ea5e9'; ctx.beginPath(); ctx.ellipse(400, 450, 200, 100, 0, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 4; ctx.stroke();
+
+                // House
+                ctx.fillStyle = '#f87171'; ctx.fillRect(this.house.x-60, this.house.y-60, 120, 120);
+                // Chimney
+                ctx.fillStyle = '#451a03'; ctx.fillRect(this.house.x+30, this.house.y-100, 20, 50);
+                this.smokeParticles.forEach(p => {
+                    ctx.fillStyle = `rgba(150,150,150, ${p.o})`;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+                });
+                // Roof
+                ctx.fillStyle = '#78350f'; ctx.beginPath(); ctx.moveTo(this.house.x-80, this.house.y-60); ctx.lineTo(this.house.x+80, this.house.y-60); ctx.lineTo(this.house.x, this.house.y-130); ctx.fill();
+                // Windows
+                ctx.fillStyle = '#bae6fd'; ctx.fillRect(this.house.x-45, this.house.y-40, 30, 30); ctx.fillRect(this.house.x+15, this.house.y-40, 30, 30);
+                // Door
+                ctx.fillStyle = '#fbbf24'; ctx.fillRect(this.house.x-15, this.house.y+10, 30, 50);
+
+                // Car
+                ctx.fillStyle = '#334155'; ctx.fillRect(80, 530, 80, 40); ctx.fillStyle = '#ef4444'; ctx.fillRect(80, 540, 80, 20);
+                
+                // Boat
+                ctx.fillStyle = '#991b1b'; ctx.beginPath(); ctx.moveTo(360, 430); ctx.lineTo(440, 430); ctx.lineTo(400, 460); ctx.fill();
+                
+                // Plane in Sky
+                ctx.fillStyle = '#f8fafc';
+                ctx.beginPath(); ctx.ellipse(this.plane.x, this.plane.y, 50, 15, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillRect(this.plane.x - 10, this.plane.y - 40, 20, 80); // Wings
+                
+                this.drawPerson(this.p.x, this.p.y, 60, this.p.anim, this.p.dir);
+            }
+
+            drawPlane() {
+                const ctx = this.ctx;
+                const skyGrad = ctx.createLinearGradient(0, 0, 0, 600);
+                skyGrad.addColorStop(0, '#0284c7'); skyGrad.addColorStop(1, '#0ea5e9');
+                ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, 800, 600);
+                
+                // Passing Clouds
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                const cloudX = (Date.now() / 5) % 1200;
+                ctx.beginPath(); ctx.ellipse(1000 - cloudX, 200, 100, 40, 0, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(600 - cloudX, 400, 150, 60, 0, 0, Math.PI*2); ctx.fill();
+
+                // Cockpit View
+                ctx.fillStyle = '#1e293b'; ctx.fillRect(0, 400, 800, 200);
+                ctx.strokeStyle = '#475569'; ctx.lineWidth = 15;
+                ctx.beginPath(); ctx.moveTo(0, 400); ctx.lineTo(400, 300); ctx.lineTo(800, 400); ctx.stroke();
+                
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 30px Arial'; ctx.textAlign = 'center';
+                ctx.fillText('FLYING MODE - PRESS E TO EXIT', 400, 80);
+                
+                this.drawPerson(400, 450, 120, Date.now()/200, 1);
+            }
+
+            drawLiving() {
+                this.drawRoom('#fef3c7', 'Living Room');
+                const ctx = this.ctx;
+                // TV showing a mini-animation
+                ctx.fillStyle = '#000'; ctx.fillRect(320, 120, 160, 90);
+                ctx.fillStyle = '#1e293b'; ctx.fillRect(330, 130, 140, 70);
+                const shift = (Date.now() / 500) % 50;
+                ctx.fillStyle = '#38bdf8'; ctx.fillRect(340 + shift, 140, 20, 20);
+                
+                // Couch
+                ctx.fillStyle = '#0369a1'; ctx.fillRect(200, 400, 200, 60); ctx.fillRect(180, 410, 20, 50); ctx.fillRect(400, 410, 20, 50);
+                ctx.fillStyle = '#0284c7'; ctx.fillRect(210, 380, 180, 30);
+                
+                this.drawPerson(this.pi.x, this.pi.y, 100, this.pi.anim, this.pi.dir);
+                this.drawPet();
+            }
+
+            drawKitchen() {
+                this.drawRoom('#fff7ed', 'Kitchen');
+                const ctx = this.ctx;
+                // Window
+                ctx.fillStyle = '#bae6fd'; ctx.fillRect(500, 150, 80, 80);
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.strokeRect(500, 150, 80, 80);
+                // Fridge
+                ctx.fillStyle = '#cbd5e1'; ctx.fillRect(60, 250, 80, 230);
+                ctx.fillStyle = '#94a3b8'; ctx.fillRect(70, 350, 60, 4); // Handle
+                // Stove
+                ctx.fillStyle = '#334155'; ctx.fillRect(180, 400, 100, 100);
+                ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(205, 420, 12, 0, Math.PI*2); ctx.fill();
+                if(Math.random() < 0.3) { // Steam
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                    ctx.beginPath(); ctx.arc(205, 380 - (Date.now()%1000)/5, 10, 0, Math.PI*2); ctx.fill();
+                }
+                
+                this.drawPerson(this.pi.x, this.pi.y, 100, this.pi.anim, this.pi.dir);
+                this.drawPet();
+            }
+
+            drawHallway() {
+                this.drawRoom('#f1f5f9', 'Hallway');
+                const ctx = this.ctx;
+                // Stairs with better depth
+                for(let i=0; i<8; i++) {
+                    ctx.fillStyle = '#78350f'; ctx.fillRect(650 + i*15, 500 - i*30, 150, 30);
+                    ctx.strokeStyle = '#451a03'; ctx.strokeRect(650 + i*15, 500 - i*30, 150, 30);
+                }
+                // Painting
+                ctx.fillStyle = '#451a03'; ctx.fillRect(300, 150, 100, 120);
+                ctx.fillStyle = '#fbbf24'; ctx.fillRect(310, 160, 80, 100);
+                ctx.font = '40px serif'; ctx.fillText('🌻', 350, 225);
+                
+                this.drawPerson(this.pi.x, this.pi.y, 100, this.pi.anim, this.pi.dir);
+                this.drawPet();
+            }
+
+            drawOffice() {
+                this.drawRoom('#f0f9ff', 'Office');
+                const ctx = this.ctx;
+                // Desk
+                ctx.fillStyle = '#92400e'; ctx.fillRect(250, 420, 300, 40);
+                // Monitor
+                ctx.fillStyle = '#1e293b'; ctx.fillRect(350, 320, 100, 70);
+                ctx.fillStyle = '#0ea5e9'; ctx.fillRect(355, 325, 90, 50);
+                // "Code" on screen
+                ctx.fillStyle = '#fff'; for(let i=0; i<3; i++) ctx.fillRect(360, 335 + i*10, 40 + Math.random()*30, 4);
+                // Plant
+                ctx.fillStyle = '#166534'; 
+                const sway = Math.sin(Date.now()/1000) * 5;
+                ctx.beginPath(); ctx.moveTo(600, 420); ctx.quadraticCurveTo(600 + sway, 350, 580 + sway, 320); 
+                ctx.quadraticCurveTo(620 + sway, 350, 600, 420); ctx.fill();
+                
+                this.drawPerson(this.pi.x, this.pi.y, 100, this.pi.anim, this.pi.dir);
+                this.drawPet();
+            }
+
+            drawBedroom() {
+                this.drawRoom('#fffbeb', 'Bedroom');
+                const ctx = this.ctx;
+                // Bed
+                ctx.fillStyle = '#1d4ed8'; ctx.fillRect(80, 400, 250, 100);
+                ctx.fillStyle = '#eff6ff'; ctx.fillRect(80, 400, 60, 40); // Pillow
+                // Nightstand & Lamp
+                ctx.fillStyle = '#92400e'; ctx.fillRect(350, 430, 60, 70);
+                ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.moveTo(380, 430); ctx.lineTo(360, 380); ctx.lineTo(400, 380); ctx.fill();
+                
+                this.drawPerson(this.pi.x, this.pi.y, 100, this.pi.anim, this.pi.dir);
+                this.drawPet();
+            }
+
+            drawBathroom() {
+                this.drawRoom('#f0fdfa', 'Bathroom');
+                const ctx = this.ctx;
+                // Tub
+                ctx.fillStyle = '#f8fafc'; ctx.roundRect(500, 400, 250, 100, 20); ctx.fill();
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.4)'; 
+                const ripple = Math.sin(Date.now()/500) * 5;
+                ctx.fillRect(510, 410 + ripple, 230, 40);
+                // Mirror
+                ctx.fillStyle = '#cbd5e1'; ctx.beginPath(); ctx.arc(400, 200, 60, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.stroke();
+                
+                this.drawPerson(this.pi.x, this.pi.y, 100, this.pi.anim, this.pi.dir);
+                this.drawPet();
+            }
+
+            drawCar() {
+                const ctx = this.ctx;
+                ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, 800, 600);
+                // Scenery passing by
+                ctx.fillStyle = '#166534';
+                const treeX = (Date.now() / 10) % 1200;
+                ctx.fillRect(800 - treeX, 100, 40, 200);
+                
+                ctx.fillStyle = '#1e293b'; ctx.fillRect(0, 400, 800, 200);
+                // Steering Wheel
+                ctx.strokeStyle = '#475569'; ctx.lineWidth = 25; ctx.beginPath(); ctx.arc(400, 580, 200, Math.PI, 0); ctx.stroke();
+                // Speedometer
+                ctx.fillStyle = '#334155'; ctx.beginPath(); ctx.arc(400, 580, 100, Math.PI, 0); ctx.fill();
+                const needle = Math.PI + (Math.sin(Date.now()/500) + 1) * Math.PI/4;
+                ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(400, 580); ctx.lineTo(400 + Math.cos(needle)*80, 580 + Math.sin(needle)*80); ctx.stroke();
+
+                ctx.font = 'bold 30px Arial'; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText('DRIVING MODE - PRESS E TO EXIT', 400, 80);
+                ctx.font = '80px Arial'; ctx.fillText('🖐️', 250, 480); ctx.fillText('🖐️', 550, 480);
+            }
+
+            drawBoat() {
+                const ctx = this.ctx;
+                const skyGrad = ctx.createLinearGradient(0, 0, 0, 400);
+                skyGrad.addColorStop(0, '#7dd3fc'); skyGrad.addColorStop(1, '#e0f2fe');
+                ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, 800, 600);
+                
+                this.waveOffset += 0.05;
+                ctx.fillStyle = '#0ea5e9'; ctx.beginPath(); ctx.moveTo(0, 450);
+                for (let x = 0; x <= 800; x += 20) ctx.lineTo(x, 470 + Math.sin(x/40 + this.waveOffset) * 15);
+                ctx.lineTo(800, 600); ctx.lineTo(0, 600); ctx.fill();
+                
+                ctx.save(); ctx.translate(this.p.x, 500 + Math.sin(this.waveOffset)*10);
+                // Boat Hull
+                ctx.fillStyle = '#991b1b'; ctx.beginPath(); ctx.moveTo(-100, 0); ctx.lineTo(100, 0); ctx.lineTo(70, 40); ctx.lineTo(-70, 40); ctx.fill();
+                // Sail
+                ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -120); ctx.lineTo(60, -50); ctx.fill();
+                this.drawPerson(0, -20, 80, this.waveOffset*2, 1);
+                ctx.restore();
+                
+                ctx.fillStyle = '#0c4a6e'; ctx.font = 'bold 30px Arial'; ctx.textAlign = 'center'; ctx.fillText('SAILING MODE - PRESS E TO EXIT', 400, 80);
+            }
+
+            drawRoom(bg, name) {
+                const ctx = this.ctx;
+                ctx.fillStyle = bg; ctx.fillRect(0, 0, 800, 600);
+                ctx.fillStyle = '#d69e5e'; ctx.fillRect(0, 500, 800, 100); // Floor
+                ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fillRect(0, 0, 800, 100); // Ceiling shadow
+                ctx.fillStyle = '#1e293b'; ctx.font = 'bold 32px Arial'; ctx.textAlign = 'center'; ctx.fillText(name, 400, 60);
+                // Door back
+                ctx.fillStyle = '#451a03'; ctx.fillRect(20, 320, 60, 180);
+                ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(70, 410, 4, 0, Math.PI*2); ctx.fill();
+            }
+
+            drawPerson(x, y, size, anim, dir) {
+                const ctx = this.ctx;
+                const bob = Math.sin(anim) * (size/10);
+                ctx.save();
+                ctx.translate(x, y + bob);
+                if(dir === -1) ctx.scale(-1, 1);
+                ctx.font = `${size}px serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText('🧑', 0, 0);
+                ctx.restore();
+            }
+
+            drawPet() {
+                const ctx = this.ctx;
+                const bob = Math.sin(this.dog.tail) * 3;
+                ctx.save(); ctx.translate(700, 540 + bob);
+                ctx.font = '45px serif'; ctx.fillText('🐕', 0, 0);
+                // Tail animation
+                ctx.strokeStyle = '#a67c00'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+                ctx.beginPath(); ctx.moveTo(-20, 0);
+                ctx.lineTo(-35 + Math.sin(this.dog.tail)*10, -5);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        window.onload = () => new InceptionGame();
+    </script>
+</body>
+</html>

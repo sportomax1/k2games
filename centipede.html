@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Centipede Neon - K4 Games</title>
+    <style>
+        :root {
+            --neon-green: #39ff14;
+            --neon-pink: #ff00ff;
+            --neon-blue: #00f2ff;
+            --neon-red: #ff3131;
+        }
+        body {
+            margin: 0;
+            background: #050505;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Courier New', Courier, monospace;
+            touch-action: none;
+        }
+        canvas {
+            border: 2px solid #222;
+            box-shadow: 0 0 20px rgba(0,0,0,1);
+            max-width: 100%;
+            max-height: 100%;
+        }
+        #ui {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            pointer-events: none;
+            z-index: 10;
+            font-weight: bold;
+            text-shadow: 0 0 5px #000;
+        }
+        .stat span { color: var(--neon-green); }
+        #game-over {
+            position: absolute;
+            text-align: center;
+            display: none;
+            background: rgba(0,0,0,0.8);
+            padding: 40px;
+            border: 2px solid var(--neon-pink);
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div class="stat">SCORE: <span id="score">0</span></div>
+    <div class="stat">WAVE: <span id="wave">1</span></div>
+    <div class="stat">LIVES: <span id="lives">3</span></div>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="game-over" onclick="resetGame()">
+    <h1 style="color: var(--neon-red)">SYSTEM FAILURE</h1>
+    <p>FINAL SCORE: <span id="final-score">0</span></p>
+    <p>TAP TO REBOOT</p>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Constants
+    const GRID = 20;
+    let width, height, rows, cols;
+    
+    // Game State
+    let score = 0;
+    let wave = 1;
+    let lives = 3;
+    let gameOver = false;
+    let frame = 0;
+    let particles = [];
+    
+    // Entities
+    const player = { x: 0, y: 0, w: GRID, h: GRID, speed: 5, dx: 0, dy: 0 };
+    let bullets = [];
+    let mushrooms = [];
+    let centipedes = []; // Array of arrays
+    let spider = null;
+    let flea = null;
+
+    function resize() {
+        const aspect = 0.75;
+        let w = window.innerWidth;
+        let h = window.innerHeight;
+        if (w / h > aspect) w = h * aspect;
+        else h = w / aspect;
+        
+        canvas.width = Math.floor(w / GRID) * GRID;
+        canvas.height = Math.floor(h / GRID) * GRID;
+        width = canvas.width;
+        height = canvas.height;
+        cols = width / GRID;
+        rows = height / GRID;
+        
+        if (mushrooms.length === 0) resetGame();
+    }
+
+    function resetGame() {
+        score = 0;
+        wave = 1;
+        lives = 3;
+        gameOver = false;
+        mushrooms = [];
+        centipedes = [];
+        bullets = [];
+        particles = [];
+        spider = null;
+        flea = null;
+        
+        document.getElementById('game-over').style.display = 'none';
+        
+        player.x = Math.floor(cols / 2) * GRID;
+        player.y = (rows - 2) * GRID;
+
+        generateMushrooms();
+        spawnCentipede(12);
+        updateUI();
+    }
+
+    function generateMushrooms() {
+        for (let r = 2; r < rows - 6; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (Math.random() < 0.08) {
+                    mushrooms.push({ x: c * GRID, y: r * GRID, hp: 4 });
+                }
+            }
+        }
+    }
+
+    function spawnCentipede(length) {
+        const segments = [];
+        const speed = GRID * (0.5 + wave * 0.1); // Speed increases with wave
+        for (let i = 0; i < length; i++) {
+            segments.push({
+                x: Math.floor(cols / 2) * GRID,
+                y: -i * GRID,
+                vx: GRID,
+                vy: 0,
+                isHead: i === 0,
+                lastX: 0, lastY: 0
+            });
+        }
+        centipedes.push(segments);
+    }
+
+    function createExplosion(x, y, color) {
+        for (let i = 0; i < 8; i++) {
+            particles.push({
+                x, y,
+                vx: (Math.random() - 0.5) * 4,
+                vy: (Math.random() - 0.5) * 4,
+                life: 1,
+                color
+            });
+        }
+    }
+
+    function update() {
+        if (gameOver) return;
+
+        // Player move
+        player.x += player.dx;
+        player.y += player.dy;
+        player.x = Math.max(0, Math.min(width - GRID, player.x));
+        player.y = Math.max((rows - 8) * GRID, Math.min(height - GRID, player.y));
+
+        // Bullets
+        for (let i = bullets.length - 1; i >= 0; i--) {
+            let b = bullets[i];
+            b.y -= 12;
+            
+            // Mushroom collision
+            let hit = false;
+            for (let m = mushrooms.length - 1; m >= 0; m--) {
+                let mush = mushrooms[m];
+                if (b.x > mush.x && b.x < mush.x + GRID && b.y > mush.y && b.y < mush.y + GRID) {
+                    mush.hp--;
+                    score += 5;
+                    createExplosion(mush.x + GRID/2, mush.y + GRID/2, '#fff');
+                    if (mush.hp <= 0) mushrooms.splice(m, 1);
+                    hit = true;
+                    break;
+                }
+            }
+
+            // Centipede collision
+            if (!hit) {
+                centipedes.forEach((segs, cIdx) => {
+                    segs.forEach((s, sIdx) => {
+                        if (b.x > s.x && b.x < s.x + GRID && b.y > s.y && b.y < s.y + GRID) {
+                            score += 100;
+                            createExplosion(s.x + GRID/2, s.y + GRID/2, '#ff00ff');
+                            mushrooms.push({ x: Math.round(s.x/GRID)*GRID, y: Math.round(s.y/GRID)*GRID, hp: 4 });
+                            
+                            // Split
+                            let newTail = segs.splice(sIdx + 1);
+                            if (newTail.length > 0) {
+                                newTail[0].isHead = true;
+                                centipedes.push(newTail);
+                            }
+                            segs.splice(sIdx, 1);
+                            hit = true;
+                        }
+                    });
+                });
+            }
+
+            if (b.y < 0 || hit) bullets.splice(i, 1);
+        }
+
+        // Centipede Movement (Grid Lock)
+        const moveDelay = Math.max(2, 6 - wave);
+        if (frame % moveDelay === 0) {
+            centipedes.forEach((segs, idx) => {
+                if (segs.length === 0) return;
+                
+                let head = segs[0];
+                let oldPositions = segs.map(s => ({x: s.x, y: s.y}));
+
+                // Move Head
+                let nextX = head.x + head.vx;
+                let hitWall = nextX < 0 || nextX >= width;
+                let hitMush = mushrooms.some(m => m.x === nextX && m.y === head.y);
+
+                if (hitWall || hitMush) {
+                    head.y += GRID;
+                    head.vx *= -1;
+                    if (head.y >= height) head.y = (rows - 6) * GRID; // Loop in player area
+                } else {
+                    head.x = nextX;
+                }
+
+                // Body Follow
+                for (let i = 1; i < segs.length; i++) {
+                    segs[i].x = oldPositions[i-1].x;
+                    segs[i].y = oldPositions[i-1].y;
+                }
+
+                // Player Collision
+                segs.forEach(s => {
+                    if (Math.abs(s.x - player.x) < GRID*0.8 && Math.abs(s.y - player.y) < GRID*0.8) {
+                        loseLife();
+                    }
+                });
+            });
+            centipedes = centipedes.filter(c => c.length > 0);
+        }
+
+        // Spawn next wave
+        if (centipedes.length === 0) {
+            wave++;
+            spawnCentipede(Math.min(20, 10 + wave));
+            updateUI();
+        }
+
+        // Spider AI
+        if (!spider && Math.random() < 0.005) {
+            spider = { x: 0, y: (rows - 4) * GRID, vx: 2, vy: 2, timer: 0 };
+        }
+        if (spider) {
+            spider.x += spider.vx;
+            spider.y += Math.sin(spider.timer) * 4;
+            spider.timer += 0.1;
+            if (spider.x > width) spider = null;
+            else if (Math.abs(spider.x - player.x) < GRID && Math.abs(spider.y - player.y) < GRID) loseLife();
+        }
+
+        // Particles
+        particles.forEach((p, i) => {
+            p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+            if (p.life <= 0) particles.splice(i, 1);
+        });
+
+        frame++;
+        updateUI();
+    }
+
+    function loseLife() {
+        lives--;
+        createExplosion(player.x + GRID/2, player.y + GRID/2, '#00f2ff');
+        if (lives <= 0) {
+            gameOver = true;
+            document.getElementById('game-over').style.display = 'block';
+            document.getElementById('final-score').innerText = score;
+        } else {
+            player.x = Math.floor(cols / 2) * GRID;
+            player.y = (rows - 2) * GRID;
+            centipedes = [];
+            spawnCentipede(12);
+        }
+    }
+
+    function draw() {
+        ctx.fillStyle = '#050505';
+        ctx.fillRect(0, 0, width, height);
+
+        // Glow
+        ctx.shadowBlur = 10;
+
+        // Mushrooms
+        mushrooms.forEach(m => {
+            ctx.shadowColor = '#fff';
+            ctx.fillStyle = `rgba(255,255,255,${m.hp/4})`;
+            ctx.beginPath();
+            ctx.arc(m.x + GRID/2, m.y + GRID/2, GRID/2 - 2, 0, Math.PI);
+            ctx.fill();
+            ctx.fillRect(m.x + GRID/3, m.y + GRID/2, GRID/3, GRID/2);
+        });
+
+        // Centipedes
+        centipedes.forEach(segs => {
+            segs.forEach((s, i) => {
+                ctx.shadowColor = i === 0 ? '#ff0' : '#ff00ff';
+                ctx.fillStyle = i === 0 ? '#ff0' : '#f0f';
+                ctx.beginPath();
+                ctx.arc(s.x + GRID/2, s.y + GRID/2, GRID/2 - 1, 0, Math.PI * 2);
+                ctx.fill();
+                if (i === 0) { // Eyes
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(s.x + 4, s.y + 6, 4, 4);
+                    ctx.fillRect(s.x + 12, s.y + 6, 4, 4);
+                }
+            });
+        });
+
+        // Player
+        ctx.shadowColor = '#00f2ff';
+        ctx.fillStyle = '#00f2ff';
+        ctx.beginPath();
+        ctx.moveTo(player.x + GRID/2, player.y);
+        ctx.lineTo(player.x, player.y + GRID);
+        ctx.lineTo(player.x + GRID, player.y + GRID);
+        ctx.closePath();
+        ctx.fill();
+
+        // Bullets
+        ctx.shadowColor = '#fff';
+        ctx.fillStyle = '#fff';
+        bullets.forEach(b => ctx.fillRect(b.x - 1, b.y, 2, 8));
+
+        // Spider
+        if (spider) {
+            ctx.shadowColor = '#f00';
+            ctx.fillStyle = '#f00';
+            ctx.fillRect(spider.x, spider.y, GRID, GRID);
+        }
+
+        // Particles
+        particles.forEach(p => {
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x, p.y, 2, 2);
+        });
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+
+        requestAnimationFrame(() => { update(); draw(); });
+    }
+
+    function updateUI() {
+        document.getElementById('score').innerText = score;
+        document.getElementById('wave').innerText = wave;
+        document.getElementById('lives').innerText = lives;
+    }
+
+    // Controls
+    window.addEventListener('keydown', e => {
+        if (e.key === 'ArrowLeft' || e.key === 'a') player.dx = -player.speed;
+        if (e.key === 'ArrowRight' || e.key === 'd') player.dx = player.speed;
+        if (e.key === 'ArrowUp' || e.key === 'w') player.dy = -player.speed;
+        if (e.key === 'ArrowDown' || e.key === 's') player.dy = player.speed;
+        if (e.key === ' ' || e.key === 'Enter') shoot();
+    });
+    window.addEventListener('keyup', e => {
+        if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) player.dx = 0;
+        if (['ArrowUp', 'ArrowDown', 'w', 's'].includes(e.key)) player.dy = 0;
+    });
+
+    function shoot() {
+        if (bullets.length < 3 && !gameOver) {
+            bullets.push({ x: player.x + GRID/2, y: player.y });
+        }
+    }
+
+    // Touch
+    let lastTouch = { x: 0, y: 0 };
+    canvas.addEventListener('touchstart', e => {
+        e.preventDefault();
+        const t = e.touches[0];
+        lastTouch = { x: t.clientX, y: t.clientY };
+        shoot();
+    });
+    canvas.addEventListener('touchmove', e => {
+        e.preventDefault();
+        const t = e.touches[0];
+        player.x += (t.clientX - lastTouch.x) * 1.5;
+        player.y += (t.clientY - lastTouch.y) * 1.5;
+        lastTouch = { x: t.clientX, y: t.clientY };
+    });
+
+    window.addEventListener('resize', resize);
+    resize();
+    draw();
+
+</script>
+</body>
+</html>

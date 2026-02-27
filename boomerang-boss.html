@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Boomerang Boss: Arena Evolution - K4 Games</title>
+    <style>
+        :root {
+            --primary: #ff4757;
+            --secondary: #2f3542;
+            --accent: #ffa502;
+            --bg: #1e1e2e;
+            --arena: #f1f2f6;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body {
+            background: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 1000px;
+            height: 700px;
+            background: #2f3542;
+            border-radius: 16px;
+            border: 4px solid #3e4444;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: var(--arena);
+        }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .score-board {
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 12px;
+            display: flex;
+            gap: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .player-score {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.6);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #ccc;
+        }
+
+        .back-btn {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            pointer-events: auto;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: 0.2s;
+        }
+        .back-btn:hover { background: rgba(255,255,255,0.2); }
+
+        /* Modals */
+        #modal-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: #2f3542;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 600px;
+            border: 2px solid var(--primary);
+            box-shadow: 0 0 30px rgba(255, 71, 87, 0.3);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        h1 { font-size: 2.5rem; margin-bottom: 10px; color: var(--primary); }
+        h3 { margin: 15px 0 10px; opacity: 0.8; text-transform: uppercase; font-size: 0.9rem; letter-spacing: 1px; }
+        
+        .char-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .char-option {
+            background: #4b5563;
+            padding: 10px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1.8rem;
+            border: 2px solid transparent;
+            transition: 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .char-option.selected {
+            border-color: var(--accent);
+            background: #f8fafc;
+            transform: scale(1.1);
+            box-shadow: 0 0 15px var(--accent);
+        }
+
+        .map-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .map-option {
+            background: #3e4444;
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: bold;
+            border: 2px solid transparent;
+            transition: 0.2s;
+        }
+        .map-option.selected {
+            border-color: var(--accent);
+            background: #57606f;
+        }
+
+        .start-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 15px 50px;
+            font-size: 1.4rem;
+            font-weight: 900;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            text-transform: uppercase;
+        }
+        .start-btn:hover { transform: scale(1.05); background: #ff6b81; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui-layer">
+            <div class="header">
+                <a href="index.html" class="back-btn">← HUB</a>
+                <div id="score-board" class="score-board"></div>
+            </div>
+
+            <div class="controls-hint">
+                ARROWS: Move • SPACE: Throw • X: Stab
+            </div>
+        </div>
+
+        <div id="modal-overlay">
+            <div class="modal-content" id="modal-body">
+                <h1>BOOMERANG BOSS</h1>
+                
+                <h3>Choose Fighter</h3>
+                <div class="char-grid" id="char-grid"></div>
+
+                <h3>Select Arena</h3>
+                <div class="map-grid" id="map-grid">
+                    <div class="map-option selected" data-map="random">Random</div>
+                    <div class="map-option" data-map="empty">Open Field</div>
+                    <div class="map-option" data-map="pillars">Pillars</div>
+                    <div class="map-option" data-map="arena">Colosseum</div>
+                    <div class="map-option" data-map="cross">The X</div>
+                    <div class="map-option" data-map="scattered">Maze</div>
+                </div>
+
+                <button class="start-btn" onclick="startGame()">Battle!</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CHARACTERS = [
+            { emoji: '🍌', name: 'Banana' }, { emoji: '🍞', name: 'Bread' },
+            { emoji: '🥛', name: 'Milk' }, { emoji: '🥑', name: 'Avocado' },
+            { emoji: '🍆', name: 'Eggplant' }, { emoji: '🥕', name: 'Carrot' },
+            { emoji: '🍩', name: 'Donut' }, { emoji: '🍣', name: 'Sushi' }
+        ];
+
+        const POWERUPS = [
+            { type: 'fire', emoji: '🔥', color: '#ff4757' },
+            { type: 'multi', emoji: '🌀', color: '#70a1ff' },
+            { type: 'shield', emoji: '🛡️', color: '#2ed573' }
+        ];
+
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 1000;
+                this.height = 700;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                this.players = [];
+                this.boomerangs = [];
+                this.powerups = [];
+                this.obstacles = [];
+                this.keys = {};
+                this.isPlaying = false;
+                this.selectedCharIdx = 0;
+                this.selectedMap = 'random';
+
+                this.initMenu();
+                this.loop();
+                
+                window.onkeydown = (e) => this.keys[e.key] = true;
+                window.onkeyup = (e) => this.keys[e.key] = false;
+            }
+
+            initMenu() {
+                const charGrid = document.getElementById('char-grid');
+                CHARACTERS.forEach((char, i) => {
+                    const div = document.createElement('div');
+                    div.className = `char-option ${i === 0 ? 'selected' : ''}`;
+                    div.textContent = char.emoji;
+                    div.onclick = () => {
+                        document.querySelectorAll('.char-option').forEach(el => el.classList.remove('selected'));
+                        div.classList.add('selected');
+                        this.selectedCharIdx = i;
+                    };
+                    charGrid.appendChild(div);
+                });
+
+                const mapOptions = document.querySelectorAll('.map-option');
+                mapOptions.forEach(opt => {
+                    opt.onclick = () => {
+                        mapOptions.forEach(o => o.classList.remove('selected'));
+                        opt.classList.add('selected');
+                        this.selectedMap = opt.dataset.map;
+                    };
+                });
+            }
+
+            start() {
+                this.players = [];
+                this.boomerangs = [];
+                this.powerups = [];
+                this.obstacles = this.generateObstacles(this.selectedMap);
+                
+                // Human
+                this.players.push(this.createPlayer(100, 100, CHARACTERS[this.selectedCharIdx], false));
+                // AIs
+                const spawnPoints = [
+                    {x: 900, y: 100},
+                    {x: 100, y: 600},
+                    {x: 900, y: 600}
+                ];
+                for(let i=0; i<3; i++) {
+                    const char = CHARACTERS[Math.floor(Math.random()*CHARACTERS.length)];
+                    this.players.push(this.createPlayer(spawnPoints[i].x, spawnPoints[i].y, char, true));
+                }
+
+                this.isPlaying = true;
+                document.getElementById('modal-overlay').style.display = 'none';
+                this.updateScoreBoard();
+            }
+
+            createPlayer(x, y, char, isAI) {
+                return {
+                    x, y, r: 30, 
+                    vx: 0, vy: 0,
+                    char, isAI,
+                    alive: true,
+                    score: 0,
+                    cooldown: 0,
+                    lastDir: {x: isAI ? -1 : 1, y: 0},
+                    powerup: null,
+                    stabTimer: 0
+                };
+            }
+
+            generateObstacles(mapType) {
+                const obs = [];
+                let type = mapType;
+                if (type === 'random') {
+                    const types = ['pillars', 'arena', 'cross', 'scattered'];
+                    type = types[Math.floor(Math.random() * types.length)];
+                }
+
+                switch (type) {
+                    case 'empty':
+                        break;
+                    case 'pillars':
+                        for (let x = 200; x <= 800; x += 200) {
+                            for (let y = 150; y <= 550; y += 200) {
+                                obs.push({ x: x - 25, y: y - 25, w: 50, h: 50 });
+                            }
+                        }
+                        break;
+                    case 'arena':
+                        // Central block
+                        obs.push({ x: 400, y: 250, w: 200, h: 200 });
+                        // Corner pockets
+                        obs.push({ x: 200, y: 100, w: 100, h: 40 });
+                        obs.push({ x: 700, y: 100, w: 100, h: 40 });
+                        obs.push({ x: 200, y: 560, w: 100, h: 40 });
+                        obs.push({ x: 700, y: 560, w: 100, h: 40 });
+                        break;
+                    case 'cross':
+                        obs.push({ x: 450, y: 100, w: 100, h: 200 });
+                        obs.push({ x: 450, y: 400, w: 100, h: 200 });
+                        obs.push({ x: 150, y: 300, w: 200, h: 100 });
+                        obs.push({ x: 650, y: 300, w: 200, h: 100 });
+                        break;
+                    case 'scattered':
+                        for (let i = 0; i < 12; i++) {
+                            obs.push({
+                                x: 150 + Math.random() * 700,
+                                y: 100 + Math.random() * 500,
+                                w: 30 + Math.random() * 60,
+                                h: 30 + Math.random() * 60
+                            });
+                        }
+                        // Ensure spawns are clear
+                        this.obstacles = obs.filter(o => 
+                            !(o.x < 200 && o.y < 200) && 
+                            !(o.x > 800 && o.y < 200) &&
+                            !(o.x < 200 && o.y > 500) &&
+                            !(o.x > 800 && o.y > 500)
+                        );
+                        return this.obstacles;
+                }
+                return obs;
+            }
+
+            updateScoreBoard() {
+                const board = document.getElementById('score-board');
+                board.innerHTML = this.players.map(p => `
+                    <div class="player-score" style="opacity: ${p.alive ? 1 : 0.5}">
+                        ${p.char.emoji} ${p.score}
+                    </div>
+                `).join('');
+            }
+
+            spawnPowerup() {
+                if(Math.random() < 0.005) {
+                    const p = POWERUPS[Math.floor(Math.random()*POWERUPS.length)];
+                    this.powerups.push({
+                        ...p,
+                        x: 50 + Math.random()*(this.width-100),
+                        y: 50 + Math.random()*(this.height-100),
+                        active: true
+                    });
+                }
+            }
+
+            update() {
+                if(!this.isPlaying) return;
+
+                this.spawnPowerup();
+
+                this.players.forEach((p, i) => {
+                    if(!p.alive) return;
+
+                    if(p.isAI) {
+                        this.handleAI(p);
+                    } else {
+                        this.handleInput(p);
+                    }
+
+                    // Move & Collide
+                    const nextX = p.x + p.vx;
+                    const nextY = p.y + p.vy;
+                    
+                    let wallHit = false;
+                    this.obstacles.forEach(o => {
+                        if(nextX + p.r > o.x && nextX - p.r < o.x + o.w &&
+                           nextY + p.r > o.y && nextY - p.r < o.y + o.h) wallHit = true;
+                    });
+
+                    if(!wallHit) {
+                        p.x = Math.max(p.r, Math.min(this.width-p.r, nextX));
+                        p.y = Math.max(p.r, Math.min(this.height-p.r, nextY));
+                    }
+
+                    if(p.vx !== 0 || p.vy !== 0) {
+                        const mag = Math.hypot(p.vx, p.vy);
+                        p.lastDir = { x: p.vx/mag, y: p.vy/mag };
+                    }
+
+                    if(p.cooldown > 0) p.cooldown--;
+                    if(p.stabTimer > 0) p.stabTimer--;
+
+                    // Powerup pickup
+                    this.powerups.forEach(pu => {
+                        if(pu.active && Math.hypot(p.x - pu.x, p.y - pu.y) < p.r + 20) {
+                            p.powerup = pu.type;
+                            pu.active = false;
+                        }
+                    });
+                });
+
+                // Boomerangs
+                this.boomerangs.forEach((b, i) => {
+                    if(!b.active) return;
+                    b.x += b.vx;
+                    b.y += b.vy;
+                    b.life++;
+
+                    // Return
+                    if(b.life > 40 && !b.returning) {
+                        b.returning = true;
+                    }
+
+                    if(b.returning) {
+                        const dx = b.owner.x - b.x;
+                        const dy = b.owner.y - b.y;
+                        const dist = Math.hypot(dx, dy);
+                        b.vx = (dx/dist) * 12;
+                        b.vy = (dy/dist) * 12;
+                        if(dist < 30) b.active = false;
+                    }
+
+                    // Wall bounce
+                    this.obstacles.forEach(o => {
+                        if(b.x > o.x && b.x < o.x+o.w && b.y > o.y && b.y < o.y+o.h) {
+                            b.returning = true;
+                        }
+                    });
+
+                    // Player hit
+                    this.players.forEach(p => {
+                        if(p.alive && p !== b.owner && Math.hypot(b.x - p.x, b.y - p.y) < p.r + 15) {
+                            p.alive = false;
+                            b.owner.score++;
+                            b.active = false;
+                            this.updateScoreBoard();
+                            this.checkRoundEnd();
+                        }
+                    });
+                });
+            }
+
+            handleInput(p) {
+                p.vx = p.vy = 0;
+                const speed = 5;
+                if(this.keys['ArrowUp']) p.vy = -speed;
+                if(this.keys['ArrowDown']) p.vy = speed;
+                if(this.keys['ArrowLeft']) p.vx = -speed;
+                if(this.keys['ArrowRight']) p.vx = speed;
+
+                if(this.keys[' '] && p.cooldown === 0) this.throw(p);
+                if((this.keys['x'] || this.keys['X']) && p.stabTimer === 0) this.stab(p);
+            }
+
+            handleAI(p) {
+                const target = this.players.find(op => op.alive && op !== p);
+                if(!target) return;
+
+                const dx = target.x - p.x;
+                const dy = target.y - p.y;
+                const dist = Math.hypot(dx, dy);
+
+                p.vx = (dx/dist) * 3;
+                p.vy = (dy/dist) * 3;
+
+                // Basic collision avoidance
+                this.obstacles.forEach(o => {
+                    if(p.x + p.vx + p.r > o.x && p.x + p.vx - p.r < o.x + o.w &&
+                       p.y + p.vy + p.r > o.y && p.y + p.vy - p.r < o.y + o.h) {
+                        p.vx = -p.vx;
+                        p.vy = -p.vy;
+                    }
+                });
+
+                if(dist < 400 && p.cooldown === 0 && Math.random() < 0.02) this.throw(p);
+                if(dist < 70 && p.stabTimer === 0) this.stab(p);
+            }
+
+            throw(p) {
+                this.boomerangs.push({
+                    x: p.x, y: p.y,
+                    vx: p.lastDir.x * 12,
+                    vy: p.lastDir.y * 12,
+                    owner: p, active: true, returning: false, life: 0,
+                    power: p.powerup
+                });
+                p.cooldown = 50;
+                p.powerup = null;
+            }
+
+            stab(p) {
+                p.stabTimer = 20;
+                this.players.forEach(op => {
+                    if(op.alive && op !== p) {
+                        const dist = Math.hypot(op.x - p.x, op.y - p.y);
+                        if(dist < 80) {
+                            op.alive = false;
+                            p.score++;
+                            this.updateScoreBoard();
+                            this.checkRoundEnd();
+                        }
+                    }
+                });
+            }
+
+            checkRoundEnd() {
+                const alive = this.players.filter(p => p.alive);
+                if(alive.length <= 1) {
+                    setTimeout(() => this.resetRound(), 2000);
+                }
+            }
+
+            resetRound() {
+                this.boomerangs = [];
+                this.powerups = [];
+                // Re-generate obstacles for variety if on random
+                if (this.selectedMap === 'random') {
+                    this.obstacles = this.generateObstacles('random');
+                }
+                
+                const spawnPoints = [
+                    {x: 100, y: 100},
+                    {x: 900, y: 100},
+                    {x: 100, y: 600},
+                    {x: 900, y: 600}
+                ];
+                this.players.forEach((p, i) => {
+                    p.alive = true;
+                    p.x = spawnPoints[i].x;
+                    p.y = spawnPoints[i].y;
+                    p.vx = p.vy = 0;
+                    p.powerup = null;
+                });
+                this.updateScoreBoard();
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0,0,this.width,this.height);
+
+                // Arena Floor Detail
+                ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+                for(let i=0; i<this.width; i+=50) {
+                    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, this.height); ctx.stroke();
+                }
+                for(let i=0; i<this.height; i+=50) {
+                    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(this.width, i); ctx.stroke();
+                }
+
+                // Obstacles
+                ctx.fillStyle = '#bdc3c7';
+                ctx.strokeStyle = '#95a5a6';
+                ctx.lineWidth = 2;
+                this.obstacles.forEach(o => {
+                    ctx.fillRect(o.x, o.y, o.w, o.h);
+                    ctx.strokeRect(o.x, o.y, o.w, o.h);
+                    
+                    // Detail on blocks
+                    ctx.fillStyle = 'rgba(0,0,0,0.05)';
+                    ctx.fillRect(o.x + 5, o.y + 5, o.w - 10, 5);
+                });
+
+                // Powerups
+                this.powerups.forEach(pu => {
+                    if(!pu.active) return;
+                    ctx.font = '30px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(pu.emoji, pu.x, pu.y + 10);
+                });
+
+                // Boomerangs
+                this.boomerangs.forEach(b => {
+                    if(!b.active) return;
+                    ctx.save();
+                    ctx.translate(b.x, b.y);
+                    ctx.rotate(b.life * 0.2);
+                    ctx.font = '40px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('🪃', 0, 15);
+                    if(b.power === 'fire') {
+                        ctx.shadowBlur = 10; ctx.shadowColor = 'orange';
+                        ctx.fillText('🔥', 0, 0);
+                    }
+                    ctx.restore();
+                });
+
+                // Players
+                this.players.forEach(p => {
+                    ctx.globalAlpha = 1.0;
+                    if(!p.alive) {
+                        ctx.save();
+                        ctx.font = '40px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('💀', p.x, p.y);
+                        ctx.restore();
+                        return;
+                    }
+                    
+                    ctx.save();
+                    // Modern Shadow/Base
+                    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+                    ctx.beginPath(); ctx.ellipse(p.x, p.y+28, 25, 12, 0, 0, Math.PI*2); ctx.fill();
+
+                    // Visibility Base (White Halo)
+                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = 'rgba(255,255,255,0.5)';
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 2, 0, Math.PI*2); ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    // Indicator for powerups
+                    if(p.powerup) {
+                        ctx.strokeStyle = p.powerup === 'fire' ? '#ff4757' : 
+                                         p.powerup === 'multi' ? '#70a1ff' : '#2ed573';
+                        ctx.lineWidth = 4;
+                        ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 6, 0, Math.PI*2); ctx.stroke();
+                        
+                        // Outer glow for powerup
+                        ctx.globalAlpha = 0.3;
+                        ctx.lineWidth = 10;
+                        ctx.stroke();
+                        ctx.globalAlpha = 1.0;
+                    } else if (!p.isAI) {
+                        // Highlight for local player
+                        ctx.strokeStyle = varColor('--primary');
+                        ctx.lineWidth = 2;
+                        ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 6, 0, Math.PI*2); ctx.stroke();
+                    }
+
+                    // Body Emoji
+                    ctx.font = '55px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    // Draw a slight stroke around the emoji to make it pop
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 1;
+                    ctx.strokeText(p.char.emoji, p.x, p.y);
+                    ctx.fillText(p.char.emoji, p.x, p.y);
+                    
+                    if(p.stabTimer > 0) {
+                        ctx.font = '35px Arial';
+                        ctx.fillText('🔪', p.x + p.lastDir.x * 45, p.y + p.lastDir.y * 45);
+                    }
+                    ctx.restore();
+                });
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        function varColor(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        }
+
+        let game;
+        window.onload = () => { game = new Game(); };
+        function startGame() { game.start(); }
+    </script>
+</body>
+</html>

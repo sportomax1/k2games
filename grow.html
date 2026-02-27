@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grow: Minimalist Sim - K4 Games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --accent: #38bdf8;
+            --text: #f8fafc;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 900;
+            letter-spacing: -1px;
+            color: var(--accent);
+            text-transform: uppercase;
+        }
+
+        .controls {
+            background: var(--panel);
+            padding: 1.5rem 2.5rem;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .label { font-size: 0.9rem; font-weight: 800; text-transform: uppercase; opacity: 0.6; }
+
+        input[type="range"] {
+            width: 300px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        canvas {
+            background: #000;
+            border-radius: 24px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+            border: 4px solid #334155;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 12px; z-index: 100;
+            font-weight: bold; backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="game-container">
+        <div class="header">
+            <h1>GROW</h1>
+            <p style="opacity: 0.5;">Minimalist Evolution Simulation</p>
+        </div>
+
+        <div class="controls">
+            <span class="label">Slow</span>
+            <input type="range" id="speed-slider" min="0" max="100" value="50">
+            <span class="label">Fast</span>
+        </div>
+
+        <canvas id="gameCanvas" width="1100" height="700"></canvas>
+    </div>
+
+    <script>
+        class GrowGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 1100;
+                this.height = 700;
+
+                this.items = [
+                    { name: 'Tree', draw: this.drawTree.bind(this) },
+                    { name: 'Flower', draw: this.drawFlower.bind(this) },
+                    { name: 'Grass', draw: this.drawGrass.bind(this) },
+                    { name: 'Bush', draw: this.drawBush.bind(this) },
+                    { name: 'Mushroom', draw: this.drawMushroom.bind(this) },
+                    { name: 'Human', draw: this.drawHuman.bind(this) },
+                    { name: 'Animal', draw: this.drawAnimal.bind(this) },
+                    { name: 'Crystal', draw: this.drawCrystal.bind(this) },
+                    { name: 'Coral', draw: this.drawCoral.bind(this) },
+                    { name: 'Cloud', draw: this.drawCloud.bind(this) },
+                    { name: 'Bacteria', draw: this.drawBacteria.bind(this) }
+                ];
+
+                this.growthStates = this.items.map(() => this.createGrowthState());
+                this.growthRate = 1.0;
+                this.minRate = 0.2;
+                this.maxRate = 3.0;
+                this.lastUpdate = performance.now();
+                this.regions = this.layoutRegions(this.items.length, this.width, this.height);
+
+                this.init();
+            }
+
+            init() {
+                const slider = document.getElementById('speed-slider');
+                slider.oninput = () => {
+                    const val = slider.value / 100;
+                    this.growthRate = this.minRate * Math.pow(this.maxRate / this.minRate, val);
+                };
+
+                window.onkeydown = (e) => {
+                    if (e.key === 'ArrowLeft') slider.value = Math.max(0, parseInt(slider.value) - 5);
+                    if (e.key === 'ArrowRight') slider.value = Math.min(100, parseInt(slider.value) + 5);
+                    slider.oninput();
+                };
+
+                this.loop();
+            }
+
+            layoutRegions(n, w, h) {
+                const cols = 4, rows = 3;
+                const cellW = w / cols, cellH = h / rows;
+                let regions = [];
+                for (let i = 0; i < n; i++) {
+                    const row = Math.floor(i / cols), col = i % cols;
+                    regions.push({ x: col * cellW, y: row * cellH, w: cellW, h: cellH });
+                }
+                return regions;
+            }
+
+            createGrowthState() {
+                return {
+                    progress: 0,
+                    phase: 'growing',
+                    shimmerT: 0,
+                    fadeT: 0,
+                    delayT: Math.random() * 0.8 + 0.2
+                };
+            }
+
+            loop = () => {
+                const now = performance.now();
+                const dt = Math.min(0.1, (now - this.lastUpdate) / 1000) * this.growthRate;
+                this.lastUpdate = now;
+
+                this.update(dt);
+                this.draw();
+                requestAnimationFrame(this.loop);
+            }
+
+            update(dt) {
+                for (let i = 0; i < this.items.length; i++) {
+                    const state = this.growthStates[i];
+                    if (state.phase === 'growing') {
+                        state.progress += dt * 0.18;
+                        if (state.progress >= 1) {
+                            state.progress = 1;
+                            state.phase = 'shimmer';
+                            state.shimmerT = 0;
+                        }
+                    } else if (state.phase === 'shimmer') {
+                        state.shimmerT += dt;
+                        if (state.shimmerT > 0.5) {
+                            state.phase = 'fade';
+                            state.fadeT = 0;
+                        }
+                    } else if (state.phase === 'fade') {
+                        state.fadeT += dt * 2.5;
+                        if (state.fadeT > 1) {
+                            state.phase = 'delay';
+                            state.delayT = Math.random() * 0.8 + 0.2;
+                            state.progress = 0;
+                        }
+                    } else if (state.phase === 'delay') {
+                        state.delayT -= dt;
+                        if (state.delayT <= 0) {
+                            state.phase = 'growing';
+                        }
+                    }
+                }
+            }
+
+            draw() {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                for (let i = 0; i < this.items.length; i++) {
+                    const item = this.items[i];
+                    const state = this.growthStates[i];
+                    const region = this.regions[i];
+                    this.ctx.save();
+                    
+                    let alpha = 1;
+                    if (state.phase === 'fade') alpha = 1 - state.fadeT;
+                    this.ctx.globalAlpha = alpha;
+
+                    let shimmer = 0;
+                    if (state.phase === 'shimmer') shimmer = Math.sin(state.shimmerT * 16) * 0.2 + 0.8;
+
+                    item.draw(this.ctx, region, state.progress, shimmer);
+                    
+                    this.ctx.globalAlpha = 1;
+                    this.ctx.font = 'bold 1rem Segoe UI';
+                    this.ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(item.name.toUpperCase(), region.x + region.w / 2, region.y + region.h - 20);
+                    this.ctx.restore();
+                }
+            }
+
+            // --- Draw Methods ---
+            drawTree(ctx, r, p, s) {
+                const cx = r.x + r.w / 2, base = r.y + r.h * 0.8;
+                ctx.strokeStyle = '#8B5A2B';
+                ctx.lineWidth = 10 * p;
+                ctx.beginPath(); ctx.moveTo(cx, base); ctx.lineTo(cx, base - 60 * p); ctx.stroke();
+                ctx.globalAlpha *= 0.7 + 0.3 * s;
+                ctx.beginPath(); ctx.arc(cx, base - 60 * p, 38 * p, 0, 2 * Math.PI);
+                ctx.fillStyle = '#228B22'; ctx.fill();
+            }
+
+            drawFlower(ctx, r, p, s) {
+                const cx = r.x + r.w / 2, cy = r.y + r.h * 0.7;
+                ctx.strokeStyle = '#228B22';
+                ctx.lineWidth = 4 * p;
+                ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy - 40 * p); ctx.stroke();
+                ctx.globalAlpha *= 0.7 + 0.3 * s;
+                for (let i = 0; i < 6; i++) {
+                    const angle = (Math.PI * 2 * i) / 6;
+                    ctx.beginPath();
+                    ctx.arc(cx + Math.cos(angle) * 18 * p, cy - 40 * p + Math.sin(angle) * 18 * p, 12 * p, 0, 2 * Math.PI);
+                    ctx.fillStyle = ['#FF69B4','#FFD700','#FF6347','#8A2BE2','#00BFFF','#FF8C00'][i%6];
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+                ctx.beginPath(); ctx.arc(cx, cy - 40 * p, 10 * p, 0, 2 * Math.PI);
+                ctx.fillStyle = '#FFD700'; ctx.fill();
+            }
+
+            drawGrass(ctx, r, p, s) {
+                const base = r.y + r.h * 0.8;
+                ctx.strokeStyle = '#32CD32'; ctx.lineWidth = 2;
+                for (let i = 0; i < 12; i++) {
+                    const x = r.x + r.w * (0.1 + 0.8 * i / 11);
+                    ctx.beginPath(); ctx.moveTo(x, base);
+                    ctx.lineTo(x, base - 18 * p * (0.7 + 0.6 * Math.sin(i)));
+                    ctx.stroke();
+                }
+            }
+
+            drawBush(ctx, r, p, s) {
+                const cx = r.x + r.w / 2, base = r.y + r.h * 0.8;
+                ctx.globalAlpha *= 0.7 + 0.3 * s;
+                ctx.fillStyle = '#2E8B57';
+                ctx.beginPath();
+                ctx.arc(cx - 22 * p, base - 10 * p, 22 * p, 0, 2 * Math.PI);
+                ctx.arc(cx, base - 18 * p, 28 * p, 0, 2 * Math.PI);
+                ctx.arc(cx + 22 * p, base - 10 * p, 22 * p, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            drawMushroom(ctx, r, p, s) {
+                const cx = r.x + r.w / 2, base = r.y + r.h * 0.8;
+                ctx.fillStyle = '#F5DEB3';
+                ctx.beginPath(); ctx.ellipse(cx, base - 18 * p, 10 * p, 22 * p, 0, 0, 2 * Math.PI); ctx.fill();
+                ctx.globalAlpha *= 0.7 + 0.3 * s;
+                ctx.fillStyle = '#E74C3C';
+                ctx.beginPath(); ctx.ellipse(cx, base - 32 * p, 28 * p, 18 * p, 0, 0, 2 * Math.PI); ctx.fill();
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = '#FFF';
+                for (let i = 0; i < 5; i++) {
+                    ctx.beginPath();
+                    ctx.arc(cx + Math.cos(i*1.2)*12*p, base - 32*p + Math.sin(i*1.2)*7*p, 4*p, 0, 2*Math.PI);
+                    ctx.fill();
+                }
+            }
+
+            drawHuman(ctx, r, p, s) {
+                const cx = r.x + r.w / 2, base = r.y + r.h * 0.8;
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 3 * p;
+                ctx.beginPath(); ctx.moveTo(cx, base - 40 * p); ctx.lineTo(cx, base); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(cx - 18 * p, base - 25 * p); ctx.lineTo(cx + 18 * p, base - 25 * p); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(cx, base); ctx.lineTo(cx - 12 * p, base + 18 * p);
+                ctx.moveTo(cx, base); ctx.lineTo(cx + 12 * p, base + 18 * p); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx, base - 48 * p, 8 * p, 0, 2 * Math.PI);
+                ctx.fillStyle = '#fff'; ctx.fill();
+            }
+
+            drawAnimal(ctx, r, p, s) {
+                const cx = r.x + r.w / 2, base = r.y + r.h * 0.8;
+                ctx.globalAlpha *= 0.7 + 0.3 * s;
+                ctx.fillStyle = '#444';
+                ctx.beginPath(); ctx.ellipse(cx, base - 18 * p, 22 * p, 16 * p, 0, 0, 2 * Math.PI);
+                ctx.ellipse(cx - 10 * p, base - 32 * p, 8 * p, 10 * p, 0, 0, 2 * Math.PI);
+                ctx.moveTo(cx - 14 * p, base - 38 * p); ctx.lineTo(cx - 18 * p, base - 48 * p);
+                ctx.moveTo(cx - 6 * p, base - 38 * p); ctx.lineTo(cx - 2 * p, base - 48 * p);
+                ctx.fill();
+            }
+
+            drawCrystal(ctx, r, p, s) {
+                const cx = r.x + r.w / 2, cy = r.y + r.h * 0.7;
+                ctx.globalAlpha *= 0.7 + 0.3 * s;
+                ctx.fillStyle = '#7B68EE';
+                ctx.beginPath(); ctx.moveTo(cx, cy - 40 * p); ctx.lineTo(cx - 18 * p, cy + 20 * p);
+                ctx.lineTo(cx, cy + 40 * p); ctx.lineTo(cx + 18 * p, cy + 20 * p); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#B0C4DE';
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath(); ctx.arc(cx + Math.cos(i*2)*12*p, cy - 10*p + Math.sin(i*2)*12*p, 3*p, 0, 2*Math.PI); ctx.fill();
+                }
+            }
+
+            drawCoral(ctx, r, p, s) {
+                const cx = r.x + r.w / 2, base = r.y + r.h * 0.8;
+                ctx.strokeStyle = '#FF7F50'; ctx.lineWidth = 7 * p;
+                ctx.beginPath(); ctx.moveTo(cx, base); ctx.lineTo(cx, base - 40 * p);
+                ctx.moveTo(cx, base - 20 * p); ctx.lineTo(cx - 18 * p, base - 38 * p);
+                ctx.moveTo(cx, base - 28 * p); ctx.lineTo(cx + 18 * p, base - 48 * p); ctx.stroke();
+            }
+
+            drawCloud(ctx, r, p, s) {
+                const cx = r.x + r.w / 2, cy = r.y + r.h * 0.7;
+                ctx.globalAlpha *= 0.7 + 0.3 * s;
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(cx - 18 * p, cy, 18 * p, 0, 2 * Math.PI);
+                ctx.arc(cx + 18 * p, cy, 18 * p, 0, 2 * Math.PI);
+                ctx.arc(cx, cy - 12 * p, 22 * p, 0, 2 * Math.PI); ctx.fill();
+            }
+
+            drawBacteria(ctx, r, p, s) {
+                const cx = r.x + r.w / 2, cy = r.y + r.h * 0.7;
+                ctx.globalAlpha *= 0.7 + 0.3 * s;
+                ctx.fillStyle = '#90EE90';
+                ctx.beginPath(); ctx.arc(cx, cy, 18 * p * (1 + 0.08 * Math.sin(performance.now()/120)), 0, 2 * Math.PI); ctx.fill();
+                ctx.fillStyle = '#228B22';
+                ctx.beginPath(); ctx.arc(cx, cy, 7 * p * (1 + 0.12 * Math.cos(performance.now()/90)), 0, 2 * Math.PI); ctx.fill();
+            }
+        }
+
+        window.onload = () => new GrowGame();
+    </script>
+</body>
+</html>

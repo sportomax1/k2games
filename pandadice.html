@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Panda Dice: Master Edition - K4 Games</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        :root {
+            --primary: #166534; /* Green-800 */
+            --accent: #fbbf24; /* Amber-400 */
+            --bg: #f0fdf4; /* Green-50 */
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image: radial-gradient(circle at center, #dcfce7 0%, #f0fdf4 100%);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: #1e293b;
+            touch-action: manipulation;
+            min-height: 100vh;
+        }
+
+        .dice-shadow {
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.15);
+        }
+
+        .animate-pop {
+            animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes pop {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        }
+
+        .bamboo-bg {
+            background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 0v40M0 20h40' stroke='%2316a34a' stroke-width='1' stroke-opacity='0.05' fill='none'/%3E%3C/svg%3E");
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: #166534; text-decoration: none;
+            background: white; padding: 10px 20px; border-radius: 12px; z-index: 100;
+            font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body class="bamboo-bg">
+    <a href="index.html" class="back-link">← HUB</a>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- Game Constants ---
+
+        const DICE_TYPES = {
+            yellow: { color: 'bg-yellow-400', text: 'text-yellow-950', label: 'Elder', desc: 'Sum determines Draft Order' },
+            purple: { color: 'bg-purple-600', text: 'text-white', label: 'Wanderer', desc: 'Sum x 2' },
+            blue: { color: 'bg-blue-500', text: 'text-white', label: 'River', desc: 'Sum (x2 if Glitter present)' },
+            blue_glitter: { color: 'bg-cyan-300', border: 'border-2 border-yellow-400', text: 'text-cyan-950', label: 'Glitter', desc: 'Doubles all Blue dice' },
+            red: { color: 'bg-red-600', text: 'text-white', label: 'Warrior', desc: 'Sum x Count (Watch out for negatives!)' },
+            green: { color: 'bg-green-600', text: 'text-white', label: 'Bamboo', desc: 'Big Numbers (d20)' },
+            clear: { color: 'bg-white', border: 'border-2 border-gray-300', text: 'text-gray-800', label: 'Rogue', desc: 'Steal a die' },
+            pink: { color: 'bg-pink-400', text: 'text-white', label: 'Pity', desc: 'Goes to lowest scorer' },
+        };
+
+        const INITIAL_BAG = [
+            ...Array(10).fill({ type: 'd8', color: 'yellow' }),
+            ...Array(10).fill({ type: 'd8', color: 'purple' }),
+            ...Array(15).fill({ type: 'd12', color: 'blue' }),
+            ...Array(8).fill({ type: 'd6', color: 'blue_glitter' }),
+            ...Array(12).fill({ type: 'd8', color: 'red' }),
+            ...Array(10).fill({ type: 'd20', color: 'green' }),
+            ...Array(8).fill({ type: 'd6', color: 'clear' }),
+        ];
+
+        // --- Logic ---
+
+        const rollDie = (die) => {
+            const sides = parseInt(die.type.substring(1));
+            let val = Math.floor(Math.random() * sides) + 1;
+            if (die.color === 'red' && Math.random() < 0.5) val = -val;
+            return { ...die, value: val, id: Math.random().toString(36).substr(2, 9) };
+        };
+
+        const calculateRoundScore = (diceHand) => {
+            let score = 0;
+            const handByColor = {};
+            diceHand.forEach(d => {
+                const c = d.color === 'blue_glitter' ? 'blue' : d.color;
+                if (!handByColor[c]) handByColor[c] = [];
+                handByColor[c].push(d);
+            });
+
+            const hasGlitter = diceHand.some(d => d.color === 'blue_glitter');
+
+            if (handByColor['yellow']) score += handByColor['yellow'].reduce((sum, d) => sum + d.value, 0);
+            if (handByColor['purple']) score += (handByColor['purple'].reduce((sum, d) => sum + d.value, 0) * 2);
+            if (handByColor['blue']) {
+                let sum = handByColor['blue'].reduce((sum, d) => sum + d.value, 0);
+                if (hasGlitter) sum *= 2;
+                score += sum;
+            }
+            if (handByColor['red']) {
+                const sum = handByColor['red'].reduce((sum, d) => sum + d.value, 0);
+                score += (sum * handByColor['red'].length);
+            }
+            if (handByColor['green']) score += handByColor['green'].reduce((sum, d) => sum + d.value, 0);
+            if (handByColor['clear']) score += handByColor['clear'].reduce((sum, d) => sum + d.value, 0);
+            if (handByColor['pink']) score += handByColor['pink'].reduce((sum, d) => sum + d.value, 0);
+
+            return score;
+        };
+
+        // --- Components ---
+
+        const Die = ({ die, size = "md", showValue = true, selectable = false, selected = false, onClick }) => {
+            const config = DICE_TYPES[die.color] || DICE_TYPES.yellow;
+            const sizeMap = { sm: "w-8 h-8 text-xs", md: "w-14 h-14 text-xl", lg: "w-20 h-20 text-3xl" };
+
+            return (
+                <div 
+                    onClick={() => selectable && onClick && onClick(die)}
+                    className={`
+                        relative flex items-center justify-center font-black dice-shadow transition-all duration-300
+                        ${sizeMap[size]} ${config.color} ${config.text} ${config.border || ''}
+                        ${die.type === 'd8' ? 'rounded-sm rotate-45 scale-90' : 'rounded-xl'}
+                        ${selectable ? 'cursor-pointer hover:scale-110 hover:-translate-y-1' : ''}
+                        ${selected ? 'ring-4 ring-offset-4 ring-blue-500 scale-110' : ''}
+                        ${showValue ? 'animate-pop' : ''}
+                    `}
+                >
+                    <div className={die.type === 'd8' ? '-rotate-45' : ''}>
+                        {showValue && die.value !== undefined ? die.value : die.type.toUpperCase()}
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [phase, setPhase] = useState('SETUP'); 
+            const [round, setRound] = useState(1);
+            const [players, setPlayers] = useState([]);
+            const [bag, setBag] = useState([...INITIAL_BAG]);
+            const [draftPool, setDraftPool] = useState([]);
+            const [pinkPool, setPinkPool] = useState([]);
+            const [inputName, setInputName] = useState("");
+            const [activeThief, setActiveThief] = useState(0);
+            const [stealQueue, setStealQueue] = useState([]);
+            const [draftOrder, setDraftOrder] = useState([]);
+            const [currentDrafter, setCurrentDrafter] = useState(0);
+
+            const initGame = () => {
+                if (players.length < 2) return;
+                const starters = players.map(p => ({
+                    ...p,
+                    hand: [{ type: 'd6', color: 'yellow', value: 0 }],
+                    totalScore: 0, roundScore: 0
+                }));
+                setPlayers(starters);
+                setPinkPool(Array(players.length < 4 ? 1 : 2).fill({ type: 'd12', color: 'pink' }));
+                setPhase('ROLLING');
+            };
+
+            const startRoll = () => {
+                const rolled = players.map(p => {
+                    const hand = p.hand.map(d => rollDie(d));
+                    return { ...p, hand, roundScore: calculateRoundScore(hand), yellowSum: hand.filter(d => d.color === 'yellow').reduce((s, d) => s + d.value, 0) };
+                });
+                setPlayers(rolled);
+                
+                const thieves = rolled.map((p, i) => p.hand.some(d => d.color === 'clear') ? i : null).filter(x => x !== null);
+                if (thieves.length > 0) {
+                    setStealQueue(thieves);
+                    setActiveThief(0);
+                    setPhase('STEALING');
+                } else {
+                    processPity(rolled);
+                }
+            };
+
+            const executeSteal = (targetIdx, dieIdx) => {
+                const thiefIdx = stealQueue[activeThief];
+                const newPlayers = [...players];
+                const thief = newPlayers[thiefIdx];
+                const target = newPlayers[targetIdx];
+
+                const clearIdx = thief.hand.findIndex(d => d.color === 'clear');
+                const stolen = target.hand[dieIdx];
+                
+                thief.hand[clearIdx] = stolen;
+                target.hand[dieIdx] = { ...thief.hand[clearIdx], color: 'clear', type: 'd6', value: 0 }; // Swap back
+
+                setPlayers(newPlayers);
+                if (activeThief < stealQueue.length - 1) setActiveThief(activeThief + 1);
+                else processPity(newPlayers);
+            };
+
+            const processPity = (currentPlayers) => {
+                setPhase('PITY');
+                setTimeout(() => {
+                    const sorted = [...currentPlayers].sort((a, b) => a.roundScore - b.roundScore);
+                    const newPlayers = [...currentPlayers];
+                    let pool = [...pinkPool];
+                    
+                    // Reset all pinks
+                    newPlayers.forEach(p => p.hand = p.hand.filter(d => d.color !== 'pink'));
+                    
+                    for (let i = 0; i < sorted.length && pool.length > 0; i++) {
+                        const pIdx = newPlayers.findIndex(p => p.id === sorted[i].id);
+                        newPlayers[pIdx].hand.push(pool.pop());
+                    }
+                    
+                    setPlayers(newPlayers);
+                    setupDraft(newPlayers);
+                }, 1500);
+            };
+
+            const setupDraft = (currentPlayers) => {
+                setPhase('DRAFTING');
+                const order = currentPlayers.map((p, i) => ({ i, val: p.yellowSum })).sort((a, b) => b.val - a.val).map(x => x.i);
+                setDraftOrder(order);
+                setCurrentDrafter(0);
+
+                const currentBag = [...bag];
+                const pool = [];
+                for(let i=0; i < currentPlayers.length + 1; i++) {
+                    if(currentBag.length === 0) break;
+                    pool.push(currentBag.splice(Math.floor(Math.random()*currentBag.length), 1)[0]);
+                }
+                setBag(currentBag);
+                setDraftPool(pool);
+            };
+
+            const pickDie = (idx) => {
+                const pIdx = draftOrder[currentDrafter];
+                const newPlayers = [...players];
+                newPlayers[pIdx].hand.push(draftPool[idx]);
+                setDraftPool(draftPool.filter((_, i) => i !== idx));
+                setPlayers(newPlayers);
+
+                if (currentDrafter < draftOrder.length - 1) {
+                    setCurrentDrafter(currentDrafter + 1);
+                } else {
+                    endRound(newPlayers);
+                }
+            };
+
+            const endRound = (currentPlayers) => {
+                const updated = currentPlayers.map(p => ({ ...p, totalScore: p.totalScore + p.roundScore, roundScore: 0 }));
+                setPlayers(updated);
+                if (round === 10) setPhase('GAME_OVER');
+                else { setRound(round + 1); setPhase('ROLLING'); }
+            };
+
+            if (phase === 'SETUP') return (
+                <div className="flex flex-col items-center justify-center min-h-screen p-8 max-w-lg mx-auto">
+                    <div className="text-6xl mb-4">🐼</div>
+                    <h1 className="text-5xl font-black text-green-900 mb-2 italic">PANDA DICE</h1>
+                    <p className="text-green-700 font-bold mb-10 uppercase tracking-widest">Master Edition</p>
+                    
+                    <div className="w-full glass-panel p-8 rounded-3xl space-y-6">
+                        <div className="flex gap-3">
+                            <input value={inputName} onChange={e => setInputName(e.target.value)} placeholder="Player Name..." className="flex-1 p-4 rounded-2xl border-none focus:ring-4 focus:ring-green-200 text-lg font-bold" />
+                            <button onClick={() => { if(inputName) { setPlayers([...players, { id: Date.now(), name: inputName, totalScore: 0, hand: [] }]); setInputName(""); } }} className="bg-green-600 text-white px-6 rounded-2xl font-black hover:bg-green-700 transition-all">+</button>
+                        </div>
+                        <div className="space-y-3 max-h-60 overflow-y-auto">
+                            {players.map(p => (
+                                <div key={p.id} className="flex justify-between items-center p-4 bg-white/50 rounded-2xl border border-white">
+                                    <span className="font-black text-green-900">{p.name}</span>
+                                    <button onClick={() => setPlayers(players.filter(x => x.id !== p.id))} className="text-red-400 font-black">✕</button>
+                                </div>
+                            ))}
+                        </div>
+                        <button onClick={initGame} disabled={players.length < 2} className="w-full py-5 bg-green-600 text-white rounded-2xl font-black text-2xl shadow-xl shadow-green-900/20 disabled:opacity-50">START BATTLE</button>
+                    </div>
+                </div>
+            );
+
+            if (phase === 'GAME_OVER') {
+                const winner = [...players].sort((a,b) => b.totalScore - a.totalScore)[0];
+                return (
+                    <div className="flex flex-col items-center justify-center min-h-screen bg-green-900 text-white p-8">
+                        <div className="text-8xl mb-6">🏆</div>
+                        <h1 className="text-4xl font-black mb-2 uppercase italic">Championship Won!</h1>
+                        <div className="text-6xl font-black text-yellow-400 mb-12">{winner.name}</div>
+                        <button onClick={() => location.reload()} className="px-12 py-5 bg-white text-green-900 rounded-full font-black text-xl hover:scale-105 transition-all">NEW SEASON</button>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex flex-col min-h-screen max-w-2xl mx-auto pb-32">
+                    <header className="p-6 flex justify-between items-end">
+                        <div>
+                            <div className="text-xs font-black text-green-700 uppercase tracking-tighter">Round {round} of 10</div>
+                            <h1 className="text-3xl font-black text-green-900 italic">PANDA DICE</h1>
+                        </div>
+                        <div className="px-4 py-2 bg-green-900 text-white rounded-full text-xs font-black tracking-widest uppercase">{phase}</div>
+                    </header>
+
+                    <main className="flex-1 p-6 space-y-6">
+                        {phase === 'STEALING' && (
+                            <div className="glass-panel p-6 rounded-3xl border-2 border-red-400 animate-pop">
+                                <h3 className="text-red-600 font-black uppercase text-sm mb-4">Rogue Action: {players[stealQueue[activeThief]].name} is stealing!</h3>
+                                <div className="space-y-4">
+                                    {players.map((p, i) => (i !== stealQueue[activeThief] && p.hand.length > 0) && (
+                                        <div key={p.id} className="bg-white/40 p-4 rounded-2xl">
+                                            <div className="text-xs font-bold mb-2 uppercase opacity-50">{p.name}'s Hand</div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {p.hand.map((d, di) => d.color !== 'pink' && <Die key={di} die={d} size="sm" selectable onClick={() => executeSteal(i, di)} />)}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {phase === 'DRAFTING' && (
+                            <div className="glass-panel p-8 rounded-3xl border-4 border-yellow-400 text-center sticky top-4 z-50">
+                                <div className="text-xs font-black text-yellow-600 uppercase mb-4 tracking-widest">Next Drafter</div>
+                                <h2 className="text-3xl font-black text-green-900 mb-6 uppercase">{players[draftOrder[currentDrafter]].name}</h2>
+                                <div className="flex flex-wrap justify-center gap-4">
+                                    {draftPool.map((d, i) => <Die key={i} die={d} size="md" showValue={false} selectable onClick={() => pickDie(i)} />)}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid gap-4">
+                            {players.map((p, i) => (
+                                <div key={p.id} className={`p-6 rounded-3xl border-2 transition-all ${phase === 'DRAFTING' && i === draftOrder[currentDrafter] ? 'bg-white border-green-600 shadow-xl scale-105' : 'bg-white/60 border-transparent opacity-80'}`}>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <span className="text-xl font-black uppercase text-green-900">{p.name}</span>
+                                        <div className="flex gap-4">
+                                            <div className="text-center"><div className="text-[0.6rem] font-bold opacity-40 uppercase">Round</div><div className="font-black text-xl leading-none">{p.roundScore}</div></div>
+                                            <div className="text-center"><div className="text-[0.6rem] font-bold opacity-40 uppercase">Total</div><div className="font-black text-xl leading-none text-green-600">{p.totalScore}</div></div>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 p-3 bg-white/40 rounded-2xl min-h-[4rem]">
+                                        {p.hand.map((d, di) => <Die key={di} die={d} size="sm" />)}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </main>
+
+                    <footer className="fixed bottom-0 left-0 right-0 p-6 z-50 pointer-events-none">
+                        <div className="max-w-lg mx-auto pointer-events-auto">
+                            {phase === 'ROLLING' && (
+                                <button onClick={startRoll} className="w-full py-6 bg-green-900 text-white rounded-3xl font-black text-2xl shadow-2xl hover:scale-105 transition-all">ROLL ALL DICE</button>
+                            )}
+                        </div>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

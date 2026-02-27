@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explore - K4 Games</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --water: #3498db;
+            --grass: #2ecc71;
+            --sand: #f1c40f;
+            --forest: #27ae60;
+            --mountain: #7f8c8d;
+            --snow: #ecf0f1;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            background: #000;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .coords {
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-family: monospace;
+            font-size: 1.2rem;
+            color: #2ecc71;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        #minimap-container {
+            width: 200px;
+            height: 200px;
+            background: rgba(0,0,0,0.5);
+            border: 3px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            pointer-events: auto;
+        }
+
+        #minimap-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .controls-hint {
+            background: rgba(0,0,0,0.6);
+            padding: 15px 25px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            max-width: 300px;
+            line-height: 1.6;
+        }
+
+        .back-link {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            pointer-events: auto;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: 0.2s;
+        }
+        .back-link:hover { background: rgba(255,255,255,0.2); }
+
+        #biome-toast {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            padding: 10px 30px;
+            border-radius: 50px;
+            font-weight: 800;
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            pointer-events: none;
+            opacity: 0;
+            transition: 0.5s;
+        }
+        #biome-toast.show { opacity: 1; transform: translateX(-50%) translateY(-20px); }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui-layer">
+            <div class="header">
+                <a href="index.html" class="back-link">← HUB</a>
+                <div class="coords" id="coords">X: 000 Y: 000</div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                <div class="controls-hint">
+                    <b>CONTROLS:</b><br>
+                    WASD or ARROWS: Move<br>
+                    Explore the infinite procedurally generated world.
+                </div>
+                <div id="minimap-container">
+                    <canvas id="minimap-canvas"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div id="biome-toast">GRASSLANDS</div>
+    </div>
+
+    <script>
+        const TERRAIN = {
+            WATER: { color: '#3498db', name: 'Ocean' },
+            SAND: { color: '#f1c40f', name: 'Desert' },
+            GRASS: { color: '#2ecc71', name: 'Grasslands' },
+            FOREST: { color: '#27ae60', name: 'Forest' },
+            MOUNTAIN: { color: '#7f8c8d', name: 'Mountains' },
+            SNOW: { color: '#ecf0f1', name: 'Tundra' }
+        };
+
+        class Explore {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.mCanvas = document.getElementById('minimap-canvas');
+                this.mCtx = this.mCanvas.getContext('2d');
+                
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+                this.mCanvas.width = 200;
+                this.mCanvas.height = 200;
+
+                this.worldSize = 512;
+                this.tileSize = 40;
+                this.grid = [];
+                this.player = { x: 256, y: 256 };
+                this.keys = {};
+                this.currentBiome = '';
+
+                this.init();
+            }
+
+            init() {
+                this.generateWorld();
+                window.onkeydown = (e) => this.keys[e.key.toLowerCase()] = true;
+                window.onkeyup = (e) => this.keys[e.key.toLowerCase()] = false;
+                window.onresize = () => {
+                    this.width = this.canvas.width = window.innerWidth;
+                    this.height = this.canvas.height = window.innerHeight;
+                };
+                this.loop();
+            }
+
+            generateWorld() {
+                // Simple pseudo-random terrain using combined sine waves
+                for(let y=0; y<this.worldSize; y++) {
+                    this.grid[y] = [];
+                    for(let x=0; x<this.worldSize; x++) {
+                        let v = this.noise(x, y);
+                        let type = 'GRASS';
+                        if(v < 0.25) type = 'WATER';
+                        else if(v < 0.35) type = 'SAND';
+                        else if(v < 0.6) type = 'GRASS';
+                        else if(v < 0.8) type = 'FOREST';
+                        else if(v < 0.92) type = 'MOUNTAIN';
+                        else type = 'SNOW';
+                        this.grid[y][x] = type;
+                    }
+                }
+            }
+
+            noise(x, y) {
+                // Procedural generation logic
+                let v = Math.sin(x/15) * Math.cos(y/15);
+                v += Math.sin(x/30 + y/40) * 0.5;
+                v += Math.sin(x/5) * Math.cos(y/8) * 0.2;
+                return (v + 1.7) / 3.4;
+            }
+
+            update() {
+                const speed = 0.2;
+                let dx = 0, dy = 0;
+                if(this.keys['w'] || this.keys['arrowup']) dy = -speed;
+                if(this.keys['s'] || this.keys['arrowdown']) dy = speed;
+                if(this.keys['a'] || this.keys['arrowleft']) dx = -speed;
+                if(this.keys['d'] || this.keys['arrowright']) dx = speed;
+
+                if(dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+
+                this.player.x = Math.max(0, Math.min(this.worldSize-1, this.player.x + dx));
+                this.player.y = Math.max(0, Math.min(this.worldSize-1, this.player.y + dy));
+
+                document.getElementById('coords').textContent = `X: ${Math.floor(this.player.x)} Y: ${Math.floor(this.player.y)}`;
+                
+                const biome = TERRAIN[this.grid[Math.floor(this.player.y)][Math.floor(this.player.x)]].name;
+                if(biome !== this.currentBiome) {
+                    this.currentBiome = biome;
+                    const toast = document.getElementById('biome-toast');
+                    toast.textContent = biome;
+                    toast.classList.add('show');
+                    setTimeout(() => toast.classList.remove('show'), 2000);
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0,0,this.width,this.height);
+
+                const viewW = Math.ceil(this.width / this.tileSize) + 2;
+                const viewH = Math.ceil(this.height / this.tileSize) + 2;
+                
+                const startX = Math.floor(this.player.x - viewW/2);
+                const startY = Math.floor(this.player.y - viewH/2);
+
+                const offsetX = (this.player.x % 1) * this.tileSize;
+                const offsetY = (this.player.y % 1) * this.tileSize;
+
+                for(let y=0; y<viewH; y++) {
+                    for(let x=0; x<viewW; x++) {
+                        const wx = startX + x;
+                        const wy = startY + y;
+
+                        if(wx >= 0 && wx < this.worldSize && wy >= 0 && wy < this.worldSize) {
+                            const type = this.grid[wy][wx];
+                            ctx.fillStyle = TERRAIN[type].color;
+                            ctx.fillRect(x * this.tileSize - offsetX, y * this.tileSize - offsetY, this.tileSize + 1, this.tileSize + 1);
+                        }
+                    }
+                }
+
+                // Player
+                ctx.fillStyle = '#ff4757';
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = 'white';
+                ctx.beginPath();
+                ctx.arc(this.width/2, this.height/2, 12, 0, Math.PI*2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                this.drawMinimap();
+            }
+
+            drawMinimap() {
+                this.mCtx.clearRect(0,0,200,200);
+                const scale = 200 / this.worldSize;
+                
+                // Draw a lower-res version or subset
+                for(let y=0; y<this.worldSize; y+=2) {
+                    for(let x=0; x<this.worldSize; x+=2) {
+                        this.mCtx.fillStyle = TERRAIN[this.grid[y][x]].color;
+                        this.mCtx.fillRect(x*scale, y*scale, scale*2, scale*2);
+                    }
+                }
+
+                this.mCtx.fillStyle = 'red';
+                this.mCtx.beginPath();
+                this.mCtx.arc(this.player.x * scale, this.player.y * scale, 3, 0, Math.PI*2);
+                this.mCtx.fill();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        window.onload = () => new Explore();
+    </script>
+</body>
+</html>

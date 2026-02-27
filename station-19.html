@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Station 19: Inferno - K4 Games</title>
+    <style>
+        :root {
+            --fire: #ef4444;
+            --water: #3b82f6;
+            --truck: #dc2626;
+            --grass: #22c55e;
+            --sky: #7dd3fc;
+            --panel: #ffffff;
+            --text: #1e293b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body {
+            background-color: #f1f5f9;
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 300px;
+            background: var(--panel);
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.02);
+            z-index: 50;
+        }
+
+        .logo { font-size: 1.8rem; font-weight: 900; color: var(--fire); letter-spacing: -1px; }
+
+        .stat-group { display: flex; flex-direction: column; gap: 10px; }
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            border: 1px solid #f1f5f9;
+        }
+        .stat-val { font-weight: 800; color: var(--fire); }
+
+        #game-view {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        #canvas-container {
+            position: relative;
+            background: #fff;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+            width: 900px;
+            height: 600px;
+        }
+
+        canvas { display: block; }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: var(--text); text-decoration: none;
+            background: white; padding: 8px 15px; border-radius: 8px; z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-weight: bold;
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.9);
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 1000; backdrop-filter: blur(8px); text-align: center;
+        }
+
+        .btn {
+            background: var(--fire); color: white; border: none; padding: 15px 40px;
+            border-radius: 50px; font-weight: 800; cursor: pointer; font-size: 1.2rem;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <aside id="sidebar">
+        <div class="logo">STATION 19</div>
+        
+        <div class="stat-group">
+            <div class="stat-item"><span>Fires Out</span><span id="score-val" class="stat-val">0</span></div>
+            <div class="stat-item"><span>Forest Loss</span><span id="loss-val" class="stat-val">0/5</span></div>
+            <div class="stat-item"><span>Active Fires</span><span id="active-val" class="stat-val">0</span></div>
+        </div>
+
+        <div style="margin-top: auto; font-size: 0.8rem; color: #64748b; line-height: 1.6;">
+            <b>MISSION:</b><br>
+            Protect the forest. Use the firetruck to extinguish spreading flames.<br><br>
+            • ARROWS to Move Truck<br>
+            • SPACE to Spray Water
+        </div>
+    </aside>
+
+    <main id="game-view">
+        <div id="canvas-container">
+            <canvas id="gameCanvas" width="900" height="600"></canvas>
+            <div id="overlay">
+                <h1 style="color: white; font-size: 3.5rem; margin-bottom: 10px;">INFERNO!</h1>
+                <p id="final-stats" style="color: #cbd5e1; margin-bottom: 20px;">The forest has been consumed.</p>
+                <button class="btn" onclick="game.init()">RESTART MISSION</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        class Station19 {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 900;
+                this.height = 600;
+
+                this.init();
+            }
+
+            init() {
+                this.score = 0;
+                this.loss = 0;
+                this.maxLoss = 5;
+                this.truck = { x: 450, y: 540 };
+                this.spraying = false;
+                this.trees = [];
+                this.water = [];
+                this.isPlaying = true;
+                this.keys = {};
+                
+                document.getElementById('overlay').style.display = 'none';
+
+                // Forest Generation
+                for(let i=0; i<30; i++) {
+                    this.trees.push({
+                        x: 50 + Math.random() * 800,
+                        y: 100 + Math.random() * 300,
+                        burning: false,
+                        dead: false,
+                        health: 100
+                    });
+                }
+
+                window.onkeydown = (e) => {
+                    this.keys[e.code] = true;
+                    if(e.code === 'Space') this.spraying = true;
+                };
+                window.onkeyup = (e) => {
+                    this.keys[e.code] = false;
+                    if(e.code === 'Space') this.spraying = false;
+                };
+
+                if(!this.loopStarted) {
+                    this.loop();
+                    this.loopStarted = true;
+                }
+            }
+
+            update() {
+                if(!this.isPlaying) return;
+
+                // Move Truck
+                if(this.keys['ArrowLeft']) this.truck.x -= 6;
+                if(this.keys['ArrowRight']) this.truck.x += 6;
+                this.truck.x = Math.max(50, Math.min(850, this.truck.x));
+
+                // Spawn Fire
+                if(Math.random() < 0.01) {
+                    const healthy = this.trees.filter(t => !t.burning && !t.dead);
+                    if(healthy.length > 0) {
+                        healthy[Math.floor(Math.random() * healthy.length)].burning = true;
+                    }
+                }
+
+                // Fire Spreading & Damage
+                this.trees.forEach(t => {
+                    if(t.burning) {
+                        t.health -= 0.2;
+                        if(t.health <= 0) {
+                            t.burning = false;
+                            t.dead = true;
+                            this.loss++;
+                            if(this.loss >= this.maxLoss) this.endGame();
+                        }
+                        // Spread
+                        if(Math.random() < 0.005) {
+                            const nearby = this.trees.filter(other => !other.burning && !other.dead && Math.hypot(t.x-other.x, t.y-other.y) < 100);
+                            if(nearby.length > 0) nearby[Math.floor(Math.random() * nearby.length)].burning = true;
+                        }
+                    }
+                });
+
+                // Water Mechanics
+                if(this.spraying) {
+                    for(let i=0; i<3; i++) {
+                        this.water.push({
+                            x: this.truck.x,
+                            y: this.truck.y - 20,
+                            vx: (Math.random() - 0.5) * 4,
+                            vy: -15 - Math.random() * 5,
+                            life: 1.0
+                        });
+                    }
+                }
+
+                this.water.forEach((w, i) => {
+                    w.x += w.vx;
+                    w.y += w.vy;
+                    w.vy += 0.5; // Gravity
+                    w.life -= 0.02;
+                    
+                    // Collision with fire
+                    this.trees.forEach(t => {
+                        if(t.burning && Math.hypot(w.x-t.x, w.y-t.y) < 30) {
+                            t.health = Math.min(100, t.health + 2);
+                            if(t.health >= 100) {
+                                t.burning = false;
+                                this.score++;
+                            }
+                            w.life = 0;
+                        }
+                    });
+
+                    if(w.life <= 0) this.water.splice(i, 1);
+                });
+
+                this.updateUI();
+            }
+
+            updateUI() {
+                document.getElementById('score-val').textContent = this.score;
+                document.getElementById('loss-val').textContent = `${this.loss}/${this.maxLoss}`;
+                document.getElementById('active-val').textContent = this.trees.filter(t => t.burning).length;
+            }
+
+            endGame() {
+                this.isPlaying = false;
+                document.getElementById('overlay').style.display = 'flex';
+                document.getElementById('final-stats').textContent = `Fires extinguished: ${this.score}`;
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Sky
+                ctx.fillStyle = '#7dd3fc';
+                ctx.fillRect(0, 0, this.width, this.height);
+
+                // Ground
+                ctx.fillStyle = '#166534';
+                ctx.fillRect(0, 450, this.width, 150);
+
+                // Forest
+                this.trees.forEach(t => {
+                    ctx.save();
+                    ctx.translate(t.x, t.y);
+                    
+                    // Trunk
+                    ctx.fillStyle = '#451a03';
+                    ctx.fillRect(-4, 0, 8, 20);
+                    
+                    // Leaves
+                    if(t.dead) {
+                        ctx.fillStyle = '#1e293b';
+                    } else if(t.burning) {
+                        ctx.fillStyle = '#ef4444';
+                        // Flicker
+                        if(Math.random() > 0.5) ctx.fillStyle = '#f97316';
+                    } else {
+                        ctx.fillStyle = '#22c55e';
+                    }
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(0, -40);
+                    ctx.lineTo(25, 5);
+                    ctx.lineTo(-25, 5);
+                    ctx.fill();
+
+                    if(t.burning) {
+                        ctx.font = '20px Arial';
+                        ctx.fillText('🔥', -10, -10);
+                    }
+                    ctx.restore();
+                });
+
+                // Water
+                ctx.fillStyle = '#3b82f6';
+                this.water.forEach(w => {
+                    ctx.globalAlpha = w.life;
+                    ctx.beginPath(); ctx.arc(w.x, w.y, 6 * w.life, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+
+                // Truck
+                ctx.save();
+                ctx.translate(this.truck.x, this.truck.y);
+                ctx.fillStyle = '#dc2626';
+                ctx.fillRect(-40, -20, 80, 40);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(20, -15, 15, 20); // Window
+                ctx.fillStyle = '#000';
+                ctx.beginPath(); ctx.arc(-25, 20, 10, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(25, 20, 10, 0, Math.PI*2); ctx.fill();
+                
+                // Cannon
+                ctx.fillStyle = '#475569';
+                ctx.fillRect(-5, -30, 10, 20);
+                ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        const game = new Station19();
+    </script>
+</body>
+</html>

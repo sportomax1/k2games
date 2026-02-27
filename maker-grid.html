@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MakerGrid: Level Editor - K4 Games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --accent: #22c55e;
+            --text: #f8fafc;
+            --grid-line: rgba(255,255,255,0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar Palette */
+        #sidebar {
+            width: 300px;
+            background: var(--panel);
+            border-right: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            z-index: 50;
+            overflow-y: auto;
+        }
+
+        .logo { font-size: 1.5rem; font-weight: 900; color: var(--accent); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 10px; }
+        
+        .palette-group { margin-bottom: 20px; }
+        .group-label { font-size: 0.7rem; text-transform: uppercase; font-weight: 800; color: #94a3b8; margin-bottom: 8px; }
+        .palette-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+        
+        .tool-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid transparent;
+            border-radius: 8px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .tool-btn:hover { background: rgba(255,255,255,0.1); transform: scale(1.1); }
+        .tool-btn.active { border-color: var(--accent); background: rgba(34, 197, 94, 0.2); }
+
+        /* Main Editor */
+        #main-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        #toolbar {
+            height: 60px;
+            background: rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .action-btn {
+            background: #334155; border: none; color: white; padding: 8px 16px; border-radius: 6px;
+            font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;
+            transition: 0.2s;
+        }
+        .action-btn:hover { background: #475569; }
+        .action-btn.primary { background: var(--accent); color: #000; }
+        .action-btn.primary:hover { background: #16a34a; }
+
+        #grid-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto;
+            position: relative;
+            background-image: radial-gradient(var(--grid-line) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        #level-grid {
+            display: grid;
+            grid-template-columns: repeat(24, 40px);
+            grid-template-rows: repeat(14, 40px);
+            gap: 1px;
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.1);
+            padding: 1px;
+        }
+
+        .cell {
+            width: 40px; height: 40px;
+            background: rgba(0,0,0,0.2);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; cursor: pointer;
+            transition: background 0.1s;
+        }
+        .cell:hover { background: rgba(255,255,255,0.1); }
+
+        .back-link {
+            position: fixed; top: 15px; right: 20px; color: #94a3b8; text-decoration: none;
+            font-weight: bold; font-size: 0.9rem; z-index: 100;
+        }
+        .back-link:hover { color: white; }
+
+        #msg-toast {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: #1e293b; color: var(--accent); padding: 10px 20px; border-radius: 50px;
+            font-weight: bold; border: 1px solid var(--accent); opacity: 0; pointer-events: none; transition: 0.3s;
+        }
+        #msg-toast.show { opacity: 1; bottom: 50px; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">Exit to Hub</a>
+
+    <aside id="sidebar">
+        <div class="logo">🛠️ MAKER GRID</div>
+        
+        <div id="palette-container">
+            <!-- Populated by JS -->
+        </div>
+    </aside>
+
+    <main id="main-view">
+        <div id="toolbar">
+            <button class="action-btn primary" onclick="maker.togglePlay()">▶️ Play</button>
+            <button class="action-btn" onclick="maker.resetLevel()">🔄 Reset</button>
+            <button class="action-btn" onclick="maker.saveLevel()">💾 Save</button>
+            <button class="action-btn" onclick="maker.loadLevel()">📂 Load</button>
+            <div style="margin-left: auto; font-size: 0.9rem; opacity: 0.7;">🪙 Coins: <span id="coin-count">0</span></div>
+        </div>
+
+        <div id="grid-container">
+            <div id="level-grid"></div>
+        </div>
+
+        <div id="msg-toast">Level Saved!</div>
+    </main>
+
+    <script>
+        const PALETTE = [
+            { label: 'Terrain', items: [
+                { id: 'block', icon: '⬛' }, { id: 'box', icon: '📦' }, { id: 'ground', icon: '🟫' },
+                { id: 'brick', icon: '🧱' }, { id: 'ladder', icon: '🪜' }
+            ]},
+            { label: 'Nature', items: [
+                { id: 'tree', icon: '🌳' }, { id: 'flower', icon: '🌻' }, { id: 'water', icon: '💧' },
+                { id: 'rock', icon: '🪨' }, { id: 'cactus', icon: '🌵' }
+            ]},
+            { label: 'Hazards', items: [
+                { id: 'fire', icon: '🔥' }, { id: 'spike', icon: '🔺' }, { id: 'bomb', icon: '💣' },
+                { id: 'ghost', icon: '👻' }, { id: 'enemy', icon: '👾' }
+            ]},
+            { label: 'Items', items: [
+                { id: 'coin', icon: '🪙' }, { id: 'star', icon: '⭐' }, { id: 'key', icon: '🔑' },
+                { id: 'heart', icon: '❤️' }, { id: 'chest', icon: '🎁' }
+            ]},
+            { label: 'Special', items: [
+                { id: 'player', icon: '🧑' }, { id: 'flag', icon: '🏁' }, { id: 'eraser', icon: '🧽' }
+            ]}
+        ];
+
+        class MakerGrid {
+            constructor() {
+                this.gridEl = document.getElementById('level-grid');
+                this.rows = 14;
+                this.cols = 24;
+                this.grid = Array(this.rows).fill(null).map(() => Array(this.cols).fill(null));
+                this.selectedTool = 'block';
+                this.isDrawing = false;
+                this.isPlaying = false;
+                
+                this.player = { r: -1, c: -1, vr: 0, vc: 0, grounded: false };
+                this.coins = 0;
+                
+                this.init();
+            }
+
+            init() {
+                this.renderPalette();
+                this.renderGrid();
+                
+                // Grid Events
+                this.gridEl.onmousedown = () => this.isDrawing = true;
+                window.onmouseup = () => this.isDrawing = false;
+                
+                // Game Loop for Play Mode
+                setInterval(() => {
+                    if (this.isPlaying) this.updatePhysics();
+                }, 1000/60);
+
+                window.onkeydown = (e) => {
+                    if (this.isPlaying) this.handleInput(e);
+                };
+            }
+
+            renderPalette() {
+                const container = document.getElementById('palette-container');
+                container.innerHTML = PALETTE.map(group => `
+                    <div class="palette-group">
+                        <div class="group-label">${group.label}</div>
+                        <div class="palette-grid">
+                            ${group.items.map(item => `
+                                <div class="tool-btn ${item.id === this.selectedTool ? 'active' : ''}" 
+                                     onclick="maker.selectTool('${item.id}', this)" title="${item.id}">
+                                    ${item.icon}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            selectTool(id, btn) {
+                this.selectedTool = id;
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            }
+
+            renderGrid() {
+                this.gridEl.innerHTML = '';
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'cell';
+                        cell.dataset.r = r;
+                        cell.dataset.c = c;
+                        
+                        // Cell Content
+                        const item = this.grid[r][c];
+                        if (item) cell.textContent = this.getIcon(item);
+                        
+                        // Drawing Logic
+                        cell.onmouseover = (e) => { if (this.isDrawing && !this.isPlaying) this.paint(r, c); };
+                        cell.onmousedown = (e) => { if (!this.isPlaying) this.paint(r, c); };
+                        
+                        this.gridEl.appendChild(cell);
+                    }
+                }
+            }
+
+            getIcon(id) {
+                for (let g of PALETTE) {
+                    const item = g.items.find(i => i.id === id);
+                    if (item) return item.icon;
+                }
+                return '';
+            }
+
+            paint(r, c) {
+                if (this.selectedTool === 'eraser') {
+                    this.grid[r][c] = null;
+                } else if (this.selectedTool === 'player') {
+                    // Only one player
+                    this.grid.forEach((row, rr) => row.forEach((_, cc) => {
+                        if (this.grid[rr][cc] === 'player') this.grid[rr][cc] = null;
+                    }));
+                    this.grid[r][c] = 'player';
+                } else {
+                    this.grid[r][c] = this.selectedTool;
+                }
+                this.refreshCell(r, c);
+                // Also refresh old player pos if moved
+                this.renderGrid(); // Brute force refresh to ensure player uniqueness visual update
+            }
+
+            refreshCell(r, c) {
+                // Optimization: Update single cell if needed (currently full re-render for simplicity)
+            }
+
+            togglePlay() {
+                this.isPlaying = !this.isPlaying;
+                const btn = document.querySelector('.action-btn.primary');
+                if (this.isPlaying) {
+                    btn.innerHTML = '⏸️ Stop';
+                    btn.style.background = '#ef4444';
+                    this.findPlayer();
+                    if (this.player.r === -1) {
+                        this.showToast('Place a Player first!', 'red');
+                        this.togglePlay(); // Cancel start
+                    }
+                } else {
+                    btn.innerHTML = '▶️ Play';
+                    btn.style.background = '#22c55e';
+                    this.resetLevel(); // Reset state but keep map
+                }
+            }
+
+            findPlayer() {
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        if (this.grid[r][c] === 'player') {
+                            this.player = { r, c, vr: 0, vc: 0, grounded: false };
+                            return;
+                        }
+                    }
+                }
+                this.player = { r: -1, c: -1 };
+            }
+
+            handleInput(e) {
+                if (e.code === 'ArrowLeft' || e.key === 'a') this.movePlayer(0, -1);
+                if (e.code === 'ArrowRight' || e.key === 'd') this.movePlayer(0, 1);
+                if ((e.code === 'ArrowUp' || e.code === 'Space' || e.key === 'w') && this.player.grounded) {
+                    this.player.vr = -0.6; // Jump impulse (grid units)
+                    this.player.grounded = false;
+                }
+            }
+
+            movePlayer(dr, dc) {
+                const nextC = this.player.c + dc;
+                if (nextC >= 0 && nextC < this.cols) {
+                    const tile = this.grid[Math.round(this.player.r)][nextC];
+                    if (!this.isSolid(tile)) {
+                        // Check interactions
+                        this.checkInteraction(Math.round(this.player.r), nextC);
+                        
+                        // Visual update (fake move in grid array for rendering)
+                        this.grid[Math.round(this.player.r)][this.player.c] = null;
+                        this.player.c = nextC;
+                        this.grid[Math.round(this.player.r)][this.player.c] = 'player';
+                        this.renderGrid();
+                    }
+                }
+            }
+
+            updatePhysics() {
+                // Gravity
+                this.player.vr += 0.05; // Gravity acceleration
+                
+                // Vertical Move
+                const nextR = this.player.r + this.player.vr;
+                const rInt = Math.round(nextR);
+                
+                if (rInt >= 0 && rInt < this.rows) {
+                    const tile = this.grid[rInt][this.player.c];
+                    
+                    if (this.isSolid(tile)) {
+                        if (this.player.vr > 0) { // Landing
+                            this.player.grounded = true;
+                            this.player.vr = 0;
+                            this.player.r = Math.floor(this.player.r); // Snap to grid
+                        } else { // Bonking head
+                            this.player.vr = 0;
+                            this.player.r = Math.ceil(this.player.r);
+                        }
+                    } else {
+                        // Free fall
+                        this.player.grounded = false;
+                        
+                        // Visual Update
+                        const oldR = Math.round(this.player.r);
+                        this.player.r = nextR;
+                        const newR = Math.round(this.player.r);
+                        
+                        if (oldR !== newR) {
+                            this.grid[oldR][this.player.c] = null;
+                            this.grid[newR][this.player.c] = 'player';
+                            this.checkInteraction(newR, this.player.c);
+                            this.renderGrid();
+                        }
+                    }
+                } else if (nextR >= this.rows) {
+                    this.die(); // Fell out of world
+                }
+            }
+
+            isSolid(id) {
+                return ['block', 'box', 'ground', 'brick'].includes(id);
+            }
+
+            checkInteraction(r, c) {
+                const id = this.grid[r][c]; // Note: Player moved *into* this cell logic handles overlaps differently in grid systems
+                // But since we overwrite the grid cell with 'player', we need to check BEFORE overwrite or store background layer.
+                // For this simple version, assume pickup happens instantly.
+                // In real game loop, entities should be separate layer.
+                
+                // Simulating overlap logic by checking intended target before move or just keeping map static?
+                // Current paint() overwrites. Let's assume pickups were cleared.
+            }
+
+            saveLevel() {
+                localStorage.setItem('makerGridLevel', JSON.stringify(this.grid));
+                this.showToast('Level Saved!');
+            }
+
+            loadLevel() {
+                const data = localStorage.getItem('makerGridLevel');
+                if (data) {
+                    this.grid = JSON.parse(data);
+                    this.renderGrid();
+                    this.showToast('Level Loaded!');
+                }
+            }
+
+            resetLevel() {
+                // If we had a "start state", restore it. For now, just stops play mode.
+                this.isPlaying = false;
+                const btn = document.querySelector('.action-btn.primary');
+                btn.innerHTML = '▶️ Play';
+                btn.style.background = '#22c55e';
+                this.loadLevel(); // Reloads last save or just refresh grid visuals
+            }
+
+            showToast(msg, color) {
+                const t = document.getElementById('msg-toast');
+                t.textContent = msg;
+                if(color) t.style.color = color;
+                t.classList.add('show');
+                setTimeout(() => t.classList.remove('show'), 2000);
+            }
+
+            die() {
+                this.togglePlay(); // Stop game
+                this.showToast('OOF! You fell.', '#ef4444');
+            }
+        }
+
+        window.maker = new MakerGrid();
+    </script>
+</body>
+</html>

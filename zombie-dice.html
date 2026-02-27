@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zombie Dice</title>
+    <style>
+        body { font-family: sans-serif; background: #222; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; margin: 0; }
+        .score-board { display: flex; gap: 40px; font-size: 1.2rem; margin: 20px 0; background: #333; padding: 15px; border-radius: 10px; }
+        .active-turn { color: #2ecc71; font-weight: bold; }
+        .dice-area { display: flex; gap: 15px; margin: 30px 0; min-height: 80px; }
+        .die { width: 60px; height: 60px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; border: 2px solid rgba(0,0,0,0.3); }
+        .green { background: #27ae60; } .yellow { background: #f1c40f; color: black; } .red { background: #e74c3c; }
+        .controls { display: flex; gap: 20px; }
+        .btn { padding: 12px 24px; font-size: 1.1rem; border: none; border-radius: 8px; cursor: pointer; color: white; font-weight: bold; }
+        .btn-roll { background: #3498db; } .btn-stop { background: #e67e22; }
+        .status { margin-top: 20px; font-size: 1.1rem; min-height: 1.5em; text-align: center; }
+        .turn-stats { display: flex; gap: 20px; margin-top: 10px; color: #aaa; }
+        .back { position: fixed; bottom: 20px; left: 20px; color: #7f8c8d; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <h1>🧟 Zombie Dice 🎲</h1>
+    
+    <div class="score-board">
+        <div id="p1Score">You: 0</div>
+        <div id="p2Score">AI: 0</div>
+    </div>
+
+    <div class="turn-stats">
+        <span>🧠 Brains: <span id="curBrains">0</span></span>
+        <span>💥 Shotguns: <span id="curShotguns">0</span></span>
+    </div>
+
+    <div class="dice-area" id="diceArea"></div>
+    <div class="status" id="status">Your Turn! Roll the dice.</div>
+
+    <div class="controls" id="controls">
+        <button class="btn btn-roll" onclick="game.roll()">Roll Dice</button>
+        <button class="btn btn-stop" onclick="game.bank()">Bank & Pass</button>
+    </div>
+
+    <a href="index.html" class="back">← HUB</a>
+
+    <script>
+        class ZombieDice {
+            constructor() {
+                this.scores = { p1: 0, p2: 0 };
+                this.turn = { brains: 0, shotguns: 0, dice: [] };
+                this.currentPlayer = 'p1';
+                this.cup = this.createCup();
+                this.gameOver = false;
+            }
+
+            createCup() {
+                // 6 Green, 4 Yellow, 3 Red
+                return [
+                    ...Array(6).fill('green'),
+                    ...Array(4).fill('yellow'),
+                    ...Array(3).fill('red')
+                ];
+            }
+
+            getDieFaces(color) {
+                if (color === 'green') return ['🧠','🧠','🧠','👣','👣','💥'];
+                if (color === 'yellow') return ['🧠','🧠','👣','👣','💥','💥'];
+                if (color === 'red') return ['🧠','👣','👣','💥','💥','💥'];
+            }
+
+            roll() {
+                if (this.gameOver) return;
+                
+                // Need 3 dice total. Keep feet from previous roll.
+                const feetDice = this.turn.dice.filter(d => d.face === '👣');
+                const needed = 3 - feetDice.length;
+
+                if (this.cup.length < needed) {
+                    // Refill cup with used brains/shotguns if needed (simplified logic)
+                    this.cup = this.createCup(); 
+                }
+
+                const newDice = [];
+                for(let i=0; i<needed; i++) {
+                    const idx = Math.floor(Math.random() * this.cup.length);
+                    const color = this.cup.splice(idx, 1)[0];
+                    newDice.push({ color, face: null });
+                }
+
+                const rollSet = [...feetDice, ...newDice];
+                this.turn.dice = rollSet;
+
+                // Roll them
+                rollSet.forEach(d => {
+                    const faces = this.getDieFaces(d.color);
+                    d.face = faces[Math.floor(Math.random() * 6)];
+                });
+
+                this.processRoll();
+                this.render();
+            }
+
+            processRoll() {
+                let newBrains = 0;
+                let newShotguns = 0;
+
+                this.turn.dice.forEach(d => {
+                    if (d.face === '🧠') newBrains++;
+                    if (d.face === '💥') newShotguns++;
+                });
+
+                // Only count new ones that aren't locked feet (actually in this version we re-roll feet so all faces count)
+                // Wait, standard rules: Brains and Shotguns are set aside. Feet are rerolled.
+                // My roll logic above re-rolls feet. So we accumulate brains/shotguns into turn score.
+                
+                // Correction: You set aside brains/shotguns. You keep feet to re-roll.
+                // So I need to store accumulated brains/shotguns separately from the current 3 dice being rolled.
+                
+                // Let's fix the state tracking:
+                // We have a 'turn' object tracking *accumulated* stats.
+                // The 'dice' array in turn should only hold the current 3 dice faces for display.
+                
+                this.turn.dice.forEach(d => {
+                    if (d.face === '🧠') this.turn.brains++;
+                    if (d.face === '💥') this.turn.shotguns++;
+                });
+
+                // Remove Brains and Shotguns from the "dice to re-roll next time" logic
+                // In my roll() function I filtered for feet. But here I need to remove the non-feet from the "hand".
+                // Actually, standard rule: The 3 dice are rolled. 
+                // Brains -> Banked (removed from hand)
+                // Shotguns -> Locked (removed from hand)
+                // Feet -> Kept in hand to re-roll
+                
+                // So my roll() logic needs to know which dice were kept.
+                // Resetting turn.dice to only feet for next roll
+                this.turn.dice = this.turn.dice.filter(d => d.face === '👣');
+
+                if (this.turn.shotguns >= 3) {
+                    this.status("💥 3 Shotguns! You died this turn.");
+                    this.turn.brains = 0; // Lose brains
+                    this.disableControls();
+                    setTimeout(() => this.passTurn(), 2000);
+                } else {
+                    this.status("Roll again or Bank?");
+                }
+            }
+
+            bank() {
+                if (this.gameOver) return;
+                this.scores[this.currentPlayer] += this.turn.brains;
+                if (this.scores[this.currentPlayer] >= 13) {
+                    this.gameOver = true;
+                    this.render();
+                    alert(`${this.currentPlayer === 'p1' ? 'You' : 'AI'} Win!`);
+                    return;
+                }
+                this.passTurn();
+            }
+
+            passTurn() {
+                this.currentPlayer = this.currentPlayer === 'p1' ? 'p2' : 'p1';
+                this.turn = { brains: 0, shotguns: 0, dice: [] };
+                this.cup = this.createCup();
+                this.render();
+                
+                if (this.currentPlayer === 'p2') {
+                    this.status("AI's Turn...");
+                    this.disableControls();
+                    setTimeout(() => this.aiTurn(), 1000);
+                } else {
+                    this.status("Your Turn!");
+                    this.enableControls();
+                }
+            }
+
+            aiTurn() {
+                // Simple AI
+                this.roll();
+                // Render happens in roll
+                
+                setTimeout(() => {
+                    if (this.turn.shotguns >= 3) return; // AI died, turn auto-passed
+
+                    // AI Strategy
+                    if (this.turn.shotguns < 2 && this.turn.brains < 3) {
+                        this.aiTurn(); // Roll again
+                    } else {
+                        this.bank(); // Bank
+                    }
+                }, 1500);
+            }
+
+            status(msg) {
+                document.getElementById('status').textContent = msg;
+            }
+
+            disableControls() {
+                document.querySelectorAll('.btn').forEach(b => b.style.display = 'none');
+            }
+
+            enableControls() {
+                document.querySelectorAll('.btn').forEach(b => b.style.display = 'inline-block');
+            }
+
+            render() {
+                document.getElementById('p1Score').textContent = `You: ${this.scores.p1}`;
+                document.getElementById('p2Score').textContent = `AI: ${this.scores.p2}`;
+                document.getElementById('p1Score').classList.toggle('active-turn', this.currentPlayer === 'p1');
+                document.getElementById('p2Score').classList.toggle('active-turn', this.currentPlayer === 'p2');
+
+                document.getElementById('curBrains').textContent = this.turn.brains;
+                document.getElementById('curShotguns').textContent = this.turn.shotguns;
+
+                const diceDiv = document.getElementById('diceArea');
+                diceDiv.innerHTML = '';
+                
+                // We need to show the dice that were JUST rolled. 
+                // Since I filter them out in processRoll, I need a temporary storage for display.
+                // Let's hack it: display logic should happen BEFORE filtering in processRoll?
+                // Or I keep a separate 'lastRoll' array.
+            }
+        }
+        
+        // I need to fix the render/logic order. 
+        // Let's rewrite the class slightly to be cleaner for the render.
+    </script>
+    <script>
+        // Re-implementing clearer logic
+        const g = {
+            scores: { p1: 0, p2: 0 },
+            turn: { brains: 0, shotguns: 0, feet: [] }, // feet are the actual dice objects
+            lastRoll: [], // To display what just happened
+            cup: [],
+            player: 'p1',
+            
+            init() {
+                this.resetCup();
+                this.render();
+            },
+
+            resetCup() {
+                this.cup = [
+                    ...Array(6).fill('green'),
+                    ...Array(4).fill('yellow'),
+                    ...Array(3).fill('red')
+                ];
+            },
+
+            getFaces(color) {
+                if (color === 'green') return ['🧠','🧠','🧠','👣','👣','💥'];
+                if (color === 'yellow') return ['🧠','🧠','👣','👣','💥','💥'];
+                if (color === 'red') return ['🧠','👣','👣','💥','💥','💥'];
+            },
+
+            roll() {
+                const needed = 3 - this.turn.feet.length;
+                const hand = [...this.turn.feet];
+                this.turn.feet = []; // Clear feet, we will re-add them if rolled again
+
+                for(let i=0; i<needed; i++) {
+                    if(this.cup.length === 0) this.resetCup(); // Refill if empty
+                    const idx = Math.floor(Math.random()*this.cup.length);
+                    hand.push({ color: this.cup.splice(idx, 1)[0] });
+                }
+
+                // Roll all 3
+                hand.forEach(d => {
+                    const faces = this.getFaces(d.color);
+                    d.face = faces[Math.floor(Math.random()*6)];
+                });
+
+                this.lastRoll = hand;
+                this.process(hand);
+            },
+
+            process(hand) {
+                hand.forEach(d => {
+                    if (d.face === '🧠') this.turn.brains++;
+                    else if (d.face === '💥') this.turn.shotguns++;
+                    else this.turn.feet.push(d); // Keep feet for next roll
+                });
+
+                this.render();
+
+                if (this.turn.shotguns >= 3) {
+                    this.status("💥 BOOM! Turn Over.");
+                    this.controls(false);
+                    setTimeout(() => this.nextTurn(false), 2000);
+                } else {
+                    if (this.player === 'p2') {
+                        setTimeout(() => this.aiDecide(), 1500);
+                    }
+                }
+            },
+
+            bank() {
+                this.scores[this.player] += this.turn.brains;
+                if (this.scores[this.player] >= 13) {
+                    alert(this.player === 'p1' ? "YOU WIN!" : "AI WINS!");
+                    location.reload();
+                } else {
+                    this.nextTurn(true);
+                }
+            },
+
+            nextTurn(saveScore) {
+                this.player = this.player === 'p1' ? 'p2' : 'p1';
+                this.turn = { brains: 0, shotguns: 0, feet: [] };
+                this.lastRoll = [];
+                this.resetCup();
+                this.render();
+
+                if (this.player === 'p2') {
+                    this.status("AI Thinking...");
+                    this.controls(false);
+                    setTimeout(() => this.roll(), 1000);
+                } else {
+                    this.status("Your Turn");
+                    this.controls(true);
+                }
+            },
+
+            aiDecide() {
+                // AI Strategy
+                if (this.turn.shotguns >= 3) return; // Already handled
+                if (this.turn.shotguns < 2 && this.turn.brains < 3) {
+                    this.roll();
+                } else {
+                    this.bank();
+                }
+            },
+
+            status(msg) { document.getElementById('status').textContent = msg; },
+            
+            controls(enable) {
+                document.getElementById('controls').style.display = enable ? 'flex' : 'none';
+            },
+
+            render() {
+                document.getElementById('p1Score').textContent = `You: ${this.scores.p1}`;
+                document.getElementById('p2Score').textContent = `AI: ${this.scores.p2}`;
+                document.getElementById('p1Score').className = this.player === 'p1' ? 'active-turn' : '';
+                document.getElementById('p2Score').className = this.player === 'p2' ? 'active-turn' : '';
+                
+                document.getElementById('curBrains').textContent = this.turn.brains;
+                document.getElementById('curShotguns').textContent = this.turn.shotguns;
+
+                const area = document.getElementById('diceArea');
+                area.innerHTML = '';
+                this.lastRoll.forEach(d => {
+                    const div = document.createElement('div');
+                    div.className = `die ${d.color}`;
+                    div.textContent = d.face;
+                    area.appendChild(div);
+                });
+            }
+        };
+
+        const game = g;
+        game.init();
+    </script>
+</body>
+</html>

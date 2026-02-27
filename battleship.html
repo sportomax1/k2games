@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battleship</title>
+    <style>
+        body { font-family: sans-serif; background: #0f172a; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        .boards { display: flex; gap: 40px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(10, 30px); grid-template-rows: repeat(10, 30px); gap: 2px; background: #334155; padding: 2px; border: 2px solid #475569; }
+        .cell { width: 30px; height: 30px; background: #1e293b; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; }
+        .cell:hover { background: #334155; }
+        .ship { background: #64748b; }
+        .hit { background: #ef4444 !important; }
+        .miss { background: #3b82f6 !important; }
+        .miss::after { content: '•'; }
+        .hit::after { content: '×'; font-size: 1.5rem; }
+        .status { margin: 20px; font-size: 1.2rem; font-weight: bold; color: #38bdf8; }
+        .back { margin-top: 30px; color: #94a3b8; text-decoration: none; }
+        h3 { margin-bottom: 10px; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>Battleship</h1>
+    <div class="status" id="status">Your Turn! Attack the Enemy Grid.</div>
+    
+    <div class="boards">
+        <div>
+            <h3>Enemy Grid</h3>
+            <div class="grid" id="cpuGrid"></div>
+        </div>
+        <div>
+            <h3>Your Grid</h3>
+            <div class="grid" id="pGrid"></div>
+        </div>
+    </div>
+
+    <a href="index.html" class="back">← HUB</a>
+
+    <script>
+        const SIZE = 10;
+        let pBoard = Array(SIZE*SIZE).fill(0);
+        let cpuBoard = Array(SIZE*SIZE).fill(0);
+        let pShips = [5, 4, 3, 3, 2];
+        let cpuShips = [5, 4, 3, 3, 2];
+        let pSunk = 0, cpuSunk = 0;
+
+        function init() {
+            placeShips(pBoard);
+            placeShips(cpuBoard);
+            render();
+        }
+
+        function placeShips(board) {
+            const ships = [5, 4, 3, 3, 2];
+            ships.forEach(len => {
+                let placed = false;
+                while(!placed) {
+                    let vertical = Math.random() > 0.5;
+                    let r = Math.floor(Math.random() * SIZE);
+                    let c = Math.floor(Math.random() * SIZE);
+                    if(canPlace(board, r, c, len, vertical)) {
+                        for(let i=0; i<len; i++) {
+                            board[(vertical ? r+i : r)*SIZE + (vertical ? c : c+i)] = 1;
+                        }
+                        placed = true;
+                    }
+                }
+            });
+        }
+
+        function canPlace(board, r, c, len, vert) {
+            if(vert && r+len > SIZE) return false;
+            if(!vert && c+len > SIZE) return false;
+            for(let i=0; i<len; i++) {
+                if(board[(vert ? r+i : r)*SIZE + (vert ? c : c+i)] !== 0) return false;
+            }
+            return true;
+        }
+
+        function render() {
+            const cg = document.getElementById('cpuGrid');
+            cg.innerHTML = '';
+            cpuBoard.forEach((val, i) => {
+                const d = document.createElement('div');
+                d.className = 'cell';
+                if(val === 2) d.classList.add('hit');
+                if(val === 3) d.classList.add('miss');
+                d.onclick = () => attack(i);
+                cg.appendChild(d);
+            });
+
+            const pg = document.getElementById('pGrid');
+            pg.innerHTML = '';
+            pBoard.forEach((val, i) => {
+                const d = document.createElement('div');
+                d.className = 'cell';
+                if(val === 1) d.classList.add('ship');
+                if(val === 2) d.classList.add('hit');
+                if(val === 3) d.classList.add('miss');
+                pg.appendChild(d);
+            });
+        }
+
+        function attack(i) {
+            if(cpuBoard[i] > 1) return;
+            cpuBoard[i] = cpuBoard[i] === 1 ? 2 : 3;
+            if(cpuBoard[i] === 2) cpuSunk++;
+            
+            if(cpuSunk === 17) return alert("Victory! You sank the fleet.");
+            
+            document.getElementById('status').textContent = "Enemy's Turn...";
+            setTimeout(cpuAttack, 600);
+            render();
+        }
+
+        function cpuAttack() {
+            let i;
+            do { i = Math.floor(Math.random() * 100); } while(pBoard[i] > 1);
+            pBoard[i] = pBoard[i] === 1 ? 2 : 3;
+            if(pBoard[i] === 2) pSunk++;
+            
+            if(pSunk === 17) alert("Defeat! Your fleet was destroyed.");
+            document.getElementById('status').textContent = "Your Turn!";
+            render();
+        }
+
+        init();
+    </script>
+</body>
+</html>

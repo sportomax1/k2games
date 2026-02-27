@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DJ Mix Master - K4 Games</title>
+    <style>
+        :root {
+            --bg: #0f0c29;
+            --panel: #302b63;
+            --accent: #240b36;
+            --neon: #00f2ff;
+            --neon-pink: #ff00ea;
+            --gold: #ffd700;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: linear-gradient(to bottom, var(--bg), #24243e);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 900;
+            letter-spacing: 4px;
+            color: var(--gold);
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: var(--neon);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: bold;
+        }
+
+        #pad-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 1000px;
+            background: rgba(0,0,0,0.3);
+            padding: 2rem;
+            border-radius: 30px;
+            border: 2px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .pad {
+            aspect-ratio: 1;
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .pad:hover {
+            background: rgba(255,255,255,0.1);
+            transform: translateY(-5px);
+            border-color: var(--neon);
+        }
+
+        .pad:active, .pad.active {
+            transform: scale(0.95);
+            background: var(--neon);
+            box-shadow: 0 0 40px var(--neon);
+            border-color: white;
+        }
+        
+        .pad.active span { color: black; }
+
+        .pad-emoji { font-size: 2.5rem; margin-bottom: 8px; }
+        .pad-label { font-size: 0.8rem; font-weight: 800; text-transform: uppercase; opacity: 0.8; }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 12px; z-index: 100;
+            font-weight: bold; border: 1px solid rgba(255,255,255,0.1); transition: 0.2s;
+        }
+        .back-link:hover { background: var(--gold); color: black; }
+
+        .controls {
+            margin-top: 3rem;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        #visualizer {
+            position: fixed; bottom: 0; left: 0; width: 100%; height: 150px;
+            pointer-events: none; opacity: 0.3; z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div class="header">
+        <h1>DJ MIX MASTER</h1>
+        <div class="subtitle">Digital Sound Station</div>
+    </div>
+
+    <div id="pad-container"></div>
+
+    <div class="controls">
+        <p style="opacity: 0.6; font-size: 0.9rem;">Tap pads or use your keyboard to trigger sounds</p>
+    </div>
+
+    <canvas id="visualizer"></canvas>
+
+    <script>
+        const SOUNDS = [
+            { label: 'Kick', emoji: '🥁', freq: 60, type: 'sine', decay: 0.3 },
+            { label: 'Snare', emoji: '💥', freq: 200, type: 'triangle', decay: 0.2 },
+            { label: 'Hi-Hat', emoji: '💿', freq: 800, type: 'square', decay: 0.05 },
+            { label: 'Clap', emoji: '👏', freq: 400, type: 'sawtooth', decay: 0.15 },
+            { label: 'Bass', emoji: '🎸', freq: 40, type: 'sine', decay: 0.5 },
+            { label: 'Synth', emoji: '🎹', freq: 440, type: 'triangle', decay: 0.4 },
+            { label: 'Laser', emoji: '🔫', freq: 1200, type: 'sawtooth', decay: 0.2 },
+            { label: 'Bell', emoji: '🔔', freq: 880, type: 'sine', decay: 0.6 },
+            { label: 'Cowbell', emoji: '🐄', freq: 600, type: 'square', decay: 0.1 },
+            { label: 'Impact', emoji: '☄️', freq: 80, type: 'triangle', decay: 0.4 },
+            { label: 'Alarm', emoji: '🚨', freq: 600, type: 'sawtooth', decay: 0.8 },
+            { label: 'UFO', emoji: '🛸', freq: 1000, type: 'sine', decay: 1.2 },
+            { label: 'Bubble', emoji: '🫧', freq: 900, type: 'sine', decay: 0.1 },
+            { label: 'Robot', emoji: '🤖', freq: 150, type: 'square', decay: 0.3 },
+            { label: 'Zap', emoji: '⚡', freq: 2000, type: 'sawtooth', decay: 0.1 },
+            { label: 'Dog', emoji: '🐕', audio: 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Bluthund_jault.mp3' },
+            { label: 'Cat', emoji: '🐈', audio: 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Katze_miaut.mp3' },
+            { label: 'Bird', emoji: '🐦', audio: 'https://freeanimalsounds.org/wp-content/uploads/2017/07/spatz.mp3' },
+            { label: 'Lion', emoji: '🦁', audio: 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Löwe.mp3' },
+            { label: 'Elephant', emoji: '🐘', audio: 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Elefant.mp3' },
+            { label: 'Horse', emoji: '🐎', audio: 'https://freeanimalsounds.org/wp-content/uploads/2017/07/pferd_whinnert.mp3' },
+            { label: 'Monkey', emoji: '🐒', audio: 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Kapuzineraffe.mp3' },
+            { label: 'Sheep', emoji: '🐑', audio: 'https://freeanimalsounds.org/wp-content/uploads/2017/07/schafe.mp3' },
+            { label: 'Duck', emoji: '🦆', audio: 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Ente_quackt.mp3' },
+            { label: 'Frog', emoji: '🐸', audio: 'https://freeanimalsounds.org/wp-content/uploads/2017/08/frogs.mp3' },
+            { label: 'Wolf', emoji: '🐺', audio: 'https://freeanimalsounds.org/wp-content/uploads/2017/07/wolf.mp3' },
+            { label: 'Tiger', emoji: '🐅', audio: 'https://freeanimalsounds.org/wp-content/uploads/2017/07/Tiger.mp3' },
+            { label: 'Crow', emoji: '🐦‍⬛', audio: 'https://freeanimalsounds.org/wp-content/uploads/2017/07/crow.mp3' }
+        ];
+
+        let audioCtx;
+        function initAudio() {
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        const container = document.getElementById('pad-container');
+        SOUNDS.forEach((s, i) => {
+            const pad = document.createElement('div');
+            pad.className = 'pad';
+            pad.innerHTML = `
+                <div class="pad-emoji">${s.emoji}</div>
+                <div class="pad-label">${s.label}</div>
+            `;
+            
+            const trigger = () => {
+                initAudio();
+                playSound(s);
+                pad.classList.add('active');
+                setTimeout(() => pad.classList.remove('active'), 100);
+            };
+
+            pad.onmousedown = trigger;
+            container.appendChild(pad);
+
+            // Simple keyboard mapping for the first 10 sounds
+            if (i < 10) {
+                window.addEventListener('keydown', (e) => {
+                    if (e.key === (i + 1).toString() || (i === 9 && e.key === '0')) {
+                        trigger();
+                    }
+                });
+            }
+        });
+
+        function playSound(s) {
+            if(s.audio) {
+                const a = new Audio(s.audio);
+                a.volume = 0.5;
+                a.play().catch(() => {});
+                return;
+            }
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = s.type;
+            osc.frequency.setValueAtTime(s.freq, audioCtx.currentTime);
+            
+            // Frequency Sweep for some sounds
+            if(s.label === 'Kick') osc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + s.decay);
+            if(s.label === 'Laser') osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + s.decay);
+
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + s.decay);
+
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + s.decay);
+        }
+
+        // Simple Visualizer
+        const canvas = document.getElementById('visualizer');
+        const ctx = canvas.getContext('2d');
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = 150;
+        }
+        window.onresize = resize;
+        resize();
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#00f2ff';
+            for(let i=0; i<canvas.width; i+=10) {
+                const h = Math.random() * 50;
+                ctx.fillRect(i, canvas.height - h, 8, h);
+            }
+            requestAnimationFrame(draw);
+        }
+        draw();
+    </script>
+</body>
+</html>

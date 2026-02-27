@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Oregon Trail: Pro Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        :root { --retro-green: #3df13d; --retro-bg: #000; }
+        
+        body { margin: 0; background: var(--retro-bg); color: var(--retro-green); font-family: 'Press Start 2P', cursive; font-size: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; line-height: 1.6; }
+        
+        #game-box { width: 800px; height: 500px; border: 4px solid #fff; padding: 20px; position: relative; display: flex; flex-direction: column; }
+        
+        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #fff; padding-bottom: 10px; margin-bottom: 20px; }
+        
+        #scene { height: 120px; border: 2px solid #444; margin-bottom: 20px; position: relative; overflow: hidden; background: #000; }
+        .ground { position: absolute; bottom: 0; width: 200%; height: 20px; background: repeating-linear-gradient(90deg, #333, #333 10px, #000 10px, #000 20px); animation: move 2s linear infinite; display: none; }
+        @keyframes move { from { transform: translateX(0); } to { transform: translateX(-40px); } }
+        
+        .wagon-anim { position: absolute; bottom: 15px; left: 50px; font-size: 40px; }
+        .mountains { position: absolute; bottom: 20px; color: #222; font-size: 60px; white-space: nowrap; animation: move-bg 20s linear infinite; display: none; }
+        @keyframes move-bg { from { transform: translateX(0); } to { transform: translateX(-400px); } }
+
+        #display { flex-grow: 1; overflow-y: auto; margin-bottom: 20px; }
+        
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button { background: #000; color: #fff; border: 2px solid #fff; padding: 10px; cursor: pointer; font-family: inherit; font-size: 10px; text-transform: uppercase; }
+        button:hover { background: #fff; color: #000; }
+        
+        .back-link { position: absolute; bottom: -40px; left: 0; color: #666; text-decoration: none; font-size: 10px; }
+        .stat { color: #fff; }
+        .critical { color: #ff4444; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+    <div id="game-box">
+        <div class="header">
+            <div>DATE: <span id="date" class="stat">Apr 1, 1848</span></div>
+            <div>MILES: <span id="miles" class="stat">2040</span></div>
+        </div>
+
+        <div id="scene">
+            <div class="mountains" id="mtn">▲▲▲▲▲ ▲▲▲▲▲ ▲▲▲▲▲ ▲▲▲▲▲ ▲▲▲▲▲ ▲▲▲▲▲</div>
+            <div class="ground" id="grnd"></div>
+            <div class="wagon-anim" id="wagon">🚜</div>
+        </div>
+
+        <div id="display">
+            <div id="output">Welcome to the Oregon Trail.<br><br>You are in Independence, Missouri.<br>You must reach Oregon before winter.<br><br>What is your first name?</div>
+        </div>
+
+        <div class="controls" id="controls">
+            <button onclick="startGame()">Start Journey</button>
+        </div>
+        
+        <a href="index.html" class="back-link">← BACK TO HUB</a>
+    </div>
+
+    <script>
+        let state = {
+            name: "Traveler",
+            date: new Date(1848, 3, 1),
+            miles: 2040,
+            food: 500,
+            oxen: 4,
+            health: 100,
+            wagonParts: 3,
+            ammo: 200,
+            alive: ["You", "Jane", "John", "Mary", "Will"],
+            pace: "Steady",
+            rations: "Filling",
+            weather: "Fine",
+            isMoving: false
+        };
+
+        const output = document.getElementById('output');
+        const controls = document.getElementById('controls');
+
+        function updateUI() {
+            document.getElementById('date').textContent = state.date.toDateString();
+            document.getElementById('miles').textContent = Math.max(0, state.miles);
+            document.getElementById('grnd').style.display = state.isMoving ? 'block' : 'none';
+            document.getElementById('mtn').style.display = state.isMoving ? 'block' : 'none';
+        }
+
+        function log(msg, clear = true) {
+            if (clear) output.innerHTML = msg;
+            else output.innerHTML += "<br>" + msg;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function setButtons(btns) {
+            controls.innerHTML = '';
+            btns.forEach(b => {
+                const btn = document.createElement('button');
+                btn.textContent = b.text;
+                btn.onclick = b.click;
+                controls.appendChild(btn);
+            });
+        }
+
+        function startGame() {
+            log("Before leaving Independence, you should buy supplies.<br><br>You have $800.");
+            setButtons([
+                { text: "Visit Shop", click: visitShop },
+                { text: "Hit the Trail", click: mainLoop }
+            ]);
+        }
+
+        function visitShop() {
+            log("Matt's General Store<br>------------------<br>1. Oxen: $40 per yoke<br>2. Food: 20 cents per lb<br>3. Ammo: $2 per box<br>4. Clothing: $10 per set");
+            setButtons([
+                { text: "Buy Oxen (+$80)", click: () => { state.oxen += 2; log("Bought 2 oxen.", false); }},
+                { text: "Buy Food (+100lb)", click: () => { state.food += 100; log("Bought 100lb food.", false); }},
+                { text: "Buy Ammo (+50)", click: () => { state.ammo += 50; log("Bought 50 ammo.", false); }},
+                { text: "Done", click: mainLoop }
+            ]);
+        }
+
+        function mainLoop() {
+            state.isMoving = false;
+            updateUI();
+            
+            if (state.miles <= 0) return win();
+            if (state.alive.length === 0 || state.oxen <= 0) return lose();
+
+            log(`Pace: ${state.pace}<br>Rations: ${state.rations}<br>Weather: ${state.weather}<br>Health: ${state.health}%<br><br>What will you do?`);
+            setButtons([
+                { text: "Continue", click: travel },
+                { text: "Change Pace", click: changePace },
+                { text: "Hunt", click: hunt },
+                { text: "Rest", click: rest }
+            ]);
+        }
+
+        function travel() {
+            state.isMoving = true;
+            updateUI();
+            
+            setTimeout(() => {
+                let dist = 30 + Math.floor(Math.random() * 50);
+                if (state.pace === "Grueling") dist += 20;
+                
+                state.miles -= dist;
+                state.food -= (state.alive.length * 3);
+                state.date.setDate(state.date.getDate() + 1);
+                
+                handleEvent(`You traveled ${dist} miles.`);
+            }, 1000);
+        }
+
+        function handleEvent(msg) {
+            let r = Math.random();
+            let event = "";
+            
+            if (r < 0.05) {
+                state.oxen--;
+                event = "AN OX DIED!";
+            } else if (r < 0.1) {
+                state.health -= 15;
+                event = "CHOLERA STRIKES!";
+            } else if (r < 0.15) {
+                let lost = state.alive.pop();
+                event = `${lost.toUpperCase()} HAS DIED.`;
+            } else if (r < 0.2) {
+                event = "HEAVY RAIN. MUD SLOWS YOU DOWN.";
+                state.date.setDate(state.date.getDate() + 2);
+            }
+
+            log(`${msg}<br><br><span class="critical">${event}</span>`);
+            setButtons([{ text: "Continue", click: mainLoop }]);
+        }
+
+        function hunt() {
+            if (state.ammo < 10) {
+                log("No ammo to hunt!");
+                return setButtons([{ text: "Back", click: mainLoop }]);
+            }
+            state.ammo -= 10;
+            let meat = 50 + Math.floor(Math.random() * 150);
+            state.food += meat;
+            log(`You shot ${meat} lbs of meat!`);
+            setButtons([{ text: "Continue", click: mainLoop }]);
+        }
+
+        function rest() {
+            state.health = Math.min(100, state.health + 10);
+            state.date.setDate(state.date.getDate() + 3);
+            log("You rested for 3 days.");
+            setButtons([{ text: "Continue", click: mainLoop }]);
+        }
+
+        function changePace() {
+            log("Select Pace:");
+            setButtons([
+                { text: "Steady", click: () => { state.pace = "Steady"; mainLoop(); }},
+                { text: "Strenuous", click: () => { state.pace = "Strenuous"; mainLoop(); }},
+                { text: "Grueling", click: () => { state.pace = "Grueling"; mainLoop(); }}
+            ]);
+        }
+
+        function win() {
+            log("CONGRATULATIONS!<br><br>You have reached the Willamette Valley and started a new life in Oregon.");
+            setButtons([{ text: "Play Again", click: () => location.reload() }]);
+        }
+
+        function lose() {
+            state.isMoving = false;
+            updateUI();
+            log("<span class='critical'>GAME OVER</span><br><br>Your journey has come to an end on the trail.");
+            setButtons([{ text: "Try Again", click: () => location.reload() }]);
+        }
+
+        updateUI();
+    </script>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dots & Boxes</title>
+    <style>
+        body { margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-family: 'Arial', sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        h1 { margin-top: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); color: #FFD700; }
+        .game-area { display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,0.1); padding: 20px; border-radius: 20px; backdrop-filter: blur(10px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .scores { display: flex; gap: 40px; margin-bottom: 20px; font-size: 1.5rem; font-weight: bold; }
+        .p1 { color: #e74c3c; } .p2 { color: #3498db; }
+        .active { text-decoration: underline; text-underline-offset: 5px; }
+        canvas { background: #f7fafc; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn { margin-top: 20px; padding: 10px 20px; font-size: 1rem; border: none; border-radius: 5px; background: #48bb78; color: white; cursor: pointer; }
+        .back { position: absolute; bottom: 20px; left: 20px; color: white; text-decoration: none; opacity: 0.7; }
+    </style>
+</head>
+<body>
+    <h1>Dots & Boxes</h1>
+    <div class="game-area">
+        <div class="scores">
+            <div id="p1Score" class="p1 active">P1: 0</div>
+            <div id="p2Score" class="p2">P2: 0</div>
+        </div>
+        <canvas id="board"></canvas>
+        <div id="status" style="margin-top:15px; font-size:1.2rem;">Player 1's Turn</div>
+        <button class="btn" onclick="game.init()">Reset Game</button>
+    </div>
+    <a href="index.html" class="back">← HUB</a>
+
+    <script>
+        class DotsGame {
+            constructor() {
+                this.canvas = document.getElementById('board');
+                this.ctx = this.canvas.getContext('2d');
+                this.gridSize = 5;
+                this.spacing = 60;
+                this.dotSize = 6;
+                this.width = (this.gridSize + 1) * this.spacing;
+                this.height = (this.gridSize + 1) * this.spacing;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+                
+                this.lines = [];
+                this.boxes = [];
+                this.scores = [0, 0];
+                this.turn = 0; // 0 = P1, 1 = P2
+                this.colors = ['#e74c3c', '#3498db'];
+                
+                this.canvas.addEventListener('click', e => this.handleClick(e));
+                this.canvas.addEventListener('mousemove', e => this.handleMove(e));
+                this.hoverLine = null;
+                
+                this.init();
+            }
+
+            init() {
+                this.lines = [];
+                this.boxes = [];
+                this.scores = [0, 0];
+                this.turn = 0;
+                
+                // Init Lines
+                // Horizontal
+                for(let r=0; r<this.gridSize; r++) {
+                    for(let c=0; c<this.gridSize-1; c++) {
+                        this.lines.push({ x1: c, y1: r, x2: c+1, y2: r, type: 'h', owner: null });
+                    }
+                }
+                // Vertical
+                for(let r=0; r<this.gridSize-1; r++) {
+                    for(let c=0; c<this.gridSize; c++) {
+                        this.lines.push({ x1: c, y1: r, x2: c, y2: r+1, type: 'v', owner: null });
+                    }
+                }
+
+                // Init Boxes
+                for(let r=0; r<this.gridSize-1; r++) {
+                    for(let c=0; c<this.gridSize-1; c++) {
+                        this.boxes.push({ x: c, y: r, owner: null });
+                    }
+                }
+
+                this.render();
+                this.updateUI();
+            }
+
+            getLine(x, y) {
+                // Find closest line
+                const mx = x - this.spacing;
+                const my = y - this.spacing;
+                
+                let best = null;
+                let minDist = 15; // Hit radius
+
+                this.lines.forEach(l => {
+                    const x1 = l.x1 * this.spacing, y1 = l.y1 * this.spacing;
+                    const x2 = l.x2 * this.spacing, y2 = l.y2 * this.spacing;
+                    
+                    // Distance to segment logic simplified since lines are axis-aligned
+                    let dist;
+                    if(l.type === 'h') {
+                        if(mx >= x1 && mx <= x2) dist = Math.abs(my - y1);
+                        else dist = Infinity;
+                    } else {
+                        if(my >= y1 && my <= y2) dist = Math.abs(mx - x1);
+                        else dist = Infinity;
+                    }
+
+                    if(dist < minDist) {
+                        minDist = dist;
+                        best = l;
+                    }
+                });
+                return best;
+            }
+
+            handleMove(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                this.hoverLine = this.getLine(e.clientX - rect.left, e.clientY - rect.top);
+                this.render();
+            }
+
+            handleClick(e) {
+                if(!this.hoverLine || this.hoverLine.owner !== null) return;
+                
+                this.hoverLine.owner = this.turn;
+                
+                // Check Boxes
+                let scored = false;
+                this.boxes.forEach(b => {
+                    if(b.owner !== null) return;
+                    
+                    // Check if all 4 lines around this box are taken
+                    const top = this.lines.find(l => l.x1===b.x && l.y1===b.y && l.type==='h');
+                    const bot = this.lines.find(l => l.x1===b.x && l.y1===b.y+1 && l.type==='h');
+                    const left = this.lines.find(l => l.x1===b.x && l.y1===b.y && l.type==='v');
+                    const right = this.lines.find(l => l.x1===b.x+1 && l.y1===b.y && l.type==='v');
+
+                    if(top.owner!==null && bot.owner!==null && left.owner!==null && right.owner!==null) {
+                        b.owner = this.turn;
+                        this.scores[this.turn]++;
+                        scored = true;
+                    }
+                });
+
+                if(!scored) {
+                    this.turn = 1 - this.turn;
+                }
+
+                this.updateUI();
+                this.render();
+                
+                // Game Over Check
+                if(this.boxes.every(b => b.owner !== null)) {
+                    setTimeout(() => {
+                        const winner = this.scores[0] > this.scores[1] ? "Player 1" : (this.scores[1] > this.scores[0] ? "Player 2" : "Nobody");
+                        alert(`Game Over! ${winner} Wins!`);
+                    }, 100);
+                }
+            }
+
+            updateUI() {
+                document.getElementById('p1Score').textContent = `P1: ${this.scores[0]}`;
+                document.getElementById('p2Score').textContent = `P2: ${this.scores[1]}`;
+                document.getElementById('p1Score').className = `p1 ${this.turn===0 ? 'active' : ''}`;
+                document.getElementById('p2Score').className = `p2 ${this.turn===1 ? 'active' : ''}`;
+                document.getElementById('status').textContent = `Player ${this.turn+1}'s Turn`;
+                document.getElementById('status').style.color = this.colors[this.turn];
+            }
+
+            render() {
+                // Clear
+                this.ctx.fillStyle = '#f7fafc';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+                
+                this.ctx.translate(this.spacing, this.spacing);
+
+                // Draw Boxes
+                this.boxes.forEach(b => {
+                    if(b.owner !== null) {
+                        this.ctx.fillStyle = this.colors[b.owner] + '40'; // Transparent
+                        this.ctx.fillRect(b.x*this.spacing, b.y*this.spacing, this.spacing, this.spacing);
+                    }
+                });
+
+                // Draw Lines
+                this.ctx.lineWidth = 4;
+                this.lines.forEach(l => {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(l.x1*this.spacing, l.y1*this.spacing);
+                    this.ctx.lineTo(l.x2*this.spacing, l.y2*this.spacing);
+                    if(l.owner !== null) {
+                        this.ctx.strokeStyle = this.colors[l.owner];
+                        this.ctx.stroke();
+                    } else {
+                        this.ctx.strokeStyle = '#e2e8f0';
+                        this.ctx.stroke();
+                    }
+                });
+
+                // Draw Hover
+                if(this.hoverLine && this.hoverLine.owner === null) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.hoverLine.x1*this.spacing, this.hoverLine.y1*this.spacing);
+                    this.ctx.lineTo(this.hoverLine.x2*this.spacing, this.hoverLine.y2*this.spacing);
+                    this.ctx.strokeStyle = '#FFD700';
+                    this.ctx.stroke();
+                }
+
+                // Draw Dots
+                for(let r=0; r<this.gridSize; r++) {
+                    for(let c=0; c<this.gridSize; c++) {
+                        this.ctx.fillStyle = '#2c3e50';
+                        this.ctx.beginPath();
+                        this.ctx.arc(c*this.spacing, r*this.spacing, this.dotSize, 0, Math.PI*2);
+                        this.ctx.fill();
+                    }
+                }
+
+                this.ctx.translate(-this.spacing, -this.spacing);
+            }
+        }
+
+        const game = new DotsGame();
+    </script>
+</body>
+</html>

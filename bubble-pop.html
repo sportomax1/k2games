@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bubble Pop: Neon - K4 Games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --accent: #38bdf8;
+            --text: #f8fafc;
+            --danger: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #ui-top {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .stat-pill {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 50px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            text-align: center;
+        }
+        .stat-val { font-size: 1.5rem; font-weight: 900; color: #38bdf8; display: block; line-height: 1; }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            cursor: crosshair;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 12px; z-index: 200;
+            font-weight: bold; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+        }
+
+        #overlay {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 1000; backdrop-filter: blur(10px); text-align: center; padding: 20px;
+        }
+
+        .btn {
+            background: #38bdf8; color: #0f172a; border: none; padding: 15px 40px;
+            border-radius: 50px; font-weight: 900; cursor: pointer; font-size: 1.2rem;
+            margin-top: 20px; transition: 0.2s;
+        }
+        .btn:hover { transform: scale(1.05); filter: brightness(1.1); }
+
+        #life-container {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+        }
+        .life { font-size: 1.5rem; transition: transform 0.3s; }
+        .life.lost { opacity: 0.2; transform: scale(0.8); }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="ui-top">
+        <div class="stat-pill">
+            <span class="stat-label">Score</span>
+            <span id="score" class="stat-val">0</span>
+        </div>
+        <div class="stat-pill">
+            <span class="stat-label">Best</span>
+            <span id="high-score" class="stat-val">0</span>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="life-container">
+        <span class="life">❤️</span>
+        <span class="life">❤️</span>
+        <span class="life">❤️</span>
+    </div>
+
+    <div id="overlay">
+        <h1 id="overlay-title" style="font-size: 3rem; color: #38bdf8; margin-bottom: 10px;">BUBBLE POP</h1>
+        <p id="overlay-msg" style="color: #94a3b8;">Don't let the bubbles reach the top!</p>
+        <button class="btn" onclick="startGame()">START GAME</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const highScoreEl = document.getElementById('high-score');
+        const overlay = document.getElementById('overlay');
+        const livesEls = document.querySelectorAll('.life');
+
+        let bubbles = [];
+        let particles = [];
+        let score = 0;
+        let lives = 3;
+        let isPlaying = false;
+        let spawnRate = 0.03;
+        let highScore = parseInt(localStorage.getItem('bubblePopHighScore') || '0');
+
+        highScoreEl.textContent = highScore;
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.onresize = resize;
+        resize();
+
+        function startGame() {
+            bubbles = [];
+            particles = [];
+            score = 0;
+            lives = 3;
+            spawnRate = 0.03;
+            isPlaying = true;
+            scoreEl.textContent = '0';
+            overlay.style.display = 'none';
+            livesEls.forEach(el => el.classList.remove('lost'));
+            loop();
+        }
+
+        function spawnBubble() {
+            const x = Math.random() * (canvas.width - 60) + 30;
+            const r = 20 + Math.random() * 25;
+            const hue = Math.random() * 360;
+            bubbles.push({
+                x, y: canvas.height + r,
+                r,
+                vy: - (1.5 + Math.random() * 2 + (score / 100)),
+                color: `hsla(${hue}, 70%, 60%, 0.6)`,
+                border: `hsla(${hue}, 70%, 80%, 0.9)`
+            });
+        }
+
+        function createParticles(x, y, color) {
+            for(let i=0; i<8; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10,
+                    r: Math.random() * 4 + 2,
+                    color,
+                    life: 1.0
+                });
+            }
+        }
+
+        function update() {
+            if(!isPlaying) return;
+
+            // Spawn
+            if(Math.random() < spawnRate) spawnBubble();
+            spawnRate = Math.min(0.1, 0.03 + (score / 2000));
+
+            // Move Bubbles
+            bubbles.forEach((b, i) => {
+                b.y += b.vy;
+                if(b.y + b.r < 0) {
+                    bubbles.splice(i, 1);
+                    loseLife();
+                }
+            });
+
+            // Move Particles
+            particles.forEach((p, i) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.03;
+                if(p.life <= 0) particles.splice(i, 1);
+            });
+        }
+
+        function loseLife() {
+            lives--;
+            if(lives >= 0) livesEls[2 - lives].classList.add('lost');
+            if(lives <= 0) endGame();
+        }
+
+        function endGame() {
+            isPlaying = false;
+            overlay.style.display = 'flex';
+            document.getElementById('overlay-title').textContent = "GAME OVER";
+            document.getElementById('overlay-msg').textContent = `Final Score: ${score}`;
+            
+            if(score > highScore) {
+                highScore = score;
+                localStorage.setItem('bubblePopHighScore', highScore);
+                highScoreEl.textContent = highScore;
+                document.getElementById('overlay-msg').innerHTML += "<br><span style='color:#fbbf24'>NEW HIGH SCORE!</span>";
+            }
+        }
+
+        function pop(e) {
+            if(!isPlaying) return;
+            
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            for(let i = bubbles.length - 1; i >= 0; i--) {
+                const b = bubbles[i];
+                if(Math.hypot(b.x - x, b.y - y) < b.r + 10) {
+                    score += Math.floor(50 / b.r * 10);
+                    scoreEl.textContent = score;
+                    createParticles(b.x, b.y, b.border);
+                    bubbles.splice(i, 1);
+                    playPopSound();
+                    break;
+                }
+            }
+        }
+
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playPopSound() {
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400 + Math.random() * 400, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        function loop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Particles
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+            });
+
+            // Bubbles
+            bubbles.forEach(b => {
+                ctx.globalAlpha = 1.0;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = b.border;
+                
+                // Outer shell
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+                ctx.fillStyle = b.color;
+                ctx.fill();
+                ctx.strokeStyle = b.border;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Highlight
+                ctx.beginPath();
+                ctx.arc(b.x - b.r/3, b.y - b.r/3, b.r/4, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.fill();
+                
+                ctx.shadowBlur = 0;
+            });
+
+            update();
+            if(isPlaying) requestAnimationFrame(loop);
+        }
+
+        canvas.addEventListener('mousedown', pop);
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            pop(e);
+        });
+
+    </script>
+</body>
+</html>

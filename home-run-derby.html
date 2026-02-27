@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Run Derby - K4 Games</title>
+    <style>
+        :root {
+            --grass: #27ae60;
+            --dirt: #d35400;
+            --sky: #3498db;
+            --text: #ffffff;
+            --gold: #fbc02d;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body {
+            background-color: #1a1a2e;
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 1000px;
+            height: 700px;
+            background: var(--grass);
+            border-radius: 20px;
+            border: 8px solid #333;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stat-card {
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            padding: 15px 25px;
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+        }
+
+        .stat-val { font-size: 2rem; font-weight: 900; color: var(--gold); }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; opacity: 0.7; }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 12px; z-index: 100;
+            font-weight: bold; border: 1px solid rgba(255,255,255,0.1); pointer-events: auto;
+        }
+
+        #swing-meter {
+            position: absolute;
+            left: 50%;
+            bottom: 100px;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 10px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 10px;
+            overflow: hidden;
+            display: none;
+        }
+        #swing-fill { height: 100%; width: 0%; background: var(--gold); }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.8);
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 1000; pointer-events: auto;
+        }
+
+        .btn {
+            background: #e67e22; color: white; border: none; padding: 15px 40px;
+            border-radius: 50px; font-weight: 800; cursor: pointer; font-size: 1.2rem;
+            margin-top: 20px; transition: 0.2s;
+        }
+        .btn:hover { transform: scale(1.05); background: #f39c12; }
+
+        #hit-text {
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 5rem; font-weight: 900; color: var(--gold); text-shadow: 0 0 20px black;
+            opacity: 0; pointer-events: none; transition: 0.3s;
+        }
+        #hit-text.show { opacity: 1; transform: translate(-50%, -60%); }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui-layer">
+            <div class="header">
+                <div class="stat-card">
+                    <div class="stat-label">Home Runs</div>
+                    <div id="hr-count" class="stat-val">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Pitches Left</div>
+                    <div id="pitches-left" class="stat-val">10</div>
+                </div>
+            </div>
+
+            <div id="swing-meter"><div id="swing-fill"></div></div>
+            
+            <div style="margin-top: auto; color: rgba(255,255,255,0.6); text-align: center;">
+                HOLD SPACE to Charge • RELEASE to Swing
+            </div>
+        </div>
+
+        <div id="hit-text">HOME RUN!</div>
+
+        <div id="overlay">
+            <h1 style="font-size: 3rem; color: var(--gold); margin-bottom: 1rem;">HOME RUN DERBY</h1>
+            <p id="final-msg">Ready to hit some moonshots?</p>
+            <button class="btn" onclick="startGame()">START DERBY</button>
+        </div>
+    </div>
+
+    <script>
+        class Derby {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 1000;
+                this.height = 700;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                this.reset();
+                this.setupInput();
+                this.loop();
+            }
+
+            reset() {
+                this.hrs = 0;
+                this.pitches = 10;
+                this.state = 'idle';
+                this.ball = { x: 500, y: 350, r: 8, active: false, vx: 0, vy: 0 };
+                this.charge = 0;
+                this.isCharging = false;
+                this.isGameOver = false;
+                
+                document.getElementById('hr-count').textContent = '0';
+                document.getElementById('pitches-left').textContent = '10';
+            }
+
+            setupInput() {
+                window.onkeydown = (e) => {
+                    if(e.code === 'Space' && this.state === 'pitch-incoming' && !this.isCharging) {
+                        this.isCharging = true;
+                        document.getElementById('swing-meter').style.display = 'block';
+                    }
+                };
+                window.onkeyup = (e) => {
+                    if(e.code === 'Space' && this.isCharging) {
+                        this.swing();
+                    }
+                };
+            }
+
+            swing() {
+                this.isCharging = false;
+                document.getElementById('swing-meter').style.display = 'none';
+                
+                // Hitting logic
+                const dist = Math.abs(this.ball.y - 620);
+                if(dist < 40 && this.ball.active) {
+                    const power = this.charge / 100;
+                    this.ball.vy = -15 - (power * 10);
+                    this.ball.vx = (Math.random() - 0.5) * 10;
+                    this.state = 'hit';
+                    
+                    if(this.ball.vy < -20) {
+                        this.triggerHR();
+                    }
+                }
+                this.charge = 0;
+            }
+
+            triggerHR() {
+                this.hrs++;
+                document.getElementById('hr-count').textContent = this.hrs;
+                const el = document.getElementById('hit-text');
+                el.classList.add('show');
+                setTimeout(() => el.classList.remove('show'), 1500);
+            }
+
+            update() {
+                if(this.state === 'idle' && this.pitches > 0 && !this.isGameOver) {
+                    this.state = 'waiting';
+                    setTimeout(() => this.pitch(), 2000);
+                }
+
+                if(this.isCharging) {
+                    this.charge = Math.min(100, this.charge + 2);
+                    document.getElementById('swing-fill').style.width = this.charge + '%';
+                }
+
+                if(this.ball.active) {
+                    this.ball.x += this.ball.vx;
+                    this.ball.y += this.ball.vy;
+                    
+                    if(this.state === 'pitch-incoming') {
+                        this.ball.vy = 6;
+                    } else {
+                        this.ball.vy += 0.2; // Gravity
+                    }
+
+                    if(this.ball.y > 750 || this.ball.y < -100) {
+                        this.ball.active = false;
+                        this.pitches--;
+                        document.getElementById('pitches-left').textContent = this.pitches;
+                        if(this.pitches <= 0) this.endGame();
+                        else this.state = 'idle';
+                    }
+                }
+            }
+
+            pitch() {
+                this.ball.x = 500;
+                this.ball.y = 350;
+                this.ball.vx = (Math.random() - 0.5) * 2;
+                this.ball.active = true;
+                this.state = 'pitch-incoming';
+            }
+
+            endGame() {
+                this.isGameOver = true;
+                const overlay = document.getElementById('overlay');
+                overlay.style.display = 'flex';
+                document.getElementById('final-msg').textContent = `FINAL SCORE: ${this.hrs} HOME RUNS`;
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0,0,this.width,this.height);
+
+                // Field
+                ctx.fillStyle = '#d35400';
+                ctx.beginPath(); ctx.moveTo(500, 650); ctx.lineTo(200, 400); ctx.lineTo(800, 400); ctx.fill();
+                
+                // Plate
+                ctx.fillStyle = 'white';
+                ctx.fillRect(485, 640, 30, 10);
+
+                // Pitcher
+                ctx.fillStyle = '#2980b9';
+                ctx.fillRect(485, 330, 30, 40);
+                ctx.beginPath(); ctx.arc(500, 320, 12, 0, Math.PI*2); ctx.fill();
+
+                // Batter
+                ctx.fillStyle = '#c0392b';
+                ctx.fillRect(420, 600, 30, 50);
+                ctx.beginPath(); ctx.arc(435, 590, 12, 0, Math.PI*2); ctx.fill();
+
+                // Ball
+                if(this.ball.active) {
+                    ctx.fillStyle = 'white';
+                    ctx.shadowBlur = 10; ctx.shadowColor = 'white';
+                    ctx.beginPath(); ctx.arc(this.ball.x, this.ball.y, this.ball.r, 0, Math.PI*2); ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        let game = new Derby();
+        function startGame() {
+            document.getElementById('overlay').style.display = 'none';
+            game.reset();
+        }
+    </script>
+</body>
+</html>

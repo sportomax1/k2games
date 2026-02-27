@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pac-Man Clone</title>
+    <style>
+        body { margin: 0; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; font-family: 'Arial', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
+        .game-container { display: flex; gap: 32px; padding: 20px; }
+        .sidebar { min-width: 260px; background: rgba(255,255,255,0.08); border-radius: 18px; padding: 30px; display: flex; flex-direction: column; gap: 20px; height: fit-content; }
+        .stat-box { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; font-size: 1.2rem; }
+        canvas { border: 3px solid #FFD700; border-radius: 10px; background: #000; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .btn { padding: 12px 24px; font-size: 1rem; border: none; border-radius: 8px; background: rgba(255,255,255,0.2); color: white; cursor: pointer; transition: 0.2s; }
+        .btn:hover { background: rgba(255,255,255,0.3); transform: scale(1.05); }
+        .back { position: absolute; bottom: 20px; left: 20px; color: #FFD700; text-decoration: none; font-weight: bold; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="sidebar">
+            <div style="font-size: 2rem; color: #FFD700; font-weight: bold;">🟡 Pac-Man</div>
+            <div class="stat-box">Score: <span id="score">0</span></div>
+            <div class="stat-box">Lives: <span id="lives">❤️❤️❤️</span></div>
+            <div class="stat-box">Level: <span id="level">1</span></div>
+            <div style="margin-top: 20px; color: #bbb; line-height: 1.6;">
+                <b>Controls:</b><br>Arrow Keys to Move<br>Eat dots to win<br>Power pellets eat ghosts
+            </div>
+            <button class="btn" onclick="game.newGame()">New Game</button>
+        </div>
+        <div>
+            <canvas id="game"></canvas>
+        </div>
+    </div>
+    <a href="index.html" class="back">← HUB</a>
+
+    <script>
+        class PacManGame {
+            constructor() {
+                this.canvas = document.getElementById('game');
+                this.ctx = this.canvas.getContext('2d');
+                this.cellSize = 20;
+                this.mazeWidth = 28;
+                this.mazeHeight = 31;
+                this.canvas.width = this.mazeWidth * this.cellSize;
+                this.canvas.height = this.mazeHeight * this.cellSize;
+                
+                this.score = 0;
+                this.lives = 3;
+                this.level = 1;
+                this.highScore = parseInt(localStorage.getItem('pacManHighScore') || '0');
+                
+                this.player = { x: 14, y: 23, dir: 'right', nextDir: 'right', speed: 0.15, mouth: 0, mouthDir: 1 };
+                this.ghosts = [
+                    { x: 13, y: 11, dir: 'left', color: '#FF0000', speed: 0.1 },
+                    { x: 14, y: 11, dir: 'up', color: '#FFB8FF', speed: 0.1 },
+                    { x: 15, y: 11, dir: 'right', color: '#00FFFF', speed: 0.1 },
+                    { x: 14, y: 12, dir: 'down', color: '#FFB852', speed: 0.1 }
+                ];
+                
+                this.createMaze();
+                this.newGame();
+                this.setupInput();
+                this.loop();
+            }
+
+            createMaze() {
+                this.maze = [
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                    [1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1],
+                    [1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                    [1,0,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,0,1],
+                    [1,0,0,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,0,0,1],
+                    [1,1,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,1,1],
+                    [0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,1,0,0,0,0,0],
+                    [1,1,1,1,1,1,0,1,1,0,1,1,1,0,0,1,1,1,0,1,1,0,1,1,1,1,1,1],
+                    [0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],
+                    [1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1],
+                    [0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,1,0,0,0,0,0],
+                    [1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                    [1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1],
+                    [1,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1],
+                    [1,1,0,1,1,0,1,1,0,1,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0,1,1,1],
+                    [1,0,0,0,0,0,1,1,0,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,0,0,1],
+                    [1,0,1,1,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,1,1,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+                ];
+            }
+
+            setupInput() {
+                window.addEventListener('keydown', e => {
+                    if(e.key === 'ArrowUp') this.player.nextDir = 'up';
+                    if(e.key === 'ArrowDown') this.player.nextDir = 'down';
+                    if(e.key === 'ArrowLeft') this.player.nextDir = 'left';
+                    if(e.key === 'ArrowRight') this.player.nextDir = 'right';
+                });
+            }
+
+            newGame() {
+                this.score = 0; this.lives = 3; this.level = 1;
+                this.powerMode = 0;
+                this.spawnItems();
+                this.resetPositions();
+                this.gameState = 'playing';
+            }
+
+            spawnItems() {
+                this.dots = []; this.pellets = [];
+                for(let y=0; y<this.mazeHeight; y++) {
+                    for(let x=0; x<this.mazeWidth; x++) {
+                        if(this.maze[y] && this.maze[y][x] === 0) this.dots.push({x, y});
+                    }
+                }
+                this.pellets = [{x:1, y:3}, {x:26, y:3}, {x:1, y:20}, {x:26, y:20}];
+            }
+
+            resetPositions() {
+                this.player.x = 14; this.player.y = 23;
+                this.player.dir = 'right'; this.player.nextDir = 'right';
+                this.ghosts[0].x = 13; this.ghosts[0].y = 11;
+                this.ghosts[1].x = 14; this.ghosts[1].y = 11;
+                this.ghosts[2].x = 15; this.ghosts[2].y = 11;
+                this.ghosts[3].x = 14; this.ghosts[3].y = 12;
+            }
+
+            canMove(x, y, dir) {
+                let nx = x, ny = y;
+                if(dir === 'up') ny -= 1;
+                if(dir === 'down') ny += 1;
+                if(dir === 'left') nx -= 1;
+                if(dir === 'right') nx += 1;
+                
+                // Check bounds and walls
+                if(nx < 0 || nx >= this.mazeWidth || ny < 0 || ny >= this.mazeHeight) return false;
+                return this.maze[Math.floor(ny)] && this.maze[Math.floor(ny)][Math.floor(nx)] !== 1;
+            }
+
+            update() {
+                if(this.gameState !== 'playing') return;
+
+                // Player Move
+                if(this.canMove(this.player.x, this.player.y, this.player.nextDir)) this.player.dir = this.player.nextDir;
+                if(this.canMove(this.player.x, this.player.y, this.player.dir)) {
+                    if(this.player.dir === 'up') this.player.y -= this.player.speed;
+                    if(this.player.dir === 'down') this.player.y += this.player.speed;
+                    if(this.player.dir === 'left') this.player.x -= this.player.speed;
+                    if(this.player.dir === 'right') this.player.x += this.player.speed;
+                }
+                
+                // Wrap
+                if(this.player.x < 0) this.player.x = this.mazeWidth - 1;
+                if(this.player.x >= this.mazeWidth) this.player.x = 0;
+
+                // Mouth
+                this.player.mouth += this.player.mouthDir * 0.1;
+                if(this.player.mouth > 0.5 || this.player.mouth < 0) this.player.mouthDir *= -1;
+
+                // Ghosts
+                this.ghosts.forEach(g => {
+                    if(Math.random() < 0.05) g.dir = ['up','down','left','right'][Math.floor(Math.random()*4)];
+                    if(this.canMove(g.x, g.y, g.dir)) {
+                        let s = g.speed + (this.level * 0.005);
+                        if(this.powerMode > 0) s *= 0.5;
+                        if(g.dir === 'up') g.y -= s;
+                        if(g.dir === 'down') g.y += s;
+                        if(g.dir === 'left') g.x -= s;
+                        if(g.dir === 'right') g.x += s;
+                    } else {
+                        g.dir = ['up','down','left','right'][Math.floor(Math.random()*4)];
+                    }
+                    if(g.x < 0) g.x = this.mazeWidth - 1;
+                    if(g.x >= this.mazeWidth) g.x = 0;
+                });
+
+                // Power Mode
+                if(this.powerMode > 0) this.powerMode--;
+
+                // Collisions
+                // Dots
+                for(let i=this.dots.length-1; i>=0; i--) {
+                    if(Math.hypot(this.player.x - this.dots[i].x, this.player.y - this.dots[i].y) < 0.5) {
+                        this.dots.splice(i, 1);
+                        this.score += 10;
+                    }
+                }
+                // Pellets
+                for(let i=this.pellets.length-1; i>=0; i--) {
+                    if(Math.hypot(this.player.x - this.pellets[i].x, this.player.y - this.pellets[i].y) < 0.5) {
+                        this.pellets.splice(i, 1);
+                        this.score += 50;
+                        this.powerMode = 600;
+                    }
+                }
+                // Ghosts
+                this.ghosts.forEach(g => {
+                    if(Math.hypot(this.player.x - g.x, this.player.y - g.y) < 0.8) {
+                        if(this.powerMode > 0) {
+                            this.score += 200;
+                            g.x = 14; g.y = 11;
+                        } else {
+                            this.lives--;
+                            if(this.lives <= 0) {
+                                this.gameState = 'over';
+                                alert("Game Over! Score: " + this.score);
+                            } else {
+                                this.resetPositions();
+                            }
+                        }
+                    }
+                });
+
+                // Level Up
+                if(this.dots.length === 0 && this.pellets.length === 0) {
+                    this.level++;
+                    this.spawnItems();
+                    this.resetPositions();
+                }
+
+                this.updateUI();
+            }
+
+            updateUI() {
+                document.getElementById('score').textContent = this.score;
+                document.getElementById('lives').textContent = "❤️".repeat(this.lives);
+                document.getElementById('level').textContent = this.level;
+            }
+
+            draw() {
+                this.ctx.fillStyle = 'black';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Maze
+                this.ctx.fillStyle = '#2121FF';
+                for(let y=0; y<this.mazeHeight; y++) {
+                    for(let x=0; x<this.mazeWidth; x++) {
+                        if(this.maze[y] && this.maze[y][x] === 1) this.ctx.fillRect(x*this.cellSize, y*this.cellSize, this.cellSize, this.cellSize);
+                    }
+                }
+
+                // Items
+                this.ctx.fillStyle = '#FFD700';
+                this.dots.forEach(d => {
+                    this.ctx.beginPath();
+                    this.ctx.arc((d.x+0.5)*this.cellSize, (d.y+0.5)*this.cellSize, 2, 0, Math.PI*2);
+                    this.ctx.fill();
+                });
+                this.pellets.forEach(p => {
+                    this.ctx.beginPath();
+                    this.ctx.arc((p.x+0.5)*this.cellSize, (p.y+0.5)*this.cellSize, 6, 0, Math.PI*2);
+                    this.ctx.fill();
+                });
+
+                // Player
+                const px = (this.player.x+0.5)*this.cellSize, py = (this.player.y+0.5)*this.cellSize;
+                this.ctx.fillStyle = '#FFD700';
+                this.ctx.beginPath();
+                let sa=0, ea=Math.PI*2;
+                if(this.player.dir === 'right') { sa = this.player.mouth; ea = Math.PI*2 - this.player.mouth; }
+                if(this.player.dir === 'left') { sa = Math.PI + this.player.mouth; ea = Math.PI - this.player.mouth; }
+                if(this.player.dir === 'up') { sa = Math.PI*1.5 + this.player.mouth; ea = Math.PI*0.5 - this.player.mouth; }
+                if(this.player.dir === 'down') { sa = Math.PI*0.5 + this.player.mouth; ea = Math.PI*1.5 - this.player.mouth; }
+                this.ctx.arc(px, py, 9, sa, ea);
+                this.ctx.lineTo(px, py);
+                this.ctx.fill();
+
+                // Ghosts
+                this.ghosts.forEach(g => {
+                    this.ctx.fillStyle = this.powerMode > 0 ? '#2121FF' : g.color;
+                    const gx = (g.x+0.5)*this.cellSize, gy = (g.y+0.5)*this.cellSize;
+                    this.ctx.beginPath();
+                    this.ctx.arc(gx, gy-4, 9, Math.PI, 0);
+                    this.ctx.fillRect(gx-9, gy-4, 18, 9);
+                    this.ctx.fill();
+                });
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        const game = new PacManGame();
+    </script>
+</body>
+</html>

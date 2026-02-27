@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DigDug - K4 Games</title>
+    <style>
+        body {
+            margin: 0;
+            background: #222;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            touch-action: none;
+        }
+        #ui {
+            padding: 10px;
+            font-size: 20px;
+            text-align: center;
+            width: 100%;
+            background: #000;
+        }
+        canvas {
+            border: 4px solid #5d3a1a;
+            image-rendering: pixelated;
+            max-width: 100%;
+            max-height: 80vh;
+        }
+        #controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            padding: 10px;
+            width: 100%;
+            max-width: 300px;
+        }
+        .btn {
+            background: #444;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px;
+            user-select: none;
+            touch-action: none;
+        }
+        .btn:active { background: #666; }
+        .btn-fire { grid-column: 2; background: #a00; }
+    </style>
+</head>
+<body>
+
+<div id="ui">SCORE: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+
+<div id="controls">
+    <div class="btn" id="btn-up">▲</div>
+    <div class="btn-fire btn" id="btn-fire">FIRE</div>
+    <div></div>
+    <div class="btn" id="btn-left">◀</div>
+    <div class="btn" id="btn-down">▼</div>
+    <div class="btn" id="btn-right">▶</div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+
+    const TILE_SIZE = 32;
+    const COLS = 12;
+    const ROWS = 16;
+    
+    let score = 0;
+    let grid = []; // 0: Dirt, 1: Empty, 2: Rock
+    let player = { x: 6, y: 8, dir: 'right', state: 'idle' };
+    let enemies = [];
+    let harpoon = { active: false, x: 0, y: 0, dx: 0, dy: 0, len: 0, maxLen: 3 };
+    let gameOver = false;
+
+    const COLORS = {
+        dirt1: '#d2691e',
+        dirt2: '#8b4513',
+        dirt3: '#5d3a1a',
+        sky: '#87ceeb',
+        player: '#fff',
+        enemy: '#f00'
+    };
+
+    function init() {
+        canvas.width = COLS * TILE_SIZE;
+        canvas.height = ROWS * TILE_SIZE;
+        
+        // Initialize Grid
+        grid = [];
+        for (let r = 0; r < ROWS; r++) {
+            grid[r] = [];
+            for (let c = 0; c < COLS; c++) {
+                if (r < 2) grid[r][c] = 1; // Sky
+                else grid[r][c] = 0; // Dirt
+            }
+        }
+
+        // Starting tunnels
+        for (let i = 4; i < 9; i++) grid[8][i] = 1;
+
+        // Enemies
+        enemies = [
+            { x: 2, y: 4, type: 'pooka', dir: 1, inflate: 0 },
+            { x: 9, y: 12, type: 'pooka', dir: -1, inflate: 0 }
+        ];
+        
+        // Initial tunnel for enemies
+        grid[4][2] = 1; grid[4][3] = 1;
+        grid[12][9] = 1; grid[12][8] = 1;
+
+        update();
+        draw();
+    }
+
+    function movePlayer(dx, dy) {
+        if (gameOver) return;
+        
+        let nx = player.x + dx;
+        let ny = player.y + dy;
+        
+        if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
+            // Dig!
+            if (grid[ny][nx] === 0) {
+                grid[ny][nx] = 1;
+                score += 10;
+                scoreEl.innerText = score;
+            }
+            player.x = nx;
+            player.y = ny;
+            player.dir = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
+        }
+    }
+
+    function fireHarpoon() {
+        if (harpoon.active || gameOver) return;
+        harpoon.active = true;
+        harpoon.x = player.x;
+        harpoon.y = player.y;
+        harpoon.len = 0;
+        
+        let dx = 0, dy = 0;
+        if (player.dir === 'right') dx = 1;
+        if (player.dir === 'left') dx = -1;
+        if (player.dir === 'up') dy = -1;
+        if (player.dir === 'down') dy = 1;
+        
+        harpoon.dx = dx;
+        harpoon.dy = dy;
+
+        // Animate harpoon extension
+        let interval = setInterval(() => {
+            harpoon.len++;
+            let hx = harpoon.x + harpoon.dx * harpoon.len;
+            let hy = harpoon.y + harpoon.dy * harpoon.len;
+            
+            // Check wall or enemy
+            if (hx < 0 || hx >= COLS || hy < 0 || hy >= ROWS || grid[hy][hx] === 0) {
+                stopHarpoon();
+                clearInterval(interval);
+            }
+
+            let hit = enemies.find(e => Math.floor(e.x) === hx && Math.floor(e.y) === hy);
+            if (hit) {
+                hit.inflate += 0.4;
+                if (hit.inflate >= 1) {
+                    enemies = enemies.filter(e => e !== hit);
+                    score += 100;
+                    scoreEl.innerText = score;
+                    stopHarpoon();
+                }
+                clearInterval(interval);
+                setTimeout(stopHarpoon, 500);
+            }
+
+            if (harpoon.len >= harpoon.maxLen) {
+                clearInterval(interval);
+                setTimeout(stopHarpoon, 200);
+            }
+        }, 50);
+    }
+
+    function stopHarpoon() {
+        harpoon.active = false;
+    }
+
+    function update() {
+        if (gameOver) return;
+
+        // Enemy AI
+        enemies.forEach(e => {
+            if (e.inflate > 0) {
+                e.inflate -= 0.01;
+                return;
+            }
+
+            // Move in tunnels
+            let nx = e.x + (0.05 * e.dir);
+            let gx = Math.floor(nx + (e.dir > 0 ? 0.5 : -0.1));
+            let gy = Math.floor(e.y);
+
+            if (gx >= 0 && gx < COLS && grid[gy][gx] === 1) {
+                e.x = nx;
+            } else {
+                e.dir *= -1;
+            }
+
+            // Collision with player
+            if (Math.abs(e.x - player.x) < 0.6 && Math.abs(e.y - player.y) < 0.6) {
+                gameOver = true;
+                alert("Game Over! Score: " + score);
+                location.reload();
+            }
+        });
+
+        if (enemies.length === 0) {
+             alert("Level Clear!");
+             location.reload();
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw Grid
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                if (grid[r][c] === 0) {
+                    ctx.fillStyle = r < 6 ? COLORS.dirt1 : r < 11 ? COLORS.dirt2 : COLORS.dirt3;
+                    ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    // Texture
+                    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                    ctx.strokeRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                } else if (r < 2) {
+                    ctx.fillStyle = COLORS.sky;
+                    ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+        }
+
+        // Draw Player
+        ctx.fillStyle = COLORS.player;
+        ctx.fillRect(player.x * TILE_SIZE + 4, player.y * TILE_SIZE + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+        
+        // Draw Eyes
+        ctx.fillStyle = '#000';
+        let ex = player.x * TILE_SIZE + (player.dir === 'right' ? 20 : 8);
+        ctx.fillRect(ex, player.y * TILE_SIZE + 8, 4, 4);
+
+        // Draw Harpoon
+        if (harpoon.active) {
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(player.x * TILE_SIZE + 16, player.y * TILE_SIZE + 16);
+            ctx.lineTo((harpoon.x + harpoon.dx * harpoon.len) * TILE_SIZE + 16, (harpoon.y + harpoon.dy * harpoon.len) * TILE_SIZE + 16);
+            ctx.stroke();
+        }
+
+        // Draw Enemies
+        enemies.forEach(e => {
+            let size = (TILE_SIZE - 8) * (1 + e.inflate);
+            ctx.fillStyle = COLORS.enemy;
+            ctx.fillRect(e.x * TILE_SIZE + (TILE_SIZE-size)/2, e.y * TILE_SIZE + (TILE_SIZE-size)/2, size, size);
+        });
+
+        requestAnimationFrame(() => {
+            update();
+            draw();
+        });
+    }
+
+    // Keyboard
+    window.addEventListener('keydown', e => {
+        if (e.key === 'ArrowUp') movePlayer(0, -1);
+        if (e.key === 'ArrowDown') movePlayer(0, 1);
+        if (e.key === 'ArrowLeft') movePlayer(-1, 0);
+        if (e.key === 'ArrowRight') movePlayer(1, 0);
+        if (e.key === ' ' || e.key === 'z') fireHarpoon();
+    });
+
+    // Touch
+    document.getElementById('btn-up').onclick = () => movePlayer(0, -1);
+    document.getElementById('btn-down').onclick = () => movePlayer(0, 1);
+    document.getElementById('btn-left').onclick = () => movePlayer(-1, 0);
+    document.getElementById('btn-right').onclick = () => movePlayer(1, 0);
+    document.getElementById('btn-fire').onclick = () => fireHarpoon();
+
+    init();
+</script>
+</body>
+</html>

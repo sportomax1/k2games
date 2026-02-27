@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crossing Guard: Safety Hero - K4 Games</title>
+    <style>
+        :root {
+            --sky: #b3e0ff;
+            --grass: #a5d6a7;
+            --road: #475569;
+            --accent: #f59e0b;
+            --danger: #ef4444;
+            --text: #1e293b;
+            --bg: #f1f5f9;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 1000px;
+            height: 600px;
+            background: var(--sky);
+            border-radius: 24px;
+            border: 8px solid #334155;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            padding: 15px 30px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.3);
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .stat-val { font-size: 2rem; font-weight: 900; color: #0369a1; line-height: 1; }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-top: 5px; }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: var(--text); text-decoration: none;
+            background: white; padding: 10px 20px; border-radius: 12px; z-index: 100;
+            font-weight: bold; border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: 0.2s;
+        }
+        .back-link:hover { transform: scale(1.05); background: #f8fafc; }
+
+        .hint-overlay {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.9);
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 1000; backdrop-filter: blur(8px); text-align: center;
+        }
+
+        .btn {
+            background: var(--accent); color: #000; border: none; padding: 18px 50px;
+            border-radius: 50px; font-weight: 900; cursor: pointer; font-size: 1.4rem;
+            margin-top: 30px; transition: 0.2s; box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.4);
+        }
+        .btn:hover { transform: scale(1.05); filter: brightness(1.1); }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui-layer">
+            <div class="hud-top">
+                <div class="stat-card">
+                    <div id="saved-val" class="stat-val">0</div>
+                    <div class="stat-label">Walkers Saved</div>
+                </div>
+                <div class="stat-card">
+                    <div id="missed-val" class="stat-val" style="color: var(--danger);">0</div>
+                    <div class="stat-label">Accidents</div>
+                </div>
+            </div>
+            
+            <div class="hint-overlay">HOLD SPACE TO RAISE STOP SIGN</div>
+        </div>
+
+        <div id="overlay">
+            <h1 id="overlay-title" style="font-size: 4rem; color: var(--accent);">GAME OVER</h1>
+            <p id="overlay-msg" style="color: white; font-size: 1.2rem; margin-top: 10px;">Safety is our top priority.</p>
+            <button class="btn" onclick="location.reload()">TRY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        class CrossingGuard {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 1000;
+                this.height = 600;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                this.holdingStop = false;
+                this.vehicles = [];
+                this.walkers = [];
+                this.spawnTimer = 0;
+                this.walkerTimer = 0;
+                
+                this.roadY = 300;
+                this.roadHeight = 120;
+                this.crosswalkX = 500;
+                this.crosswalkWidth = 120;
+                
+                this.score = 0;
+                this.missed = 0;
+                this.isGameOver = false;
+                
+                this.vehicleEmojis = ['🚗','🚕','🚙','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🚲','🛵','🏍️','🛺'];
+                this.walkerEmojis = ['🚶','🏃','🚶‍♀️','🏃‍♀️','👨‍🦯','👩‍🦯','👩‍🦽','👨‍🦽','👨‍🦼','👩‍🦼'];
+
+                this.init();
+            }
+
+            init() {
+                window.onkeydown = (e) => { if (e.code === 'Space') this.holdingStop = true; };
+                window.onkeyup = (e) => { if (e.code === 'Space') this.holdingStop = false; };
+                this.loop();
+            }
+
+            spawnVehicle() {
+                const dir = Math.random() < 0.5 ? 1 : -1;
+                const emoji = this.vehicleEmojis[Math.floor(Math.random() * this.vehicleEmojis.length)];
+                this.vehicles.push({
+                    x: dir === 1 ? -100 : this.width + 100,
+                    y: this.roadY + 30 + (Math.random() * 60),
+                    speed: (4 + Math.random() * 4) * dir,
+                    emoji: emoji,
+                    dir: dir,
+                    stopped: false
+                });
+            }
+
+            spawnWalker() {
+                const emoji = this.walkerEmojis[Math.floor(Math.random() * this.walkerEmojis.length)];
+                this.walkers.push({
+                    x: this.crosswalkX - 40 + Math.random() * 80,
+                    y: this.height - 20,
+                    speed: 1.5 + Math.random() * 1,
+                    emoji: emoji,
+                    state: 'waiting', // waiting, crossing, safe
+                    targetY: this.roadY + this.roadHeight + 20
+                });
+            }
+
+            update() {
+                if (this.isGameOver) return;
+
+                // Spawning
+                this.spawnTimer++;
+                if (this.spawnTimer > 80 + Math.random() * 60) {
+                    this.spawnVehicle();
+                    this.spawnTimer = 0;
+                }
+
+                this.walkerTimer++;
+                if (this.walkerTimer > 120 + Math.random() * 100) {
+                    this.spawnWalker();
+                    this.walkerTimer = 0;
+                }
+
+                // Update Vehicles
+                this.vehicles.forEach(v => {
+                    const distToCrosswalk = v.dir === 1 ? (this.crosswalkX - 80 - v.x) : (v.x - (this.crosswalkX + 80));
+                    
+                    if (this.holdingStop && distToCrosswalk > 0 && distToCrosswalk < 150) {
+                        v.stopped = true;
+                    } else if (!this.holdingStop) {
+                        v.stopped = false;
+                    }
+
+                    if (!v.stopped) v.x += v.speed;
+                });
+
+                // Update Walkers
+                this.walkers.forEach(w => {
+                    if (w.state === 'waiting') {
+                        if (w.y > w.targetY) w.y -= w.speed;
+                        else if (this.holdingStop) {
+                            // Check if cars are actually stopped
+                            const carInWay = this.vehicles.some(v => !v.stopped && Math.abs(v.x - this.crosswalkX) < 150);
+                            if (!carInWay) w.state = 'crossing';
+                        }
+                    } else if (w.state === 'crossing') {
+                        w.y -= w.speed;
+                        if (w.y < this.roadY - 20) {
+                            w.state = 'safe';
+                            this.score++;
+                            document.getElementById('saved-val').textContent = this.score;
+                        }
+                    } else if (w.state === 'safe') {
+                        w.y -= w.speed;
+                    }
+
+                    // Collision Check
+                    this.vehicles.forEach(v => {
+                        if (Math.hypot(v.x - w.x, v.y - w.y) < 40 && w.state === 'crossing') {
+                            this.triggerAccident();
+                        }
+                    });
+                });
+
+                // Cleanup
+                this.vehicles = this.vehicles.filter(v => v.x > -200 && v.x < this.width + 200);
+                this.walkers = this.walkers.filter(w => w.y > -100);
+            }
+
+            triggerAccident() {
+                this.missed++;
+                document.getElementById('missed-val').textContent = this.missed;
+                if (this.missed >= 3) {
+                    this.isGameOver = true;
+                    document.getElementById('overlay').style.display = 'flex';
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Background Details
+                ctx.fillStyle = '#81c784'; // Park
+                ctx.fillRect(0, 0, this.width, this.height);
+
+                // Road
+                ctx.fillStyle = '#475569';
+                ctx.fillRect(0, this.roadY, this.width, this.roadHeight);
+                
+                // Crosswalk
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                for (let i = 0; i < 6; i++) {
+                    ctx.fillRect(this.crosswalkX - 60 + (i * 20), this.roadY + 5, 10, this.roadHeight - 10);
+                }
+
+                // Vehicles
+                ctx.font = '50px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                this.vehicles.forEach(v => {
+                    ctx.save();
+                    ctx.translate(v.x, v.y);
+                    if (v.dir === -1) ctx.scale(-1, 1);
+                    ctx.fillText(v.emoji, 0, 0);
+                    ctx.restore();
+                });
+
+                // Walkers
+                this.walkers.forEach(w => {
+                    ctx.font = '40px Arial';
+                    ctx.fillText(w.emoji, w.x, w.y);
+                });
+
+                // Crossing Guard
+                ctx.save();
+                ctx.translate(this.crosswalkX, this.roadY + this.roadHeight + 40);
+                ctx.font = '60px Arial';
+                ctx.fillText('👮', 0, 0);
+                if (this.holdingStop) {
+                    ctx.font = '40px Arial';
+                    ctx.fillText('🛑', 40, -30);
+                }
+                ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        window.onload = () => new CrossingGuard();
+    </script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Four Square Playground</title>
+    <style>
+        body { margin: 0; background: #333; color: white; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        canvas { background: #555; border: 10px solid #444; border-radius: 5px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); cursor: none; }
+        #ui { position: absolute; top: 20px; text-align: center; }
+        .back { position: absolute; bottom: 20px; left: 20px; color: #ffeb3b; text-decoration: none; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 8px; font-weight: bold; }
+        .label { position: absolute; font-weight: 900; font-size: 2rem; opacity: 0.3; color: white; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <h1>FOUR SQUARE</h1>
+        <p>Move mouse to intercept the ball • Click to hit!</p>
+    </div>
+
+    <div class="label" style="top: 25%; left: 25%;">1</div>
+    <div class="label" style="top: 25%; left: 75%;">2</div>
+    <div class="label" style="top: 75%; left: 25%;">3</div>
+    <div class="label" style="top: 75%; left: 75%;">4</div>
+
+    <canvas id="game"></canvas>
+    <a href="index.html" class="back">← HUB</a>
+
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 600; canvas.height = 600;
+
+        // Game State
+        let ball = { x: 300, y: 300, z: 0, vx: 3, vy: 3, vz: 5, shadowR: 15 };
+        let player = { x: 0, y: 0 };
+        let squares = [
+            { id: 1, x: 0, y: 0, w: 300, h: 300, name: 'KING' },
+            { id: 2, x: 300, y: 0, w: 300, h: 300, name: 'QUEEN' },
+            { id: 3, x: 0, y: 300, w: 300, h: 300, name: 'JACK' },
+            { id: 4, x: 300, y: 300, w: 300, h: 300, name: 'YOU' }
+        ];
+
+        function update() {
+            // Ball Physics
+            ball.x += ball.vx;
+            ball.y += ball.vy;
+            ball.z += ball.vz;
+            ball.vz -= 0.2; // Gravity
+
+            // Bounce on Ground
+            if (ball.z < 0) {
+                ball.z = 0;
+                ball.vz = 4 + Math.random() * 2;
+                
+                // Which square did it land in?
+                const sq = squares.find(s => ball.x > s.x && ball.x < s.x + s.w && ball.y > s.y && ball.y < s.y + s.h);
+                if (!sq) {
+                    // Out of bounds reset
+                    ball.x = 300; ball.y = 300; ball.vx = 3; ball.vy = 3;
+                }
+            }
+
+            // Wall Collisions
+            if (ball.x < 0 || ball.x > 600) ball.vx *= -1;
+            if (ball.y < 0 || ball.y > 600) ball.vy *= -1;
+
+            // Player Interaction
+            const distToPlayer = Math.hypot(ball.x - player.x, ball.y - player.y);
+            if (distToPlayer < 40 && ball.z < 20 && ball.z > 0) {
+                // Player hits ball!
+                ball.vz = 6;
+                // Hit towards a random opponent square
+                const target = squares[Math.floor(Math.random() * 3)];
+                ball.vx = (target.x + 150 - ball.x) * 0.05;
+                ball.vy = (target.y + 150 - ball.y) * 0.05;
+            }
+
+            // AI Interaction (Squares 1, 2, 3)
+            squares.slice(0, 3).forEach(sq => {
+                const distToBall = Math.hypot(ball.x - (sq.x + 150), ball.y - (sq.y + 150));
+                if (ball.x > sq.x && ball.x < sq.x + sq.w && ball.y > sq.y && ball.y < sq.y + sq.h) {
+                    if (ball.z < 15 && ball.vz < 0) {
+                        // AI hit back
+                        ball.vz = 5 + Math.random() * 2;
+                        const targets = [1, 2, 3, 4].filter(id => id !== sq.id);
+                        const targetId = targets[Math.floor(Math.random() * 3)];
+                        const tSq = squares.find(s => s.id === targetId);
+                        ball.vx = (tSq.x + 150 - ball.x) * 0.04;
+                        ball.vy = (tSq.y + 150 - ball.y) * 0.04;
+                    }
+                }
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, 600, 600);
+
+            // Draw Court
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 5;
+            ctx.strokeRect(0, 0, 600, 600);
+            ctx.beginPath(); ctx.moveTo(300, 0); ctx.lineTo(300, 600); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, 300); ctx.lineTo(600, 300); ctx.stroke();
+
+            // Ball Shadow
+            ctx.fillStyle = "rgba(0,0,0,0.3)";
+            ctx.beginPath();
+            ctx.ellipse(ball.x, ball.y, ball.shadowR, ball.shadowR/2, 0, 0, Math.PI*2);
+            ctx.fill();
+
+            // Ball
+            ctx.fillStyle = "#ff5722";
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y - ball.z, 15 + ball.z/10, 0, Math.PI*2);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(0,0,0,0.2)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Player Hand / Marker
+            ctx.fillStyle = "#ffeb3b";
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, 10, 0, Math.PI*2);
+            ctx.fill();
+            ctx.strokeStyle = "white";
+            ctx.stroke();
+
+            update();
+            requestAnimationFrame(draw);
+        }
+
+        window.onmousemove = (e) => {
+            const rect = canvas.getBoundingClientRect();
+            player.x = e.clientX - rect.left;
+            player.y = e.clientY - rect.top;
+        };
+
+        draw();
+    </script>
+</body>
+</html>

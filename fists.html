@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fists: Boxing Legends - K4 Games</title>
+    <style>
+        :root {
+            --bg: #121212;
+            --ring-floor: #3d3d3d;
+            --ring-ropes: #e74c3c;
+            --ui-panel: rgba(0, 0, 0, 0.7);
+            --p1-color: #3498db;
+            --p2-color: #e74c3c;
+            --gold: #f1c40f;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 1100px;
+            height: 650px;
+            background: #222;
+            border-radius: 4px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            overflow: hidden;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* UI Layer */
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* HUD */
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 0 40px;
+        }
+
+        .fighter-hud {
+            width: 350px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .name-tag { font-size: 1.5rem; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; text-shadow: 2px 2px 0 #000; }
+        .p1-name { color: var(--p1-color); align-self: flex-start; }
+        .p2-name { color: var(--p2-color); align-self: flex-end; }
+
+        .bar-container {
+            width: 100%;
+            height: 20px;
+            background: #111;
+            border: 2px solid #444;
+            transform: skewX(-15deg);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hp-bar { height: 100%; transition: width 0.1s linear; }
+        .hp-p1 { background: linear-gradient(90deg, #e74c3c, #c0392b); float: left; }
+        .hp-p2 { background: linear-gradient(90deg, #e74c3c, #c0392b); float: right; }
+        
+        .hp-damage {
+            position: absolute; top: 0; height: 100%; background: #fff; opacity: 0.8;
+            transition: width 0.5s ease 0.5s; /* Delay damage drop */
+        }
+        .dmg-p1 { left: 0; }
+        .dmg-p2 { right: 0; }
+
+        .stamina-container {
+            width: 80%;
+            height: 8px;
+            background: #111;
+            border: 1px solid #333;
+            transform: skewX(-15deg);
+            margin-top: 2px;
+        }
+        .st-p1 { align-self: flex-start; }
+        .st-p2 { align-self: flex-end; }
+        
+        .st-bar { height: 100%; background: #f1c40f; width: 100%; transition: width 0.1s; }
+
+        .timer-box {
+            position: absolute;
+            left: 50%; top: 10px;
+            transform: translateX(-50%);
+            background: #111;
+            border: 2px solid #444;
+            padding: 5px 20px;
+            border-radius: 0 0 10px 10px;
+            text-align: center;
+        }
+        .timer-val { font-size: 2.5rem; font-weight: 800; color: #fff; font-family: monospace; }
+
+        /* Screens */
+        .screen {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.85);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 100; pointer-events: auto; backdrop-filter: blur(5px);
+            transition: opacity 0.3s;
+        }
+        .hidden { opacity: 0; pointer-events: none; }
+
+        h1 { font-size: 4rem; color: var(--gold); text-transform: uppercase; font-style: italic; margin-bottom: 10px; text-shadow: 0 0 20px var(--gold); }
+        h2 { font-size: 2.5rem; color: white; margin-bottom: 30px; text-transform: uppercase; }
+
+        .char-grid { display: flex; gap: 20px; margin-bottom: 40px; }
+        .char-card {
+            width: 140px; height: 200px;
+            background: #222; border: 2px solid #444;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.2s; position: relative;
+        }
+        .char-card:hover { transform: translateY(-5px); border-color: #fff; }
+        .char-card.selected { border-color: var(--gold); background: #332b00; box-shadow: 0 0 20px rgba(241, 196, 15, 0.3); }
+        .char-icon { font-size: 4rem; margin-bottom: 10px; }
+        .char-name { font-weight: bold; font-size: 1.2rem; }
+        .char-stats { font-size: 0.8rem; color: #888; margin-top: 5px; }
+
+        .btn {
+            background: var(--gold); color: black; border: none; padding: 15px 50px;
+            font-size: 1.5rem; font-weight: 900; text-transform: uppercase; cursor: pointer;
+            transform: skewX(-10deg); transition: 0.2s;
+        }
+        .btn:hover { background: white; transform: skewX(-10deg) scale(1.05); }
+
+        .controls-hint {
+            position: absolute; bottom: 20px; width: 100%; text-align: center;
+            color: #666; font-size: 0.9rem;
+        }
+        .key { display: inline-block; background: #333; padding: 2px 6px; border-radius: 4px; color: #fff; font-family: monospace; border: 1px solid #555; }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 12px; z-index: 200;
+            font-weight: bold; border: 1px solid rgba(255,255,255,0.1); pointer-events: auto;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="ui-layer">
+            <div class="hud-top">
+                <div class="fighter-hud p1-hud">
+                    <div class="name-tag p1-name" id="p1-name">PLAYER</div>
+                    <div class="bar-container">
+                        <div class="hp-damage dmg-p1" id="p1-dmg" style="width: 100%;"></div>
+                        <div class="hp-bar hp-p1" id="p1-hp" style="width: 100%;"></div>
+                    </div>
+                    <div class="stamina-container st-p1">
+                        <div class="st-bar" id="p1-st"></div>
+                    </div>
+                </div>
+
+                <div class="timer-box"><div class="timer-val" id="timer">60</div></div>
+
+                <div class="fighter-hud p2-hud">
+                    <div class="name-tag p2-name" id="p2-name">CPU</div>
+                    <div class="bar-container">
+                        <div class="hp-damage dmg-p2" id="p2-dmg" style="width: 100%;"></div>
+                        <div class="hp-bar hp-p2" id="p2-hp" style="width: 100%;"></div>
+                    </div>
+                    <div class="stamina-container st-p2">
+                        <div class="st-bar" id="p2-st"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Menu Screen -->
+        <div id="menu-screen" class="screen">
+            <h1>FISTS</h1>
+            <h2>Select Fighter</h2>
+            <div class="char-grid">
+                <div class="char-card selected" onclick="selectChar(0, this)">
+                    <div class="char-icon">🥊</div>
+                    <div class="char-name">ROCKY</div>
+                    <div class="char-stats">Balanced</div>
+                </div>
+                <div class="char-card" onclick="selectChar(1, this)">
+                    <div class="char-icon">⚡</div>
+                    <div class="char-name">APOLLO</div>
+                    <div class="char-stats">Fast / Weak</div>
+                </div>
+                <div class="char-card" onclick="selectChar(2, this)">
+                    <div class="char-icon">🐻</div>
+                    <div class="char-name">IVAN</div>
+                    <div class="char-stats">Slow / Strong</div>
+                </div>
+            </div>
+            <button class="btn" onclick="startGame()">FIGHT!</button>
+            
+            <div class="controls-hint" style="bottom: 60px;">
+                <span style="color: var(--p1-color); font-weight: bold;">CONTROLS:</span><br>
+                <span class="key">A</span> <span class="key">D</span> Move • 
+                <span class="key">J</span> Jab • 
+                <span class="key">K</span> Cross (Heavy) • 
+                <span class="key">L</span> Block • 
+                <span class="key">SPACE</span> Dash
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="screen hidden">
+            <h1 id="winner-text">KO!</h1>
+            <h2 id="win-reason">Player Wins</h2>
+            <button class="btn" onclick="location.reload()">REMATCH</button>
+        </div>
+    </div>
+
+    <script>
+        const CHARS = [
+            { name: 'ROCKY', speed: 5, power: 10, hp: 100, color: '#e74c3c' },
+            { name: 'APOLLO', speed: 7, power: 7, hp: 90, color: '#3498db' },
+            { name: 'IVAN', speed: 3, power: 15, hp: 120, color: '#f1c40f' }
+        ];
+
+        class Fighter {
+            constructor(x, isPlayer, charIdx) {
+                const stats = CHARS[charIdx];
+                this.x = x;
+                this.y = 450; // Ground line
+                this.w = 50;
+                this.h = 100;
+                this.vx = 0;
+                this.isPlayer = isPlayer;
+                this.color = isPlayer ? '#3498db' : '#e74c3c';
+                this.dir = isPlayer ? 1 : -1;
+                
+                // Stats
+                this.maxHp = stats.hp;
+                this.hp = this.maxHp;
+                this.maxStamina = 100;
+                this.stamina = 100;
+                this.speed = stats.speed;
+                this.power = stats.power;
+
+                // State
+                this.state = 'idle'; // idle, move, jab, heavy, block, hit, dash, stunned
+                this.frame = 0;
+                this.stunTimer = 0;
+                this.combo = 0;
+            }
+
+            update(enemy) {
+                // Stamina Regen
+                if (this.state !== 'block' && this.stamina < this.maxStamina) {
+                    this.stamina += 0.3;
+                }
+
+                // Friction
+                this.x += this.vx;
+                this.vx *= 0.8;
+
+                // Boundaries
+                if(this.x < 50) this.x = 50;
+                if(this.x > 1050) this.x = 1050;
+
+                // Face enemy
+                if (this.state === 'idle' || this.state === 'move') {
+                    this.dir = (enemy.x > this.x) ? 1 : -1;
+                }
+
+                // State Machine
+                if (this.stunTimer > 0) {
+                    this.stunTimer--;
+                    if(this.stunTimer <= 0) this.state = 'idle';
+                    return;
+                }
+
+                if (this.state === 'jab' || this.state === 'heavy') {
+                    this.frame++;
+                    // Hitbox active window
+                    const activeFrame = this.state === 'jab' ? 5 : 10;
+                    const duration = this.state === 'jab' ? 15 : 25;
+                    
+                    if (this.frame === activeFrame) {
+                        this.checkHit(enemy);
+                    }
+                    if (this.frame >= duration) {
+                        this.state = 'idle';
+                    }
+                } else if (this.state === 'dash') {
+                    this.frame++;
+                    if(this.frame > 10) {
+                        this.vx = 0;
+                        this.state = 'idle';
+                    }
+                } else if (this.state === 'hit') {
+                    this.frame++;
+                    if(this.frame > 10) this.state = 'idle';
+                }
+            }
+
+            action(type) {
+                if (this.state !== 'idle' && this.state !== 'move') return;
+                
+                if (type === 'jab') {
+                    if (this.stamina < 10) return;
+                    this.stamina -= 10;
+                    this.state = 'jab';
+                    this.frame = 0;
+                } else if (type === 'heavy') {
+                    if (this.stamina < 25) return;
+                    this.stamina -= 25;
+                    this.state = 'heavy';
+                    this.frame = 0;
+                } else if (type === 'block') {
+                    this.state = 'block';
+                } else if (type === 'dash') {
+                    if (this.stamina < 20) return;
+                    this.stamina -= 20;
+                    this.state = 'dash';
+                    this.frame = 0;
+                    this.vx = this.dir * 15;
+                }
+            }
+
+            releaseBlock() {
+                if (this.state === 'block') this.state = 'idle';
+            }
+
+            checkHit(target) {
+                const range = this.state === 'jab' ? 80 : 110;
+                const dist = Math.abs(target.x - this.x);
+                
+                // Simple collision box check
+                if (dist < range + target.w/2) {
+                    let dmg = this.state === 'jab' ? this.power * 0.8 : this.power * 2;
+                    let staminaDmg = 10;
+                    
+                    if (target.state === 'block') {
+                        // Block Logic
+                        if (target.dir !== this.dir) { // Facing each other
+                            dmg *= 0.1; // Chip damage
+                            target.stamina -= 20; // Stamina damage on block
+                            game.particles.push(new Particle(target.x, target.y - 40, 'block'));
+                            
+                            // Guard Break
+                            if (target.stamina <= 0) {
+                                target.state = 'stunned';
+                                target.stunTimer = 60;
+                                target.stamina = 0;
+                                game.shake = 10;
+                            }
+                            return;
+                        }
+                    }
+
+                    // Direct Hit
+                    target.takeDamage(dmg);
+                    target.vx = this.dir * (this.state === 'heavy' ? 10 : 5); // Knockback
+                    
+                    // Effects
+                    game.shake = this.state === 'heavy' ? 10 : 3;
+                    game.particles.push(new Particle(target.x, target.y - 50, 'hit', dmg));
+                    game.hitStop = 5; // Slight freeze frame for impact
+                }
+            }
+
+            takeDamage(amount) {
+                this.hp = Math.max(0, this.hp - amount);
+                this.state = 'hit';
+                this.frame = 0;
+                if (this.hp <= 0) {
+                    game.endGame(this.isPlayer ? 'LOSE' : 'WIN');
+                }
+            }
+        }
+
+        class Particle {
+            constructor(x, y, type, val) {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.val = val;
+                this.life = 1.0;
+                this.vx = (Math.random() - 0.5) * 5;
+                this.vy = (Math.random() - 0.5) * 5;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= 0.05;
+            }
+        }
+
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 1100;
+                this.height = 650;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                this.particles = [];
+                this.shake = 0;
+                this.hitStop = 0;
+                this.timer = 60;
+                this.selectedChar = 0;
+                
+                this.keys = {};
+                window.onkeydown = (e) => this.keys[e.code] = true;
+                window.onkeyup = (e) => {
+                    this.keys[e.code] = false;
+                    if (this.p1 && e.code === 'KeyL') this.p1.releaseBlock();
+                };
+            }
+
+            init() {
+                this.p1 = new Fighter(300, true, this.selectedChar);
+                this.p2 = new Fighter(800, false, 2); // AI is always Ivan for now (boss)
+                
+                this.timer = 60;
+                this.isOver = false;
+                this.particles = [];
+                
+                // UI Name Update
+                document.getElementById('p1-name').textContent = CHARS[this.selectedChar].name;
+                document.getElementById('p2-name').textContent = "IVAN"; // Boss
+
+                this.startLoop();
+                
+                // Timer interval
+                this.timerInt = setInterval(() => {
+                    if(!this.isOver && this.hitStop <= 0) {
+                        this.timer--;
+                        document.getElementById('timer').textContent = this.timer;
+                        if(this.timer <= 0) this.timeOut();
+                    }
+                }, 1000);
+            }
+
+            update() {
+                if (this.hitStop > 0) {
+                    this.hitStop--;
+                    return;
+                }
+
+                // Player Input
+                if (this.p1.state === 'idle' || this.p1.state === 'move') {
+                    if (this.keys['KeyA']) { this.p1.vx = -this.p1.speed; this.p1.state = 'move'; }
+                    else if (this.keys['KeyD']) { this.p1.vx = this.p1.speed; this.p1.state = 'move'; }
+                    else { this.p1.state = 'idle'; }
+
+                    if (this.keys['Space']) this.p1.action('dash');
+                    if (this.keys['KeyJ']) this.p1.action('jab');
+                    if (this.keys['KeyK']) this.p1.action('heavy');
+                    if (this.keys['KeyL']) this.p1.action('block');
+                }
+
+                // AI Logic
+                this.updateAI();
+
+                this.p1.update(this.p2);
+                this.p2.update(this.p1);
+
+                // Push apart if overlapping
+                if (Math.abs(this.p1.x - this.p2.x) < 40) {
+                    const mid = (this.p1.x + this.p2.x) / 2;
+                    this.p1.x -= 2;
+                    this.p2.x += 2;
+                }
+
+                // Particles
+                this.particles.forEach((p, i) => {
+                    p.update();
+                    if(p.life <= 0) this.particles.splice(i, 1);
+                });
+
+                if(this.shake > 0) this.shake *= 0.9;
+
+                this.updateUI();
+            }
+
+            updateAI() {
+                const ai = this.p2;
+                const pl = this.p1;
+                const dist = Math.abs(ai.x - pl.x);
+
+                if (ai.state === 'stunned' || ai.state === 'hit') return;
+
+                if (ai.state === 'block') {
+                    if (pl.state !== 'jab' && pl.state !== 'heavy') {
+                        ai.releaseBlock();
+                    }
+                    return;
+                }
+
+                if (ai.state === 'idle' || ai.state === 'move') {
+                    // Defensive
+                    if ((pl.state === 'jab' || pl.state === 'heavy') && dist < 150) {
+                        if (Math.random() < 0.8) ai.action('block');
+                        else if (Math.random() < 0.5 && ai.stamina > 20) ai.action('dash'); // Dodge
+                        return;
+                    }
+
+                    // Offensive
+                    if (dist < 100) {
+                        if (Math.random() < 0.05) ai.action('jab');
+                        else if (Math.random() < 0.02) ai.action('heavy');
+                    } else {
+                        // Move
+                        const dir = pl.x > ai.x ? 1 : -1;
+                        ai.vx = dir * ai.speed * 0.8;
+                        ai.state = 'move';
+                    }
+                }
+            }
+
+            updateUI() {
+                // HP bars
+                const setBar = (id, cur, max) => {
+                    const pct = (cur / max) * 100;
+                    document.getElementById(id).style.width = pct + '%';
+                    // Damage bar trails behind (handled by CSS transition delay, just set width)
+                    document.getElementById(id.replace('hp', 'dmg')).style.width = pct + '%';
+                };
+                setBar('p1-hp', this.p1.hp, this.p1.maxHp);
+                setBar('p2-hp', this.p2.hp, this.p2.maxHp);
+
+                // Stamina bars
+                document.getElementById('p1-st').style.width = this.p1.stamina + '%';
+                document.getElementById('p2-st').style.width = this.p2.stamina + '%';
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                
+                // Camera Shake
+                ctx.save();
+                if(this.shake > 0.5) {
+                    ctx.translate((Math.random()-0.5)*this.shake, (Math.random()-0.5)*this.shake);
+                }
+
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Floor
+                ctx.fillStyle = '#2c3e50';
+                ctx.fillRect(0, 500, this.width, 150); // Ring floor
+                
+                // Background ropes
+                ctx.strokeStyle = '#c0392b';
+                ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(0, 300); ctx.lineTo(this.width, 300); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, 400); ctx.lineTo(this.width, 400); ctx.stroke();
+
+                // Draw Fighters
+                this.drawFighter(this.p1);
+                this.drawFighter(this.p2);
+
+                // Particles
+                this.particles.forEach(p => {
+                    ctx.globalAlpha = p.life;
+                    if (p.type === 'hit') {
+                        ctx.fillStyle = '#fff';
+                        ctx.font = '30px Arial';
+                        ctx.fillText(Math.floor(p.val), p.x, p.y);
+                        
+                        ctx.fillStyle = '#ffcc00';
+                        ctx.beginPath(); ctx.arc(p.x, p.y+20, 10 * p.life, 0, Math.PI*2); ctx.fill();
+                    } else if (p.type === 'block') {
+                        ctx.strokeStyle = '#3498db';
+                        ctx.lineWidth = 3;
+                        ctx.beginPath(); ctx.arc(p.x, p.y+40, 20* (1-p.life), 0, Math.PI*2); ctx.stroke();
+                        ctx.fillStyle = '#fff';
+                        ctx.font = '20px Arial';
+                        ctx.fillText("BLOCK", p.x, p.y);
+                    }
+                    ctx.globalAlpha = 1;
+                });
+
+                ctx.restore();
+            }
+
+            drawFighter(f) {
+                const ctx = this.ctx;
+                const x = f.x;
+                const y = f.y;
+                const dir = f.dir;
+
+                ctx.save();
+                ctx.translate(x, y);
+                
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                ctx.beginPath(); ctx.ellipse(0, 10, 40, 15, 0, 0, Math.PI*2); ctx.fill();
+
+                // Body color
+                ctx.fillStyle = f.isPlayer ? '#3498db' : '#e74c3c';
+                if(f.state === 'stunned') ctx.fillStyle = '#95a5a6';
+
+                // Legs
+                ctx.fillRect(-15, -40, 12, 40);
+                ctx.fillRect(5, -40, 12, 40);
+
+                // Torso
+                ctx.fillRect(-20, -90, 40, 50);
+
+                // Head
+                ctx.fillStyle = '#ffccaa'; // Skin
+                ctx.beginPath(); ctx.arc(0, -100, 20, 0, Math.PI*2); ctx.fill();
+
+                // Arms / Gloves
+                ctx.fillStyle = '#c0392b'; // Gloves
+                
+                let leftHand = {x: 10 * dir, y: -70};
+                let rightHand = {x: 25 * dir, y: -65};
+
+                if (f.state === 'jab') {
+                    const progress = f.frame / 15;
+                    rightHand.x += 40 * dir * Math.sin(progress * Math.PI);
+                } else if (f.state === 'heavy') {
+                    const progress = f.frame / 25;
+                    rightHand.x += 60 * dir * Math.sin(progress * Math.PI);
+                } else if (f.state === 'block') {
+                    leftHand = {x: 15*dir, y: -90};
+                    rightHand = {x: 25*dir, y: -90};
+                }
+
+                // Draw Hands
+                ctx.beginPath(); ctx.arc(leftHand.x, leftHand.y, 12, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(rightHand.x, rightHand.y, 12, 0, Math.PI*2); ctx.fill();
+
+                ctx.restore();
+            }
+
+            endGame(result) {
+                this.isOver = true;
+                clearInterval(this.timerInt);
+                
+                const screen = document.getElementById('end-screen');
+                const title = document.getElementById('winner-text');
+                const reason = document.getElementById('win-reason');
+                
+                screen.classList.remove('hidden');
+                
+                if (result === 'WIN') {
+                    title.textContent = "KO!";
+                    title.style.color = "#2ecc71";
+                    reason.textContent = "You are the Champion!";
+                } else if (result === 'LOSE') {
+                    title.textContent = "KNOCKOUT";
+                    title.style.color = "#e74c3c";
+                    reason.textContent = "You got knocked the f*** out!";
+                } else {
+                    title.textContent = "TIME UP";
+                    title.style.color = "#f1c40f";
+                    reason.textContent = this.p1.hp > this.p2.hp ? "Win by Decision" : "Loss by Decision";
+                }
+            }
+
+            timeOut() {
+                if (this.p1.hp > this.p2.hp) this.endGame('WIN');
+                else this.endGame('LOSE'); // Draw favors house/AI
+            }
+
+            startLoop() {
+                const loop = () => {
+                    if(!this.isOver) {
+                        this.update();
+                        this.draw();
+                        requestAnimationFrame(loop);
+                    }
+                };
+                loop();
+            }
+        }
+
+        let game;
+        let selectedCharIdx = 0;
+
+        function selectChar(idx, el) {
+            selectedCharIdx = idx;
+            document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+
+        function startGame() {
+            document.getElementById('menu-screen').classList.add('hidden');
+            game = new Game();
+            game.selectedChar = selectedCharIdx;
+            game.init();
+        }
+    </script>
+</body>
+</html>

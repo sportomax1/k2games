@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paint Wars: Battle Edition - K4 Games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --accent: #e94560;
+            --text: #f8fafc;
+            --p1-color: #3498db;
+            --p2-color: #e74c3c;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 1000px;
+            height: 800px;
+            background: var(--panel);
+            border-radius: 32px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #header {
+            padding: 25px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .stat-box { display: flex; flex-direction: column; align-items: center; min-width: 100px; }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.6; margin-bottom: 4px; }
+        .stat-value { font-size: 1.8rem; font-weight: 900; }
+
+        .score-bar-wrapper {
+            flex: 1;
+            height: 16px;
+            background: #000;
+            border-radius: 20px;
+            margin: 0 40px;
+            display: flex;
+            overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.1);
+            position: relative;
+        }
+        #score-p1 { height: 100%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        #score-p2 { height: 100%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        canvas {
+            display: block;
+            margin: auto;
+            background: #000;
+            border-radius: 16px;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 12px 24px; border-radius: 14px; z-index: 100;
+            font-weight: bold; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+            transition: 0.2s;
+        }
+        .back-link:hover { background: rgba(255,255,255,0.2); transform: translateY(-2px); }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 1000; backdrop-filter: blur(12px);
+        }
+
+        .color-opt {
+            width: 60px; height: 60px; border-radius: 18px; cursor: pointer; border: 4px solid transparent; transition: 0.3s;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
+        }
+        .color-opt.selected { border-color: white; transform: scale(1.15) rotate(5deg); }
+
+        .btn {
+            background: var(--accent); color: white; border: none; padding: 18px 50px;
+            border-radius: 50px; font-weight: 900; cursor: pointer; font-size: 1.4rem;
+            margin-top: 40px; transition: 0.2s; box-shadow: 0 20px 25px -5px rgba(233, 69, 96, 0.3);
+        }
+        .btn:hover { transform: scale(1.05); filter: brightness(1.1); }
+
+        .timer-display {
+            font-family: 'Courier New', Courier, monospace;
+            color: #f1c40f;
+            text-shadow: 0 0 10px rgba(241, 196, 15, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="game-container">
+        <div id="header">
+            <div class="stat-box">
+                <span class="stat-label">Player</span>
+                <span id="p1-score-val" class="stat-value" style="color: #3498db;">0%</span>
+            </div>
+            
+            <div class="stat-box">
+                <span class="stat-label">Time Remaining</span>
+                <span id="timer" class="stat-value timer-display">60</span>
+            </div>
+
+            <div class="score-bar-wrapper">
+                <div id="score-p1" style="width: 0%; background: #3498db;"></div>
+                <div id="score-p2" style="width: 0%; background: #e74c3c;"></div>
+            </div>
+
+            <div class="stat-box">
+                <span class="stat-label">Opponent</span>
+                <span id="p2-score-val" class="stat-value" style="color: #e74c3c;">0%</span>
+            </div>
+        </div>
+
+        <canvas id="paintCanvas"></canvas>
+
+        <div style="padding: 20px; text-align: center; color: rgba(255,255,255,0.3); font-size: 0.9rem; font-weight: 600; letter-spacing: 1px;">
+            ARROWS: MOVE & SPLATTER • SHIFT: TURBO
+        </div>
+
+        <div id="overlay">
+            <h1 id="overlay-title" style="font-size: 4rem; margin-bottom: 10px; color: #f1c40f; letter-spacing: 4px;">PAINT WARS</h1>
+            <p id="overlay-msg" style="margin-bottom: 30px; font-weight: 600; opacity: 0.8; text-transform: uppercase;">Splatter the arena. Claim the crown.</p>
+            
+            <div style="display: flex; gap: 20px;" id="color-picker">
+                <div class="color-opt selected" style="background: #3498db;" data-color="#3498db"></div>
+                <div class="color-opt" style="background: #2ecc71;" data-color="#2ecc71"></div>
+                <div class="color-opt" style="background: #9b59b6;" data-color="#9b59b6"></div>
+                <div class="color-opt" style="background: #f1c40f;" data-color="#f1c40f"></div>
+                <div class="color-opt" style="background: #ff9f43;" data-color="#ff9f43"></div>
+            </div>
+
+            <button class="btn" onclick="startGame()">START BATTLE</button>
+        </div>
+    </div>
+
+    <script>
+        class PaintWar {
+            constructor() {
+                this.canvas = document.getElementById('paintCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.gridSize = 20;
+                this.cols = 45;
+                this.rows = 30;
+                this.canvas.width = this.cols * this.gridSize;
+                this.canvas.height = this.rows * this.gridSize;
+
+                this.grid = Array.from({length: this.rows}, () => Array(this.cols).fill(null));
+                this.p1 = { x: 5, y: 15, color: '#3498db', score: 0 };
+                this.p2 = { x: 39, y: 15, color: '#e74c3c', score: 0 };
+                this.keys = {};
+                this.isPlaying = false;
+                this.cooldown = 0;
+                this.timer = 60;
+                this.timerInterval = null;
+
+                window.onkeydown = (e) => this.keys[e.code] = true;
+                window.onkeyup = (e) => this.keys[e.code] = false;
+
+                document.querySelectorAll('.color-opt').forEach(opt => {
+                    opt.onclick = () => {
+                        document.querySelectorAll('.color-opt').forEach(o => o.classList.remove('selected'));
+                        opt.classList.add('selected');
+                        this.p1.color = opt.dataset.color;
+                        document.getElementById('score-p1').style.background = this.p1.color;
+                        document.getElementById('p1-score-val').style.color = this.p1.color;
+                    };
+                });
+
+                this.loop();
+            }
+
+            start() {
+                this.grid = Array.from({length: this.rows}, () => Array(this.cols).fill(null));
+                this.p1.x = 5; this.p1.y = 15;
+                this.p2.x = 39; this.p2.y = 15;
+                this.timer = 60;
+                this.isPlaying = true;
+                document.getElementById('overlay').style.display = 'none';
+                
+                if(this.timerInterval) clearInterval(this.timerInterval);
+                this.timerInterval = setInterval(() => {
+                    if(this.isPlaying) {
+                        this.timer--;
+                        document.getElementById('timer').textContent = this.timer;
+                        if(this.timer <= 0) this.endGame();
+                    }
+                }, 1000);
+
+                // Initial Splat
+                this.paintArea(this.p1.x, this.p1.y, this.p1.color);
+                this.paintArea(this.p2.x, this.p2.y, this.p2.color);
+            }
+
+            paintArea(cx, cy, color) {
+                for(let dy = -1; dy <= 1; dy++) {
+                    for(let dx = -1; dx <= 1; dx++) {
+                        const nx = cx + dx;
+                        const ny = cy + dy;
+                        if(nx >= 0 && nx < this.cols && ny >= 0 && ny < this.rows) {
+                            this.grid[ny][nx] = color;
+                        }
+                    }
+                }
+            }
+
+            update() {
+                if(!this.isPlaying) return;
+
+                const baseCooldown = this.keys['ShiftLeft'] || this.keys['ShiftRight'] ? 2 : 4;
+
+                if(this.cooldown > 0) {
+                    this.cooldown--;
+                } else {
+                    let moved = false;
+                    if(this.keys['ArrowUp'] || this.keys['KeyW']) { this.p1.y--; moved = true; }
+                    else if(this.keys['ArrowDown'] || this.keys['KeyS']) { this.p1.y++; moved = true; }
+                    else if(this.keys['ArrowLeft'] || this.keys['KeyA']) { this.p1.x--; moved = true; }
+                    else if(this.keys['ArrowRight'] || this.keys['KeyD']) { this.p1.x++; moved = true; }
+
+                    if(moved) {
+                        this.p1.x = Math.max(0, Math.min(this.cols-1, this.p1.x));
+                        this.p1.y = Math.max(0, Math.min(this.rows-1, this.p1.y));
+                        this.paintArea(this.p1.x, this.p1.y, this.p1.color);
+                        this.cooldown = baseCooldown;
+                    }
+                }
+
+                // Smarter AI
+                if(Math.random() < 0.25) {
+                    const dirs = [[0,1], [0,-1], [1,0], [-1,0]];
+                    // AI looks for non-AI color or edge
+                    let bestDir = dirs[Math.floor(Math.random()*4)];
+                    let maxVal = -1;
+
+                    dirs.forEach(d => {
+                        const nx = this.p2.x + d[0];
+                        const ny = this.p2.y + d[1];
+                        if(nx >= 0 && nx < this.cols && ny >= 0 && ny < this.rows) {
+                            let val = 0;
+                            if(this.grid[ny][nx] === null) val = 2;
+                            if(this.grid[ny][nx] === this.p1.color) val = 3;
+                            if(val > maxVal) { maxVal = val; bestDir = d; }
+                        }
+                    });
+
+                    this.p2.x = Math.max(0, Math.min(this.cols-1, this.p2.x + bestDir[0]));
+                    this.p2.y = Math.max(0, Math.min(this.rows-1, this.p2.y + bestDir[1]));
+                    this.paintArea(this.p2.x, this.p2.y, this.p2.color);
+                }
+
+                this.calculateScores();
+            }
+
+            calculateScores() {
+                let s1 = 0, s2 = 0, total = 0;
+                this.grid.forEach(row => row.forEach(cell => {
+                    if(cell === this.p1.color) s1++;
+                    if(cell === this.p2.color) s2++;
+                    if(cell) total++;
+                }));
+                
+                const gridTotal = this.cols * this.rows;
+                const p1Pct = (s1 / gridTotal) * 100;
+                const p2Pct = (s2 / gridTotal) * 100;
+                
+                document.getElementById('score-p1').style.width = p1Pct + '%';
+                document.getElementById('score-p2').style.width = p2Pct + '%';
+                document.getElementById('p1-score-val').textContent = Math.floor(p1Pct) + '%';
+                document.getElementById('p2-score-val').textContent = Math.floor(p2Pct) + '%';
+
+                if(total === gridTotal) this.endGame();
+            }
+
+            endGame() {
+                this.isPlaying = false;
+                clearInterval(this.timerInterval);
+                const s1 = parseInt(document.getElementById('p1-score-val').textContent);
+                const s2 = parseInt(document.getElementById('p2-score-val').textContent);
+                
+                const overlay = document.getElementById('overlay');
+                const title = document.getElementById('overlay-title');
+                const msg = document.getElementById('overlay-msg');
+                
+                overlay.style.display = 'flex';
+                if(s1 > s2) {
+                    title.textContent = "VICTORY!";
+                    title.style.color = "#2ecc71";
+                    msg.textContent = `You painted ${s1}% of the arena!`;
+                } else if(s2 > s1) {
+                    title.textContent = "DEFEAT!";
+                    title.style.color = "#e74c3c";
+                    msg.textContent = `The AI claimed ${s2}% of the territory.`;
+                } else {
+                    title.textContent = "DRAW!";
+                    title.style.color = "#f1c40f";
+                    msg.textContent = "Exactly even. An honorable stalemate.";
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0,0,this.width,this.height);
+
+                // Grid
+                this.grid.forEach((row, y) => {
+                    row.forEach((cell, x) => {
+                        if(cell) {
+                            ctx.fillStyle = cell;
+                            ctx.fillRect(x*this.gridSize, y*this.gridSize, this.gridSize, this.gridSize);
+                        } else {
+                            ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+                            ctx.strokeRect(x*this.gridSize, y*this.gridSize, this.gridSize, this.gridSize);
+                        }
+                    });
+                });
+
+                // Player Pulse effect
+                const pulse = Math.sin(Date.now() / 100) * 3;
+
+                // Players
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = 'white';
+                
+                // P1
+                ctx.save();
+                ctx.shadowBlur = 15; ctx.shadowColor = this.p1.color;
+                ctx.fillStyle = this.p1.color;
+                ctx.beginPath(); 
+                ctx.arc(this.p1.x*this.gridSize + this.gridSize/2, this.p1.y*this.gridSize + this.gridSize/2, 8 + pulse, 0, Math.PI*2); 
+                ctx.fill(); ctx.stroke();
+                ctx.restore();
+
+                // P2
+                ctx.save();
+                ctx.shadowBlur = 15; ctx.shadowColor = this.p2.color;
+                ctx.fillStyle = this.p2.color;
+                ctx.beginPath(); 
+                ctx.arc(this.p2.x*this.gridSize + this.gridSize/2, this.p2.y*this.gridSize + this.gridSize/2, 8, 0, Math.PI*2); 
+                ctx.fill(); ctx.stroke();
+                ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        let game = new PaintWar();
+        function startGame() { game.start(); }
+    </script>
+</body>
+</html>

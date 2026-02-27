@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duel at the Plate Pro</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; background: linear-gradient(135deg, #2d5016 0%, #4a7c59 100%); color: white; margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
+        .card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 15px; padding: 20px; width: 100%; max-width: 800px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); margin-bottom: 20px; }
+        .score-board { display: flex; justify-content: space-around; font-size: 1.2rem; font-weight: bold; }
+        .status { font-size: 1.5rem; text-align: center; margin: 20px 0; color: #4CAF50; min-height: 1.8em; }
+        .selection-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .player-box { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; text-align: center; }
+        .dice-row { display: flex; justify-content: center; gap: 10px; margin: 15px 0; }
+        .die-btn { width: 70px; height: 70px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        .die-btn:hover { transform: scale(1.1); }
+        .die-btn.selected { outline: 4px solid #FFD700; transform: scale(1.1); }
+        .die-btn.red { background: #ef4444; color: white; }
+        .die-btn.yellow { background: #f1c40f; color: black; }
+        .die-btn.green { background: #2ecc71; color: white; }
+        .die-btn.white { background: #ffffff; color: black; }
+        .die-btn.black { background: #000000; color: white; }
+        .action-btn { background: #3498db; color: white; border: none; padding: 15px 40px; font-size: 1.2rem; border-radius: 8px; cursor: pointer; margin-top: 20px; font-weight: bold; }
+        .result-box { background: rgba(0,0,0,0.3); padding: 20px; border-radius: 12px; text-align: center; font-size: 1.3rem; min-height: 100px; }
+        .back { position: absolute; bottom: 20px; left: 20px; color: white; text-decoration: none; opacity: 0.7; }
+    </style>
+</head>
+<body>
+    <h1>⚾ Duel at the Plate ⚾</h1>
+    
+    <div class="card score-board">
+        <div>Batter: <span id="bScore" style="color:#4ecdc4">0</span></div>
+        <div>Pitcher: <span id="pScore" style="color:#ff6b6b">0</span></div>
+        <div>Inning: <span id="inning">1/3</span></div>
+        <div>Turn: <span id="turn">1/6</span></div>
+    </div>
+
+    <div class="status" id="status">Select Your Dice!</div>
+
+    <div class="card selection-grid" id="selectionArea">
+        <div class="player-box">
+            <h3>Pitcher</h3>
+            <div>Power:</div>
+            <div class="dice-row">
+                <button class="die-btn red" onclick="pick('p','pow','red')">P</button>
+                <button class="die-btn yellow" onclick="pick('p','pow','yellow')">B</button>
+                <button class="die-btn green" onclick="pick('p','pow','green')">C</button>
+            </div>
+            <div>Location:</div>
+            <div class="dice-row">
+                <button class="die-btn white" onclick="pick('p','loc','white')">LOC</button>
+            </div>
+        </div>
+        <div class="player-box">
+            <h3>Batter</h3>
+            <div>Power:</div>
+            <div class="dice-row">
+                <button class="die-btn red" onclick="pick('b','pow','red')">P</button>
+                <button class="die-btn yellow" onclick="pick('b','pow','yellow')">B</button>
+                <button class="die-btn green" onclick="pick('b','pow','green')">C</button>
+            </div>
+            <div>Location:</div>
+            <div class="dice-row">
+                <button class="die-btn black" onclick="pick('b','loc','black')">LOC</button>
+            </div>
+        </div>
+    </div>
+
+    <button class="action-btn" id="actionBtn" onclick="resolve()">REVEAL!</button>
+
+    <div class="card result-box" id="resultBox">Waiting for selections...</div>
+
+    <a href="index.html" class="back">← HUB</a>
+
+    <script>
+        const dice = {
+            red: [4,5,5,6,6,7], yellow: [2,3,4,5,5,6], green: [1,2,2,3,3,4],
+            white: ['Top','Top','Middle','Middle','Bottom','Bottom'],
+            black: ['Top','Top','Middle','Middle','Bottom','Bottom']
+        };
+
+        let state = {
+            inning: 1, turn: 1,
+            pRuns: 0, bRuns: 0,
+            pPow: null, pLoc: null,
+            bPow: null, bLoc: null,
+            phase: 'selection'
+        };
+
+        function pick(who, type, color) {
+            if (state.phase !== 'selection') return;
+            state[who + (type==='pow'?'Pow':'Loc')] = color;
+            updateSelectionUI();
+        }
+
+        function updateSelectionUI() {
+            // Visual feedback for selected buttons
+            // Simplified: just update the result box hint
+            if(state.pPow && state.pLoc && state.bPow && state.bLoc) {
+                document.getElementById('resultBox').textContent = "Both players ready!";
+            }
+        }
+
+        function roll(color) {
+            const sides = dice[color];
+            return sides[Math.floor(Math.random() * sides.length)];
+        }
+
+        function resolve() {
+            if (!state.pPow || !state.pLoc || !state.bPow || !state.bLoc) {
+                alert("Both players must select dice!"); return;
+            }
+
+            const pLocRoll = roll(state.pLoc);
+            const bLocRoll = roll(state.bLoc);
+            let msg = `<b>Location:</b> P: ${pLocRoll} | B: ${bLocRoll}<br>`;
+
+            if (pLocRoll === bLocRoll) {
+                msg += "<span style='color:#f1c40f'><b>MATCH! POWER CLASH!</b></span><br>";
+                const pPowRoll = roll(state.pPow);
+                const bPowRoll = roll(state.bPow);
+                msg += `Power: P: ${pPowRoll} | B: ${bPowRoll}<br>`;
+                
+                if (bPowRoll > pPowRoll) {
+                    msg += "<span style='color:#2ecc71'>HIT! Batter Scores!</span>";
+                    state.bRuns++;
+                } else if (pPowRoll > bPowRoll) {
+                    msg += "<span style='color:#ef4444'>OUT! Pitcher Wins!</span>";
+                } else {
+                    msg += "TIE! No score.";
+                }
+            } else {
+                msg += "<span style='color:#ef4444'><b>MISS! Pitcher gets the out.</b></span>";
+            }
+
+            document.getElementById('resultBox').innerHTML = msg;
+            state.phase = 'result';
+            document.getElementById('actionBtn').textContent = "NEXT TURN";
+            document.getElementById('actionBtn').onclick = nextTurn;
+            updateUI();
+        }
+
+        function nextTurn() {
+            state.turn++;
+            if (state.turn > 6) { state.turn = 1; state.inning++; }
+            if (state.inning > 3) {
+                alert(`Game Over! Batter: ${state.bRuns} - Pitcher: 0`);
+                location.reload();
+                return;
+            }
+            
+            state.pPow = state.pLoc = state.bPow = state.bLoc = null;
+            state.phase = 'selection';
+            document.getElementById('actionBtn').textContent = "REVEAL!";
+            document.getElementById('actionBtn').onclick = resolve;
+            document.getElementById('resultBox').textContent = "Select Your Dice!";
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('bScore').textContent = state.bRuns;
+            document.getElementById('pScore').textContent = 0; // Pitcher score logic not in baseline but added for consistency
+            document.getElementById('inning').textContent = `${state.inning}/3`;
+            document.getElementById('turn').textContent = `${state.turn}/6`;
+        }
+
+        updateUI();
+    </script>
+</body>
+</html>

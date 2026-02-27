@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Pinball Ultra - K4 Games</title>
+    <style>
+        :root {
+            --neon-blue: #00f2ff;
+            --neon-pink: #ff00ff;
+            --neon-green: #39ff14;
+            --neon-purple: #bc13fe;
+        }
+
+        body {
+            margin: 0;
+            background: #0a0a0c;
+            color: #fff;
+            font-family: 'Orbitron', 'Segoe UI', sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .stat-box {
+            background: rgba(0,0,0,0.6);
+            border: 2px solid var(--neon-blue);
+            padding: 10px 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,242,255,0.3);
+            text-align: center;
+        }
+
+        .stat-label { font-size: 0.7rem; color: #aaa; text-transform: uppercase; }
+        .stat-value { font-size: 1.5rem; font-weight: bold; color: var(--neon-blue); text-shadow: 0 0 5px var(--neon-blue); }
+
+        canvas {
+            background: #111;
+            box-shadow: 0 0 50px rgba(0,0,0,1);
+            max-width: 100%;
+            max-height: 90vh;
+            border: 4px solid #222;
+        }
+
+        #game-over {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            border: 3px solid var(--neon-pink);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            display: none;
+            z-index: 100;
+        }
+
+        button {
+            background: var(--neon-pink);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 20px;
+            box-shadow: 0 0 15px var(--neon-pink);
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="ui-layer">
+    <div class="stat-box">
+        <div class="stat-label">Score</div>
+        <div id="score" class="stat-value">000000</div>
+    </div>
+    <div class="stat-box">
+        <div class="stat-label">Balls</div>
+        <div id="balls" class="stat-value">3</div>
+    </div>
+    <div class="stat-box">
+        <div class="stat-label">Best</div>
+        <div id="high-score" class="stat-value">000000</div>
+    </div>
+</div>
+
+<canvas id="pinballCanvas"></canvas>
+
+<div id="game-over">
+    <h1 style="color: var(--neon-pink); margin-top: 0;">GAME OVER</h1>
+    <p>FINAL SCORE</p>
+    <h2 id="final-score" style="font-size: 3rem; margin: 10px 0;">0</h2>
+    <button onclick="restartGame()">REPLAY</button>
+</div>
+
+<script>
+    const canvas = document.getElementById('pinballCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Configuration
+    const WIDTH = 450;
+    const HEIGHT = 750;
+    const GRAVITY = 0.22;
+    const FRICTION = 0.992;
+    const BOUNCE = 0.65;
+
+    let score = 0;
+    let balls = 3;
+    let highScore = localStorage.getItem('pinball_high') || 0;
+    let isGameOver = false;
+
+    // Audio Context
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(freq, type = 'sine', duration = 0.1, vol = 0.1) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    }
+
+    // Entities
+    let ball = { x: WIDTH - 25, y: HEIGHT - 100, vx: 0, vy: 0, r: 10, trail: [] };
+    let plunger = { y: HEIGHT - 20, power: 0, maxPower: 25, active: false };
+    
+    let bumpers = [
+        { x: 150, y: 150, r: 35, color: '#ff00ff', value: 500 },
+        { x: 300, y: 150, r: 35, color: '#ff00ff', value: 500 },
+        { x: 225, y: 280, r: 40, color: '#00f2ff', value: 1000 },
+        { x: 70, y: 250, r: 25, color: '#39ff14', value: 250 },
+        { x: 380, y: 250, r: 25, color: '#39ff14', value: 250 }
+    ];
+
+    let slingshots = [
+        { x1: 80, y1: 520, x2: 130, y2: 600, side: 'left' },
+        { x1: 370, y1: 520, x2: 320, y2: 600, side: 'right' }
+    ];
+
+    let flippers = [
+        { x: 140, y: 650, len: 80, angle: 25, targetAngle: 25, side: 'left' },
+        { x: 310, y: 650, len: 80, angle: 155, targetAngle: 155, side: 'right' }
+    ];
+
+    let walls = [
+        // Table boundary
+        { x1: 0, y1: 150, x2: 0, y2: HEIGHT },
+        { x1: WIDTH - 50, y1: 150, x2: WIDTH - 50, y2: HEIGHT }, // Launch lane wall
+        { x1: WIDTH, y1: 150, x2: WIDTH, y2: HEIGHT },
+        // Arched top
+        { x1: 0, y1: 150, x2: WIDTH/2, y2: 0 },
+        { x1: WIDTH/2, y1: 0, x2: WIDTH, y2: 150 },
+        // Drain Slopes
+        { x1: 0, y1: 600, x2: 140, y2: 650 },
+        { x1: WIDTH - 50, y1: 600, x2: 310, y2: 650 }
+    ];
+
+    let targets = [
+        { x: 20, y: 100, w: 40, h: 10, hit: false },
+        { x: 80, y: 70, w: 40, h: 10, hit: false },
+        { x: WIDTH - 120, y: 70, w: 40, h: 10, hit: false },
+        { x: WIDTH - 60, y: 100, w: 40, h: 10, hit: false }
+    ];
+
+    function init() {
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+        document.getElementById('high-score').innerText = highScore.toString().padStart(6, '0');
+        loop();
+    }
+
+    function resetBall() {
+        if (balls <= 0) {
+            endGame();
+            return;
+        }
+        ball.x = WIDTH - 25;
+        ball.y = HEIGHT - 50;
+        ball.vx = 0;
+        ball.vy = 0;
+        ball.trail = [];
+        balls--;
+        updateUI();
+    }
+
+    function updateUI() {
+        document.getElementById('score').innerText = score.toString().padStart(6, '0');
+        document.getElementById('balls').innerText = balls;
+    }
+
+    function endGame() {
+        isGameOver = true;
+        document.getElementById('game-over').style.display = 'block';
+        document.getElementById('final-score').innerText = score;
+        if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('pinball_high', highScore);
+            document.getElementById('high-score').innerText = highScore.toString().padStart(6, '0');
+        }
+    }
+
+    function restartGame() {
+        score = 0;
+        balls = 3;
+        isGameOver = false;
+        document.getElementById('game-over').style.display = 'none';
+        resetBall();
+        updateUI();
+    }
+
+    function update() {
+        if (isGameOver) return;
+
+        // Plunger Physics
+        if (plunger.active) {
+            plunger.power = Math.min(plunger.maxPower, plunger.power + 0.5);
+        } else if (plunger.power > 0) {
+            if (ball.x > WIDTH - 50 && ball.y > HEIGHT - 100) {
+                ball.vy = -plunger.power;
+                playSound(150, 'square', 0.2);
+            }
+            plunger.power = 0;
+        }
+
+        // Ball Physics
+        ball.vy += GRAVITY;
+        ball.vx *= FRICTION;
+        ball.vy *= FRICTION;
+        ball.x += ball.vx;
+        ball.y += ball.vy;
+
+        // Trail
+        ball.trail.push({x: ball.x, y: ball.y});
+        if (ball.trail.length > 10) ball.trail.shift();
+
+        // Drain
+        if (ball.y > HEIGHT + 50) {
+            resetBall();
+        }
+
+        // Flippers
+        flippers.forEach(f => {
+            f.angle += (f.targetAngle - f.angle) * 0.35;
+            const rad = f.angle * Math.PI / 180;
+            const x2 = f.x + Math.cos(rad) * f.len;
+            const y2 = f.y + Math.sin(rad) * f.len;
+            
+            const dist = distToSegment(ball, {x: f.x, y: f.y}, {x: x2, y: y2});
+            if (dist < ball.r) {
+                const normal = getNormal({x: f.x, y: f.y}, {x: x2, y: y2});
+                const angularVel = Math.abs(f.targetAngle - f.angle);
+                const impulse = angularVel > 2 ? 8 + (angularVel * 0.2) : 0;
+                
+                reflect(normal, impulse > 0 ? 1.2 : BOUNCE);
+                ball.vy -= impulse;
+                
+                // Correction
+                ball.x += normal.x * (ball.r - dist + 2);
+                ball.y += normal.y * (ball.r - dist + 2);
+                
+                if (impulse > 0) playSound(400 + impulse * 20);
+            }
+        });
+
+        // Slingshots (High force bounce)
+        slingshots.forEach(s => {
+            const dist = distToSegment(ball, {x: s.x1, y: s.y1}, {x: s.x2, y: s.y2});
+            if (dist < ball.r) {
+                const normal = getNormal({x: s.x1, y: s.y1}, {x: s.x2, y: s.y2});
+                reflect(normal, 1.8);
+                score += 50;
+                updateUI();
+                playSound(600, 'triangle');
+                // Push out
+                ball.x += normal.x * 10;
+                ball.y += normal.y * 10;
+            }
+        });
+
+        // Bumpers
+        bumpers.forEach(b => {
+            const dx = ball.x - b.x;
+            const dy = ball.y - b.y;
+            const d = Math.sqrt(dx*dx + dy*dy);
+            if (d < ball.r + b.r) {
+                const nx = dx / d;
+                const ny = dy / d;
+                reflect({x: nx, y: ny}, 1.6);
+                score += b.value;
+                updateUI();
+                playSound(800 + Math.random()*200);
+                ball.x = b.x + nx * (ball.r + b.r + 2);
+                ball.y = b.y + ny * (ball.r + b.r + 2);
+            }
+        });
+
+        // Walls
+        walls.forEach(w => {
+            const dist = distToSegment(ball, {x: w.x1, y: w.y1}, {x: w.x2, y: w.y2});
+            if (dist < ball.r) {
+                const normal = getNormal({x: w.x1, y: w.y1}, {x: w.x2, y: w.y2});
+                reflect(normal);
+                ball.x += normal.x * (ball.r - dist + 1);
+                ball.y += normal.y * (ball.r - dist + 1);
+            }
+        });
+
+        // Targets
+        targets.forEach(t => {
+            if (!t.hit && ball.x > t.x && ball.x < t.x + t.w && ball.y > t.y && ball.y < t.y + t.h) {
+                t.hit = true;
+                score += 2000;
+                updateUI();
+                playSound(1200, 'sine', 0.3);
+                ball.vy *= -1;
+                setTimeout(() => t.hit = false, 5000); // Reset after 5s
+            }
+        });
+    }
+
+    function distToSegment(p, a, b) {
+        const l2 = (a.x-b.x)**2 + (a.y-b.y)**2;
+        if (l2 === 0) return Math.sqrt((p.x-a.x)**2 + (p.y-a.y)**2);
+        let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.sqrt((p.x - (a.x + t*(b.x-a.x)))**2 + (p.y - (a.y + t*(b.y-a.y)))**2);
+    }
+
+    function getNormal(a, b) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const mag = Math.sqrt(dx*dx + dy*dy);
+        return { x: -dy/mag, y: dx/mag };
+    }
+
+    function reflect(n, f = BOUNCE) {
+        const dot = ball.vx * n.x + ball.vy * n.y;
+        ball.vx = (ball.vx - 2 * dot * n.x) * f;
+        ball.vy = (ball.vy - 2 * dot * n.y) * f;
+    }
+
+    function draw() {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+        // Arched Top Visual
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = 10;
+        ctx.beginPath();
+        ctx.moveTo(0, 150);
+        ctx.lineTo(WIDTH/2, 0);
+        ctx.lineTo(WIDTH, 150);
+        ctx.stroke();
+
+        // Targets
+        targets.forEach(t => {
+            ctx.fillStyle = t.hit ? '#444' : '#ff00ff';
+            ctx.shadowBlur = t.hit ? 0 : 15;
+            ctx.shadowColor = '#ff00ff';
+            ctx.fillRect(t.x, t.y, t.w, t.h);
+        });
+
+        // Walls
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 4;
+        ctx.shadowBlur = 0;
+        walls.forEach(w => {
+            ctx.beginPath();
+            ctx.moveTo(w.x1, w.y1);
+            ctx.lineTo(w.x2, w.y2);
+            ctx.stroke();
+        });
+
+        // Slingshots
+        slingshots.forEach(s => {
+            ctx.strokeStyle = '#00f2ff';
+            ctx.lineWidth = 6;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00f2ff';
+            ctx.beginPath();
+            ctx.moveTo(s.x1, s.y1);
+            ctx.lineTo(s.x2, s.y2);
+            ctx.stroke();
+        });
+
+        // Bumpers
+        bumpers.forEach(b => {
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = b.color;
+            ctx.fillStyle = b.color;
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+            ctx.fill();
+            // Inner ring
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.r * 0.7, 0, Math.PI * 2);
+            ctx.stroke();
+        });
+
+        // Flippers
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#fff';
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 12;
+        ctx.lineCap = 'round';
+        flippers.forEach(f => {
+            const rad = f.angle * Math.PI / 180;
+            ctx.beginPath();
+            ctx.moveTo(f.x, f.y);
+            ctx.lineTo(f.x + Math.cos(rad) * f.len, f.y + Math.sin(rad) * f.len);
+            ctx.stroke();
+        });
+
+        // Plunger
+        ctx.fillStyle = '#444';
+        ctx.fillRect(WIDTH - 40, HEIGHT - 20 - plunger.power, 30, 40);
+        ctx.fillStyle = '#ff00ff';
+        ctx.fillRect(WIDTH - 35, HEIGHT - 5, 20, -plunger.power);
+
+        // Ball Trail
+        ball.trail.forEach((pos, i) => {
+            ctx.fillStyle = `rgba(255,255,255, ${i / 10})`;
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, ball.r * (i / 10), 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // Ball
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#fff';
+        ctx.fillStyle = '#eee';
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.shadowBlur = 0;
+    }
+
+    function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    // Controls
+    const setFlipper = (side, active) => {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        flippers.forEach(f => {
+            if (f.side === side) {
+                if (side === 'left') f.targetAngle = active ? -25 : 25;
+                else f.targetAngle = active ? 205 : 155;
+            }
+        });
+        if (active) playSound(300, 'triangle', 0.05, 0.05);
+    };
+
+    window.onkeydown = e => {
+        if (e.key === 'ArrowLeft' || e.key === 'a') setFlipper('left', true);
+        if (e.key === 'ArrowRight' || e.key === 'd') setFlipper('right', true);
+        if (e.key === ' ' || e.key === 'ArrowDown' || e.key === 's') plunger.active = true;
+    };
+    window.onkeyup = e => {
+        if (e.key === 'ArrowLeft' || e.key === 'a') setFlipper('left', false);
+        if (e.key === 'ArrowRight' || e.key === 'd') setFlipper('right', false);
+        if (e.key === ' ' || e.key === 'ArrowDown' || e.key === 's') plunger.active = false;
+    };
+
+    // Touch
+    canvas.addEventListener('touchstart', e => {
+        e.preventDefault();
+        const x = e.touches[0].clientX;
+        const y = e.touches[0].clientY;
+        if (y > window.innerHeight * 0.8) plunger.active = true;
+        else if (x < window.innerWidth / 2) setFlipper('left', true);
+        else setFlipper('right', true);
+    });
+
+    canvas.addEventListener('touchend', e => {
+        setFlipper('left', false);
+        setFlipper('right', false);
+        plunger.active = false;
+    });
+
+    init();
+</script>
+</body>
+</html>

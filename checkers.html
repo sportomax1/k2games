@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkers Pro</title>
+    <style>
+        :root { --p-red: #ef4444; --p-black: #1e293b; --board-dark: #78350f; --board-light: #fef3c7; }
+        body { font-family: -apple-system, system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; background: #451a03; color: white; margin: 0; padding: 20px; min-height: 100vh; }
+        .score-board { background: rgba(255,255,255,0.1); padding: 15px 30px; border-radius: 12px; margin-bottom: 20px; display: flex; gap: 40px; }
+        .board { display: grid; grid-template-columns: repeat(8, 45px); grid-template-rows: repeat(8, 45px); border: 8px solid #92400e; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
+        @media (min-width: 500px) { .board { grid-template-columns: repeat(8, 60px); grid-template-rows: repeat(8, 60px); } }
+        .square { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; }
+        .dark { background: var(--board-dark); }
+        .light { background: var(--board-light); }
+        .piece { width: 80%; height: 80%; border-radius: 50%; border: 3px solid rgba(0,0,0,0.2); transition: transform 0.2s; position: relative; z-index: 2; }
+        .red { background: var(--p-red); box-shadow: 0 4px 0 #991b1b; }
+        .black { background: var(--p-black); box-shadow: 0 4px 0 #000; }
+        .king::after { content: '👑'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.2rem; }
+        .selected { outline: 4px solid #fbbf24; transform: scale(1.1); z-index: 10; }
+        .valid-move::after { content: ''; width: 15px; height: 15px; background: rgba(16, 185, 129, 0.4); border-radius: 50%; z-index: 1; }
+        .status { font-size: 1.5rem; margin: 20px 0; font-weight: bold; }
+        .btn-row { display: flex; gap: 10px; margin-bottom: 20px; }
+        .btn { padding: 10px 20px; background: #92400e; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .back { text-decoration: none; color: #fde68a; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Classic Checkers</h1>
+    <div class="score-board">
+        <div>Red: <span id="rScore">12</span></div>
+        <div>Black: <span id="bScore">12</span></div>
+    </div>
+    <div class="status" id="status">Red's Turn</div>
+    <div class="btn-row">
+        <button class="btn" onclick="init()">New Game</button>
+        <button class="btn" id="modeBtn" onclick="toggleMode()">Mode: vs CPU</button>
+    </div>
+    <div class="board" id="board"></div>
+    <a href="index.html" class="back">← Back to Hub</a>
+
+    <script>
+        let board = [];
+        let turn = 'red';
+        let selected = null;
+        let validMoves = [];
+        let isAI = true;
+
+        function init() {
+            board = Array(8).fill().map(() => Array(8).fill(null));
+            for (let r = 0; r < 3; r++) for (let c = (r % 2 === 0 ? 1 : 0); c < 8; c += 2) board[r][c] = { color: 'black', king: false };
+            for (let r = 5; r < 8; r++) for (let c = (r % 2 === 0 ? 1 : 0); c < 8; c += 2) board[r][c] = { color: 'red', king: false };
+            turn = 'red';
+            selected = null;
+            render();
+        }
+
+        function render() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            let counts = { red: 0, black: 0 };
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const square = document.createElement('div');
+                    square.className = `square ${(r + c) % 2 !== 0 ? 'dark' : 'light'}`;
+                    const piece = board[r][c];
+                    
+                    if (piece) {
+                        counts[piece.color]++;
+                        const pEl = document.createElement('div');
+                        pEl.className = `piece ${piece.color} ${piece.king ? 'king' : ''} ${selected?.r === r && selected?.c === c ? 'selected' : ''}`;
+                        pEl.onclick = () => selectPiece(r, c);
+                        square.appendChild(pEl);
+                    }
+
+                    const move = validMoves.find(m => m.r === r && m.c === c);
+                    if (move) {
+                        square.classList.add('valid-move');
+                        square.onclick = () => makeMove(selected.r, selected.c, r, c);
+                    }
+                    boardEl.appendChild(square);
+                }
+            }
+            document.getElementById('rScore').textContent = counts.red;
+            document.getElementById('bScore').textContent = counts.black;
+            document.getElementById('status').textContent = `${turn.charAt(0).toUpperCase() + turn.slice(1)}'s Turn`;
+            
+            if (turn === 'black' && isAI) setTimeout(makeAIMove, 600);
+        }
+
+        function selectPiece(r, c) {
+            if (board[r][c]?.color !== turn) return;
+            selected = { r, c };
+            validMoves = getValidMoves(r, c);
+            render();
+        }
+
+        function getValidMoves(r, c) {
+            const piece = board[r][c];
+            if (!piece) return [];
+            let moves = [];
+            const jumps = getJumps(r, c);
+            if (jumps.length > 0) return jumps; // Mandatory jump
+
+            const dirs = piece.king ? [-1, 1] : (piece.color === 'red' ? [-1] : [1]);
+            for (let dr of dirs) {
+                for (let dc of [-1, 1]) {
+                    const nr = r + dr, nc = c + dc;
+                    if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8 && !board[nr][nc]) moves.push({ r: nr, c: nc });
+                }
+            }
+            return moves;
+        }
+
+        function getJumps(r, c) {
+            const piece = board[r][c];
+            let jumps = [];
+            const dirs = piece.king ? [-1, 1] : (piece.color === 'red' ? [-1] : [1]);
+            for (let dr of dirs) {
+                for (let dc of [-1, 1]) {
+                    const mr = r + dr, mc = c + dc;
+                    const jr = r + dr * 2, jc = c + dc * 2;
+                    if (jr >= 0 && jr < 8 && jc >= 0 && jc < 8 && !board[jr][jc]) {
+                        const mid = board[mr][mc];
+                        if (mid && mid.color !== piece.color) jumps.push({ r: jr, c: jc, jump: { r: mr, c: mc } });
+                    }
+                }
+            }
+            return jumps;
+        }
+
+        function makeMove(fr, fc, tr, tc) {
+            const move = validMoves.find(m => m.r === tr && m.c === tc);
+            const piece = board[fr][fc];
+            board[tr][tc] = piece;
+            board[fr][fc] = null;
+
+            if (move.jump) {
+                board[move.jump.r][move.jump.c] = null;
+                const nextJumps = getJumps(tr, tc);
+                if (nextJumps.length > 0) {
+                    selected = { r: tr, c: tc };
+                    validMoves = nextJumps;
+                    render();
+                    return;
+                }
+            }
+
+            if ((piece.color === 'red' && tr === 0) || (piece.color === 'black' && tr === 7)) piece.king = true;
+            turn = turn === 'red' ? 'black' : 'red';
+            selected = null;
+            validMoves = [];
+            render();
+        }
+
+        function makeAIMove() {
+            let allMoves = [];
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (board[r][c]?.color === 'black') {
+                        const moves = getValidMoves(r, c);
+                        moves.forEach(m => allMoves.push({ fr: r, fc: c, ...m }));
+                    }
+                }
+            }
+            const jumps = allMoves.filter(m => m.jump);
+            const move = jumps.length > 0 ? jumps[Math.floor(Math.random() * jumps.length)] : allMoves[Math.floor(Math.random() * allMoves.length)];
+            if (move) makeMove(move.fr, move.fc, move.r, move.c);
+        }
+
+        function toggleMode() {
+            isAI = !isAI;
+            document.getElementById('modeBtn').textContent = `Mode: ${isAI ? 'vs CPU' : '2 Player'}`;
+            init();
+        }
+
+        init();
+    </script>
+</body>
+</html>

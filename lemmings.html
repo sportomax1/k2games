@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lemmings: Classic Rescue - K4 Games</title>
+    <style>
+        :root {
+            --sky: #87CEEB;
+            --dirt: #8B4513;
+            --exit: #2ecc40;
+            --accent: #38bdf8;
+            --panel: rgba(30, 41, 59, 0.9);
+            --text: #f8fafc;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background-color: #0f172a;
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas {
+            background: var(--sky);
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 4px solid #334155;
+            cursor: crosshair;
+        }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 30px;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stat-card {
+            background: var(--panel);
+            backdrop-filter: blur(12px);
+            padding: 12px 25px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+            min-width: 150px;
+            pointer-events: auto;
+        }
+
+        .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.6; }
+
+        /* Skills Toolbar */
+        #skills-bar {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            background: var(--panel);
+            padding: 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            pointer-events: auto;
+            backdrop-filter: blur(12px);
+        }
+
+        .skill-btn {
+            width: 60px;
+            height: 75px;
+            background: rgba(255,255,255,0.05);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .skill-btn:hover { background: rgba(255,255,255,0.1); }
+        .skill-btn.active { border-color: var(--accent); background: rgba(56, 189, 248, 0.2); }
+        .skill-btn.empty { opacity: 0.3; cursor: not-allowed; }
+        
+        .skill-icon { font-size: 1.5rem; margin-bottom: 5px; }
+        .skill-count { font-size: 0.8rem; font-weight: 800; color: var(--accent); }
+        .skill-key { font-size: 0.6rem; opacity: 0.5; margin-top: 2px; }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 12px; z-index: 1000;
+            font-weight: bold; backdrop-filter: blur(10px);
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.9);
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 2000; backdrop-filter: blur(10px); text-align: center;
+        }
+
+        .btn {
+            background: var(--accent); color: #000; border: none; padding: 15px 40px;
+            border-radius: 50px; font-weight: 800; cursor: pointer; font-size: 1.2rem;
+            margin-top: 20px; transition: 0.2s;
+        }
+        .btn:hover { transform: scale(1.05); }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <div id="ui-layer">
+            <div class="hud-top">
+                <div class="stat-card">
+                    <div id="saved-val" class="stat-val">0</div>
+                    <div class="stat-label">Saved / 10</div>
+                </div>
+                <div class="stat-card">
+                    <div id="timer-val" class="stat-val">03:00</div>
+                    <div class="stat-label">Time Remaining</div>
+                </div>
+            </div>
+
+            <div id="skills-bar">
+                <!-- Skills populated by JS -->
+            </div>
+        </div>
+
+        <div id="overlay">
+            <h1 id="overlay-title" style="font-size: 4rem; color: var(--accent); font-style: italic;">LEMMINGS</h1>
+            <p id="overlay-msg" style="margin: 20px 0; font-size: 1.2rem; opacity: 0.8; max-width: 500px;"></p>
+            <button class="btn" id="overlay-btn" onclick="game.start()">START MISSION</button>
+        </div>
+    </div>
+
+    <script>
+        const SKILLS_CONFIG = [
+            { id: 'climber', icon: '🧗', count: 5, key: '1' },
+            { id: 'floater', icon: '☂️', count: 5, key: '2' },
+            { id: 'bomber', icon: '💣', count: 3, key: '3' },
+            { id: 'blocker', icon: '🛑', count: 3, key: '4' },
+            { id: 'builder', icon: '🧱', count: 8, key: '5' },
+            { id: 'basher', icon: '⛏️', count: 4, key: '6' },
+            { id: 'miner', icon: '🔨', count: 4, key: '7' },
+            { id: 'digger', icon: '🚜', count: 4, key: '8' }
+        ];
+
+        class Lemmings {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 800;
+                this.height = 600;
+
+                this.gameState = 'menu'; // menu, playing, over
+                this.lemmings = [];
+                this.terrain = [];
+                this.hazards = [];
+                this.entrance = { x: 40, y: 40 };
+                this.exit = { x: 720, y: 520, w: 40, h: 40 };
+                
+                this.saved = 0;
+                this.spawned = 0;
+                this.total = 20;
+                this.toSave = 10;
+                this.timer = 180;
+                this.selectedSkill = null;
+                this.skills = {};
+
+                this.init();
+            }
+
+            init() {
+                this.setupUI();
+                this.setupEventListeners();
+                this.loop();
+                this.showMenu("Save the Lemmings!", "Rescue at least 10 of 20 lemmings by assigning specialized skills.");
+            }
+
+            setupUI() {
+                const bar = document.getElementById('skills-bar');
+                bar.innerHTML = SKILLS_CONFIG.map(s => `
+                    <div class="skill-btn" id="skill-${s.id}" data-id="${s.id}">
+                        <div class="skill-icon">${s.icon}</div>
+                        <div class="skill-count" id="count-${s.id}">${s.count}</div>
+                        <div class="skill-key">${s.key}</div>
+                    </div>
+                `).join('');
+
+                bar.querySelectorAll('.skill-btn').forEach(btn => {
+                    btn.onclick = () => this.selectSkill(btn.dataset.id);
+                });
+            }
+
+            setupEventListeners() {
+                window.onkeydown = (e) => {
+                    const skill = SKILLS_CONFIG.find(s => s.key === e.key);
+                    if(skill) this.selectSkill(skill.id);
+                };
+
+                this.canvas.onclick = (e) => {
+                    if(this.gameState !== 'playing' || !this.selectedSkill) return;
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = (e.clientX - rect.left) * (this.width / rect.width);
+                    const y = (e.clientY - rect.top) * (this.height / rect.height);
+
+                    const lem = this.lemmings.find(l => Math.abs(l.x - x) < 20 && Math.abs(l.y - y) < 20);
+                    if(lem && this.skills[this.selectedSkill] > 0) {
+                        this.assignSkill(lem, this.selectedSkill);
+                        this.skills[this.selectedSkill]--;
+                        document.getElementById(`count-${this.selectedSkill}`).textContent = this.skills[this.selectedSkill];
+                    }
+                };
+            }
+
+            selectSkill(id) {
+                if(this.skills[id] <= 0) return;
+                this.selectedSkill = id;
+                document.querySelectorAll('.skill-btn').forEach(b => b.classList.remove('active'));
+                document.getElementById(`skill-${id}`).classList.add('active');
+            }
+
+            assignSkill(l, s) {
+                l.skill = s;
+                l.skillTimer = 0;
+                if(s === 'blocker') l.vx = 0;
+                if(s === 'bomber') l.bombTimer = 90;
+            }
+
+            start() {
+                this.gameState = 'playing';
+                this.lemmings = [];
+                this.spawned = 0;
+                this.saved = 0;
+                this.timer = 180;
+                this.spawnTimer = 0;
+                
+                SKILLS_CONFIG.forEach(s => {
+                    this.skills[s.id] = s.count;
+                    document.getElementById(`count-${s.id}`).textContent = s.count;
+                });
+
+                this.createLevel();
+                document.getElementById('overlay').style.display = 'none';
+            }
+
+            createLevel() {
+                this.terrain = [
+                    { x: 0, y: 580, w: 800, h: 20, destructible: false },
+                    { x: 200, y: 400, w: 400, h: 20, destructible: true },
+                    { x: 100, y: 250, w: 200, h: 20, destructible: true },
+                    { x: 500, y: 150, w: 200, h: 20, destructible: true }
+                ];
+                this.hazards = [{ x: 300, y: 580, w: 200, h: 20, type: 'water' }];
+                this.entrance = { x: 40, y: 40 };
+                this.exit = { x: 720, y: 520, w: 40, h: 40 };
+            }
+
+            update() {
+                if(this.gameState !== 'playing') return;
+
+                // Timer
+                if(Date.now() % 60 === 0) {
+                    this.timer--;
+                    this.updateHUD();
+                    if(this.timer <= 0) this.endGame();
+                }
+
+                // Spawning
+                if(this.spawned < this.total) {
+                    this.spawnTimer++;
+                    if(this.spawnTimer > 60) {
+                        this.spawnLemming();
+                        this.spawnTimer = 0;
+                    }
+                }
+
+                this.lemmings.forEach((l, i) => {
+                    if(l.bombTimer !== null) {
+                        l.bombTimer--;
+                        if(l.bombTimer <= 0) this.explode(l, i);
+                    }
+
+                    if(l.skill !== 'blocker') {
+                        l.vy += 0.25; // Gravity
+                        l.x += l.vx * l.dir;
+                        l.y += l.vy;
+                    }
+
+                    // Terrain Collision
+                    let grounded = false;
+                    this.terrain.forEach(b => {
+                        if(l.y + 12 >= b.y && l.y + 12 <= b.y + 10 && l.x > b.x && l.x < b.x + b.w) {
+                            l.y = b.y - 12; l.vy = 0; grounded = true;
+                        }
+                        // Walls
+                        if(l.x + 12 > b.x && l.x < b.x + b.w && l.y + 10 > b.y && l.y < b.y + b.h) {
+                            if(l.skill === 'climber') l.vy = -1.5;
+                            else l.dir *= -1;
+                        }
+                    });
+
+                    // Floater logic
+                    if(l.skill === 'floater' && l.vy > 1.5) l.vy = 1.5;
+
+                    // Building
+                    if(l.skill === 'builder' && l.skillTimer < 12) {
+                        this.terrain.push({ x: l.x + (l.dir*10), y: l.y + 10, w: 16, h: 4, destructible: true });
+                        l.x += 8 * l.dir; l.y -= 4; l.skillTimer++;
+                        if(l.skillTimer >= 12) l.skill = null;
+                    }
+
+                    // Basher/Miner/Digger (Simplified)
+                    if(['basher', 'miner', 'digger'].includes(l.skill)) {
+                        this.terrain = this.terrain.filter(b => {
+                            if(!b.destructible) return true;
+                            const dist = Math.hypot(l.x - b.x, l.y - b.y);
+                            return dist > 30;
+                        });
+                        l.skillTimer++;
+                        if(l.skillTimer > 20) l.skill = null;
+                    }
+
+                    // Exit
+                    if(Math.abs(l.x - this.exit.x) < 30 && Math.abs(l.y - this.exit.y) < 30) {
+                        this.saved++;
+                        this.lemmings.splice(i, 1);
+                        this.updateHUD();
+                        this.checkWin();
+                    }
+
+                    // Hazards
+                    this.hazards.forEach(h => {
+                        if(l.x > h.x && l.x < h.x + h.w && l.y > h.y && l.y < h.y + h.h) this.lemmings.splice(i, 1);
+                    });
+
+                    // Bounds
+                    if(l.y > this.height) this.lemmings.splice(i, 1);
+                });
+            }
+
+            spawnLemming() {
+                this.lemmings.push({
+                    x: this.entrance.x + 15, y: this.entrance.y + 30,
+                    vx: 1.2, vy: 0, dir: 1,
+                    skill: null, skillTimer: 0, bombTimer: null
+                });
+                this.spawned++;
+            }
+
+            explode(l, idx) {
+                this.terrain = this.terrain.filter(b => {
+                    if(!b.destructible) return true;
+                    return Math.hypot(l.x - b.x, l.y - b.y) > 50;
+                });
+                this.lemmings.splice(idx, 1);
+            }
+
+            updateHUD() {
+                document.getElementById('saved-val').textContent = this.saved;
+                const m = Math.floor(this.timer / 60);
+                const s = (this.timer % 60).toString().padStart(2, '0');
+                document.getElementById('timer-val').textContent = `${m}:${s}`;
+            }
+
+            checkWin() {
+                if(this.saved >= this.toSave && this.spawned === this.total && this.lemmings.length === 0) {
+                    this.showMenu("MISSION COMPLETE", `You saved ${this.saved} lemmings! Great job commander.`);
+                }
+            }
+
+            endGame() {
+                this.gameState = 'over';
+                this.showMenu("MISSION FAILED", `Only ${this.saved} lemmings made it. The quota was ${this.toSave}.`);
+            }
+
+            showMenu(title, msg) {
+                const overlay = document.getElementById('overlay');
+                document.getElementById('overlay-title').textContent = title;
+                document.getElementById('overlay-msg').textContent = msg;
+                overlay.style.display = 'flex';
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Entrance & Exit
+                ctx.fillStyle = '#fff'; ctx.fillRect(this.entrance.x, this.entrance.y, 32, 32);
+                ctx.fillStyle = '#333'; ctx.font = 'bold 12px Arial'; ctx.fillText('IN', this.entrance.x+8, this.entrance.y+20);
+                
+                ctx.fillStyle = varColor('--exit'); ctx.fillRect(this.exit.x, this.exit.y, 40, 40);
+                ctx.fillStyle = '#fff'; ctx.fillText('EXIT', this.exit.x+8, this.exit.y+25);
+
+                // Terrain
+                this.terrain.forEach(b => {
+                    ctx.fillStyle = b.destructible ? varColor('--dirt') : '#334155';
+                    ctx.fillRect(b.x, b.y, b.w, b.h);
+                });
+
+                // Hazards
+                ctx.fillStyle = '#3b82f6';
+                this.hazards.forEach(h => ctx.fillRect(h.x, h.y, h.w, h.h));
+
+                // Lemmings
+                this.lemmings.forEach(l => {
+                    ctx.fillStyle = '#2ecc40';
+                    ctx.fillRect(l.x, l.y, 12, 12);
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(l.x + (l.dir > 0 ? 6 : 2), l.y + 2, 4, 4); // Eye
+                    
+                    if(l.skill) {
+                        ctx.fillStyle = varColor('--accent');
+                        ctx.font = '10px Arial';
+                        ctx.fillText(SKILLS_CONFIG.find(s => s.id === l.skill).icon, l.x, l.y - 5);
+                    }
+                    if(l.bombTimer) {
+                        ctx.fillStyle = 'red';
+                        ctx.font = 'bold 10px Arial';
+                        ctx.fillText(Math.ceil(l.bombTimer/60), l.x + 4, l.y - 15);
+                    }
+                });
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        function varColor(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        }
+
+        const game = new Lemmings();
+    </script>
+</body>
+</html>

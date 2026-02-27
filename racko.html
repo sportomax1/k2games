@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rack-O: Card Master - K4 Games</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #1e40af;
+            --accent: #f59e0b;
+            --bg: #0f172a;
+            --panel: rgba(30, 41, 59, 0.7);
+            --text: #f8fafc;
+            --card-bg: #ffffff;
+            --card-text: #1e293b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.1) 0, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.1) 0, transparent 50%);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 95vw;
+            max-height: 85vh;
+            cursor: pointer;
+        }
+
+        .hud-top {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 40px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .stat-card {
+            background: var(--panel);
+            backdrop-filter: blur(12px);
+            padding: 12px 25px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+            min-width: 150px;
+            pointer-events: auto;
+        }
+
+        .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--accent); }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.6; }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255, 255, 255, 0.1); padding: 10px 20px; border-radius: 12px; z-index: 1000;
+            font-weight: bold; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: 0.2s;
+        }
+        .back-link:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-2px); }
+
+        /* Setup Modal */
+        #modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(15, 23, 42, 0.9);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 2000; backdrop-filter: blur(10px);
+        }
+
+        .modal-content {
+            background: #1e293b;
+            padding: 40px;
+            border-radius: 32px;
+            width: 90%;
+            max-width: 500px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        h1 { font-size: 3rem; font-weight: 900; color: var(--accent); margin-bottom: 10px; font-style: italic; }
+        
+        .setup-group { margin-bottom: 25px; text-align: left; }
+        .setup-label { font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: #94a3b8; margin-bottom: 10px; display: block; }
+
+        .btn-toggle-group { display: flex; gap: 10px; }
+        .btn-toggle {
+            flex: 1; padding: 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05); color: white; cursor: pointer; font-weight: bold; transition: 0.2s;
+        }
+        .btn-toggle.active { background: var(--primary); border-color: var(--primary); }
+
+        .player-type-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px; background: rgba(255, 255, 255, 0.02); border-radius: 12px; margin-bottom: 8px;
+        }
+
+        .btn-main {
+            background: var(--accent); color: #000; border: none; padding: 18px 50px;
+            border-radius: 50px; font-weight: 900; font-size: 1.3rem; cursor: pointer;
+            transition: 0.2s; box-shadow: 0 15px 30px -5px rgba(245, 158, 11, 0.3);
+            margin-top: 20px; width: 100%;
+        }
+        .btn-main:hover { transform: scale(1.02); filter: brightness(1.1); }
+
+        select {
+            background: #334155; color: white; border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 12px; border-radius: 8px; outline: none; cursor: pointer;
+        }
+
+        #turn-indicator {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            padding: 15px 40px; border-radius: 50px; background: var(--panel);
+            backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1);
+            font-weight: 800; font-size: 1.2rem; transition: 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">🏠 HUB</a>
+
+    <div id="game-container">
+        <div class="hud-top">
+            <div class="stat-card">
+                <div class="stat-label">Deck</div>
+                <div id="deck-count" class="stat-val">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Discard</div>
+                <div id="discard-count" class="stat-val">0</div>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas" width="1000" height="700"></canvas>
+        
+        <div id="turn-indicator">WAITING...</div>
+    </div>
+
+    <!-- Setup Modal -->
+    <div id="modal-overlay">
+        <div class="modal-content">
+            <h1>RACK-O</h1>
+            <p style="opacity: 0.6; margin-bottom: 30px;">Arrange your rack in ascending order!</p>
+
+            <div class="setup-group">
+                <span class="setup-label">Players</span>
+                <div class="btn-toggle-group">
+                    <button class="btn-toggle active" data-count="2">2</button>
+                    <button class="btn-toggle" data-count="3">3</button>
+                    <button class="btn-toggle" data-count="4">4</button>
+                </div>
+            </div>
+
+            <div class="setup-group">
+                <span class="setup-label">Configuration</span>
+                <div id="player-configs"></div>
+            </div>
+
+            <button class="btn-main" onclick="game.start()">START GAME</button>
+        </div>
+    </div>
+
+    <script>
+        class Racko {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 1000;
+                this.height = 700;
+
+                this.numPlayers = 2;
+                this.players = [];
+                this.currentPlayer = 0;
+                this.gameState = 'setup'; // setup, playing, over
+                
+                this.deck = [];
+                this.discard = [];
+                this.drawnCard = null;
+                
+                this.cardW = 70;
+                this.cardH = 100;
+                this.rackGap = 85;
+
+                this.init();
+            }
+
+            init() {
+                const toggles = document.querySelectorAll('.btn-toggle');
+                toggles.forEach(t => {
+                    t.onclick = () => {
+                        toggles.forEach(btn => btn.classList.remove('active'));
+                        t.classList.add('active');
+                        this.numPlayers = parseInt(t.dataset.count);
+                        this.updateConfigUI();
+                    };
+                });
+
+                this.updateConfigUI();
+                this.canvas.onclick = (e) => this.handleClick(e);
+                this.loop();
+            }
+
+            updateConfigUI() {
+                const container = document.getElementById('player-configs');
+                container.innerHTML = '';
+                for(let i=0; i<this.numPlayers; i++) {
+                    const row = document.createElement('div');
+                    row.className = 'player-type-row';
+                    row.innerHTML = `
+                        <span style="font-weight:bold;">Player ${i+1}</span>
+                        <select id="p-type-${i}">
+                            <option value="human">Person</option>
+                            <option value="ai" ${i > 0 ? 'selected' : ''}>AI Bot</option>
+                        </select>
+                    `;
+                    container.appendChild(row);
+                }
+            }
+
+            start() {
+                document.getElementById('modal-overlay').style.display = 'none';
+                this.gameState = 'playing';
+                
+                // Card range based on player count
+                const maxVal = this.numPlayers === 2 ? 40 : this.numPlayers === 3 ? 50 : 60;
+                this.deck = Array.from({length: maxVal}, (_, i) => i + 1);
+                this.shuffle(this.deck);
+
+                this.players = [];
+                const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b'];
+                
+                for(let i=0; i<this.numPlayers; i++) {
+                    const type = document.getElementById(`p-type-${i}`).value;
+                    const rack = [];
+                    for(let j=0; j<10; j++) rack.push(this.deck.pop());
+                    this.players.push({ id: i, type, rack, color: colors[i], score: 0 });
+                }
+
+                this.discard = [this.deck.pop()];
+                this.currentPlayer = 0;
+                this.updateHUD();
+                
+                if(this.players[this.currentPlayer].type === 'ai') setTimeout(() => this.aiTurn(), 1000);
+            }
+
+            shuffle(arr) {
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+            }
+
+            handleClick(e) {
+                if(this.gameState !== 'playing' || this.players[this.currentPlayer].type !== 'human') return;
+
+                const rect = this.canvas.getBoundingClientRect();
+                const x = (e.clientX - rect.left) * (this.width / rect.width);
+                const y = (e.clientY - rect.top) * (this.height / rect.height);
+
+                // Draw from Deck
+                if(!this.drawnCard && Math.hypot(x - 400, y - 150) < 60) {
+                    this.drawnCard = this.deck.pop();
+                    this.updateHUD();
+                    return;
+                }
+
+                // Draw from Discard
+                if(!this.drawnCard && Math.hypot(x - 600, y - 150) < 60) {
+                    this.drawnCard = this.discard.pop();
+                    this.updateHUD();
+                    return;
+                }
+
+                // Replace Slot
+                if(this.drawnCard) {
+                    const slot = this.getSlotAt(x, y);
+                    if(slot !== null) {
+                        const old = this.players[this.currentPlayer].rack[slot];
+                        this.players[this.currentPlayer].rack[slot] = this.drawnCard;
+                        this.discard.push(old);
+                        this.drawnCard = null;
+                        this.checkWin();
+                    }
+                }
+            }
+
+            getSlotAt(x, y) {
+                const rx = this.width / 2;
+                const ry = this.height - 150;
+                for(let i=0; i<10; i++) {
+                    const sx = rx + (i - 4.5) * this.rackGap;
+                    if(x > sx - 35 && x < sx + 35 && y > ry - 50 && y < ry + 50) return i;
+                }
+                return null;
+            }
+
+            aiTurn() {
+                if(this.gameState !== 'playing') return;
+                const p = this.players[this.currentPlayer];
+                const topDiscard = this.discard[this.discard.length - 1];
+                
+                // Determine if discard is useful
+                const targetSlot = this.getBestSlotFor(topDiscard);
+                const currentAtSlot = p.rack[targetSlot];
+                
+                // AI Logic: If discard is better for its position than current card, take it
+                if(this.isCardBetter(topDiscard, currentAtSlot, targetSlot)) {
+                    this.drawnCard = this.discard.pop();
+                } else {
+                    this.drawnCard = this.deck.pop();
+                }
+
+                setTimeout(() => {
+                    const finalSlot = this.getBestSlotFor(this.drawnCard);
+                    const old = p.rack[finalSlot];
+                    p.rack[finalSlot] = this.drawnCard;
+                    this.discard.push(old);
+                    this.drawnCard = null;
+                    this.checkWin();
+                }, 1000);
+            }
+
+            getBestSlotFor(val) {
+                // Approximate position based on value range
+                const max = this.numPlayers === 2 ? 40 : this.numPlayers === 3 ? 50 : 60;
+                let slot = Math.floor((val / max) * 10);
+                return Math.max(0, Math.min(9, slot));
+            }
+
+            isCardBetter(newCard, oldCard, slot) {
+                const max = this.numPlayers === 2 ? 40 : this.numPlayers === 3 ? 50 : 60;
+                const ideal = (slot / 10) * max + (max/20);
+                return Math.abs(newCard - ideal) < Math.abs(oldCard - ideal);
+            }
+
+            checkWin() {
+                const p = this.players[this.currentPlayer];
+                let win = true;
+                for(let i=0; i<9; i++) {
+                    if(p.rack[i] >= p.rack[i+1]) { win = false; break; }
+                }
+
+                if(win) {
+                    this.players.forEach(player => {
+                        let score = 0;
+                        for(let i=0; i<9; i++) {
+                            if(player.rack[i] < player.rack[i+1]) score += 5;
+                            else break;
+                        }
+                        if(player === p) score = 75; // Bonus for winning
+                        player.score += score;
+                    });
+
+                    if(p.score >= 500) {
+                        this.gameState = 'over';
+                        document.getElementById('overlay').style.display = 'flex';
+                        document.getElementById('overlay-title').textContent = `${p.type === 'ai' ? 'CPU' : 'YOU'} WINS THE GAME!`;
+                        document.getElementById('final-stats').innerHTML = this.players.map(pl => `Player ${pl.id+1}: ${pl.score} pts`).join('<br>');
+                    } else {
+                        alert(`${p.type === 'human' ? 'You' : 'CPU'} got RACK-O! Starting next round...`);
+                        this.startRound();
+                    }
+                } else {
+                    this.nextTurn();
+                }
+            }
+
+            startRound() {
+                const maxVal = this.numPlayers === 2 ? 40 : this.numPlayers === 3 ? 50 : 60;
+                this.deck = Array.from({length: maxVal}, (_, i) => i + 1);
+                this.shuffle(this.deck);
+                this.players.forEach(p => {
+                    p.rack = [];
+                    for(let j=0; j<10; j++) p.rack.push(this.deck.pop());
+                });
+                this.discard = [this.deck.pop()];
+                this.drawnCard = null;
+                this.updateHUD();
+            }
+
+            nextTurn() {
+                this.currentPlayer = (this.currentPlayer + 1) % this.numPlayers;
+                this.updateHUD();
+                if(this.players[this.currentPlayer].type === 'ai') setTimeout(() => this.aiTurn(), 1000);
+            }
+
+            updateHUD() {
+                document.getElementById('deck-count').textContent = this.deck.length;
+                document.getElementById('discard-count').textContent = this.discard.length;
+                const p = this.players[this.currentPlayer];
+                const ind = document.getElementById('turn-indicator');
+                ind.textContent = `${p.type === 'human' ? 'YOUR' : "CPU'S"} TURN (Score: ${p.score})`;
+                ind.style.color = p.color;
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                if(this.gameState === 'setup') return;
+
+                // Deck
+                this.drawCard(400, 150, '?', '#334155', '#fff');
+                // Discard
+                if(this.discard.length > 0) {
+                    this.drawCard(600, 150, this.discard[this.discard.length-1], '#ef4444', '#fff');
+                }
+
+                // Current Player's Rack ONLY (To avoid overlapping glitches)
+                const p = this.players[this.currentPlayer];
+                if(p) {
+                    const rx = this.width / 2;
+                    const ry = this.height - 150;
+
+                    // Highlight Area
+                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    ctx.beginPath();
+                    ctx.roundRect(rx - 450, ry - 100, 900, 200, 20);
+                    ctx.fill();
+
+                    // Display Name
+                    ctx.fillStyle = p.color;
+                    ctx.font = 'bold 24px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${p.type === 'human' ? 'YOU' : 'CPU'}: ${p.rack[0]} to ${p.rack[9]}?`, rx, ry - 120);
+
+                    p.rack.forEach((val, sIdx) => {
+                        const sx = rx + (sIdx - 4.5) * this.rackGap;
+                        const sy = ry;
+                        
+                        // Check if in correct relative order (green hint)
+                        let isGood = true;
+                        if(sIdx > 0 && val <= p.rack[sIdx-1]) isGood = false;
+                        if(sIdx < 9 && val >= p.rack[sIdx+1]) isGood = false;
+
+                        this.drawCard(sx, sy, val, isGood ? '#059669' : '#334155', '#fff', true);
+                        
+                        ctx.fillStyle = '#94a3b8';
+                        ctx.font = 'bold 12px Arial';
+                        ctx.fillText(sIdx + 1, sx, sy + 70);
+                    });
+                }
+
+                // Drawn Card
+                if(this.drawnCard) {
+                    this.drawCard(500, 350, this.drawnCard, varColor('--accent'), '#000', true);
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 16px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText("REPLACE A SLOT", 500, 430);
+                }
+            }
+
+            drawCard(x, y, val, color, text, active=true) {
+                const ctx = this.ctx;
+                ctx.save();
+                ctx.translate(x, y);
+                
+                // Shadow
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                
+                ctx.fillStyle = color;
+                if(!active) ctx.globalAlpha = 0.3;
+                
+                ctx.beginPath();
+                ctx.roundRect(-35, -50, 70, 100, 10);
+                ctx.fill();
+                
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = text;
+                ctx.font = 'bold 24px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(val, 0, 0);
+                
+                ctx.restore();
+            }
+
+            loop() {
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        function varColor(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        }
+
+        const game = new Racko();
+    </script>
+</body>
+</html>

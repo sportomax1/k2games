@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hoops Elite: 3D Arcade - K4 Games</title>
+    <style>
+        :root {
+            --bg: #111;
+            --accent: #f59e0b;
+            --primary: #3b82f6;
+            --text: #fff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            background: #000;
+            overflow: hidden;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* UI Overlays */
+        #hud {
+            position: absolute;
+            top: 0; left: 0; width: 100%;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            z-index: 100;
+        }
+
+        .scoreboard {
+            display: flex;
+            gap: 40px;
+            background: rgba(0,0,0,0.6);
+            border: 2px solid rgba(255,255,255,0.1);
+            padding: 15px 40px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+        }
+
+        .team-score { text-align: center; }
+        .score-val { font-size: 3.5rem; font-weight: 900; line-height: 1; font-family: 'Impact', sans-serif; }
+        .team-name { font-size: 0.9rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 2px; }
+        
+        .timer-box {
+            text-align: center;
+            background: #222;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .timer-val { font-size: 2rem; font-family: monospace; font-weight: bold; color: #f59e0b; }
+        .quarter { font-size: 0.8rem; text-transform: uppercase; color: #888; }
+
+        /* Controls / Shot Meter */
+        #shot-meter-container {
+            position: absolute;
+            bottom: 40px; right: 40px;
+            width: 30px; height: 200px;
+            background: rgba(0,0,0,0.5);
+            border: 2px solid white;
+            border-radius: 15px;
+            overflow: hidden;
+            display: none;
+        }
+        #shot-meter-fill {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 0%;
+            background: linear-gradient(to top, #22c55e, #eab308, #ef4444);
+        }
+        #shot-meter-target {
+            position: absolute; bottom: 70%; left: 0; width: 100%; height: 4px;
+            background: white; z-index: 10;
+        }
+
+        .controls-hint {
+            position: absolute; bottom: 30px; left: 30px;
+            color: rgba(255,255,255,0.6); font-size: 0.9rem;
+        }
+
+        .back-link {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(255,255,255,0.1); padding: 8px 16px;
+            border-radius: 8px; color: white; text-decoration: none;
+            font-weight: bold; pointer-events: auto; z-index: 1000;
+        }
+
+        #overlay {
+            position: absolute; inset: 0;
+            background: rgba(0,0,0,0.85);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 2000; backdrop-filter: blur(5px);
+        }
+        .btn {
+            background: var(--primary); color: white; border: none;
+            padding: 15px 40px; font-size: 1.5rem; font-weight: 900;
+            border-radius: 50px; cursor: pointer; text-transform: uppercase;
+            transition: transform 0.2s; margin-top: 30px;
+        }
+        .btn:hover { transform: scale(1.05); filter: brightness(1.1); }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="hud">
+            <a href="index.html" class="back-link">← HUB</a>
+            <div class="scoreboard">
+                <div class="team-score">
+                    <div class="team-name">Player</div>
+                    <div id="p-score" class="score-val" style="color: #60a5fa;">0</div>
+                </div>
+                <div class="timer-box">
+                    <div id="timer" class="timer-val">2:00</div>
+                    <div id="quarter" class="quarter">1st QTR</div>
+                </div>
+                <div class="team-score">
+                    <div class="team-name">CPU</div>
+                    <div id="ai-score" class="score-val" style="color: #f87171;">0</div>
+                </div>
+            </div>
+            <div style="width: 80px;"></div> <!-- Spacer -->
+        </div>
+
+        <div id="shot-meter-container">
+            <div id="shot-meter-target"></div>
+            <div id="shot-meter-fill"></div>
+        </div>
+
+        <div class="controls-hint">
+            WASD: Move • SPACE (Hold): Shoot • SHIFT: Sprint • F: Steal/Block
+        </div>
+
+        <div id="overlay">
+            <h1 id="overlay-title" style="font-size: 4rem; font-style: italic; color: var(--accent); margin-bottom: 10px;">HOOPS ELITE</h1>
+            <p id="overlay-msg" style="opacity: 0.8; margin-bottom: 20px;">1v1 Arcade Basketball</p>
+            <button class="btn" onclick="window.game.startMatch()">TIP OFF</button>
+        </div>
+    </div>
+
+    <script>
+        class HoopsGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize();
+                
+                this.state = 'menu';
+                this.quarter = 1;
+                this.time = 120;
+                this.score = { p: 0, ai: 0 };
+                
+                this.court = { w: 800, d: 600 };
+                this.hoop = { x: 0, y: 280, z: 520, r: 25 };
+                this.gravity = 0.8;
+                
+                this.player = { x: 0, z: -200, y: 0, vx: 0, vz: 0, vy: 0, color: '#3b82f6', hasBall: true };
+                this.ai = { x: 0, z: 100, y: 0, vx: 0, vz: 0, vy: 0, color: '#ef4444', hasBall: false };
+                this.ball = { x: 0, z: -200, y: 60, vx: 0, vz: 0, vy: 0, owner: 'player', state: 'held' };
+                
+                this.chargingShot = false;
+                this.shotPower = 0;
+                this.keys = {};
+                this.cam = { x: 0, y: 300, z: -700 };
+
+                this.setupInputs();
+                window.addEventListener('resize', () => this.resize());
+                
+                // Start Loop
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            setupInputs() {
+                window.onkeydown = (e) => {
+                    this.keys[e.code] = true;
+                    if(e.code === 'Space' && this.state === 'playing' && this.ball.owner === 'player') {
+                        this.chargingShot = true;
+                        this.shotPower = 0;
+                        document.getElementById('shot-meter-container').style.display = 'block';
+                    }
+                    if(e.code === 'KeyF' && this.state === 'playing') this.attemptSteal();
+                };
+                window.onkeyup = (e) => {
+                    this.keys[e.code] = false;
+                    if(e.code === 'Space' && this.chargingShot) this.releaseShot();
+                };
+            }
+
+            startMatch() {
+                document.getElementById('overlay').style.display = 'none';
+                this.state = 'playing';
+                this.score = { p: 0, ai: 0 };
+                this.time = 120;
+                this.resetPositions();
+            }
+
+            resetPositions() {
+                this.player.x = 0; this.player.z = -200; this.player.hasBall = true;
+                this.ai.x = 0; this.ai.z = 100; this.ai.hasBall = false;
+                this.ball.owner = 'player'; this.ball.state = 'held';
+            }
+
+            attemptSteal() {
+                if (!this.player.hasBall && Math.hypot(this.player.x - this.ai.x, this.player.z - this.ai.z) < 50) {
+                    this.ball.owner = 'player'; this.ball.state = 'held';
+                    this.player.hasBall = true; this.ai.hasBall = false;
+                }
+            }
+
+            releaseShot() {
+                this.chargingShot = false;
+                document.getElementById('shot-meter-container').style.display = 'none';
+                const perfect = 70;
+                const accuracy = 100 - Math.abs(this.shotPower - perfect);
+                const dist = Math.hypot(0 - this.player.x, 520 - this.player.z);
+                const angle = Math.atan2(520 - this.player.z, 0 - this.player.x);
+                
+                this.ball.state = 'air'; this.ball.owner = null; this.player.hasBall = false;
+                this.ball.vx = Math.cos(angle) * (dist/60);
+                this.ball.vz = Math.sin(angle) * (dist/60);
+                this.ball.vy = 12 + (dist/100) + (accuracy > 80 ? 0 : (Math.random()-0.5)*4);
+            }
+
+            update() {
+                if (this.state !== 'playing') return;
+                this.time -= 1/60;
+                if (this.time <= 0) this.endGame();
+
+                // Player
+                const speed = this.keys['ShiftLeft'] ? 6 : 3.5;
+                if (this.keys['KeyW']) this.player.z += speed;
+                if (this.keys['KeyS']) this.player.z -= speed;
+                if (this.keys['KeyA']) this.player.x -= speed;
+                if (this.keys['KeyD']) this.player.x += speed;
+                this.constrain(this.player);
+
+                // AI (Simple)
+                if (this.ai.hasBall) {
+                    const dist = Math.hypot(0 - this.ai.x, 520 - this.ai.z);
+                    if (dist < 200) { if(Math.random() < 0.02) this.aiShoot(); }
+                    else {
+                        const angle = Math.atan2(520 - this.ai.z, 0 - this.ai.x);
+                        this.ai.x += Math.cos(angle) * 3; this.ai.z += Math.sin(angle) * 3;
+                    }
+                } else if (this.player.hasBall) {
+                    const angle = Math.atan2(this.player.z - this.ai.z, this.player.x - this.ai.x);
+                    this.ai.x += Math.cos(angle) * 3; this.ai.z += Math.sin(angle) * 3;
+                }
+                this.constrain(this.ai);
+
+                // Ball
+                if (this.ball.state === 'held') {
+                    const h = this.ball.owner === 'player' ? this.player : this.ai;
+                    this.ball.x = h.x + (h === this.player ? 20 : -20);
+                    this.ball.z = h.z;
+                    this.ball.y = Math.abs(Math.sin(Date.now()/150))*40 + 10;
+                } else {
+                    this.ball.x += this.ball.vx; this.ball.z += this.ball.vz; this.ball.y += this.ball.vy;
+                    this.ball.vy -= this.gravity;
+                    if(this.ball.y < 0) { this.ball.y = 0; this.ball.vy *= -0.6; this.ball.state = 'bounce'; }
+                    this.checkHoop();
+                }
+
+                if (this.chargingShot) {
+                    this.shotPower = (this.shotPower + 2) % 100;
+                    document.getElementById('shot-meter-fill').style.height = this.shotPower + '%';
+                }
+                this.updateUI();
+            }
+
+            aiShoot() {
+                this.ball.state = 'air'; this.ball.owner = null; this.ai.hasBall = false;
+                const dist = Math.hypot(0 - this.ai.x, 520 - this.ai.z);
+                const angle = Math.atan2(520 - this.ai.z, 0 - this.ai.x);
+                this.ball.vx = Math.cos(angle) * (dist/60);
+                this.ball.vz = Math.sin(angle) * (dist/60);
+                this.ball.vy = 12 + (dist/100);
+            }
+
+            checkHoop() {
+                if (Math.abs(this.ball.y - 280) < 15 && Math.hypot(this.ball.x, this.ball.z - 520) < 30 && this.ball.vy < 0) {
+                    this.score[this.player.hasBall ? 'ai' : 'p'] += 2; // Rough attribution
+                    this.ball.y = 0; this.ball.state = 'bounce';
+                }
+            }
+
+            constrain(e) {
+                e.x = Math.max(-350, Math.min(350, e.x));
+                e.z = Math.max(-500, Math.min(500, e.z));
+            }
+
+            updateUI() {
+                document.getElementById('p-score').textContent = this.score.p;
+                document.getElementById('ai-score').textContent = this.score.ai;
+                const m = Math.floor(Math.max(0, this.time)/60), s = Math.floor(Math.max(0, this.time)%60).toString().padStart(2,'0');
+                document.getElementById('timer').textContent = `${m}:${s}`;
+            }
+
+            endGame() {
+                this.state = 'over';
+                document.getElementById('overlay').style.display = 'flex';
+                document.getElementById('overlay-title').textContent = this.score.p > this.score.ai ? "YOU WIN!" : "CPU WINS";
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(this.loop);
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                const w = this.canvas.width, h = this.canvas.height;
+                ctx.fillStyle = '#111'; ctx.fillRect(0,0,w,h);
+
+                const project = (x, y, z) => {
+                    const scale = 1000 / (1000 + (z - this.cam.z));
+                    return { x: w/2 + (x - this.cam.x) * scale, y: h/2 - (y - this.cam.y) * scale, s: scale };
+                };
+
+                // Floor
+                const f1 = project(-380, 0, -550), f2 = project(380, 0, -550), f3 = project(380, 0, 550), f4 = project(-380, 0, 550);
+                ctx.fillStyle = '#d97706'; ctx.beginPath(); ctx.moveTo(f1.x, f1.y); ctx.lineTo(f2.x, f2.y); ctx.lineTo(f3.x, f3.y); ctx.lineTo(f4.x, f4.y); ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.stroke();
+
+                // Sort and Draw
+                const entities = [
+                    { t: 'p', z: this.player.z, obj: this.player },
+                    { t: 'ai', z: this.ai.z, obj: this.ai },
+                    { t: 'b', z: this.ball.z, obj: this.ball },
+                    { t: 'h', z: 520 }
+                ].sort((a,b) => b.z - a.z);
+
+                entities.forEach(e => {
+                    if (e.t === 'h') this.drawHoop(ctx, project);
+                    else if (e.t === 'p' || e.t === 'ai') this.drawGuy(ctx, project, e.obj, e.t === 'p' ? '#3b82f6' : '#ef4444');
+                    else if (e.t === 'b') this.drawBall(ctx, project, e.obj);
+                });
+            }
+
+            drawGuy(ctx, project, obj, color) {
+                const p = project(obj.x, obj.y, obj.z);
+                const h = 100 * p.s, w = 40 * p.s;
+                ctx.fillStyle = color; ctx.fillRect(p.x - w/2, p.y - h, w, h);
+                ctx.fillStyle = '#fecaca'; ctx.beginPath(); ctx.arc(p.x, p.y - h - 15*p.s, 15*p.s, 0, Math.PI*2); ctx.fill();
+            }
+
+            drawBall(ctx, project, b) {
+                const p = project(b.x, b.y, b.z);
+                const r = 12 * p.s;
+                ctx.fillStyle = '#ea580c'; ctx.beginPath(); ctx.arc(p.x, p.y - r, r, 0, Math.PI*2); ctx.fill();
+            }
+
+            drawHoop(ctx, project) {
+                const rim = project(0, 280, 520), board = project(0, 320, 550);
+                ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(board.x - 60*board.s, board.y - 40*board.s, 120*board.s, 80*board.s);
+                ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 5 * rim.s;
+                ctx.beginPath(); ctx.ellipse(rim.x, rim.y, 25*rim.s, 8*rim.s, 0, 0, Math.PI*2); ctx.stroke();
+            }
+        }
+
+        window.onload = () => { window.game = new HoopsGame(); };
+    </script>
+</body>
+</html>

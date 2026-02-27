@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Darts Pro: Pass & Play - K4 Games</title>
+    <style>
+        :root {
+            --board-green: #2e7d32;
+            --board-red: #c62828;
+            --board-black: #1a1a1a;
+            --board-white: #eeeeee;
+            --gold: #d4af37;
+        }
+
+        body {
+            margin: 0;
+            background: #121212;
+            color: #fff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        #ui-top {
+            width: 100%;
+            padding: 15px;
+            display: flex;
+            justify-content: space-around;
+            background: rgba(0,0,0,0.5);
+            border-bottom: 2px solid #333;
+            z-index: 10;
+        }
+
+        .player-info {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            min-width: 120px;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .player-info.active {
+            background: rgba(255,255,255,0.1);
+            border-color: var(--gold);
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+        }
+
+        .score-val { font-size: 2rem; font-weight: bold; }
+        .dart-icons { font-size: 1.2rem; color: var(--gold); }
+
+        #board-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            position: relative;
+        }
+
+        canvas {
+            max-width: 95vw;
+            max-height: 75vh;
+            filter: drop-shadow(0 20px 40px rgba(0,0,0,0.8));
+        }
+
+        #feedback {
+            position: absolute;
+            top: 20%;
+            font-size: 3rem;
+            font-weight: 900;
+            color: var(--gold);
+            text-shadow: 0 0 20px #000;
+            pointer-events: none;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #feedback.show { opacity: 1; transform: scale(1.2); }
+
+        #controls-hint {
+            padding: 15px;
+            color: #888;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        .turn-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .turn-overlay h1 { font-size: 3rem; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<div id="ui-top">
+    <div id="p1-info" class="player-info active">
+        <div>PLAYER 1</div>
+        <div id="p1-score" class="score-val">301</div>
+        <div id="p1-darts" class="dart-icons">🎯🎯🎯</div>
+    </div>
+    <div id="p2-info" class="player-info">
+        <div>PLAYER 2</div>
+        <div id="p2-score" class="score-val">301</div>
+        <div id="p2-darts" class="dart-icons">🎯🎯🎯</div>
+    </div>
+</div>
+
+<div id="board-container">
+    <canvas id="dartCanvas"></canvas>
+    <div id="feedback">TRIPLE 20!</div>
+</div>
+
+<div id="controls-hint">
+    Drag/Swipe UP quickly to throw • Arrow Keys to aim + Space to throw
+</div>
+
+<div id="turn-overlay" class="turn-overlay">
+    <h1 id="next-player-name">PLAYER 2 TURN</h1>
+    <p>Hand the device to the next player</p>
+    <button style="padding: 15px 40px; font-size: 1.5rem; cursor: pointer; background: #444; color: white; border: none; border-radius: 8px;" onclick="startNextTurn()">READY</button>
+</div>
+
+<script>
+    const canvas = document.getElementById('dartCanvas');
+    const ctx = canvas.getContext('2d');
+    const feedbackEl = document.getElementById('feedback');
+
+    // Game Config
+    const START_SCORE = 301;
+    let gameState = {
+        players: [
+            { id: 1, score: START_SCORE, darts: 3, totalThrows: 0 },
+            { id: 2, score: START_SCORE, darts: 3, totalThrows: 0 }
+        ],
+        activePlayerIdx: 0,
+        thrownDarts: [], // {x, y, color, playerIdx}
+        isAnimating: false,
+        crosshair: { x: 0, y: 0, active: false }
+    };
+
+    let width, height, centerX, centerY, boardRadius;
+    const SEGMENTS = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+
+    function resize() {
+        const size = Math.min(window.innerWidth * 0.95, window.innerHeight * 0.7, 600);
+        canvas.width = size;
+        canvas.height = size;
+        width = canvas.width;
+        height = canvas.height;
+        centerX = width / 2;
+        centerY = height / 2;
+        boardRadius = size * 0.42;
+        gameState.crosshair.x = centerX;
+        gameState.crosshair.y = centerY;
+        draw();
+    }
+
+    function drawBoard() {
+        // Shadow/Backing
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, boardRadius * 1.05, 0, Math.PI * 2);
+        ctx.fill();
+
+        const ratios = {
+            double: 1.0,
+            doubleInner: 0.93,
+            triple: 0.62,
+            tripleInner: 0.55,
+            outerBull: 0.12,
+            bull: 0.05
+        };
+
+        for (let i = 0; i < 20; i++) {
+            const angleStart = (i * 18 - 9 - 90) * Math.PI / 180;
+            const angleEnd = ((i + 1) * 18 - 9 - 90) * Math.PI / 180;
+            const isEven = i % 2 === 0;
+            
+            // Slice colors
+            const sliceColor = isEven ? '#1a1a1a' : '#eeeeee';
+            const ringColor = isEven ? '#c62828' : '#2e7d32';
+
+            // Main segment
+            ctx.fillStyle = sliceColor;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, boardRadius * ratios.doubleInner, angleStart, angleEnd);
+            ctx.fill();
+
+            // Double Ring
+            ctx.fillStyle = ringColor;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, boardRadius, angleStart, angleEnd);
+            ctx.arc(centerX, centerY, boardRadius * ratios.doubleInner, angleEnd, angleStart, true);
+            ctx.fill();
+
+            // Triple Ring
+            ctx.fillStyle = ringColor;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, boardRadius * ratios.triple, angleStart, angleEnd);
+            ctx.arc(centerX, centerY, boardRadius * ratios.tripleInner, angleEnd, angleStart, true);
+            ctx.fill();
+
+            // Wire Lines
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(centerX + Math.cos(angleStart) * boardRadius, centerY + Math.sin(angleStart) * boardRadius);
+            ctx.stroke();
+
+            // Numbers
+            ctx.fillStyle = "#fff";
+            ctx.font = `bold ${boardRadius * 0.1}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const numAngle = (i * 18 - 90) * Math.PI / 180;
+            const nx = centerX + Math.cos(numAngle) * (boardRadius * 1.12);
+            const ny = centerY + Math.sin(numAngle) * (boardRadius * 1.12);
+            ctx.fillText(SEGMENTS[i], nx, ny);
+        }
+
+        // Bullseyes
+        ctx.fillStyle = '#2e7d32';
+        ctx.beginPath(); ctx.arc(centerX, centerY, boardRadius * ratios.outerBull, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#c62828';
+        ctx.beginPath(); ctx.arc(centerX, centerY, boardRadius * ratios.bull, 0, Math.PI * 2); ctx.fill();
+        
+        // Wire Rings
+        ctx.strokeStyle = '#ccc';
+        ctx.beginPath(); ctx.arc(centerX, centerY, boardRadius * ratios.triple, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(centerX, centerY, boardRadius * ratios.doubleInner, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, width, height);
+        drawBoard();
+
+        // Thrown Darts
+        gameState.thrownDarts.forEach(dart => {
+            drawDart(dart.x, dart.y, dart.playerIdx === 0 ? '#ffeb3b' : '#03a9f4', 0.8);
+        });
+
+        // Crosshair
+        if (gameState.crosshair.active && !gameState.isAnimating) {
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+            const {x, y} = gameState.crosshair;
+            ctx.beginPath();
+            ctx.moveTo(x - 15, y); ctx.lineTo(x + 15, y);
+            ctx.moveTo(x, y - 15); ctx.lineTo(x, y + 15);
+            ctx.stroke();
+            ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI*2); ctx.stroke();
+        }
+    }
+
+    function drawDart(x, y, color, scale) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
+        
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.beginPath(); ctx.arc(5, 5, 8, 0, Math.PI*2); ctx.fill();
+
+        // Dart Body (Brass)
+        ctx.fillStyle = '#b8860b';
+        ctx.fillRect(-4, -15, 8, 30);
+        
+        // Flights (Plastic)
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(-4, -15); ctx.lineTo(-12, -35); ctx.lineTo(12, -35); ctx.lineTo(4, -15);
+        ctx.fill();
+        
+        // Tip (Steel)
+        ctx.fillStyle = '#555';
+        ctx.beginPath(); ctx.arc(0, 15, 3, 0, Math.PI*2); ctx.fill();
+        
+        ctx.restore();
+    }
+
+    function calculateScore(x, y) {
+        const dx = x - centerX;
+        const dy = y - centerY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const ratio = dist / boardRadius;
+
+        if (ratio > 1.0) return { val: 0, text: "MISS" };
+        if (ratio < 0.05) return { val: 50, text: "BULLSEYE!" };
+        if (ratio < 0.12) return { val: 25, text: "OUTER BULL" };
+
+        let angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+        if (angle < 0) angle += 360;
+        let segIdx = Math.floor((angle + 9) / 18) % 20;
+        let base = SEGMENTS[segIdx];
+
+        if (ratio >= 0.93) return { val: base * 2, text: `DOUBLE ${base}` };
+        if (ratio >= 0.55 && ratio <= 0.62) return { val: base * 3, text: `TRIPLE ${base}` };
+        return { val: base, text: `${base}` };
+    }
+
+    function throwDart(tx, ty) {
+        if (gameState.isAnimating || gameState.players[gameState.activePlayerIdx].darts <= 0) return;
+        
+        gameState.isAnimating = true;
+        gameState.crosshair.active = false;
+        
+        // Animation Variables
+        const startX = width / 2;
+        const startY = height + 100;
+        const startTime = performance.now();
+        const duration = 600;
+
+        function animate(time) {
+            const elapsed = time - startTime;
+            const t = Math.min(elapsed / duration, 1);
+            
+            // Parabolic ease
+            const easeT = 1 - Math.pow(1 - t, 3);
+            const x = startX + (tx - startX) * easeT;
+            const y = startY + (ty - startY) * easeT;
+            const scale = 3 - (easeT * 2.2); // Start big, end small
+
+            draw();
+            drawDart(x, y, gameState.activePlayerIdx === 0 ? '#ffeb3b' : '#03a9f4', scale);
+
+            if (t < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                finalizeThrow(tx, ty);
+            }
+        }
+        requestAnimationFrame(animate);
+    }
+
+    function finalizeThrow(x, y) {
+        const result = calculateScore(x, y);
+        const player = gameState.players[gameState.activePlayerIdx];
+        
+        // Subtract score, check for bust
+        if (player.score - result.val < 0) {
+            showFeedback("BUST!", "#ff3d00");
+            player.darts = 0; // End turn
+        } else {
+            player.score -= result.val;
+            showFeedback(result.text, result.val > 40 ? "#ffeb3b" : "#fff");
+            player.darts--;
+        }
+
+        gameState.thrownDarts.push({ x, y, playerIdx: gameState.activePlayerIdx });
+        gameState.isAnimating = false;
+        updateUI();
+
+        if (player.score === 0) {
+            alert(`PLAYER ${player.id} WINS!`);
+            location.reload();
+            return;
+        }
+
+        if (player.darts === 0) {
+            setTimeout(nextTurn, 1000);
+        }
+    }
+
+    function showFeedback(text, color) {
+        feedbackEl.innerText = text;
+        feedbackEl.style.color = color;
+        feedbackEl.classList.add('show');
+        setTimeout(() => feedbackEl.classList.remove('show'), 800);
+    }
+
+    function updateUI() {
+        gameState.players.forEach((p, i) => {
+            document.getElementById(`p${p.id}-score`).innerText = p.score;
+            document.getElementById(`p${p.id}-darts`).innerText = "🎯".repeat(p.darts);
+            document.getElementById(`p${p.id}-info`).classList.toggle('active', i === gameState.activePlayerIdx);
+        });
+    }
+
+    function nextTurn() {
+        gameState.activePlayerIdx = (gameState.activePlayerIdx + 1) % 2;
+        gameState.thrownDarts = []; // Clear board for next player
+        document.getElementById('next-player-name').innerText = `PLAYER ${gameState.activePlayerIdx + 1} TURN`;
+        document.getElementById('turn-overlay').style.display = 'flex';
+        updateUI();
+        draw();
+    }
+
+    function startNextTurn() {
+        gameState.players[gameState.activePlayerIdx].darts = 3;
+        document.getElementById('turn-overlay').style.display = 'none';
+        updateUI();
+    }
+
+    // Controls Logic
+    let dragStart = null;
+    canvas.addEventListener('mousedown', e => {
+        dragStart = { x: e.offsetX, y: e.offsetY, time: Date.now() };
+    });
+
+    window.addEventListener('mouseup', e => {
+        if (!dragStart) return;
+        const rect = canvas.getBoundingClientRect();
+        const endX = e.clientX - rect.left;
+        const endY = e.clientY - rect.top;
+        const dt = Date.now() - dragStart.time;
+        
+        if (dragStart.y - endY > 30 && dt < 400) {
+            // It's a throw! Use end point as target
+            throwDart(endX, endY);
+        }
+        dragStart = null;
+    });
+
+    // Keyboard
+    window.addEventListener('keydown', e => {
+        if (gameState.isAnimating) return;
+        gameState.crosshair.active = true;
+        const step = 8;
+        if (e.key === 'ArrowLeft') gameState.crosshair.x -= step;
+        if (e.key === 'ArrowRight') gameState.crosshair.x += step;
+        if (e.key === 'ArrowUp') gameState.crosshair.y -= step;
+        if (e.key === 'ArrowDown') gameState.crosshair.y += step;
+        if (e.key === ' ' || e.key === 'Enter') {
+            throwDart(gameState.crosshair.x, gameState.crosshair.y);
+        }
+        draw();
+    });
+
+    // Touch
+    canvas.addEventListener('touchstart', e => {
+        const t = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        dragStart = { x: t.clientX - rect.left, y: t.clientY - rect.top, time: Date.now() };
+    });
+    canvas.addEventListener('touchend', e => {
+        const t = e.changedTouches[0];
+        const rect = canvas.getBoundingClientRect();
+        const endX = t.clientX - rect.left;
+        const endY = t.clientY - rect.top;
+        if (dragStart && dragStart.y - endY > 30) {
+            throwDart(endX, endY);
+        }
+        dragStart = null;
+    });
+
+    window.addEventListener('resize', resize);
+    resize();
+    updateUI();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gridiron Glory - K4 Games</title>
+    <style>
+        :root {
+            --field: #388e3c;
+            --field-lines: rgba(255, 255, 255, 0.8);
+            --offense: #1976d2;
+            --defense: #e53935;
+            --ball: #795548;
+            --gold: #fbc02d;
+            --bg: #1a1a2e;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: white;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar UI */
+        #sidebar {
+            width: 320px;
+            background: #ffffff;
+            color: #333;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+
+        .logo { font-size: 1.8rem; font-weight: 900; color: var(--offense); letter-spacing: -1px; }
+
+        .game-status {
+            background: #f8f9fa;
+            padding: 1.2rem;
+            border-radius: 12px;
+            border-left: 6px solid var(--offense);
+        }
+
+        .playbook {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+        }
+
+        .play-btn {
+            background: white;
+            border: 2px solid #eee;
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: left;
+            transition: 0.2s;
+        }
+        .play-btn:hover { border-color: var(--offense); background: #f0f7ff; }
+        .play-btn.selected { border-color: var(--offense); background: #e1f0ff; font-weight: bold; }
+        .play-type { font-size: 0.7rem; text-transform: uppercase; color: #666; margin-bottom: 4px; }
+
+        /* Main Game Area */
+        #main-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        #scoreboard {
+            height: 80px;
+            background: #222;
+            border-radius: 15px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            font-family: 'Courier New', Courier, monospace;
+            border: 2px solid #444;
+        }
+
+        .score-box { text-align: center; }
+        .score-val { font-size: 2.5rem; color: #ff4d4d; font-weight: bold; }
+        .score-label { font-size: 0.8rem; color: #aaa; text-transform: uppercase; }
+
+        canvas {
+            background: var(--field);
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            cursor: crosshair;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: #333; text-decoration: none;
+            background: white; padding: 8px 15px; border-radius: 8px; z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-weight: bold;
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.6);
+            display: flex; justify-content: center; align-items: center;
+            border-radius: 10px; font-size: 3rem; font-weight: 900;
+            text-shadow: 0 0 20px black; pointer-events: none; opacity: 0;
+            transition: 0.3s;
+        }
+        #overlay.show { opacity: 1; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <aside id="sidebar">
+        <div class="logo">GRIDIRON GLORY</div>
+        
+        <div class="game-status">
+            <div id="down-info" style="font-weight: 800; font-size: 1.1rem;">1st & 10</div>
+            <div id="ball-pos" style="font-size: 0.9rem; color: #666;">Ball on Own 20</div>
+        </div>
+
+        <div style="font-weight: bold; color: #666; font-size: 0.8rem; text-transform: uppercase;">Select Play</div>
+        <div class="playbook" id="playbook">
+            <div class="play-btn selected" onclick="selectPlay(0, this)">
+                <div class="play-type">Run</div>
+                <div>Inside Zone</div>
+            </div>
+            <div class="play-btn" onclick="selectPlay(1, this)">
+                <div class="play-type">Run</div>
+                <div>Outside Sweep</div>
+            </div>
+            <div class="play-btn" onclick="selectPlay(2, this)">
+                <div class="play-type">Pass</div>
+                <div>Quick Slant</div>
+            </div>
+            <div class="play-btn" onclick="selectPlay(3, this)">
+                <div class="play-type">Pass</div>
+                <div>Hail Mary</div>
+            </div>
+        </div>
+
+        <button id="snap-btn" style="background: var(--offense); color: white; border: none; padding: 15px; border-radius: 12px; font-weight: 800; cursor: pointer; margin-top: auto;" onclick="game.snap()">SNAP BALL (SPACE)</button>
+    </aside>
+
+    <main id="main-view">
+        <div id="scoreboard">
+            <div class="score-box"><div class="score-label">HOME</div><div id="score-home" class="score-val">00</div></div>
+            <div class="score-box" style="color: var(--gold); font-size: 1.5rem; font-weight: bold;">15:00<br><span style="font-size: 0.8rem;">Q1</span></div>
+            <div class="score-box"><div class="score-label">AWAY</div><div id="score-away" class="score-val">00</div></div>
+        </div>
+
+        <div style="position: relative;">
+            <canvas id="fieldCanvas"></canvas>
+            <div id="overlay">TOUCHDOWN!</div>
+        </div>
+    </main>
+
+    <script>
+        class FootballGame {
+            constructor() {
+                this.canvas = document.getElementById('fieldCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 1000;
+                this.height = 500;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                this.reset();
+                this.setupInput();
+                this.loop();
+            }
+
+            reset() {
+                this.offense = [];
+                this.defense = [];
+                this.ball = { x: 200, y: 250, carrier: null };
+                this.los = 200;
+                this.state = 'pre-snap';
+                this.setupPlayers();
+            }
+
+            setupPlayers() {
+                this.offense = [
+                    { x: this.los - 20, y: 250, role: 'QB' },
+                    { x: this.los - 60, y: 250, role: 'RB' },
+                    { x: this.los - 10, y: 100, role: 'WR' },
+                    { x: this.los - 10, y: 400, role: 'WR' }
+                ];
+                this.defense = [
+                    { x: this.los + 40, y: 250, role: 'LB' },
+                    { x: this.los + 40, y: 150, role: 'LB' },
+                    { x: this.los + 40, y: 350, role: 'LB' },
+                    { x: this.los + 100, y: 100, role: 'DB' },
+                    { x: this.los + 100, y: 400, role: 'DB' }
+                ];
+            }
+
+            setupInput() {
+                window.onkeydown = (e) => {
+                    if(e.code === 'Space') this.snap();
+                };
+            }
+
+            snap() {
+                if(this.state !== 'pre-snap') return;
+                this.state = 'live';
+                this.ball.carrier = this.offense[1]; // RB Handoff for demo
+            }
+
+            update() {
+                if(this.state !== 'live') return;
+
+                // Simple AI/Movement demo
+                this.offense.forEach(p => {
+                    if(p === this.ball.carrier) {
+                        p.x += 3;
+                        p.y += (Math.random() - 0.5) * 2;
+                    } else {
+                        p.x += 2;
+                    }
+                });
+
+                this.defense.forEach(d => {
+                    const target = this.ball.carrier || this.offense[0];
+                    const dx = target.x - d.x;
+                    const dy = target.y - d.y;
+                    const dist = Math.hypot(dx, dy);
+                    d.x += (dx/dist) * 2.2;
+                    d.y += (dy/dist) * 2.2;
+
+                    if(dist < 15) {
+                        this.state = 'tackled';
+                        setTimeout(() => this.reset(), 2000);
+                    }
+                });
+
+                if(this.ball.carrier.x > 950) {
+                    this.state = 'touchdown';
+                    this.showOverlay("TOUCHDOWN!");
+                    setTimeout(() => {
+                        this.reset();
+                        document.getElementById('overlay').classList.remove('show');
+                    }, 3000);
+                }
+            }
+
+            showOverlay(text) {
+                const el = document.getElementById('overlay');
+                el.textContent = text;
+                el.classList.add('show');
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0,0,this.width,this.height);
+
+                // Field Lines
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 2;
+                for(let i=0; i<=100; i+=10) {
+                    const x = i * 10;
+                    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, this.height); ctx.stroke();
+                }
+
+                // Players
+                this.offense.forEach(p => this.drawPlayer(p, '#1976d2'));
+                this.defense.forEach(d => this.drawPlayer(d, '#e53935'));
+
+                // Ball
+                const ballPos = this.ball.carrier || this.ball;
+                ctx.fillStyle = '#795548';
+                ctx.beginPath(); ctx.ellipse(ballPos.x+10, ballPos.y, 8, 5, 0, 0, Math.PI*2); ctx.fill();
+            }
+
+            drawPlayer(p, color) {
+                const ctx = this.ctx;
+                ctx.fillStyle = color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, 12, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        let game = new FootballGame();
+        function selectPlay(idx, el) {
+            document.querySelectorAll('.play-btn').forEach(b => b.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+    </script>
+</body>
+</html>

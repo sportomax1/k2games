@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNO Master</title>
+    <style>
+        body { font-family: sans-serif; background: #065f46; color: white; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; }
+        .hand { display: flex; gap: 10px; margin: 20px; flex-wrap: wrap; justify-content: center; }
+        .card { width: 70px; height: 105px; border-radius: 10px; border: 3px solid white; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; color: white; font-size: 1.4rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.2s; }
+        .card:hover { transform: translateY(-10px); }
+        .red { background: #ef4444; } .blue { background: #3b82f6; } .green { background: #10b981; } .yellow { background: #eab308; } .wild { background: #111; }
+        .center { display: flex; gap: 40px; align-items: center; margin: 30px 0; }
+        .deck { width: 70px; height: 105px; background: #064e3b; border: 3px dashed white; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 2rem; }
+        .status { font-size: 1.4rem; margin-bottom: 20px; text-shadow: 1px 1px 2px black; }
+        .back { text-decoration: none; color: #a7f3d0; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <h1>Classic UNO</h1>
+    <div class="status" id="status">CPU has 7 cards</div>
+    <div class="center">
+        <div class="deck" onclick="draw()">+</div>
+        <div id="discard"></div>
+    </div>
+    <div class="hand" id="hand"></div>
+    <div id="colorPicker" style="display:none; gap:10px; margin-top:20px">
+        <button onclick="pickColor('red')" style="background:#ef4444; width:40px; height:40px; border-radius:50%"></button>
+        <button onclick="pickColor('blue')" style="background:#3b82f6; width:40px; height:40px; border-radius:50%"></button>
+        <button onclick="pickColor('green')" style="background:#10b981; width:40px; height:40px; border-radius:50%"></button>
+        <button onclick="pickColor('yellow')" style="background:#eab308; width:40px; height:40px; border-radius:50%"></button>
+    </div>
+    <a href="index.html" class="back">← Back to Hub</a>
+
+    <script>
+        const colors = ['red', 'blue', 'green', 'yellow'];
+        const values = ['0','1','2','3','4','5','6','7','8','9','S','R','+2'];
+        let hand = [], cpu = 7, discard = null, turn = 'p', wildColor = null;
+
+        function createCard() {
+            if (Math.random() < 0.1) return { color: 'wild', val: Math.random() > 0.5 ? 'W' : '+4' };
+            return { color: colors[Math.floor(Math.random()*4)], val: values[Math.floor(Math.random()*values.length)] };
+        }
+
+        function init() {
+            hand = Array(7).fill().map(createCard);
+            discard = createCard();
+            while (discard.color === 'wild') discard = createCard();
+            render();
+        }
+
+        function draw() {
+            if (turn !== 'p') return;
+            hand.push(createCard());
+            turn = 'c'; setTimeout(cpuTurn, 1000);
+            render();
+        }
+
+        function play(i) {
+            if (turn !== 'p') return;
+            const card = hand[i];
+            const dc = wildColor || discard.color;
+            if (card.color === 'wild' || card.color === dc || card.val === discard.val) {
+                discard = card;
+                hand.splice(i, 1);
+                wildColor = null;
+                if (card.color === 'wild') {
+                    document.getElementById('colorPicker').style.display = 'flex';
+                    return;
+                }
+                if (card.val === 'S' || card.val === 'R') { /* skip turn stays p */ }
+                else if (card.val === '+2') { cpu += 2; }
+                else { turn = 'c'; setTimeout(cpuTurn, 1000); }
+                if (hand.length === 0) { alert("You Win!"); location.reload(); }
+                render();
+            }
+        }
+
+        function pickColor(c) {
+            wildColor = c;
+            document.getElementById('colorPicker').style.display = 'none';
+            turn = 'c'; setTimeout(cpuTurn, 1000);
+            render();
+        }
+
+        function cpuTurn() {
+            const dc = wildColor || discard.color;
+            if (Math.random() < 0.8) {
+                discard = createCard();
+                cpu--;
+                wildColor = null;
+                if (discard.color === 'wild') wildColor = colors[Math.floor(Math.random()*4)];
+                if (discard.val === '+2' || discard.val === '+4') { for(let i=0; i<(discard.val==='+2'?2:4); i++) hand.push(createCard()); }
+                if (cpu === 0) { alert("CPU Wins!"); location.reload(); }
+            } else { cpu++; }
+            turn = 'p';
+            render();
+        }
+
+        function render() {
+            const h = document.getElementById('hand');
+            h.innerHTML = '';
+            hand.forEach((c, i) => {
+                const div = document.createElement('div');
+                div.className = `card ${c.color}`;
+                div.textContent = c.val;
+                div.onclick = () => play(i);
+                h.appendChild(div);
+            });
+            const d = document.getElementById('discard');
+            d.innerHTML = `<div class="card ${wildColor || discard.color}">${discard.val}</div>`;
+            document.getElementById('status').textContent = `CPU has ${cpu} cards | ${turn==='p'?'Your Turn':"CPU Thinking..."}`;
+        }
+        init();
+    </script>
+</body>
+</html>

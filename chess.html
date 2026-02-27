@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Master</title>
+    <style>
+        :root { --light: #f0d9b5; --dark: #b58863; --highlight: #fde68a; }
+        body { font-family: sans-serif; background: #1e293b; color: white; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; }
+        .board { display: grid; grid-template-columns: repeat(8, 45px); grid-template-rows: repeat(8, 45px); border: 4px solid #334155; }
+        @media (min-width: 500px) { .board { grid-template-columns: repeat(8, 65px); grid-template-rows: repeat(8, 65px); } }
+        .square { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; cursor: pointer; }
+        .sq-light { background: var(--light); }
+        .sq-dark { background: var(--dark); }
+        .selected { background: #fbbf24 !important; }
+        .valid::after { content: ''; width: 20px; height: 20px; background: rgba(0,0,0,0.1); border-radius: 50%; }
+        .check { background: #ef4444 !important; }
+        .status { font-size: 1.5rem; margin: 15px 0; font-weight: bold; }
+        .back { text-decoration: none; color: #94a3b8; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Chess Master</h1>
+    <div class="status" id="status">White's Turn</div>
+    <div class="board" id="board"></div>
+    <div style="margin-top:20px">
+        <button onclick="init()">Reset Game</button>
+    </div>
+    <a href="index.html" class="back">← Back to Hub</a>
+
+    <script>
+        const symbols = {
+            r: '♜', n: '♞', b: '♝', q: '♛', k: '♚', p: '♟',
+            R: '♖', N: '♘', B: '♗', Q: '♕', K: '♔', P: '♙'
+        };
+        let board = [], turn = 'W', selected = null, validMoves = [];
+
+        function init() {
+            board = [
+                ['r','n','b','q','k','b','n','r'],
+                ['p','p','p','p','p','p','p','p'],
+                ...Array(4).fill().map(() => Array(8).fill(null)),
+                ['P','P','P','P','P','P','P','P'],
+                ['R','N','B','Q','K','B','N','R']
+            ];
+            turn = 'W'; selected = null; validMoves = [];
+            render();
+        }
+
+        function render() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const sq = document.createElement('div');
+                    sq.className = `square ${(r+c)%2===0 ? 'sq-light' : 'sq-dark'}`;
+                    const p = board[r][c];
+                    if (p) sq.textContent = symbols[p];
+                    if (selected?.r === r && selected?.c === c) sq.classList.add('selected');
+                    if (validMoves.some(m => m.r === r && m.c === c)) {
+                        sq.classList.add('valid');
+                        sq.onclick = () => move(selected.r, selected.c, r, c);
+                    } else if (p && ((turn==='W'&&p===p.toUpperCase()) || (turn==='B'&&p===p.toLowerCase()))) {
+                        sq.onclick = () => select(r, c);
+                    }
+                    boardEl.appendChild(sq);
+                }
+            }
+            document.getElementById('status').textContent = `${turn==='W'?'White':'Black'}'s Turn`;
+        }
+
+        function select(r, c) {
+            selected = { r, c };
+            validMoves = getMoves(r, c);
+            render();
+        }
+
+        function getMoves(r, c) {
+            const p = board[r][c].toLowerCase();
+            const isW = board[r][c] === board[r][c].toUpperCase();
+            let moves = [];
+            
+            const dirs = {
+                r: [[0,1],[0,-1],[1,0],[-1,0]],
+                b: [[1,1],[1,-1],[-1,1],[-1,-1]],
+                n: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]],
+                q: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]],
+                k: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]]
+            };
+
+            if (p === 'p') {
+                const f = isW ? -1 : 1;
+                if (!board[r+f][c]) {
+                    moves.push({r:r+f, c:c});
+                    if ((isW&&r===6 || !isW&&r===1) && !board[r+2*f][c]) moves.push({r:r+2*f, c:c});
+                }
+                for (let dc of [-1, 1]) {
+                    let target = board[r+f][c+dc];
+                    if (target && ((isW && target===target.toLowerCase()) || (!isW && target===target.toUpperCase()))) moves.push({r:r+f, c:c+dc});
+                }
+            } else if (dirs[p]) {
+                const sliding = ['r', 'b', 'q'].includes(p);
+                for (let [dr, dc] of dirs[p]) {
+                    let nr = r + dr, nc = c + dc;
+                    while (nr>=0 && nr<8 && nc>=0 && nc<8) {
+                        let target = board[nr][nc];
+                        if (!target) {
+                            moves.push({r:nr, c:nc});
+                            if (!sliding) break;
+                        } else {
+                            if ((isW && target===target.toLowerCase()) || (!isW && target===target.toUpperCase())) moves.push({r:nr, c:nc});
+                            break;
+                        }
+                        nr += dr; nc += dc;
+                    }
+                }
+            }
+            return moves;
+        }
+
+        function move(fr, fc, tr, tc) {
+            board[tr][tc] = board[fr][fc];
+            board[fr][fc] = null;
+            if (board[tr][tc].toLowerCase() === 'p' && (tr === 0 || tr === 7)) board[tr][tc] = turn === 'W' ? 'Q' : 'q';
+            turn = turn === 'W' ? 'B' : 'W';
+            selected = null; validMoves = [];
+            render();
+        }
+
+        init();
+    </script>
+</body>
+</html>

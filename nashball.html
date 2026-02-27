@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nash Ball Elite - K4 Games</title>
+    <style>
+        :root {
+            --primary: #1e3c72;
+            --secondary: #2a5298;
+            --accent: #FFD700;
+            --text: #ffffff;
+            --panel: rgba(0, 0, 0, 0.4);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        #game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            font-style: italic;
+            font-weight: 900;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 12px 24px; border-radius: 12px; z-index: 1000;
+            font-weight: bold; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);
+            transition: 0.2s;
+        }
+        .back-link:hover { background: rgba(255,255,255,0.2); transform: translateY(-2px); }
+
+        /* Selection Screen */
+        #selection-screen {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            width: 100%;
+            padding: 20px;
+        }
+
+        .player-card {
+            background: var(--panel);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(10px);
+        }
+        .player-card:hover { transform: translateY(-10px); border-color: var(--accent); background: rgba(255,255,255,0.05); }
+        .player-card.active { border-color: var(--accent); box-shadow: 0 0 30px rgba(255, 215, 0, 0.2); }
+
+        .card-num { font-size: 4rem; font-weight: 900; opacity: 0.8; margin-bottom: 10px; }
+        .card-name { font-size: 1.5rem; font-weight: 800; }
+        .card-team { font-size: 1rem; opacity: 0.6; margin-bottom: 15px; }
+
+        /* Game Layout */
+        #game-layout {
+            display: none; /* Shown after selection */
+            gap: 30px;
+            width: 100%;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        #stats-panel {
+            width: 320px;
+            background: var(--panel);
+            border-radius: 20px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .stats-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            border-left: 4px solid var(--accent);
+        }
+        .stats-title { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); margin-bottom: 10px; font-weight: 800; }
+        .stats-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem; }
+        .stats-row span:last-child { font-weight: 800; }
+
+        canvas {
+            background: #2a5298;
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+            border: 4px solid #333;
+        }
+
+        .controls-hint {
+            margin-top: 20px;
+            background: var(--panel);
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        #overlay {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9);
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 2000; backdrop-filter: blur(10px);
+        }
+
+        .btn {
+            background: var(--accent); color: #000; border: none; padding: 15px 40px;
+            border-radius: 50px; font-weight: 900; cursor: pointer; font-size: 1.2rem;
+            margin-top: 20px; transition: 0.2s;
+        }
+        .btn:hover { transform: scale(1.05); filter: brightness(1.1); }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">🏠 HUB</a>
+
+    <div id="game-wrapper">
+        <h1 id="main-title">NASH BALL</h1>
+
+        <div id="selection-screen">
+            <!-- Populated by JS -->
+        </div>
+
+        <div id="game-layout">
+            <aside id="stats-panel">
+                <div id="player-header" style="text-align:center; margin-bottom:20px;">
+                    <div id="side-num" style="font-size:4rem; font-weight:900; color:var(--accent);">#30</div>
+                    <div id="side-name" style="font-size:1.5rem; font-weight:800;">Stephen Curry</div>
+                    <div id="side-team" style="font-size:0.9rem; opacity:0.6;">Golden State Warriors</div>
+                </div>
+
+                <div class="stats-section">
+                    <div class="stats-title">Current Game</div>
+                    <div class="stats-row"><span>Points</span><span id="game-points">0</span></div>
+                    <div class="stats-row"><span>Time</span><span id="game-timer">60s</span></div>
+                    <div class="stats-row"><span>Streak</span><span id="game-streak">0</span></div>
+                    <div class="stats-row"><span>Accuracy</span><span id="game-acc">0%</span></div>
+                </div>
+
+                <div id="career-stats-box"></div>
+
+                <button class="btn" style="width:100%; font-size:1rem;" onclick="location.reload()">Change Player</button>
+            </aside>
+
+            <main style="display:flex; flex-direction:column; align-items:center;">
+                <canvas id="gameCanvas" width="800" height="600"></canvas>
+                <div class="controls-hint">HOLD SPACE TO CHARGE • RELEASE TO SHOOT</div>
+            </main>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h1 style="color:var(--accent); font-size:4rem;">TIME'S UP!</h1>
+        <div id="final-stats" style="text-align:center; margin:20px 0; font-size:1.2rem;"></div>
+        <button class="btn" onclick="location.reload()">REMATCH</button>
+    </div>
+
+    <script>
+        const PLAYERS = [
+            { name: 'Stephen Curry', number: '30', team: 'Warriors', color: '#1D428A', jersey: '#FFC72C', stats: { pts: '22,500', thr: '3,500', pct: '42.8%', chips: 4, mvps: 2 } },
+            { name: 'Ray Allen', number: '34', team: 'Celtics', color: '#007A33', jersey: '#BA9653', stats: { pts: '24,505', thr: '2,973', pct: '40.0%', chips: 2, mvps: 0 } },
+            { name: 'Reggie Miller', number: '31', team: 'Pacers', color: '#002D62', jersey: '#FDBB30', stats: { pts: '25,279', thr: '2,560', pct: '39.5%', chips: 0, mvps: 0 } },
+            { name: 'Steve Nash', number: '13', team: 'Suns', color: '#1D1160', jersey: '#E56020', stats: { pts: '17,387', thr: '1,685', pct: '42.8%', chips: 0, mvps: 2 } },
+            { name: 'Larry Bird', number: '33', team: 'Celtics', color: '#007A33', jersey: '#BA9653', stats: { pts: '21,791', thr: '649', pct: '37.6%', chips: 3, mvps: 3 } },
+            { name: 'Peja Stojakovic', number: '16', team: 'Kings', color: '#5A2D81', jersey: '#63727A', stats: { pts: '13,647', thr: '1,760', pct: '40.1%', chips: 1, mvps: 0 } }
+        ];
+
+        class NashBall {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 800;
+                this.height = 600;
+
+                this.gameState = 'menu'; // menu, playing, over
+                this.player = null;
+                this.ball = { x: 150, y: 500, r: 15, vx: 0, vy: 0, active: false, shot: false };
+                this.rim = { x: 720, y: 320, r: 22 };
+                
+                this.meter = { val: 0, dir: 1, charging: false };
+                this.timer = 60;
+                this.score = 0;
+                this.shots = 0;
+                this.made = 0;
+                this.streak = 0;
+                this.particles = [];
+                this.keys = {};
+
+                this.init();
+            }
+
+            init() {
+                const screen = document.getElementById('selection-screen');
+                PLAYERS.forEach((p, i) => {
+                    const card = document.createElement('div');
+                    card.className = 'player-card';
+                    card.innerHTML = `
+                        <div class="card-num" style="color:${p.jersey}">#${p.number}</div>
+                        <div class="card-name">${p.name}</div>
+                        <div class="card-team">${p.team}</div>
+                    `;
+                    card.onclick = () => this.selectPlayer(i);
+                    screen.appendChild(card);
+                });
+
+                window.onkeydown = (e) => {
+                    this.keys[e.code] = true;
+                    if(e.code === 'Space' && !this.ball.active && this.gameState === 'playing') {
+                        this.meter.charging = true;
+                    }
+                };
+                window.onkeyup = (e) => {
+                    this.keys[e.code] = false;
+                    if(e.code === 'Space' && this.meter.charging) {
+                        this.shoot();
+                    }
+                };
+
+                this.loop();
+            }
+
+            selectPlayer(idx) {
+                this.player = PLAYERS[idx];
+                document.getElementById('selection-screen').style.display = 'none';
+                document.getElementById('game-layout').style.display = 'flex';
+                document.getElementById('main-title').textContent = `NASH BALL: ${this.player.name.toUpperCase()}`;
+                
+                // Update side panel
+                document.getElementById('side-num').textContent = `#${this.player.number}`;
+                document.getElementById('side-num').style.color = this.player.jersey;
+                document.getElementById('side-name').textContent = this.player.name;
+                document.getElementById('side-team').textContent = this.player.team;
+                
+                document.getElementById('career-stats-box').innerHTML = `
+                    <div class="stats-section">
+                        <div class="stats-title">Career Totals</div>
+                        <div class="stats-row"><span>Points</span><span>${this.player.stats.pts}</span></div>
+                        <div class="stats-row"><span>3PM</span><span>${this.player.stats.thr}</span></div>
+                        <div class="stats-row"><span>3P%</span><span>${this.player.stats.pct}</span></div>
+                    </div>
+                    <div class="stats-section">
+                        <div class="stats-title">Achievements</div>
+                        <div class="stats-row"><span>Championships</span><span>${this.player.stats.chips}</span></div>
+                        <div class="stats-row"><span>MVPs</span><span>${this.player.stats.mvps}</span></div>
+                    </div>
+                `;
+
+                this.gameState = 'playing';
+                this.startTimer();
+            }
+
+            startTimer() {
+                const tick = setInterval(() => {
+                    if(this.gameState === 'playing') {
+                        this.timer--;
+                        document.getElementById('game-timer').textContent = this.timer + 's';
+                        if(this.timer <= 0) {
+                            clearInterval(tick);
+                            this.endGame();
+                        }
+                    }
+                }, 1000);
+            }
+
+            shoot() {
+                this.meter.charging = false;
+                this.ball.active = true;
+                this.ball.shot = true;
+                this.shots++;
+
+                const power = 14 + (this.meter.val / 100) * 10;
+                const accuracy = 1 - Math.abs(50 - this.meter.val) / 50; // Sweet spot at 50%
+                this.ball.accuracy = accuracy;
+
+                // Physics target
+                const angle = -Math.PI / 3.5;
+                this.ball.vx = Math.cos(angle) * power;
+                this.ball.vy = Math.sin(angle) * power;
+
+                this.meter.val = 0;
+            }
+
+            update() {
+                if(this.gameState !== 'playing') return;
+
+                if(this.meter.charging) {
+                    this.meter.val += 2 * this.meter.dir;
+                    if(this.meter.val >= 100 || this.meter.val <= 0) this.meter.dir *= -1;
+                }
+
+                if(this.ball.active) {
+                    this.ball.vy += 0.45; // Gravity
+                    this.ball.x += this.ball.vx;
+                    this.ball.y += this.ball.vy;
+
+                    // Floor bounce
+                    if(this.ball.y > 550 - this.ball.r) {
+                        this.ball.y = 550 - this.ball.r;
+                        this.ball.vy *= -0.5;
+                        this.ball.vx *= 0.8;
+                        if(Math.abs(this.ball.vx) < 0.5) this.resetBall();
+                    }
+
+                    // Rim/Hoop collision
+                    this.checkHoop();
+                }
+
+                this.particles.forEach((p, i) => {
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+                    if(p.life <= 0) this.particles.splice(i, 1);
+                });
+
+                this.updateUI();
+            }
+
+            checkHoop() {
+                // Backboard
+                if(this.ball.x > 700 && this.ball.x < 720 && this.ball.y > 200 && this.ball.y < 400) {
+                    this.ball.vx *= -0.6;
+                    this.ball.x = 699;
+                }
+
+                // Rim
+                const dist = Math.hypot(this.ball.x - 680, this.ball.y - 320);
+                if(dist < this.ball.r + 5) {
+                    this.ball.vx *= -0.8;
+                    this.ball.vy *= -0.8;
+                }
+
+                // Goal center
+                if(this.ball.shot && this.ball.vy > 0 && this.ball.y > 320 && this.ball.y < 340 && this.ball.x > 680 && this.ball.x < 760) {
+                    if(Math.random() < (0.3 + this.ball.accuracy * 0.7)) {
+                        this.score += 2;
+                        this.made++;
+                        this.streak++;
+                        this.createConfetti();
+                    } else {
+                        this.streak = 0;
+                    }
+                    this.ball.shot = false;
+                }
+            }
+
+            createConfetti() {
+                for(let i=0; i<20; i++) {
+                    this.particles.push({
+                        x: 720, y: 330,
+                        vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10,
+                        life: 1.0, color: `hsl(${Math.random()*360}, 70%, 50%)`
+                    });
+                }
+            }
+
+            resetBall() {
+                this.ball.active = false;
+                this.ball.shot = false;
+                this.ball.x = 150;
+                this.ball.y = 500;
+                this.ball.vx = 0; this.ball.vy = 0;
+            }
+
+            updateUI() {
+                document.getElementById('game-points').textContent = this.score;
+                document.getElementById('game-streak').textContent = this.streak;
+                const acc = this.shots > 0 ? Math.round((this.made / this.shots) * 100) : 0;
+                document.getElementById('game-acc').textContent = acc + '%';
+            }
+
+            endGame() {
+                this.gameState = 'over';
+                const overlay = document.getElementById('overlay');
+                overlay.style.display = 'flex';
+                document.getElementById('final-stats').innerHTML = `
+                    Points: ${this.score}<br>
+                    Shots: ${this.made}/${this.shots}<br>
+                    Streak: ${this.streak}
+                `;
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Sky
+                ctx.fillStyle = '#87CEEB';
+                ctx.fillRect(0, 0, this.width, 550);
+
+                // Court
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillRect(0, 550, this.width, 50);
+
+                // Hoop Structure
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 10;
+                ctx.beginPath(); ctx.moveTo(780, 550); ctx.lineTo(780, 300); ctx.stroke(); // Pole
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(770, 250, 10, 100); // Backboard
+                ctx.strokeStyle = '#e67e22';
+                ctx.lineWidth = 6;
+                ctx.beginPath(); ctx.moveTo(680, 320); ctx.lineTo(770, 320); ctx.stroke(); // Rim
+
+                // Net
+                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                ctx.lineWidth = 2;
+                for(let i=0; i<5; i++) {
+                    ctx.beginPath(); ctx.moveTo(690 + i*18, 320); ctx.lineTo(700+i*18, 370); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(700 + i*18, 320); ctx.lineTo(690+i*18, 370); ctx.stroke();
+                }
+
+                // Player
+                if(this.player) {
+                    ctx.fillStyle = this.player.jersey;
+                    ctx.fillRect(135, 480, 30, 70);
+                    ctx.fillStyle = '#ffccaa';
+                    ctx.beginPath(); ctx.arc(150, 465, 15, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#000';
+                    ctx.font = 'bold 14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(this.player.number, 150, 510);
+                }
+
+                // Meter
+                if(this.meter.charging) {
+                    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                    ctx.fillRect(50, 100, 20, 200);
+                    const h = (this.meter.val / 100) * 200;
+                    ctx.fillStyle = this.meter.val > 40 && this.meter.val < 60 ? '#44FF44' : '#ef4444';
+                    ctx.fillRect(50, 300 - h, 20, h);
+                }
+
+                // Particles
+                this.particles.forEach(p => {
+                    ctx.globalAlpha = p.life;
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(p.x, p.y, 5, 5);
+                });
+                ctx.globalAlpha = 1;
+
+                // Ball
+                ctx.save();
+                ctx.translate(this.ball.x, this.ball.y);
+                ctx.rotate(this.ball.active ? this.ball.x / 20 : 0);
+                ctx.fillStyle = '#f39c12';
+                ctx.beginPath(); ctx.arc(0, 0, this.ball.r, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+                ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        window.onload = () => new NashBall();
+    </script>
+</body>
+</html>

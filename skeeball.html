@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Skee-Ball - K4 Games</title>
+    <style>
+        body {
+            margin: 0;
+            background: #111;
+            color: #fff;
+            font-family: 'Arial Black', sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            touch-action: none;
+        }
+        #ui {
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 400px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+        .stat { text-align: center; background: rgba(255,0,0,0.2); border: 2px solid red; padding: 5px 15px; border-radius: 5px; }
+        canvas {
+            flex-grow: 1;
+            max-width: 100%;
+            touch-action: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div class="stat">SCORE<br><span id="score">0</span></div>
+    <div class="stat">BALLS<br><span id="balls">9</span></div>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const ballsEl = document.getElementById('balls');
+
+    let width, height;
+    let score = 0;
+    let ballsLeft = 9;
+    let ball = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, active: false, radius: 15 };
+    let dragStart = null;
+    let holes = [];
+
+    function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Setup holes in 3D-ish space
+        const laneW = Math.min(width * 0.8, 400);
+        const centerX = width / 2;
+        
+        holes = [
+            { x: centerX, y: height * 0.2, r: 25, val: 100, color: '#f0f' },
+            { x: centerX - 60, y: height * 0.25, r: 25, val: 50, color: '#0ff' },
+            { x: centerX + 60, y: height * 0.25, r: 25, val: 50, color: '#0ff' },
+            { x: centerX, y: height * 0.35, r: 30, val: 40, color: '#0f0' },
+            { x: centerX, y: height * 0.5, r: 35, val: 30, color: '#ff0' },
+            { x: centerX, y: height * 0.65, r: 40, val: 20, color: '#f80' },
+            { x: centerX, y: height * 0.8, r: 45, val: 10, color: '#f00' }
+        ];
+
+        if (!ball.active) resetBall();
+    }
+
+    function resetBall() {
+        ball.active = false;
+        ball.x = width / 2;
+        ball.y = height - 100;
+        ball.z = 0;
+        ball.vx = 0;
+        ball.vy = 0;
+        ball.vz = 0;
+    }
+
+    function update() {
+        if (ball.active) {
+            ball.x += ball.vx;
+            ball.y += ball.vy;
+            ball.z += ball.vz;
+            
+            // Friction/Gravity simulation
+            ball.vx *= 0.98;
+            ball.vy *= 0.98;
+            ball.vz *= 0.98;
+
+            // Simple 3D projection effect
+            // As ball moves "up" (z increases or y decreases), it gets smaller
+            let scale = 1 - (ball.z * 0.005);
+            if (scale < 0.3) scale = 0.3;
+
+            // Check if ball fell into a hole
+            // Only check when velocity is low or at specific "depth"
+            if (ball.z > 50) {
+                for (let h of holes) {
+                    let dx = ball.x - h.x;
+                    let dy = ball.y - h.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < h.r) {
+                        score += h.val;
+                        ballsLeft--;
+                        scoreEl.innerText = score;
+                        ballsEl.innerText = ballsLeft;
+                        resetBall();
+                        checkEnd();
+                        return;
+                    }
+                }
+            }
+
+            // Boundary/Miss
+            if (ball.y < 0 || ball.z > 150) {
+                ballsLeft--;
+                ballsEl.innerText = ballsLeft;
+                resetBall();
+                checkEnd();
+            }
+        }
+    }
+
+    function checkEnd() {
+        if (ballsLeft <= 0) {
+            setTimeout(() => {
+                alert("Game Over! Final Score: " + score);
+                score = 0;
+                ballsLeft = 9;
+                scoreEl.innerText = score;
+                ballsEl.innerText = ballsLeft;
+            }, 100);
+        }
+    }
+
+    function draw() {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw Lane (Perspective)
+        const laneW = Math.min(width * 0.8, 400);
+        const centerX = width / 2;
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.moveTo(centerX - laneW/4, height * 0.1);
+        ctx.lineTo(centerX + laneW/4, height * 0.1);
+        ctx.lineTo(centerX + laneW/2, height);
+        ctx.lineTo(centerX - laneW/2, height);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 5;
+        ctx.stroke();
+
+        // Draw Holes
+        holes.forEach(h => {
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = h.color;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            ctx.fillStyle = h.color;
+            ctx.font = `${h.r * 0.8}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(h.val, h.x, h.y);
+        });
+
+        // Draw Ball
+        if (!ball.active || ball.z < 150) {
+            let scale = 1 - (ball.z * 0.005);
+            let r = ball.radius * scale;
+            
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.beginPath();
+            ctx.ellipse(ball.x, ball.y + r, r, r/3, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Ball body
+            let grad = ctx.createRadialGradient(ball.x - r/3, ball.y - r/3, r/10, ball.x, ball.y, r);
+            grad.addColorStop(0, '#fff');
+            grad.addColorStop(1, '#999');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        requestAnimationFrame(loop);
+    }
+
+    function loop() {
+        update();
+        draw();
+    }
+
+    // Input Handling
+    function onDown(x, y) {
+        if (ball.active) return;
+        dragStart = { x, y, time: Date.now() };
+    }
+
+    function onUp(x, y) {
+        if (!dragStart || ball.active) return;
+        
+        const dx = x - dragStart.x;
+        const dy = y - dragStart.y;
+        const dt = Date.now() - dragStart.time;
+        
+        if (dy < -20 && dt < 500) {
+            launch(dx * 0.1, dy * 0.15, Math.abs(dy) * 0.2);
+        }
+        dragStart = null;
+    }
+
+    function launch(vx, vy, vz) {
+        ball.active = true;
+        ball.vx = vx;
+        ball.vy = vy;
+        ball.vz = vz;
+    }
+
+    // Keyboard Controls
+    let keyPower = 0;
+    let keyCharging = false;
+
+    window.addEventListener('keydown', e => {
+        if (ball.active) return;
+        if (e.key === 'ArrowLeft') ball.x -= 10;
+        if (e.key === 'ArrowRight') ball.x += 10;
+        if (e.key === 'ArrowUp' && !keyCharging) {
+            keyCharging = true;
+            keyPower = 0;
+        }
+        // Boundaries for aim
+        const laneW = Math.min(width * 0.8, 400);
+        ball.x = Math.max(width/2 - laneW/2 + 20, Math.min(width/2 + laneW/2 - 20, ball.x));
+    });
+
+    window.addEventListener('keyup', e => {
+        if (e.key === 'ArrowUp' && keyCharging) {
+            const power = Math.min(10, 5 + keyPower);
+            launch(0, -power * 2.5, power * 3);
+            keyCharging = false;
+        }
+    });
+
+    // Simple charging logic in update or loop if needed, but release-based is fine
+    // Let's add power increment to loop
+    const originalUpdate = update;
+    update = function() {
+        if (keyCharging) keyPower += 0.2;
+        originalUpdate();
+    };
+
+    canvas.addEventListener('mousedown', e => onDown(e.clientX, e.clientY));
+    window.addEventListener('mouseup', e => onUp(e.clientX, e.clientY));
+    
+    canvas.addEventListener('touchstart', e => onDown(e.touches[0].clientX, e.touches[0].clientY));
+    canvas.addEventListener('touchend', e => {
+        const t = e.changedTouches[0];
+        onUp(t.clientX, t.clientY);
+    });
+
+    window.addEventListener('resize', resize);
+    resize();
+    loop();
+</script>
+</body>
+</html>

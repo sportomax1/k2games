@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real Life: Daily Drive - K4 Games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --sidebar: #1e293b;
+            --accent: #38bdf8;
+            --text: #f8fafc;
+            --house: #4caf50;
+            --work: #2196f3;
+            --gym: #f44336;
+            --church: #ffeb3b;
+            --store: #9c27b0;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar UI */
+        #sidebar {
+            width: 320px;
+            background: var(--sidebar);
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.2);
+            z-index: 50;
+            border-right: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .logo { font-size: 1.8rem; font-weight: 900; color: var(--accent); letter-spacing: -1px; }
+        
+        .schedule-container {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-right: 10px;
+        }
+
+        .schedule-item {
+            padding: 12px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.9rem;
+            transition: 0.3s;
+        }
+        .schedule-item.active {
+            background: rgba(56, 189, 248, 0.1);
+            border-color: var(--accent);
+            transform: scale(1.02);
+        }
+        .time-slot { font-weight: 800; color: var(--accent); margin-bottom: 4px; display: block; }
+        .location-name { font-weight: 600; }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 12px; z-index: 100;
+            font-weight: bold; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+        }
+
+        /* Main View */
+        #main-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+            position: relative;
+        }
+
+        #top-hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 0 20px;
+        }
+
+        .clock-card {
+            background: rgba(0,0,0,0.4);
+            padding: 15px 30px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 2rem;
+            font-weight: 900;
+            color: #fbbf24;
+            font-family: monospace;
+        }
+
+        #game-board-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        canvas {
+            background: #1e293b;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 8px solid #334155;
+        }
+
+        #status-toast {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            padding: 12px 30px; border-radius: 50px; font-weight: 800; font-size: 1.1rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2); transition: 0.3s;
+        }
+        .status-ontime { background: #059669; color: white; }
+        .status-late { background: #dc2626; color: white; }
+
+        .hint-bar {
+            text-align: center; color: rgba(255,255,255,0.3); font-size: 0.8rem;
+            margin-top: 1rem; text-transform: uppercase; letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <aside id="sidebar">
+        <div class="logo">REAL LIFE</div>
+        
+        <div style="font-size: 0.8rem; opacity: 0.6; margin-bottom: 10px;">DAILY SCHEDULE</div>
+        <div id="schedule-list" class="schedule-container"></div>
+
+        <div style="margin-top: auto; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 12px; font-size: 0.8rem; line-height: 1.5; color: #94a3b8;">
+            <b>HOW TO PLAY:</b><br>
+            Drive your car to the designated locations based on your schedule. Use <b>Arrow Keys</b> to navigate.
+        </div>
+    </aside>
+
+    <main id="main-view">
+        <div id="top-hud">
+            <div class="clock-card">
+                <span id="time-icon">☀️</span>
+                <span id="time-val">06:00 AM</span>
+            </div>
+            <div id="status-toast" class="status-ontime">✔ ON TIME</div>
+        </div>
+
+        <div id="game-board-container">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+
+        <div class="hint-bar">USE ARROW KEYS TO DRIVE THE CAR</div>
+    </main>
+
+    <script>
+        const LOCATIONS = [
+            { id: 'House', x: 1, y: 5, color: '#4caf50', icon: '🏠' },
+            { id: 'Work', x: 5, y: 1, color: '#2196f3', icon: '💼' },
+            { id: 'Gym', x: 5, y: 5, color: '#f44336', icon: '🏋️' },
+            { id: 'Church', x: 1, y: 1, color: '#ffeb3b', icon: '⛪' },
+            { id: 'Store', x: 3, y: 3, color: '#9c27b0', icon: '🛒' }
+        ];
+
+        const ROADS = [[0, 1], [0, 2], [0, 3], [0, 4], [1, 2], [1, 4], [2, 4], [3, 4], [3, 1]];
+
+        const SCHEDULE = [
+            { hour: 6, place: 'House', duration: 1 },
+            { hour: 7, place: 'Gym', duration: 1 },
+            { hour: 8, place: 'House', duration: 0.5 },
+            { hour: 8.5, place: 'Work', duration: 8 },
+            { hour: 16.5, place: 'Store', duration: 0.5 },
+            { hour: 17, place: 'House', duration: 1 },
+            { hour: 18, place: 'Church', duration: 1 },
+            { hour: 19, place: 'House', duration: 2 },
+            { hour: 21, place: 'House', duration: 9 }
+        ];
+
+        class RealLife {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.gridSize = 7;
+                this.cellSize = 80;
+                this.canvas.width = this.gridSize * this.cellSize;
+                this.canvas.height = this.gridSize * this.cellSize;
+
+                this.car = { x: 1, y: 5, targetX: 1, targetY: 5 };
+                this.time = 6 * 60; // 6:00 AM in minutes
+                this.timeSpeed = 10; // 1 second = 10 minutes
+                this.lastTick = Date.now();
+                this.currentIdx = 0;
+                this.keys = {};
+
+                this.init();
+            }
+
+            init() {
+                this.renderSchedule();
+                window.onkeydown = (e) => this.keys[e.code] = true;
+                window.onkeyup = (e) => this.keys[e.code] = false;
+                this.loop();
+            }
+
+            renderSchedule() {
+                const list = document.getElementById('schedule-list');
+                list.innerHTML = SCHEDULE.map((s, i) => `
+                    <div class="schedule-item ${i === this.currentIdx ? 'active' : ''}" id="sched-${i}">
+                        <span class="time-slot">${this.formatHour(s.hour)} - ${this.formatHour(s.hour + s.duration)}</span>
+                        <span class="location-name">${s.place}</span>
+                    </div>
+                `).join('');
+                
+                const activeItem = document.getElementById(`sched-${this.currentIdx}`);
+                if (activeItem) activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            formatHour(hour) {
+                const h = Math.floor(hour) % 24;
+                const m = Math.round((hour - Math.floor(hour)) * 60);
+                const ampm = h >= 12 ? 'PM' : 'AM';
+                const h12 = h % 12 || 12;
+                return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
+            }
+
+            update() {
+                // Time progression
+                const now = Date.now();
+                if (now - this.lastTick > 1000 / this.timeSpeed) {
+                    this.time++;
+                    this.lastTick = now;
+                    
+                    const hour = (this.time / 60) % 24;
+                    const current = SCHEDULE[this.currentIdx];
+                    if (hour >= current.hour + current.duration) {
+                        this.currentIdx = (this.currentIdx + 1) % SCHEDULE.length;
+                        this.renderSchedule();
+                    }
+
+                    // Update HUD
+                    document.getElementById('time-val').textContent = this.formatHour(this.time / 60);
+                    document.getElementById('time-icon').textContent = (hour >= 6 && hour < 18) ? '☀️' : '🌙';
+                }
+
+                // Car Movement
+                const moveSpeed = 0.15;
+                if (Math.abs(this.car.x - this.car.targetX) < 0.1 && Math.abs(this.car.y - this.car.targetY) < 0.1) {
+                    if (this.keys['ArrowUp']) this.car.targetY = Math.max(0, this.car.targetY - 1);
+                    if (this.keys['ArrowDown']) this.car.targetY = Math.min(this.gridSize - 1, this.car.targetY + 1);
+                    if (this.keys['ArrowLeft']) this.car.targetX = Math.max(0, this.car.targetX - 1);
+                    if (this.keys['ArrowRight']) this.car.targetX = Math.min(this.gridSize - 1, this.car.targetX + 1);
+                }
+
+                this.car.x += (this.car.targetX - this.car.x) * moveSpeed;
+                this.car.y += (this.car.targetY - this.car.y) * moveSpeed;
+
+                // Status Check
+                const targetPlace = SCHEDULE[this.currentIdx].place;
+                const targetLoc = LOCATIONS.find(l => l.id === targetPlace);
+                const isAtDestination = Math.round(this.car.x) === targetLoc.x && Math.round(this.car.y) === targetLoc.y;
+                
+                const toast = document.getElementById('status-toast');
+                if (isAtDestination) {
+                    toast.textContent = '✔ ON TIME';
+                    toast.className = 'status-ontime';
+                } else {
+                    toast.textContent = `⚠ GO TO ${targetPlace.toUpperCase()}`;
+                    toast.className = 'status-late';
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Roads
+                ctx.strokeStyle = '#475569';
+                ctx.lineWidth = 12;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ROADS.forEach(pair => {
+                    const l1 = LOCATIONS[pair[0]];
+                    const l2 = LOCATIONS[pair[1]];
+                    ctx.beginPath();
+                    ctx.moveTo(l1.x * this.cellSize + this.cellSize/2, l1.y * this.cellSize + this.cellSize/2);
+                    ctx.lineTo(l2.x * this.cellSize + this.cellSize/2, l2.y * this.cellSize + this.cellSize/2);
+                    ctx.stroke();
+                });
+
+                // Locations
+                LOCATIONS.forEach(loc => {
+                    const px = loc.x * this.cellSize + this.cellSize/2;
+                    const py = loc.y * this.cellSize + this.cellSize/2;
+                    
+                    ctx.save();
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = loc.color;
+                    ctx.fillStyle = loc.color;
+                    ctx.beginPath(); ctx.arc(px, py, 30, 0, Math.PI*2); ctx.fill();
+                    ctx.restore();
+
+                    ctx.font = '24px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(loc.icon, px, py);
+                    
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 10px Arial';
+                    ctx.fillText(loc.id.toUpperCase(), px, py + 40);
+                });
+
+                // Car
+                ctx.save();
+                const cx = this.car.x * this.cellSize + this.cellSize/2;
+                const cy = this.car.y * this.cellSize + this.cellSize/2;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'black';
+                ctx.font = '32px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🚗', cx, cy);
+                ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        window.onload = () => new RealLife();
+    </script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minesweeper</title>
+    <style>
+        body { font-family: sans-serif; background: #cbd5e1; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .grid { display: grid; grid-template-columns: repeat(10, 30px); grid-template-rows: repeat(10, 30px); gap: 2px; background: #94a3b8; padding: 2px; border: 4px solid #64748b; }
+        .cell { width: 30px; height: 30px; background: #e2e8f0; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; user-select: none; }
+        .cell.revealed { background: #f1f5f9; border: none; }
+        .cell.mine { background: #ef4444; }
+        .cell.flag::after { content: '🚩'; font-size: 0.8rem; }
+        .back { margin-top: 20px; text-decoration: none; color: #475569; }
+    </style>
+</head>
+<body>
+    <h1>Minesweeper</h1>
+    <div id="grid" class="grid"></div>
+    <button onclick="location.reload()" style="margin-top:20px; padding:8px 16px;">Reset</button>
+    <a href="index.html" class="back">← HUB</a>
+
+    <script>
+        const SIZE = 10, MINES = 12;
+        let board = [], revealed = 0;
+
+        function init() {
+            const grid = document.getElementById('grid');
+            for(let i=0; i<SIZE*SIZE; i++) {
+                board[i] = { mine: false, revealed: false, flag: false, count: 0 };
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.id = i;
+                cell.onclick = () => reveal(i);
+                cell.oncontextmenu = (e) => { e.preventDefault(); toggleFlag(i); };
+                grid.appendChild(cell);
+            }
+            for(let i=0; i<MINES; i++) {
+                let r; do { r = Math.floor(Math.random()*(SIZE*SIZE)); } while(board[r].mine);
+                board[r].mine = true;
+            }
+            for(let i=0; i<SIZE*SIZE; i++) {
+                if(board[i].mine) continue;
+                let c = 0;
+                getAdj(i).forEach(j => { if(board[j].mine) c++; });
+                board[i].count = c;
+            }
+        }
+
+        function getAdj(i) {
+            let res = [], r = Math.floor(i/SIZE), c = i%SIZE;
+            for(let dr=-1; dr<=1; dr++) for(let dc=-1; dc<=1; dc++) {
+                let nr=r+dr, nc=c+dc;
+                if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && !(dr===0 && dc===0)) res.push(nr*SIZE+nc);
+            }
+            return res;
+        }
+
+        function reveal(i) {
+            if(board[i].revealed || board[i].flag) return;
+            board[i].revealed = true;
+            const el = document.getElementById(i);
+            el.classList.add('revealed');
+            
+            if(board[i].mine) {
+                el.classList.add('mine'); el.textContent = '💣';
+                alert("Game Over!"); location.reload(); return;
+            }
+            
+            if(board[i].count > 0) el.textContent = board[i].count;
+            else getAdj(i).forEach(reveal);
+            
+            revealed++;
+            if(revealed === SIZE*SIZE - MINES) alert("Victory!");
+        }
+
+        function toggleFlag(i) {
+            if(board[i].revealed) return;
+            board[i].flag = !board[i].flag;
+            document.getElementById(i).classList.toggle('flag');
+        }
+
+        init();
+    </script>
+</body>
+</html>
