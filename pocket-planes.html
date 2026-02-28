@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>K2 Planes: Global Cargo - K2 games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --primary: #3b82f6;
+            --accent: #fbbf24;
+            --panel: rgba(30, 41, 59, 0.9);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: var(--accent); letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-layout {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            overflow: hidden;
+        }
+
+        @media (max-width: 900px) {
+            #game-layout { grid-template-columns: 1fr; grid-template-rows: 1fr 200px; }
+        }
+
+        /* Map Area */
+        #map-area {
+            position: relative;
+            background: #1e293b;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas { width: 100%; height: 100%; cursor: crosshair; }
+
+        /* Sidebar / Fleet Management */
+        #sidebar {
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .section-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; color: #94a3b8; font-weight: 800; }
+
+        .plane-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .plane-card:hover { background: rgba(255,255,255,0.1); }
+        .plane-card.selected { border-color: var(--primary); background: rgba(59, 130, 246, 0.1); }
+
+        .plane-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .plane-status { font-size: 0.6rem; padding: 2px 8px; border-radius: 50px; background: #334155; }
+        .plane-status.flying { background: var(--primary); color: white; }
+
+        .job-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        .job-item { background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; font-size: 0.8rem; display: flex; justify-content: space-between; }
+
+        /* HUD Stats */
+        #stats-hud {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.6);
+            padding: 10px 20px;
+            border-radius: 50px;
+            display: flex;
+            gap: 20px;
+            font-weight: 900;
+            border: 1px solid var(--border);
+            z-index: 50;
+        }
+
+        .btn-fly {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: 900;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .btn-fly:disabled { opacity: 0.3; }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">K2 PLANES</div>
+        <a href="index.html" class="back-link">← EXIT HUB</a>
+    </nav>
+
+    <div id="game-layout">
+        <aside id="sidebar">
+            <div class="section-title">My Fleet</div>
+            <div id="fleet-list">
+                <!-- Planes injected here -->
+            </div>
+            
+            <div id="job-board" style="display: none;">
+                <div class="section-title">Available Jobs</div>
+                <div id="jobs-container" class="job-list"></div>
+                <button class="btn-fly" id="fly-btn" onclick="game.dispatchPlane()">FLY TO DESTINATION</button>
+            </div>
+        </aside>
+
+        <main id="map-area">
+            <div id="stats-hud">
+                <div>🪙 <span id="coins">2500</span></div>
+                <div>🛩️ <span id="fleet-count">1</span></div>
+            </div>
+            <canvas id="mapCanvas"></canvas>
+        </main>
+    </div>
+
+    <script>
+        const CITIES = [
+            { id: 'NYC', name: 'New York', x: 200, y: 300, color: '#fb7185' },
+            { id: 'LDN', name: 'London', x: 600, y: 200, color: '#818cf8' },
+            { id: 'PAR', name: 'Paris', x: 650, y: 250, color: '#4ade80' },
+            { id: 'TKY', name: 'Tokyo', x: 900, y: 350, color: '#fbbf24' },
+            { id: 'LAX', name: 'Los Angeles', x: 100, y: 350, color: '#38bdf8' }
+        ];
+
+        class PocketPlanes {
+            constructor() {
+                this.canvas = document.getElementById('mapCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // Fixed sizing
+                this.width = 1000;
+                this.height = 600;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                this.coins = 2500;
+                this.planes = [
+                    { id: 1, name: 'K2-Alpha', type: 'Small', loc: 'NYC', destination: null, progress: 0, jobs: [] }
+                ];
+                this.selectedPlane = this.planes[0];
+                this.selectedCity = null;
+                
+                this.setupInputs();
+                this.refreshJobs();
+                this.renderFleet();
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            setupInputs() {
+                this.canvas.onclick = (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const scaleX = this.width / rect.width;
+                    const scaleY = this.height / rect.height;
+                    const mx = (e.clientX - rect.left) * scaleX;
+                    const my = (e.clientY - rect.top) * scaleY;
+
+                    CITIES.forEach(c => {
+                        if(Math.hypot(mx - c.x, my - c.y) < 30) {
+                            this.selectCity(c);
+                        }
+                    });
+                };
+            }
+
+            selectCity(city) {
+                this.selectedCity = city;
+                const board = document.getElementById('job-board');
+                const flyBtn = document.getElementById('fly-btn');
+                
+                if(this.selectedPlane.loc === city.id) {
+                    board.style.display = 'block';
+                    this.refreshJobs();
+                    flyBtn.disabled = true;
+                } else if (!this.selectedPlane.destination) {
+                    board.style.display = 'block';
+                    this.refreshJobs();
+                    flyBtn.disabled = false;
+                }
+                this.renderFleet();
+            }
+
+            refreshJobs() {
+                const container = document.getElementById('jobs-container');
+                container.innerHTML = '';
+                const others = CITIES.filter(c => c.id !== this.selectedPlane.loc);
+                others.forEach(c => {
+                    const div = document.createElement('div');
+                    div.className = 'job-item';
+                    div.innerHTML = `<span>To ${c.name}</span> <span>🪙 500</span>`;
+                    container.appendChild(div);
+                });
+            }
+
+            dispatchPlane() {
+                if(!this.selectedCity || this.selectedPlane.destination || this.selectedPlane.loc === this.selectedCity.id) return;
+                this.selectedPlane.destination = this.selectedCity.id;
+                this.selectedPlane.progress = 0;
+                this.selectedPlane.jobs = [{ to: this.selectedCity.id, pay: 500 }];
+                document.getElementById('fly-btn').disabled = true;
+                this.renderFleet();
+            }
+
+            update() {
+                this.planes.forEach(p => {
+                    if(p.destination) {
+                        p.progress += 0.002; // Slower for visibility
+                        if(p.progress >= 1) {
+                            this.coins += 500;
+                            p.loc = p.destination;
+                            p.destination = null;
+                            p.progress = 0;
+                            p.jobs = [];
+                            this.renderFleet();
+                        }
+                    }
+                });
+                this.updateUI();
+            }
+
+            updateUI() {
+                document.getElementById('coins').textContent = this.coins;
+                document.getElementById('fleet-count').textContent = this.planes.length;
+            }
+
+            renderFleet() {
+                const list = document.getElementById('fleet-list');
+                list.innerHTML = this.planes.map(p => `
+                    <div class="plane-card ${this.selectedPlane === p ? 'selected' : ''}" onclick="game.selectedPlane = game.planes.find(x => x.id === ${p.id}); game.renderFleet();">
+                        <div class="plane-info">
+                            <b>${p.name}</b>
+                            <span class="plane-status ${p.destination ? 'flying' : ''}">${p.destination ? 'FLYING' : p.loc}</span>
+                        </div>
+                        <div style="font-size: 0.7rem; opacity: 0.6;">Type: ${p.type}</div>
+                    </div>
+                `).join('');
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Background
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(0, 0, this.width, this.height);
+
+                // Connections
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                ctx.setLineDash([5, 5]);
+                for(let i=0; i<CITIES.length; i++) {
+                    for(let j=i+1; j<CITIES.length; j++) {
+                        ctx.beginPath(); ctx.moveTo(CITIES[i].x, CITIES[i].y); ctx.lineTo(CITIES[j].x, CITIES[j].y); ctx.stroke();
+                    }
+                }
+                ctx.setLineDash([]);
+
+                // Cities
+                CITIES.forEach(c => {
+                    const isSelected = this.selectedCity === c;
+                    ctx.fillStyle = c.color;
+                    ctx.beginPath(); ctx.arc(c.x, c.y, isSelected ? 12 : 8, 0, Math.PI*2); ctx.fill();
+                    if(isSelected) { ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke(); }
+                    ctx.fillStyle = 'white'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
+                    ctx.fillText(c.name, c.x, c.y + 25);
+                });
+
+                // Planes
+                this.planes.forEach(p => {
+                    let px, py;
+                    if(p.destination) {
+                        const start = CITIES.find(c => c.id === p.loc);
+                        const end = CITIES.find(c => c.id === p.destination);
+                        px = start.x + (end.x - start.x) * p.progress;
+                        py = start.y + (end.y - start.y) * p.progress;
+                        
+                        // Path line
+                        ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2;
+                        ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke();
+                    } else {
+                        const loc = CITIES.find(c => c.id === p.loc);
+                        px = loc.x; py = loc.y - 20;
+                    }
+
+                    ctx.font = '24px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('✈️', px, py + 8);
+                });
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(this.loop);
+            }
+        }
+
+        const game = new PocketPlanes();
+    </script>
+</body>
+</html>

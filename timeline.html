@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>K2 Timeline: Chrono Challenge - K2 games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: rgba(30, 41, 59, 0.8);
+            --border: rgba(255, 255, 255, 0.1);
+            --p1: #3b82f6;
+            --p2: #ef4444;
+            --p3: #22c55e;
+            --p4: #eab308;
+            --gold: #fbbf24;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 50% 100%, rgba(239, 68, 68, 0.05) 0%, transparent 50%);
+        }
+
+        nav {
+            padding: 0.75rem 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: var(--gold); letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            gap: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Player Status Bar */
+        #players-hud {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            max-width: 800px;
+            justify-content: center;
+            z-index: 50;
+        }
+        .player-chip {
+            background: var(--panel);
+            padding: 8px 15px;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            opacity: 0.4;
+            transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            font-weight: bold;
+            font-size: 0.8rem;
+            text-align: center;
+        }
+        .player-chip.active { opacity: 1; transform: scale(1.1); border-color: #fff; }
+        .player-chip.p1.active { border-color: var(--p1); box-shadow: 0 0 15px rgba(59, 130, 246, 0.3); }
+        .player-chip.p2.active { border-color: var(--p2); box-shadow: 0 0 15px rgba(239, 68, 68, 0.3); }
+        .player-chip.p3.active { border-color: var(--p3); box-shadow: 0 0 15px rgba(34, 197, 94, 0.3); }
+        .player-chip.p4.active { border-color: var(--p4); box-shadow: 0 0 15px rgba(234, 179, 8, 0.3); }
+
+        /* The Current Card Area */
+        #current-event-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.03);
+            padding: 20px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* Personal Timeline Scroll */
+        #timeline-container {
+            width: 100%;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            padding: 20px;
+            overflow-x: auto;
+            position: relative;
+            scrollbar-width: thin;
+            background: rgba(0,0,0,0.2);
+            border-radius: 15px;
+        }
+
+        .card {
+            min-width: 140px;
+            height: 200px;
+            background: linear-gradient(135deg, #fff 0%, #f1f5f9 100%);
+            border-radius: 12px;
+            position: relative;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            color: #1e293b;
+            text-align: center;
+            justify-content: space-between;
+            border: 4px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .card.active-turn { border-color: var(--gold); transform: scale(1.05); }
+        
+        .card-type { font-size: 0.6rem; text-transform: uppercase; font-weight: 900; letter-spacing: 1px; opacity: 0.5; }
+        .card-name { font-size: 0.9rem; font-weight: 800; line-height: 1.2; flex: 1; display: flex; align-items: center; justify-content: center; }
+        .card-date { font-size: 1.5rem; font-weight: 900; color: var(--bg); font-family: monospace; }
+
+        .drop-zone {
+            width: 45px;
+            height: 180px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 10px;
+            transition: 0.2s;
+            flex-shrink: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 1.5rem;
+            color: rgba(255,255,255,0.2);
+            border: 2px dashed rgba(255,255,255,0.1);
+        }
+        .drop-zone:hover { background: rgba(59, 130, 246, 0.2); color: #fff; border-color: var(--p1); }
+        .drop-zone.disabled { pointer-events: none; opacity: 0; }
+
+        /* Overlays */
+        .screen-overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.98);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--p1); color: white; border: none; padding: 1.2rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 1.5rem;
+            font-size: 1.2rem;
+        }
+
+        #feedback-popup {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            padding: 20px 40px; border-radius: 20px; font-weight: 900; font-size: 2rem;
+            z-index: 300; display: none; pointer-events: none; text-shadow: 0 0 20px rgba(0,0,0,0.5);
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+
+        .progress-bar {
+            width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 5px; overflow: hidden;
+        }
+        .progress-fill { height: 100%; width: 0%; transition: width 0.5s; }
+
+        @media (max-width: 600px) {
+            .card { min-width: 120px; height: 170px; padding: 10px; }
+            .card-name { font-size: 0.75rem; }
+            .drop-zone { width: 35px; height: 150px; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">K2 TIMELINE</div>
+        <a href="index.html" class="back-link">← EXIT HUB</a>
+    </nav>
+
+    <div id="game-layout">
+        <div id="players-hud">
+            <!-- Player chips injected here -->
+        </div>
+
+        <div id="current-event-container">
+            <div style="font-size: 0.6rem; opacity: 0.5; text-transform: uppercase; font-weight: 900;">Next Landmark</div>
+            <div id="next-card-slot"></div>
+        </div>
+
+        <div id="timeline-container">
+            <!-- User sequence and drop zones injected here -->
+        </div>
+
+        <div id="feedback-popup">CORRECT!</div>
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen-overlay">
+            <h1 style="font-size: 4rem; font-style: italic; color: var(--gold); font-weight: 900;">TIMELINE</h1>
+            <p style="opacity: 0.7; margin-top: 10px; max-width: 450px;">Place historical events, states, and teams in the correct order. First to 10 wins!</p>
+            <div style="display:flex; gap:10px; margin-top: 30px;">
+                <button class="btn-large" onclick="game.init(2)">2 PLAYERS</button>
+                <button class="btn-large" onclick="game.init(3)" style="background: #8b5cf6;">3 PLAYERS</button>
+                <button class="btn-large" onclick="game.init(4)" style="background: var(--p3);">4 PLAYERS</button>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="win-screen" class="screen-overlay" style="display:none">
+            <h1 id="winner-text" style="font-size: 4rem; color: var(--gold); font-style: italic;">VICTORY</h1>
+            <button class="btn-large" onclick="location.reload()">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const DATASET = [
+            // States
+            { name: "Delaware joins the Union", date: 1787, type: "Statehood" },
+            { name: "Pennsylvania joins the Union", date: 1787, type: "Statehood" },
+            { name: "New Jersey joins the Union", date: 1787, type: "Statehood" },
+            { name: "Georgia joins the Union", date: 1788, type: "Statehood" },
+            { name: "Connecticut joins the Union", date: 1788, type: "Statehood" },
+            { name: "Massachusetts joins the Union", date: 1788, type: "Statehood" },
+            { name: "Virginia joins the Union", date: 1788, type: "Statehood" },
+            { name: "New York joins the Union", date: 1788, type: "Statehood" },
+            { name: "North Carolina joins the Union", date: 1789, type: "Statehood" },
+            { name: "Rhode Island joins the Union", date: 1790, type: "Statehood" },
+            { name: "Kentucky joins the Union", date: 1792, type: "Statehood" },
+            { name: "Ohio joins the Union", date: 1803, type: "Statehood" },
+            { name: "Louisiana joins the Union", date: 1812, type: "Statehood" },
+            { name: "Indiana joins the Union", date: 1816, type: "Statehood" },
+            { name: "Illinois joins the Union", date: 1818, type: "Statehood" },
+            { name: "Alabama joins the Union", date: 1819, type: "Statehood" },
+            { name: "Maine joins the Union", date: 1820, type: "Statehood" },
+            { name: "Texas joins the Union", date: 1845, type: "Statehood" },
+            { name: "Florida joins the Union", date: 1845, type: "Statehood" },
+            { name: "California joins the Union", date: 1850, type: "Statehood" },
+            { name: "West Virginia joins the Union", date: 1863, type: "Statehood" },
+            { name: "Nevada joins the Union", date: 1864, type: "Statehood" },
+            { name: "Colorado joins the Union", date: 1876, type: "Statehood" },
+            { name: "Montana joins the Union", date: 1889, type: "Statehood" },
+            { name: "Washington joins the Union", date: 1889, type: "Statehood" },
+            { name: "Utah joins the Union", date: 1896, type: "Statehood" },
+            { name: "Oklahoma joins the Union", date: 1907, type: "Statehood" },
+            { name: "Arizona joins the Union", date: 1912, type: "Statehood" },
+            { name: "Alaska joins the Union", date: 1959, type: "Statehood" },
+            { name: "Hawaii joins the Union", date: 1959, type: "Statehood" },
+
+            // Presidents (First election)
+            { name: "George Washington elected", date: 1788, type: "President" },
+            { name: "John Adams elected", date: 1796, type: "President" },
+            { name: "Thomas Jefferson elected", date: 1800, type: "President" },
+            { name: "James Madison elected", date: 1808, type: "President" },
+            { name: "Andrew Jackson elected", date: 1828, type: "President" },
+            { name: "Abraham Lincoln elected", date: 1860, type: "President" },
+            { name: "Ulysses S. Grant elected", date: 1868, type: "President" },
+            { name: "Theodore Roosevelt elected", date: 1904, type: "President" },
+            { name: "Woodrow Wilson elected", date: 1912, type: "President" },
+            { name: "Franklin D. Roosevelt elected", date: 1932, type: "President" },
+            { name: "Dwight D. Eisenhower elected", date: 1952, type: "President" },
+            { name: "John F. Kennedy elected", date: 1960, type: "President" },
+            { name: "Richard Nixon elected", date: 1968, type: "President" },
+            { name: "Ronald Reagan elected", date: 1980, type: "President" },
+            { name: "Bill Clinton elected", date: 1992, type: "President" },
+            { name: "George W. Bush elected", date: 2000, type: "President" },
+            { name: "Barack Obama elected", date: 2008, type: "President" },
+            { name: "Donald Trump elected", date: 2016, type: "President" },
+            { name: "Joe Biden elected", date: 2020, type: "President" },
+
+            // Sports
+            { name: "Cincinnati Reds founded", date: 1869, type: "MLB" },
+            { name: "Chicago Cubs founded", date: 1870, type: "MLB" },
+            { name: "NY Yankees founded", date: 1901, type: "MLB" },
+            { name: "BOS Red Sox founded", date: 1901, type: "MLB" },
+            { name: "MTL Canadiens founded", date: 1909, type: "NHL" },
+            { name: "TOR Maple Leafs founded", date: 1917, type: "NHL" },
+            { name: "Green Bay Packers founded", date: 1919, type: "NFL" },
+            { name: "Chicago Bears founded", date: 1920, type: "NFL" },
+            { name: "NY Giants founded", date: 1925, type: "NFL" },
+            { name: "NY Rangers founded", date: 1926, type: "NHL" },
+            { name: "Dallas Cowboys founded", date: 1960, type: "NFL" },
+            { name: "NY Knicks founded", date: 1946, type: "NBA" },
+            { name: "BOS Celtics founded", date: 1946, type: "NBA" },
+            { name: "LA Lakers founded", date: 1947, type: "NBA" },
+
+            // Milestones
+            { name: "Magna Carta signed", date: 1215, type: "Milestone" },
+            { name: "Columbus reaches Americas", date: 1492, type: "Milestone" },
+            { name: "Declaration of Independence", date: 1776, type: "Milestone" },
+            { name: "French Revolution begins", date: 1789, type: "Milestone" },
+            { name: "Titanic sinks", date: 1912, type: "Milestone" },
+            { name: "WWI begins", date: 1914, type: "Milestone" },
+            { name: "WWII begins", date: 1939, type: "Milestone" },
+            { name: "Apollo 11 Moon Landing", date: 1969, type: "Milestone" },
+            { name: "Berlin Wall falls", date: 1989, type: "Milestone" },
+            { name: "World Wide Web launched", date: 1991, type: "Milestone" },
+            { name: "Apple iPhone released", date: 2007, type: "Milestone" }
+        ];
+
+        class TimelineGame {
+            constructor() {
+                this.players = [];
+                this.turn = 0;
+                this.deck = [];
+                this.nextCard = null;
+                this.animating = false;
+                this.winTarget = 10;
+            }
+
+            init(count) {
+                this.players = Array(count).fill(0).map((_, i) => ({
+                    id: i,
+                    timeline: [],
+                    score: 0
+                }));
+
+                const hud = document.getElementById('players-hud');
+                hud.innerHTML = '';
+                this.players.forEach(p => {
+                    const div = document.createElement('div');
+                    div.id = `p${p.id+1}-chip`;
+                    div.className = `player-chip p${p.id+1}`;
+                    div.innerHTML = `P${p.id+1}<div class="progress-bar"><div class="progress-fill" style="background: var(--p${p.id+1})"></div></div>`;
+                    hud.appendChild(div);
+                });
+
+                this.deck = [...DATASET].sort(() => Math.random() - 0.5);
+                
+                // Give each player a starting card
+                this.players.forEach(p => p.timeline.push(this.deck.pop()));
+
+                document.getElementById('start-screen').style.display = 'none';
+                this.nextTurn();
+            }
+
+            nextTurn() {
+                this.animating = false;
+                this.nextCard = this.deck.pop();
+                this.renderNextCard();
+                this.renderTimeline();
+                this.updateUI();
+            }
+
+            renderNextCard() {
+                const slot = document.getElementById('next-card-slot');
+                slot.innerHTML = '';
+                const card = document.createElement('div');
+                card.className = 'card active-turn';
+                card.innerHTML = `
+                    <span class="card-type">${this.nextCard.type}</span>
+                    <span class="card-name">${this.nextCard.name}</span>
+                    <span class="card-date">????</span>
+                `;
+                slot.appendChild(card);
+            }
+
+            renderTimeline() {
+                const container = document.getElementById('timeline-container');
+                container.innerHTML = '';
+                const p = this.players[this.turn];
+
+                p.timeline.forEach((data, i) => {
+                    container.appendChild(this.createDropZone(i));
+                    container.appendChild(this.createCardElement(data));
+                });
+                container.appendChild(this.createDropZone(p.timeline.length));
+            }
+
+            createCardElement(data) {
+                const div = document.createElement('div');
+                div.className = 'card';
+                div.innerHTML = `
+                    <span class="card-type">${data.type}</span>
+                    <span class="card-name">${data.name}</span>
+                    <span class="card-date">${data.date}</span>
+                `;
+                return div;
+            }
+
+            createDropZone(idx) {
+                const div = document.createElement('div');
+                div.className = 'drop-zone';
+                div.innerHTML = '<span>+</span>';
+                div.onclick = () => this.placeCard(idx);
+                return div;
+            }
+
+            placeCard(idx) {
+                if (this.animating) return;
+                this.animating = true;
+
+                const p = this.players[this.turn];
+                const card = this.nextCard;
+                
+                // Check if correct
+                let correct = true;
+                if (idx > 0 && p.timeline[idx - 1].date > card.date) correct = false;
+                if (idx < p.timeline.length && p.timeline[idx].date < card.date) correct = false;
+
+                // Show Reveal in Next Card Slot
+                const nextSlotCard = document.querySelector('#next-card-slot .card');
+                nextSlotCard.querySelector('.card-date').textContent = card.date;
+
+                const popup = document.getElementById('feedback-popup');
+                popup.style.display = 'block';
+                popup.textContent = correct ? "CORRECT! ✨" : "WRONG! ❌";
+                popup.style.color = correct ? "var(--p3)" : "var(--p2)";
+
+                setTimeout(() => {
+                    popup.style.display = 'none';
+                    if (correct) {
+                        p.timeline.splice(idx, 0, card);
+                        if (p.timeline.length >= this.winTarget) {
+                            this.endGame();
+                            return;
+                        }
+                    }
+                    this.turn = (this.turn + 1) % this.players.length;
+                    this.nextTurn();
+                }, 1500);
+            }
+
+            updateUI() {
+                this.players.forEach((p, i) => {
+                    const chip = document.getElementById(`p${i+1}-chip`);
+                    chip.classList.toggle('active', this.turn === i);
+                    const fill = chip.querySelector('.progress-fill');
+                    fill.style.width = (p.timeline.length / this.winTarget * 100) + '%';
+                });
+            }
+
+            endGame() {
+                const overlay = document.getElementById('win-screen');
+                const text = document.getElementById('winner-text');
+                overlay.style.display = 'flex';
+                text.textContent = `PLAYER ${this.turn + 1} WINS!`;
+                text.style.color = `var(--p${this.turn + 1})`;
+            }
+        }
+
+        const game = new TimelineGame();
+    </script>
+</body>
+</html>

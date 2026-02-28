@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kingdoms at War - K2 games</title>
+    <style>
+        :root {
+            --p1-color: #3b82f6; /* Blue Kingdom */
+            --p2-color: #ef4444; /* Red Kingdom */
+            --bg: #0f172a;
+            --tile: #1e293b;
+            --lake: #0ea5e9;
+            --glass: rgba(30, 41, 59, 0.95);
+            --gold: #fbbf24;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: var(--gold); letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-weight: bold; font-size: 0.9rem; }
+
+        #game-layout {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            padding: 15px;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        @media (max-width: 900px) {
+            #game-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+            #rules-sidebar { display: none; }
+            #mobile-rules-btn { display: block !important; }
+        }
+
+        /* Sidebar / Rules */
+        #sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .panel {
+            background: var(--glass);
+            border-radius: 15px;
+            padding: 15px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .panel-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; color: #94a3b8; font-weight: 800; margin-bottom: 10px; }
+
+        /* Deployment Reserve */
+        #reserve-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .reserve-item {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            position: relative;
+            transition: 0.2s;
+        }
+        .reserve-item:hover { background: rgba(255,255,255,0.15); border-color: var(--gold); }
+        .reserve-item.selected { background: rgba(251, 191, 36, 0.2); border-color: var(--gold); box-shadow: 0 0 10px rgba(251, 191, 36, 0.3); }
+        .reserve-count { position: absolute; top: -5px; right: -5px; background: var(--gold); color: #000; font-size: 0.65rem; font-weight: 900; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .reserve-icon { font-size: 1.5rem; display: block; }
+        .reserve-rank { font-size: 0.6rem; font-weight: 900; opacity: 0.6; }
+
+        /* Board */
+        #board-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        #board-container {
+            width: 100%;
+            max-width: 600px;
+            aspect-ratio: 1/1;
+            background: #334155;
+            border: 4px solid #475569;
+            border-radius: 12px;
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(10, 1fr);
+            gap: 1px;
+            padding: 4px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .tile {
+            background: var(--tile);
+            position: relative;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: 0.2s;
+        }
+        .tile.lake { background: var(--lake); cursor: default; box-shadow: inset 0 0 15px rgba(0,0,0,0.3); }
+        .tile.highlight { background: rgba(34, 197, 94, 0.3); box-shadow: inset 0 0 10px #22c55e; }
+        .tile.attack { background: rgba(239, 68, 68, 0.3); box-shadow: inset 0 0 10px #ef4444; }
+        .tile.setup-valid { background: rgba(59, 130, 246, 0.15); }
+        .tile.setup-valid:hover { background: rgba(59, 130, 246, 0.3); }
+        
+        .piece {
+            width: 90%; height: 90%; margin: 5%;
+            border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 1.2rem; position: relative; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .piece.p1 { background: linear-gradient(135deg, #2563eb, #1e40af); border: 2px solid #60a5fa; }
+        .piece.p2 { background: linear-gradient(135deg, #dc2626, #991b1b); border: 2px solid #f87171; }
+        .piece.hidden { background: linear-gradient(135deg, #dc2626, #991b1b); color: transparent !important; border-color: #fca5a5; }
+        .piece.hidden::after { content: '🛡️'; color: rgba(255,255,255,0.25); font-size: 1.2rem; }
+        .piece.selected { transform: scale(1.15) translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.4), 0 0 15px var(--gold); border-color: var(--gold); z-index: 10; }
+
+        .rank-num { font-size: 0.7rem; font-weight: 900; position: absolute; top: 2px; right: 3px; opacity: 0.8; }
+
+        /* HUD */
+        #hud {
+            display: flex; width: 100%; max-width: 600px; justify-content: space-between; align-items: center;
+            background: var(--glass); padding: 12px 25px; border-radius: 50px; border: 1px solid rgba(255,255,255,0.1);
+        }
+        #turn-indicator { font-weight: 900; color: var(--p1-color); text-transform: uppercase; letter-spacing: 1px; }
+
+        /* Hierarchy List */
+        .rank-list { list-style: none; font-size: 0.85rem; }
+        .rank-list li { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; padding: 4px; border-radius: 4px; }
+        .rank-list b { color: var(--gold); min-width: 20px; }
+
+        /* Modals */
+        .screen-overlay {
+            position: absolute; inset: 0; background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn {
+            background: #334155; color: white; border: none; padding: 10px 20px;
+            border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;
+        }
+        .btn:hover { background: #475569; }
+        .btn.primary { background: var(--gold); color: #000; }
+
+        .btn-large {
+            background: var(--gold); color: #000; border: none; padding: 1.2rem 3.5rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.4rem; box-shadow: 0 15px 35px rgba(251, 191, 36, 0.4);
+        }
+
+        #battle-modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #1e293b; padding: 30px; border-radius: 20px; border: 3px solid var(--gold);
+            display: none; flex-direction: column; align-items: center; gap: 20px; z-index: 150;
+            box-shadow: 0 0 100px rgba(0,0,0,0.9); width: 320px;
+        }
+        .battle-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+        .big-piece { width: 80px; height: 80px; font-size: 3rem; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+
+        #mobile-rules-btn { position: fixed; bottom: 20px; right: 20px; z-index: 90; display: none; }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">KINGDOMS AT WAR</div>
+        <a href="index.html" class="back-link">← EXIT HUB</a>
+    </nav>
+
+    <div id="game-layout">
+        <div id="sidebar">
+            <div class="panel" id="reserve-panel">
+                <div class="panel-title">Deployment Reserve</div>
+                <div id="reserve-grid"></div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
+                    <button class="btn" onclick="game.autoSetup()">Randomize</button>
+                    <button class="btn primary" id="deploy-confirm" disabled onclick="game.confirmDeployment()">Deploy</button>
+                </div>
+            </div>
+
+            <div class="panel" id="rules-sidebar">
+                <div class="panel-title">Hierarchy & Rules</div>
+                <ul class="rank-list">
+                    <li><b>10</b> 🐉 Dragon (Strongest)</li>
+                    <li><b>1</b> 👺 Assassin (Kills Dragon)</li>
+                    <li><b>3</b> ⛏️ Dwarf (Disarms Trap)</li>
+                    <li><b>2</b> 👻 Spirit (Moves Anywhere)</li>
+                    <li><b>🪤</b> Trap (Kills all but Dwarf)</li>
+                    <li><b>🏰</b> Throne (Objective)</li>
+                </ul>
+                <p style="font-size: 0.7rem; opacity: 0.5; margin-top: 10px; line-height: 1.4;">
+                    Lower ranks are defeated by higher ones. Attacking an identical rank destroys both.
+                </p>
+            </div>
+        </div>
+
+        <div id="board-area">
+            <div id="hud">
+                <div id="turn-indicator">PHASE: DEPLOYMENT</div>
+                <div id="setup-help" style="font-size: 0.75rem; opacity: 0.7;">Select a piece, then tap a blue tile</div>
+            </div>
+            <div id="board-container"></div>
+        </div>
+    </div>
+
+    <button id="mobile-rules-btn" class="btn primary" onclick="document.getElementById('rules-modal').style.display='flex'">RULES</button>
+
+    <div id="start-screen" class="screen-overlay">
+        <h1 style="font-size: 4rem; font-style: italic; color: var(--gold); font-weight: 900;">KINGDOMS AT WAR</h1>
+        <p style="opacity: 0.7; margin-top: 10px; font-size: 1.2rem;">Elite Strategy • 🏰 Capture the Throne</p>
+        <button class="btn-large" onclick="document.getElementById('start-screen').style.display='none'">BEGIN DEPLOYMENT</button>
+    </div>
+
+    <div id="rules-modal" class="screen-overlay" style="display:none;" onclick="this.style.display='none'">
+        <div class="panel" style="width: 90%; max-width: 400px; background: #1e293b;">
+            <div class="panel-title">Game Rules</div>
+            <ul class="rank-list" style="text-align: left;">
+                <li><b>10</b> 🐉 Dragon</li>
+                <li><b>9</b> 👑 King</li>
+                <li><b>8</b> 🛡️ Paladin</li>
+                <li><b>7</b> ⚔️ Knight</li>
+                <li><b>6</b> 🧙 Mage</li>
+                <li><b>5</b> 🏹 Archer</li>
+                <li><b>4</b> 🗡️ Rogue</li>
+                <li><b>3</b> ⛏️ Dwarf (Defuses Traps)</li>
+                <li><b>2</b> 👻 Spirit (Moves in Line)</li>
+                <li><b>1</b> 👺 Assassin (Kills Dragon)</li>
+                <li><b>B</b> 🪤 Trap (Stationary)</li>
+                <li><b>F</b> 🏰 Throne (Objective)</li>
+            </ul>
+            <button class="btn primary" style="margin-top: 20px; width: 100%;">CLOSE</button>
+        </div>
+    </div>
+
+    <div id="end-screen" class="screen-overlay" style="display:none">
+        <h1 id="end-msg" style="font-size: 4rem; font-style: italic;">VICTORY</h1>
+        <p id="end-sub" style="margin-top: 10px; opacity: 0.7; font-size: 1.2rem;"></p>
+        <button class="btn-large" onclick="location.reload()">NEW BATTLE</button>
+    </div>
+
+    <div id="battle-modal">
+        <div style="color: #94a3b8; font-size: 0.7rem; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Combat Resolution</div>
+        <div class="battle-row">
+            <div id="atk-piece" class="big-piece p1"></div>
+            <div style="font-weight: 900; font-size: 1.5rem; color: var(--gold); font-style: italic;">VS</div>
+            <div id="def-piece" class="big-piece p2"></div>
+        </div>
+        <div id="battle-result" style="font-weight: 900; font-size: 1.4rem; text-transform: uppercase;">WINNER</div>
+    </div>
+
+    <script>
+        const PIECES = {
+            '10': { name: 'Dragon', icon: '🐉', count: 1 },
+            '9': { name: 'King', icon: '👑', count: 1 },
+            '8': { name: 'Paladin', icon: '🛡️', count: 2 },
+            '7': { name: 'Knight', icon: '⚔️', count: 3 },
+            '6': { name: 'Mage', icon: '🧙', count: 4 },
+            '5': { name: 'Archer', icon: '🏹', count: 4 },
+            '4': { name: 'Rogue', icon: '🗡️', count: 4 },
+            '3': { name: 'Dwarf', icon: '⛏️', count: 5 },
+            '2': { name: 'Spirit', icon: '👻', count: 8 },
+            '1': { name: 'Assassin', icon: '👺', count: 1 },
+            'B': { name: 'Trap', icon: '🪤', count: 6 },
+            'F': { name: 'Throne', icon: '🏰', count: 1 }
+        };
+
+        class Stratego {
+            constructor() {
+                this.board = Array(100).fill(null);
+                this.selectedIdx = -1;
+                this.selectedReserveRank = null;
+                this.turn = 'p1';
+                this.state = 'setup';
+                this.reserve = {};
+                
+                this.initBoard();
+                this.initReserve();
+            }
+
+            initBoard() {
+                const container = document.getElementById('board-container');
+                container.innerHTML = '';
+                const lakes = [42, 43, 52, 53, 46, 47, 56, 57];
+
+                for(let i=0; i<100; i++) {
+                    const tile = document.createElement('div');
+                    tile.className = 'tile';
+                    tile.dataset.idx = i;
+                    if(lakes.includes(i)) {
+                        tile.classList.add('lake');
+                        this.board[i] = 'LAKE';
+                    } else {
+                        tile.onclick = () => this.handleTileClick(i);
+                    }
+                    container.appendChild(tile);
+                }
+            }
+
+            initReserve() {
+                Object.entries(PIECES).forEach(([rank, info]) => {
+                    this.reserve[rank] = info.count;
+                });
+                this.updateReserveUI();
+            }
+
+            updateReserveUI() {
+                const grid = document.getElementById('reserve-grid');
+                grid.innerHTML = '';
+                Object.entries(PIECES).forEach(([rank, info]) => {
+                    const count = this.reserve[rank];
+                    if (count > 0) {
+                        const div = document.createElement('div');
+                        div.className = `reserve-item ${this.selectedReserveRank === rank ? 'selected' : ''}`;
+                        div.onclick = () => {
+                            this.selectedReserveRank = rank;
+                            this.selectedIdx = -1;
+                            this.updateReserveUI();
+                        };
+                        div.innerHTML = `
+                            <span class="reserve-count">${count}</span>
+                            <span class="reserve-icon">${info.icon}</span>
+                            <span class="reserve-rank">${rank}</span>
+                        `;
+                        grid.appendChild(div);
+                    }
+                });
+
+                const totalInReserve = Object.values(this.reserve).reduce((a,b)=>a+b, 0);
+                document.getElementById('deploy-confirm').disabled = (totalInReserve > 0);
+                this.render();
+            }
+
+            autoSetup() {
+                // Clear existing
+                for(let i=60; i<100; i++) {
+                    if (this.board[i] && this.board[i].owner === 'p1') {
+                        const r = this.board[i].rank;
+                        this.reserve[r]++;
+                        this.board[i] = null;
+                    }
+                }
+
+                const ranks = [];
+                Object.entries(this.reserve).forEach(([rank, count]) => {
+                    for(let i=0; i<count; i++) ranks.push(rank);
+                });
+                ranks.sort(() => Math.random() - 0.5);
+
+                let rankIdx = 0;
+                for(let i=60; i<100; i++) {
+                    if (!this.board[i]) {
+                        const rank = ranks[rankIdx++];
+                        this.board[i] = { rank, owner: 'p1', ...PIECES[rank] };
+                        this.reserve[rank]--;
+                    }
+                }
+                this.selectedReserveRank = null;
+                this.updateReserveUI();
+            }
+
+            confirmDeployment() {
+                this.state = 'playing';
+                document.getElementById('reserve-panel').style.display = 'none';
+                document.getElementById('turn-indicator').textContent = "YOUR TURN";
+                document.getElementById('setup-help').style.display = 'none';
+                
+                // AI Auto Setup
+                const aiRanks = [];
+                Object.entries(PIECES).forEach(([rank, info]) => {
+                    for(let i=0; i<info.count; i++) aiRanks.push(rank);
+                });
+                aiRanks.sort(() => Math.random() - 0.5);
+                for(let i=0; i<40; i++) {
+                    const rank = aiRanks[i];
+                    this.board[i] = { rank, owner: 'p2', ...PIECES[rank] };
+                }
+                this.render();
+            }
+
+            handleTileClick(idx) {
+                if (this.state === 'setup') {
+                    if (idx < 60) return; // Player only deploys bottom 4 rows
+                    
+                    const existing = this.board[idx];
+                    if (existing && existing.owner === 'p1') {
+                        // Pick back up
+                        this.reserve[existing.rank]++;
+                        this.board[idx] = null;
+                        this.updateReserveUI();
+                    } else if (this.selectedReserveRank && !existing) {
+                        // Place down
+                        this.board[idx] = { rank: this.selectedReserveRank, owner: 'p1', ...PIECES[this.selectedReserveRank] };
+                        this.reserve[this.selectedReserveRank]--;
+                        if (this.reserve[this.selectedReserveRank] === 0) this.selectedReserveRank = null;
+                        this.updateReserveUI();
+                    }
+                    return;
+                }
+
+                if (this.state !== 'playing' || this.turn !== 'p1') return;
+
+                const piece = this.board[idx];
+
+                if (this.selectedIdx === -1) {
+                    if (piece && piece.owner === 'p1' && piece.rank !== 'B' && piece.rank !== 'F') {
+                        this.selectedIdx = idx;
+                        this.highlightMoves(idx);
+                    }
+                } else {
+                    if (idx === this.selectedIdx) {
+                        this.deselect();
+                    } else if (this.isValidMove(this.selectedIdx, idx)) {
+                        this.executeMove(this.selectedIdx, idx);
+                    } else if (piece && piece.owner === 'p1' && piece.rank !== 'B' && piece.rank !== 'F') {
+                        this.deselect();
+                        this.selectedIdx = idx;
+                        this.highlightMoves(idx);
+                    } else {
+                        this.deselect();
+                    }
+                }
+                this.render();
+            }
+
+            isValidMove(from, to) {
+                const p = this.board[from];
+                const target = this.board[to];
+                if (target === 'LAKE') return false;
+                if (target && target.owner === p.owner) return false;
+
+                const fromX = from % 10, fromY = Math.floor(from / 10);
+                const toX = to % 10, toY = Math.floor(to / 10);
+                const dist = Math.abs(fromX - toX) + Math.abs(fromY - toY);
+
+                if (p.rank === '2') { // Spirit: infinite straight
+                    if (fromX !== toX && fromY !== toY) return false;
+                    const dx = Math.sign(toX - fromX), dy = Math.sign(toY - fromY);
+                    let curr = from + (dy * 10) + dx;
+                    while (curr !== to) {
+                        if (this.board[curr] !== null) return false;
+                        curr += (dy * 10) + dx;
+                    }
+                    return true;
+                } else {
+                    return dist === 1;
+                }
+            }
+
+            highlightMoves(idx) {
+                document.querySelectorAll('.tile').forEach(t => {
+                    const targetIdx = parseInt(t.dataset.idx);
+                    if (this.isValidMove(idx, targetIdx)) {
+                        t.classList.add(this.board[targetIdx] ? 'attack' : 'highlight');
+                    }
+                });
+            }
+
+            deselect() {
+                this.selectedIdx = -1;
+                document.querySelectorAll('.tile').forEach(t => t.classList.remove('highlight', 'attack'));
+            }
+
+            executeMove(from, to) {
+                const attacker = this.board[from];
+                const defender = this.board[to];
+                this.deselect();
+                this.board[from] = null;
+
+                if (defender) {
+                    this.resolveCombat(attacker, defender, to);
+                } else {
+                    this.board[to] = attacker;
+                    this.endTurn();
+                }
+            }
+
+            resolveCombat(att, def, idx) {
+                this.state = 'battle';
+                const modal = document.getElementById('battle-modal');
+                const resText = document.getElementById('battle-result');
+                const atkEl = document.getElementById('atk-piece');
+                const defEl = document.getElementById('def-piece');
+
+                atkEl.textContent = att.icon;
+                atkEl.className = `big-piece ${att.owner}`;
+                defEl.textContent = def.icon;
+                defEl.className = `big-piece ${def.owner}`;
+                modal.style.display = 'flex';
+
+                let result = ''; 
+                if (def.rank === 'F') result = 'win_game';
+                else if (def.rank === 'B') {
+                    if (att.rank === '3') result = 'win'; 
+                    else result = 'loss';
+                } else if (att.rank === '1' && def.rank === '10') result = 'win';
+                else {
+                    const r1 = parseInt(att.rank), r2 = parseInt(def.rank);
+                    if (r1 > r2) result = 'win';
+                    else if (r1 < r2) result = 'loss';
+                    else result = 'tie';
+                }
+
+                resText.textContent = result === 'win' || result === 'win_game' ? 'Attacker Wins!' : (result === 'tie' ? 'Mutual Defeat' : 'Defender Wins!');
+                resText.style.color = result.includes('win') ? '#4ade80' : (result === 'tie' ? '#94a3b8' : '#ef4444');
+
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                    if (result === 'win_game') { this.gameOver(att.owner); return; }
+                    if (result === 'win') this.board[idx] = att;
+                    else if (result === 'loss') this.board[idx] = def;
+                    else if (result === 'tie') this.board[idx] = null;
+
+                    this.state = 'playing';
+                    this.render();
+                    this.endTurn();
+                }, 1800);
+            }
+
+            endTurn() {
+                this.turn = this.turn === 'p1' ? 'p2' : 'p1';
+                this.updateTurnUI();
+                if (this.turn === 'p2') setTimeout(() => this.aiTurn(), 1000);
+            }
+
+            aiTurn() {
+                const moves = [];
+                for(let i=0; i<100; i++) {
+                    const p = this.board[i];
+                    if (p && p.owner === 'p2' && p.rank !== 'B' && p.rank !== 'F') {
+                        const dirs = [i-10, i+10, i-1, i+1];
+                        dirs.forEach(to => {
+                            if (to >= 0 && to < 100 && (Math.abs(i%10 - to%10) <= 1)) {
+                                if (this.isValidMove(i, to)) {
+                                    let score = Math.random();
+                                    if (this.board[to]) score += 10;
+                                    if (to > i) score += 2; // Aggressive forward
+                                    moves.push({ from: i, to, score });
+                                }
+                            }
+                        });
+                    }
+                }
+
+                if (moves.length > 0) {
+                    moves.sort((a, b) => b.score - a.score);
+                    const move = moves[0];
+                    this.executeMove(move.from, move.to);
+                } else {
+                    this.gameOver('p1');
+                }
+            }
+
+            gameOver(winner) {
+                this.state = 'over';
+                const el = document.getElementById('end-screen');
+                const msg = document.getElementById('end-msg');
+                el.style.display = 'flex';
+                msg.textContent = winner === 'p1' ? 'VICTORY' : 'DEFEAT';
+                msg.style.color = winner === 'p1' ? '#4ade80' : '#ef4444';
+                document.getElementById('end-sub').textContent = winner === 'p1' ? "The enemy Throne has been captured." : "Your Throne has fallen.";
+                this.render();
+            }
+
+            updateTurnUI() {
+                const el = document.getElementById('turn-indicator');
+                el.textContent = this.turn === 'p1' ? "YOUR TURN" : "ENEMY'S TURN";
+                el.style.color = this.turn === 'p1' ? "var(--p1-color)" : "var(--p2-color)";
+            }
+
+            render() {
+                const tiles = document.querySelectorAll('.tile');
+                tiles.forEach((t, i) => {
+                    const existing = t.querySelector('.piece');
+                    if(existing) existing.remove();
+                    t.classList.remove('selected', 'setup-valid');
+
+                    const p = this.board[i];
+                    if (this.state === 'setup' && i >= 60 && !p) t.classList.add('setup-valid');
+
+                    if (p && p !== 'LAKE') {
+                        const div = document.createElement('div');
+                        div.className = `piece ${p.owner}`;
+                        if (p.owner === 'p2' && this.state !== 'over') {
+                            div.classList.add('hidden');
+                        } else {
+                            div.innerHTML = `<span class="rank-num">${p.rank}</span>${p.icon}`;
+                        }
+                        if (i === this.selectedIdx) div.classList.add('selected');
+                        t.appendChild(div);
+                    }
+                });
+            }
+        }
+
+        const game = new Stratego();
+    </script>
+</body>
+</html>

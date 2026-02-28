@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Slots: Jackpot - K2 games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --gold: #fbbf24;
+            --reel-bg: #1e293b;
+            --accent: #f472b6;
+            --glass: rgba(15, 23, 42, 0.9);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            padding: 0.8rem 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: var(--gold); letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-weight: bold; font-size: 0.9rem; }
+
+        #game-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: radial-gradient(circle at center, #1e1b4b 0%, #020617 100%);
+        }
+
+        /* Slot Machine Body */
+        #machine {
+            background: #334155;
+            padding: 20px;
+            border-radius: 20px;
+            border: 4px solid #475569;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 0 30px rgba(0,0,0,0.5);
+            max-width: 600px;
+            width: 100%;
+            position: relative;
+        }
+
+        #reels-container {
+            display: flex;
+            gap: 10px;
+            background: #000;
+            padding: 10px;
+            border-radius: 10px;
+            border: 4px solid #fbbf24;
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.2);
+            overflow: hidden;
+            height: 200px;
+            position: relative;
+        }
+
+        .reel {
+            flex: 1;
+            background: #fff;
+            color: #000;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            /* We will animate background-position-y or translate for spin */
+            overflow: hidden;
+            position: relative;
+        }
+
+        .reel-strip {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            transition: transform 0.1s linear; /* Default, overridden by JS */
+        }
+
+        .symbol {
+            height: 100px; /* Half of container height for centering? No, container is 200px */
+            /* We want to show 1 main symbol but maybe glimpses of others. Let's say 1 symbol = 100px? Or fill height. */
+            height: 200px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+        }
+
+        /* Payline */
+        #payline {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(255, 0, 0, 0.5);
+            transform: translateY(-50%);
+            pointer-events: none;
+            z-index: 10;
+            box-shadow: 0 0 10px red;
+        }
+
+        /* Controls */
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .btn-spin {
+            width: 100px; height: 100px;
+            background: linear-gradient(to bottom, #ef4444, #b91c1c);
+            border: 4px solid #7f1d1d;
+            border-radius: 50%;
+            color: white;
+            font-weight: 900;
+            font-size: 1.2rem;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+            display: flex; align-items: center; justify-content: center;
+            transition: 0.1s;
+        }
+        .btn-spin:active { transform: scale(0.95); box-shadow: 0 5px 10px rgba(0,0,0,0.4); border-color: #991b1b; }
+        .btn-spin:disabled { filter: grayscale(1); cursor: not-allowed; }
+
+        .bet-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 10px;
+            min-width: 100px;
+        }
+        .bet-label { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; }
+        .bet-val { font-size: 1.5rem; font-weight: bold; color: var(--gold); font-family: monospace; }
+
+        /* Stats */
+        #balance-display {
+            position: absolute;
+            top: -50px;
+            right: 0;
+            background: #0f172a;
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 1px solid #334155;
+            font-family: monospace;
+            font-size: 1.2rem;
+            color: #4ade80;
+            display: flex; gap: 10px; align-items: center;
+        }
+
+        /* Win Animation */
+        #win-banner {
+            position: absolute;
+            top: 40%; left: 50%; transform: translate(-50%, -50%) scale(0);
+            background: rgba(251, 191, 36, 0.9);
+            padding: 20px 40px;
+            border-radius: 20px;
+            text-align: center;
+            z-index: 100;
+            box-shadow: 0 0 50px var(--gold);
+            border: 4px solid #fff;
+            transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+        }
+        #win-banner.show { transform: translate(-50%, -50%) scale(1); }
+        .win-amt { font-size: 3rem; font-weight: 900; color: #713f12; display: block; }
+        .win-label { font-size: 1rem; font-weight: 800; color: #000; text-transform: uppercase; letter-spacing: 2px; }
+
+        .btn-small { padding: 5px 15px; background: #334155; border: 1px solid #475569; color: white; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        .btn-small:active { background: #1e293b; }
+
+        @media (max-width: 500px) {
+            #machine { padding: 10px; }
+            #reels-container { height: 150px; }
+            .symbol { font-size: 3rem; height: 150px; }
+            .btn-spin { width: 80px; height: 80px; font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">K2 SLOTS</div>
+        <a href="index.html" class="back-link">← HUB</a>
+    </nav>
+
+    <div id="game-layout">
+        <div style="position: relative; width: 100%; max-width: 600px;">
+            <div id="balance-display">
+                <span>CREDITS:</span>
+                <span id="balance-val">1000</span>
+            </div>
+
+            <div id="machine">
+                <div id="reels-container">
+                    <div id="payline"></div>
+                    <div class="reel"><div class="reel-strip" id="reel1"></div></div>
+                    <div class="reel"><div class="reel-strip" id="reel2"></div></div>
+                    <div class="reel"><div class="reel-strip" id="reel3"></div></div>
+                </div>
+
+                <div id="controls">
+                    <div class="bet-box">
+                        <span class="bet-label">BET</span>
+                        <span id="bet-val" class="bet-val">10</span>
+                        <div style="display:flex; gap:5px; margin-top:5px;">
+                            <button class="btn-small" onclick="game.adjustBet(-10)">-</button>
+                            <button class="btn-small" onclick="game.adjustBet(10)">+</button>
+                        </div>
+                    </div>
+                    
+                    <button class="btn-spin" id="spin-btn" onclick="game.spin()">SPIN</button>
+                    
+                    <div class="bet-box">
+                        <span class="bet-label">WIN</span>
+                        <span id="win-val" class="bet-val" style="color: var(--accent);">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="win-banner">
+            <span class="win-label">BIG WIN!</span>
+            <span class="win-amt" id="banner-amt">500</span>
+        </div>
+    </div>
+
+    <script>
+        const SYMBOLS = ['🍒', '🍋', '🍇', '🍉', '🔔', '💎', '7️⃣'];
+        const VALUES = { '🍒': 2, '🍋': 3, '🍇': 4, '🍉': 5, '🔔': 10, '💎': 20, '7️⃣': 50 };
+        // Weighted for realism? Or flat random for simplicity? Let's do simple random for now.
+        // To make it fun, maybe 7️⃣ is rarer.
+        const REEL_STRIP = [
+            '🍒','🍒','🍒','🍒',
+            '🍋','🍋','🍋',
+            '🍇','🍇','🍇',
+            '🍉','🍉',
+            '🔔','🔔',
+            '💎',
+            '7️⃣'
+        ];
+
+        class Slots {
+            constructor() {
+                this.balance = 1000;
+                this.bet = 10;
+                this.spinning = false;
+                this.reels = [
+                    document.getElementById('reel1'),
+                    document.getElementById('reel2'),
+                    document.getElementById('reel3')
+                ];
+                
+                // Initialize reels with random symbols
+                this.reelSymbols = [[], [], []];
+                this.initReels();
+            }
+
+            initReels() {
+                this.reels.forEach((el, i) => {
+                    // Create a long strip of symbols for animation
+                    let html = '';
+                    // We need enough repeats to scroll convincingly
+                    for(let j=0; j<20; j++) {
+                        const sym = this.getRandomSymbol();
+                        this.reelSymbols[i].push(sym);
+                        html += `<div class="symbol">${sym}</div>`;
+                    }
+                    el.innerHTML = html;
+                    // Position at a random index to start (e.g. index 5)
+                    // We show index 5. The container shows 1 symbol height.
+                    // Let's say height is variable. We set translateY based on %.
+                    // Actually, simpler: define symbol height in JS to match CSS
+                    this.symbolHeight = window.innerWidth <= 500 ? 150 : 200;
+                    this.setReelPos(i, 5); // Start at index 5
+                });
+                this.updateUI();
+            }
+
+            getRandomSymbol() {
+                return REEL_STRIP[Math.floor(Math.random() * REEL_STRIP.length)];
+            }
+
+            setReelPos(reelIdx, symbolIdx) {
+                // We want symbolIdx to be centered.
+                // The container is symbolHeight tall.
+                // The strip is absolute top 0.
+                // translateY = - (symbolIdx * H)
+                this.reels[reelIdx].style.transform = `translateY(-${symbolIdx * this.symbolHeight}px)`;
+                this.reels[reelIdx].dataset.current = symbolIdx;
+            }
+
+            adjustBet(amt) {
+                if (this.spinning) return;
+                this.bet = Math.max(10, Math.min(this.balance, this.bet + amt));
+                this.updateUI();
+            }
+
+            updateUI() {
+                document.getElementById('balance-val').textContent = this.balance;
+                document.getElementById('bet-val').textContent = this.bet;
+                document.getElementById('spin-btn').disabled = this.spinning || this.balance < this.bet;
+            }
+
+            spin() {
+                if (this.spinning || this.balance < this.bet) return;
+                
+                this.balance -= this.bet;
+                this.spinning = true;
+                document.getElementById('win-val').textContent = 0;
+                document.getElementById('win-banner').classList.remove('show');
+                this.updateUI();
+
+                // Determine outcome beforehand
+                const outcomes = [this.getRandomSymbol(), this.getRandomSymbol(), this.getRandomSymbol()];
+                
+                // Animate
+                this.reels.forEach((el, i) => {
+                    const currentIdx = parseInt(el.dataset.current);
+                    // We want to scroll DOWN (symbols move up visually? no strip moves down or up?)
+                    // Strip moves UP (negative Y) to show lower symbols.
+                    // Let's append new symbols to the bottom and scroll to them.
+                    
+                    // Add 20 dummy symbols + target at end
+                    const extra = 20 + i * 10; // Stagger stops
+                    let html = el.innerHTML;
+                    for(let j=0; j<extra; j++) {
+                        html += `<div class="symbol">${this.getRandomSymbol()}</div>`;
+                    }
+                    // The winner
+                    html += `<div class="symbol" id="target-${i}">${outcomes[i]}</div>`;
+                    // A few more for padding
+                    html += `<div class="symbol">${this.getRandomSymbol()}</div>`;
+                    
+                    el.innerHTML = html;
+                    
+                    // Trigger reflow?
+                    // We want smooth transition
+                    const totalSymbols = el.children.length;
+                    const targetIdx = totalSymbols - 2; // Target is 2nd from last
+                    
+                    // Transition duration based on distance
+                    const time = 2 + i * 0.5; // 2s, 2.5s, 3s
+                    el.style.transition = `transform ${time}s cubic-bezier(0.25, 0.1, 0.25, 1)`;
+                    
+                    // Delay slightly to allow DOM update
+                    setTimeout(() => {
+                        el.style.transform = `translateY(-${targetIdx * this.symbolHeight}px)`;
+                    }, 50);
+                });
+
+                // Check win after last reel stops
+                setTimeout(() => {
+                    this.checkWin(outcomes);
+                    this.resetReels(outcomes);
+                }, 3500); // Max spin time + buffer
+            }
+
+            checkWin(results) {
+                let winMult = 0;
+                // Match 3
+                if (results[0] === results[1] && results[1] === results[2]) {
+                    winMult = VALUES[results[0]] * 10; // Jackpotish
+                }
+                // Match 2 (First two or Last two? Usually Left to Right)
+                else if (results[0] === results[1]) {
+                    winMult = VALUES[results[0]] * 2;
+                }
+                // Any 7s?
+                else if (results.includes('7️⃣')) {
+                    winMult = 1; // Cherry pick equivalent
+                }
+
+                const winAmt = this.bet * winMult;
+                if (winAmt > 0) {
+                    this.balance += winAmt;
+                    this.showWin(winAmt, winMult > 10 ? "JACKPOT!" : "WINNER!");
+                }
+                
+                this.spinning = false;
+                this.updateUI();
+            }
+
+            showWin(amt, label) {
+                document.getElementById('win-val').textContent = amt;
+                document.getElementById('banner-amt').textContent = amt;
+                document.querySelector('.win-label').textContent = label;
+                document.getElementById('win-banner').classList.add('show');
+                
+                // Confetti or particles here would be nice
+            }
+
+            resetReels(currentSymbols) {
+                // Reset DOM to small strip to prevent memory issues over time
+                this.reels.forEach((el, i) => {
+                    el.style.transition = 'none';
+                    // We are currently at targetIdx.
+                    // Let's rebuild strip so target is at index 5 again
+                    let html = '';
+                    for(let j=0; j<5; j++) html += `<div class="symbol">${this.getRandomSymbol()}</div>`;
+                    html += `<div class="symbol">${currentSymbols[i]}</div>`; // Index 5
+                    for(let j=0; j<5; j++) html += `<div class="symbol">${this.getRandomSymbol()}</div>`;
+                    
+                    el.innerHTML = html;
+                    el.style.transform = `translateY(-${5 * this.symbolHeight}px)`;
+                    el.dataset.current = 5;
+                });
+            }
+        }
+
+        const game = new Slots();
+        
+        window.addEventListener('resize', () => {
+            game.symbolHeight = window.innerWidth <= 500 ? 150 : 200;
+            // Re-align current positions
+            game.reels.forEach(el => {
+                const idx = parseInt(el.dataset.current) || 5;
+                el.style.transform = `translateY(-${idx * game.symbolHeight}px)`;
+            });
+        });
+    </script>
+</body>
+</html>

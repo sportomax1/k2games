@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Swim Race Elite - K4 Games</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>K2 Swim Race: Olympic Pool - K2 games</title>
     <style>
         :root {
             --pool-blue: #0ea5e9;
@@ -11,10 +11,11 @@
             --accent: #f59e0b;
             --bg: #0f172a;
             --text: #f8fafc;
-            --danger: #ef4444;
+            --glass: rgba(255, 255, 255, 0.1);
+            --border: rgba(255, 255, 255, 0.2);
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; touch-action: none; }
         
         body {
             background-color: var(--bg);
@@ -23,245 +24,383 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
             overflow: hidden;
         }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: var(--accent); letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
 
         #game-container {
+            flex: 1;
             position: relative;
             background: var(--pool-deep);
-            border-radius: 24px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            border: 8px solid #1e293b;
             overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
-        canvas { display: block; }
+        canvas {
+            background: var(--pool-blue);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 4px solid #1e293b;
+            max-width: 95vw;
+            max-height: 80vh;
+        }
 
-        .hud {
+        /* HUD Layer */
+        #hud {
             position: absolute;
             top: 20px;
             width: 100%;
             display: flex;
             justify-content: space-between;
-            padding: 0 40px;
+            padding: 0 30px;
             pointer-events: none;
+            z-index: 50;
         }
 
         .stat-card {
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(8px);
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(12px);
             padding: 10px 20px;
             border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border);
             text-align: center;
+            min-width: 120px;
         }
 
-        .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--accent); }
+        .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--accent); font-family: monospace; }
         .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
 
         .stamina-bar {
             position: absolute;
-            bottom: 30px;
+            bottom: 40px;
             left: 50%;
             transform: translateX(-50%);
             width: 300px;
-            height: 12px;
+            height: 14px;
             background: rgba(0,0,0,0.5);
             border-radius: 10px;
             overflow: hidden;
-            border: 2px solid rgba(255,255,255,0.1);
+            border: 2px solid var(--border);
+            z-index: 50;
         }
         #stamina-fill { height: 100%; width: 100%; background: #22c55e; transition: width 0.1s; }
 
-        .back-link {
-            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
-            background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 12px; z-index: 1000;
-            font-weight: bold; backdrop-filter: blur(10px);
+        #controls-hint {
+            position: absolute;
+            bottom: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.5);
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-align: center;
+            pointer-events: none;
+            z-index: 50;
         }
 
-        #overlay {
+        /* Mobile Tap Regions */
+        #mobile-taps {
+            position: absolute;
+            inset: 0;
+            display: none;
+            grid-template-columns: 1fr 1fr;
+            z-index: 40;
+        }
+        .tap-zone { background: transparent; cursor: pointer; }
+        .tap-zone:active { background: rgba(255,255,255,0.05); }
+
+        /* Overlays */
+        .screen-overlay {
             position: absolute; inset: 0;
-            background: rgba(15, 23, 42, 0.95);
-            display: none; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 2000; text-align: center; backdrop-filter: blur(10px);
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
         }
 
-        .btn {
-            background: var(--accent); color: #000; border: none; padding: 15px 40px;
-            border-radius: 50px; font-weight: 800; cursor: pointer; font-size: 1.2rem;
-            margin-top: 20px; transition: 0.2s;
+        .btn-large {
+            background: var(--accent); color: #000; border: none; padding: 1rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.2rem; box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4);
         }
-        .btn:hover { transform: scale(1.05); }
+
+        .char-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .char-opt {
+            background: var(--glass);
+            border: 2px solid var(--border);
+            padding: 15px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 2rem;
+            transition: 0.2s;
+        }
+        .char-opt.selected { background: #fff; border-color: var(--accent); transform: scale(1.1); }
 
         .countdown {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 10rem; font-weight: 900; color: white; text-shadow: 0 0 50px rgba(0,0,0,0.5);
-            pointer-events: none; opacity: 0; transition: transform 0.3s, opacity 0.3s;
+            position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 12rem; font-weight: 900; color: white;
+            text-shadow: 0 0 50px rgba(0,0,0,0.5);
+            pointer-events: none; opacity: 0; z-index: 300;
         }
-        .countdown.show { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+        .countdown.show { animation: popScale 1s ease-out forwards; }
+        @keyframes popScale { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; } 20% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; } }
+
+        @media (max-width: 768px) {
+            #mobile-taps { display: grid; }
+            #controls-hint { font-size: 0.7rem; width: 80%; }
+            #hud { padding: 0 15px; }
+            .stat-card { min-width: 90px; }
+        }
     </style>
 </head>
 <body>
-    <a href="index.html" class="back-link">← HUB</a>
+    <nav>
+        <div class="logo">K2 SWIM RACE</div>
+        <a href="index.html" class="back-link">← EXIT HUB</a>
+    </nav>
 
     <div id="game-container">
-        <canvas id="gameCanvas" width="900" height="500"></canvas>
+        <canvas id="gameCanvas"></canvas>
         <div id="countdown" class="countdown">3</div>
         
-        <div class="stamina-bar"><div id="stamina-fill"></div></div>
+        <div id="hud">
+            <div class="stat-card">
+                <div class="stat-label">Timer</div>
+                <div id="time-val" class="stat-val">0.00</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Position</div>
+                <div id="pos-val" class="stat-val">1st</div>
+            </div>
+        </div>
 
-        <div id="overlay">
-            <h1 id="overlay-title" style="font-size: 4rem; color: var(--accent);">READY?</h1>
-            <p id="overlay-msg" style="font-size: 1.2rem; opacity: 0.8;">MASH SPACE to stroke! Manage your stamina.</p>
-            <button class="btn" onclick="game.startRace()">ENTER POOL</button>
+        <div class="stamina-bar"><div id="stamina-fill"></div></div>
+        <div id="controls-hint">MASH ALTERNATE KEYS [←] [→] OR TAP SIDES OF SCREEN</div>
+
+        <div id="mobile-taps">
+            <div class="tap-zone" id="tap-left"></div>
+            <div class="tap-zone" id="tap-right"></div>
+        </div>
+
+        <!-- Overlays -->
+        <div id="start-screen" class="screen-overlay">
+            <h1 style="font-size: 3.5rem; font-style: italic; color: var(--accent); font-weight: 900;">PRO SWIMMER</h1>
+            <p style="opacity: 0.7; margin-top: 10px;">Select your athlete and prepare for the 100m freestyle.</p>
+            
+            <div class="char-grid">
+                <div class="char-opt selected" onclick="game.setChar(0)">🏊‍♂️</div>
+                <div class="char-opt" onclick="game.setChar(1)">🏊‍♀️</div>
+                <div class="char-opt" onclick="game.setChar(2)">🦈</div>
+                <div class="char-opt" onclick="game.setChar(3)">🐧</div>
+            </div>
+
+            <button class="btn-large" onclick="game.startCountdown()">ENTER WATER</button>
+        </div>
+
+        <div id="win-screen" class="screen-overlay" style="display:none">
+            <h1 id="winner-text" style="font-size: 3.5rem; color: var(--accent);">GOLD MEDAL!</h1>
+            <div id="final-time" style="font-size: 2rem; font-weight: 900; margin: 10px 0;">Time: 12.45s</div>
+            <button class="btn-large" onclick="location.reload()">NEW RACE</button>
         </div>
     </div>
 
     <script>
+        const CHARS = ['🏊‍♂️', '🏊‍♀️', '🦈', '🐧'];
+
         class SwimRace {
             constructor() {
                 this.canvas = document.getElementById('gameCanvas');
                 this.ctx = this.canvas.getContext('2d');
-                this.width = 900;
-                this.height = 500;
+                this.width = 1000;
+                this.height = 600;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                this.playing = false;
+                this.state = 'menu';
+                this.stamina = 100;
+                this.lastSide = null; // 'left' or 'right'
+                this.startTime = 0;
+                this.myCharIdx = 0;
                 
-                this.lanes = 6;
-                this.laneH = 70;
+                this.laneH = 80;
+                this.totalLanes = 6;
                 this.playerLane = 2;
                 
-                this.state = 'menu'; 
                 this.swimmers = [];
                 this.particles = [];
-                this.startTime = 0;
-                this.results = [];
-                this.stamina = 100;
                 
                 this.init();
             }
 
             init() {
-                this.swimmers = [];
-                for(let i=0; i<this.lanes; i++) {
-                    this.swimmers.push({
-                        lane: i,
-                        x: 50,
-                        v: 0,
-                        finished: false,
-                        color: i === this.playerLane ? '#f59e0b' : '#38bdf8',
-                        isPlayer: i === this.playerLane,
-                        aiSpeed: 1.8 + Math.random() * 1.4,
-                        anim: 0
-                    });
-                }
-                
-                document.getElementById('overlay').style.display = 'flex';
-                window.onkeydown = (e) => {
-                    if(e.code === 'Space') {
-                        if(this.state === 'racing') this.playerStroke();
-                        e.preventDefault();
-                    }
-                };
-                
-                this.loop();
+                this.swimmers = Array(this.totalLanes).fill(0).map((_, i) => ({
+                    lane: i,
+                    x: 100,
+                    vx: 0,
+                    finished: false,
+                    isPlayer: i === this.playerLane,
+                    emoji: CHARS[Math.floor(Math.random() * CHARS.length)],
+                    aiSpeed: 1.5 + Math.random() * 1.5,
+                    anim: 0,
+                    time: 0
+                }));
+
+                this.setupControls();
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
             }
 
-            startRace() {
-                document.getElementById('overlay').style.display = 'none';
+            setChar(idx) {
+                this.myCharIdx = idx;
+                document.querySelectorAll('.char-opt').forEach((el, i) => {
+                    el.classList.toggle('selected', i === idx);
+                });
+                this.swimmers[this.playerLane].emoji = CHARS[idx];
+            }
+
+            setupControls() {
+                const stroke = (side) => {
+                    if (this.state !== 'racing' || this.stamina < 5) return;
+                    
+                    // Rhythmic bonus: alternate keys give full speed, same key gives penalty
+                    let force = 2.5;
+                    if (this.lastSide === side) force = 0.8;
+                    
+                    this.swimmers[this.playerLane].vx += force;
+                    this.stamina -= 4;
+                    this.lastSide = side;
+                    this.spawnSplash(this.swimmers[this.playerLane].x, 100 + this.playerLane * this.laneH + this.laneH/2);
+                };
+
+                window.onkeydown = (e) => {
+                    if (e.key === 'ArrowLeft' || e.key === 'a') stroke('left');
+                    if (e.key === 'ArrowRight' || e.key === 'd') stroke('right');
+                };
+
+                document.getElementById('tap-left').onclick = () => stroke('left');
+                document.getElementById('tap-right').onclick = () => stroke('right');
+            }
+
+            startCountdown() {
+                document.getElementById('start-screen').style.display = 'none';
                 this.state = 'countdown';
                 let count = 3;
                 const cd = document.getElementById('countdown');
-                cd.textContent = count;
-                cd.classList.add('show');
                 
-                const timer = setInterval(() => {
-                    count--;
-                    if(count > 0) {
+                const step = () => {
+                    if (count > 0) {
                         cd.textContent = count;
-                    } else if(count === 0) {
+                        cd.classList.remove('show');
+                        void cd.offsetWidth; // Force reflow
+                        cd.classList.add('show');
+                        count--;
+                        setTimeout(step, 1000);
+                    } else {
                         cd.textContent = 'GO!';
+                        cd.classList.remove('show');
+                        void cd.offsetWidth;
+                        cd.classList.add('show');
                         this.state = 'racing';
                         this.startTime = Date.now();
-                    } else {
-                        cd.classList.remove('show');
-                        clearInterval(timer);
                     }
-                }, 1000);
-            }
-
-            playerStroke() {
-                const p = this.swimmers[this.playerLane];
-                if(p.finished || this.stamina < 5) return;
-                
-                // Stamina penalty
-                this.stamina -= 8;
-                p.v += 3.0;
-                this.createSplash(p.x, 40 + p.lane * this.laneH + 35);
-            }
-
-            createSplash(x, y) {
-                for(let i=0; i<8; i++) {
-                    this.particles.push({
-                        x, y,
-                        vx: -3 - Math.random() * 3,
-                        vy: (Math.random() - 0.5) * 6,
-                        life: 1.0,
-                        r: 2 + Math.random() * 4
-                    });
-                }
+                };
+                step();
             }
 
             update() {
-                if(this.state === 'racing') {
-                    // Stamina Regen
-                    this.stamina = Math.min(100, this.stamina + 0.4);
+                if (this.state === 'racing') {
+                    this.stamina = Math.min(100, this.stamina + 0.35);
                     document.getElementById('stamina-fill').style.width = this.stamina + '%';
-                    document.getElementById('stamina-fill').style.background = this.stamina < 20 ? '#ef4444' : '#22c55e';
+                    document.getElementById('stamina-fill').style.background = this.stamina < 30 ? 'var(--accent)' : '#22c55e';
 
                     this.swimmers.forEach(s => {
-                        if(s.finished) return;
+                        if (s.finished) return;
 
-                        if(!s.isPlayer) {
-                            // AI stroking logic
-                            if(Math.random() < 0.05) {
-                                s.v += s.aiSpeed * 0.8;
-                                if(Math.random() < 0.1) this.createSplash(s.x, 40 + s.lane * this.laneH + 35);
+                        if (!s.isPlayer) {
+                            // AI logic
+                            if (Math.random() < 0.06) {
+                                s.vx += s.aiSpeed * 0.8;
+                                if (Math.random() < 0.1) this.spawnSplash(s.x, 100 + s.lane * this.laneH + this.laneH/2);
                             }
                         }
 
-                        s.x += s.v;
-                        s.v *= 0.93; // Water drag
-                        s.anim += s.v * 0.12;
+                        s.x += s.vx;
+                        s.vx *= 0.92; // Friction
+                        s.anim += s.vx * 0.15;
 
-                        if(s.x > 850) {
+                        if (s.x > 900) {
                             s.finished = true;
-                            s.time = ((Date.now() - this.startTime) / 1000).toFixed(2);
-                            this.results.push(s);
-                            if(this.results.length === this.lanes) this.showResults();
+                            s.time = (Date.now() - this.startTime) / 1000;
+                            if (this.swimmers.every(sw => sw.finished)) this.finishRace();
                         }
                     });
+
+                    // Update UI
+                    const elapsed = (Date.now() - this.startTime) / 1000;
+                    document.getElementById('time-val').textContent = elapsed.toFixed(2);
+                    
+                    const sorted = [...this.swimmers].sort((a,b) => b.x - a.x);
+                    const pos = sorted.findIndex(s => s.isPlayer) + 1;
+                    const suffix = ['st', 'nd', 'rd', 'th', 'th', 'th'][pos-1];
+                    document.getElementById('pos-val').textContent = pos + suffix;
                 }
 
+                // Particles
                 this.particles.forEach((p, i) => {
-                    p.x += p.vx; p.y += p.vy; p.life -= 0.03;
-                    if(p.life <= 0) this.particles.splice(i, 1);
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+                    if (p.life <= 0) this.particles.splice(i, 1);
                 });
             }
 
-            showResults() {
+            spawnSplash(x, y) {
+                for(let i=0; i<10; i++) {
+                    this.particles.push({
+                        x, y,
+                        vx: -2 - Math.random() * 4,
+                        vy: (Math.random() - 0.5) * 6,
+                        life: 1.0,
+                        r: 2 + Math.random() * 5
+                    });
+                }
+            }
+
+            finishRace() {
                 this.state = 'results';
-                const overlay = document.getElementById('overlay');
-                const title = document.getElementById('overlay-title');
-                const msg = document.getElementById('overlay-msg');
+                const results = [...this.swimmers].sort((a, b) => a.time - b.time);
+                const playerRank = results.findIndex(s => s.isPlayer) + 1;
                 
-                this.results.sort((a,b) => a.time - b.time);
-                const rank = this.results.findIndex(s => s.isPlayer) + 1;
+                const winScreen = document.getElementById('win-screen');
+                const winText = document.getElementById('winner-text');
+                const timeText = document.getElementById('final-time');
                 
-                overlay.style.display = 'flex';
-                title.textContent = rank === 1 ? "🏅 GOLD MEDAL!" : rank === 2 ? "🥈 SILVER MEDAL" : rank === 3 ? "🥉 BRONZE MEDAL" : "FINISHED";
-                msg.innerHTML = `<span style="font-size:2rem; font-weight:900;">${this.results.find(s=>s.isPlayer).time}s</span><br><br>` + 
-                               this.results.map((s,i) => `<div style="text-align:left; margin-left:100px;">#${i+1}: ${s.isPlayer?'YOU':'AI Swimmer'} - ${s.time}s</div>`).join('');
+                winScreen.style.display = 'flex';
+                if (playerRank === 1) { winText.textContent = "🥇 GOLD MEDAL!"; winText.style.color = "var(--accent)"; }
+                else if (playerRank === 2) { winText.textContent = "🥈 SILVER MEDAL"; winText.style.color = "#cbd5e1"; }
+                else if (playerRank === 3) { winText.textContent = "🥉 BRONZE MEDAL"; winText.style.color = "#b45309"; }
+                else { winText.textContent = "FINISHED #" + playerRank; winText.style.color = "white"; }
+                
+                timeText.textContent = "Final Time: " + this.swimmers[this.playerLane].time.toFixed(2) + "s";
             }
 
             draw() {
@@ -271,32 +410,32 @@
                 // Pool Backdrop
                 ctx.fillStyle = '#0369a1'; ctx.fillRect(0, 0, this.width, this.height);
 
-                // Pool Lanes
-                for(let i=0; i<this.lanes; i++) {
-                    const y = 40 + i * this.laneH;
+                // Lanes
+                for(let i=0; i<this.totalLanes; i++) {
+                    const y = 100 + i * this.laneH;
                     ctx.fillStyle = i % 2 === 0 ? '#0ea5e9' : '#0284c7';
                     ctx.fillRect(0, y, this.width, this.laneH);
                     
-                    // Water highlights
-                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-                    const shift = (Date.now()/1000 + i) % 1;
-                    ctx.fillRect(shift * this.width, y + 10, 100, 2);
+                    // Wave pattern
+                    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+                    const shift = (Date.now()/2000 + i) % 1;
+                    ctx.fillRect(shift * this.width, y + 10, 150, 4);
                     
-                    // Lane Ropes
+                    // Ropes
                     ctx.strokeStyle = '#fff';
-                    ctx.setLineDash([15, 10]);
+                    ctx.setLineDash([20, 15]);
                     ctx.lineWidth = 2;
                     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(this.width, y); ctx.stroke();
                     ctx.setLineDash([]);
                 }
 
-                // Finish Line (Buoy rope)
+                // Finish Line
                 ctx.strokeStyle = '#ef4444';
-                ctx.lineWidth = 12;
-                ctx.beginPath(); ctx.moveTo(850, 40); ctx.lineTo(850, 40 + this.lanes * this.laneH); ctx.stroke();
+                ctx.lineWidth = 15;
+                ctx.beginPath(); ctx.moveTo(900, 100); ctx.lineTo(900, 100 + this.totalLanes * this.laneH); ctx.stroke();
 
                 // Particles
-                ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                ctx.fillStyle = 'rgba(255,255,255,0.6)';
                 this.particles.forEach(p => {
                     ctx.globalAlpha = p.life;
                     ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
@@ -305,29 +444,32 @@
 
                 // Swimmers
                 this.swimmers.forEach(s => {
-                    const y = 40 + s.lane * this.laneH + 35;
+                    const y = 100 + s.lane * this.laneH + this.laneH/2;
                     ctx.save();
                     ctx.translate(s.x, y);
                     
                     // Shadow
                     ctx.fillStyle = 'rgba(0,0,0,0.2)';
-                    ctx.beginPath(); ctx.ellipse(0, 15, 25, 8, 0, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.ellipse(0, 15, 30, 10, 0, 0, Math.PI*2); ctx.fill();
 
-                    // Body
-                    ctx.fillStyle = s.color;
-                    ctx.beginPath(); ctx.ellipse(0, 0, 28, 14, 0, 0, Math.PI*2); ctx.fill();
-                    
-                    // Cap
-                    ctx.fillStyle = '#fff';
-                    ctx.beginPath(); ctx.arc(18, -2, 11, 0, Math.PI*2); ctx.fill();
-                    
                     // Arms (Animated)
                     ctx.strokeStyle = '#ffccaa';
-                    ctx.lineWidth = 5;
+                    ctx.lineWidth = 6;
                     ctx.lineCap = 'round';
                     const armAngle = Math.sin(s.anim) * 1.8;
-                    ctx.beginPath(); ctx.moveTo(5, -8); ctx.lineTo(5 + Math.cos(armAngle)*25, -18 + Math.sin(armAngle)*12); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(5, 8); ctx.lineTo(5 + Math.cos(armAngle+Math.PI)*25, 18 + Math.sin(armAngle+Math.PI)*12); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(10, -10); ctx.lineTo(10 + Math.cos(armAngle)*35, -25 + Math.sin(armAngle)*15); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(10, 10); ctx.lineTo(10 + Math.cos(armAngle+Math.PI)*35, 25 + Math.sin(armAngle+Math.PI)*15); ctx.stroke();
+
+                    // Emoji
+                    ctx.font = '50px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(s.emoji, 0, 0);
+                    
+                    if (s.isPlayer) {
+                        ctx.fillStyle = 'var(--accent)';
+                        ctx.beginPath(); ctx.moveTo(0, -45); ctx.lineTo(-10, -60); ctx.lineTo(10, -60); ctx.fill();
+                    }
                     
                     ctx.restore();
                 });
@@ -336,7 +478,7 @@
             loop() {
                 this.update();
                 this.draw();
-                requestAnimationFrame(() => this.loop());
+                requestAnimationFrame(this.loop);
             }
         }
 

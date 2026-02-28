@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shootout: Pro Striker - K2 games</title>
+    <style>
+        :root {
+            --soccer-grass: #1b5e20;
+            --soccer-grass-light: #2e7d32;
+            --hockey-ice: #e0f2fe;
+            --primary: #3b82f6;
+            --accent: #ef4444;
+            --gold: #fbbf24;
+            --bg: #0f172a;
+            --glass: rgba(15, 23, 42, 0.85);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: #fff; letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #020617;
+        }
+
+        canvas {
+            background: #000;
+            box-shadow: 0 50px 100px rgba(0,0,0,0.8);
+            border-radius: 20px;
+            max-width: 95vw;
+            max-height: 80vh;
+        }
+
+        #hud {
+            position: absolute; top: 20px; left: 20px; right: 20px;
+            display: flex; justify-content: space-between; pointer-events: none; z-index: 50;
+        }
+
+        .stat-card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            padding: 10px 20px;
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+            min-width: 110px;
+        }
+
+        .stat-val { font-size: 1.8rem; font-weight: 900; color: var(--gold); font-family: monospace; }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+
+        #event-banner {
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 5rem; font-weight: 900; color: var(--gold); text-shadow: 0 0 40px rgba(0,0,0,0.9);
+            display: none; z-index: 150; pointer-events: none; font-style: italic; text-align: center;
+        }
+
+        #mode-selector {
+            position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; pointer-events: auto; z-index: 60;
+        }
+
+        .mode-btn {
+            background: var(--glass);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 8px 20px;
+            border-radius: 50px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.8rem;
+        }
+        .mode-btn.active { background: var(--primary); border-color: white; box-shadow: 0 0 15px var(--primary); }
+
+        #hint {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            color: rgba(255,255,255,0.4); font-size: 0.8rem; font-weight: 600; text-align: center; pointer-events: none;
+        }
+
+        .screen-overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--primary); color: white; border: none; padding: 1rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.2rem; box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            .stat-card { min-width: 90px; padding: 8px 12px; }
+            .stat-val { font-size: 1.2rem; }
+            #event-banner { font-size: 3rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">K2 SHOOTOUT</div>
+        <a href="index.html" class="back-link">← EXIT HUB</a>
+    </nav>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="hud">
+            <div class="stat-card">
+                <div class="stat-label">Goals</div>
+                <div id="score-val" class="stat-val">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Strikes</div>
+                <div id="strikes-val" class="stat-val">5</div>
+            </div>
+        </div>
+
+        <div id="mode-selector">
+            <button class="mode-btn active" onclick="game.setMode('soccer')">⚽ SOCCER</button>
+            <button class="mode-btn" onclick="game.setMode('hockey')">🏒 HOCKEY</button>
+        </div>
+
+        <div id="event-banner">GOAL!</div>
+        <div id="hint">FLING THE BALL IN ANY DIRECTION!</div>
+
+        <div id="start-screen" class="screen-overlay">
+            <h1 style="font-size: 4rem; font-style: italic; background: linear-gradient(to bottom, #fff, var(--gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900;">PRO STRIKER</h1>
+            <p style="opacity: 0.7; margin-top: 10px; font-size: 1.2rem;">Elite Championship Shootout</p>
+            <button class="btn-large" onclick="game.start()">ENTER FIELD</button>
+        </div>
+
+        <div id="end-modal" class="screen-overlay" style="display:none">
+            <h1 style="font-size: 3rem; color: var(--gold);">SESSION ENDED</h1>
+            <p id="final-stats" style="margin-top:10px; opacity:0.7"></p>
+            <button class="btn-large" onclick="location.reload()">REPLAY</button>
+        </div>
+    </div>
+
+    <script>
+        class Shootout {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 1000;
+                this.height = 750;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                this.mode = 'soccer';
+                this.playing = false;
+                this.score = 0;
+                this.strikes = 5;
+                
+                this.ball = { x: 500, y: 650, z: 0, vx: 0, vy: 0, vz: 0, rot: 0, active: false };
+                this.goal = { x: 500, y: 100, w: 400, h: 120, rotation: 0 };
+                this.goalie = { x: 500, y: 180, vx: 5, targetX: 500, anim: 0 };
+                this.drag = { active: false, startX: 0, startY: 0, currX: 0, currY: 0 };
+                
+                this.particles = [];
+                this.iceScratches = Array(40).fill(0).map(() => ({ x: Math.random()*this.width, y: Math.random()*this.height, w: 20+Math.random()*40, a: Math.random()*Math.PI }));
+                
+                this.init();
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            setMode(m) {
+                this.mode = m;
+                document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.toggle('active', btn.textContent.toLowerCase().includes(m)));
+                this.resetBall();
+            }
+
+            init() {
+                const getPos = (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const t = e.touches ? e.touches[0] : e;
+                    return {
+                        x: (t.clientX - rect.left) * (this.width / rect.width),
+                        y: (t.clientY - rect.top) * (this.height / rect.height)
+                    };
+                };
+
+                const startDrag = (e) => {
+                    if (!this.playing || this.ball.active) return;
+                    const pos = getPos(e);
+                    if (Math.hypot(pos.x - this.ball.x, pos.y - this.ball.y) < 100) {
+                        this.drag.active = true;
+                        this.drag.startX = pos.x;
+                        this.drag.startY = pos.y;
+                        this.drag.currX = pos.x;
+                        this.drag.currY = pos.y;
+                    }
+                };
+
+                const moveDrag = (e) => {
+                    if (this.drag.active) {
+                        const pos = getPos(e);
+                        this.drag.currX = pos.x;
+                        this.drag.currY = pos.y;
+                    }
+                };
+
+                const endDrag = () => {
+                    if (this.drag.active) {
+                        const dx_drag = this.drag.startX - this.drag.currX;
+                        const dy_drag = this.drag.startY - this.drag.currY;
+                        const dist_drag = Math.hypot(dx_drag, dy_drag);
+                        
+                        if (dist_drag > 30) { 
+                            // Ball Direction & Power towards the flicked direction
+                            const maxPower = 25;
+                            const dx = this.drag.currX - this.drag.startX;
+                            const dy = this.drag.currY - this.drag.startY;
+                            const dist = Math.hypot(dx, dy);
+                            const speed = Math.min(maxPower, dist / 8);
+                            
+                            if (dy < 0) {
+                                this.fire((dx / dist) * speed, (dy / dist) * speed, Math.abs(dy) / 10);
+                            }
+                        }
+                        this.drag.active = false;
+                    }
+                };
+
+                this.canvas.addEventListener('mousedown', startDrag);
+                window.addEventListener('mousemove', moveDrag);
+                window.addEventListener('mouseup', endDrag);
+                this.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrag(e); }, {passive: false});
+                window.addEventListener('touchmove', (e) => { if(this.drag.active) e.preventDefault(); moveDrag(e); }, {passive: false});
+                window.addEventListener('touchend', endDrag);
+            }
+
+            start() {
+                this.score = 0;
+                this.strikes = 5;
+                this.playing = true;
+                this.resetBall();
+                document.getElementById('start-screen').style.display = 'none';
+                this.updateUI();
+            }
+
+            fire(vx, vy, vz) {
+                this.ball.active = true;
+                this.ball.vx = vx;
+                this.ball.vy = vy;
+                this.ball.vz = vz;
+            }
+
+            resetBall() {
+                this.ball = { x: 500, y: 650, z: 0, vx: 0, vy: 0, vz: 0, rot: 0, active: false };
+            }
+
+            update() {
+                if (!this.playing) return;
+
+                const time = Date.now();
+                // Goal is stationary as requested
+                this.goal.x = 500;
+                this.goal.rotation = 0;
+
+                // Goalie AI follows the ball's X position with some delay/smoothing
+                const goalieTarget = this.ball.active ? this.ball.x : 500;
+                this.goalie.x += (goalieTarget - this.goalie.x) * 0.08;
+                this.goalie.anim += 0.15;
+
+                if (this.ball.active) {
+                    this.ball.x += this.ball.vx;
+                    this.ball.y += this.ball.vy;
+                    this.ball.z += this.ball.vz;
+                    this.ball.vz -= 0.5; // Gravity
+                    this.ball.rot += 0.2;
+                    
+                    // Trail particles
+                    if (Math.random() > 0.5) {
+                        this.particles.push({ 
+                            x: this.ball.x, y: this.ball.y, 
+                            vx: (Math.random()-0.5)*2, vy: (Math.random()-0.5)*2, 
+                            life: 0.5, color: 'rgba(255,255,255,0.3)' 
+                        });
+                    }
+
+                    if (this.ball.z < 0) { this.ball.z = 0; this.ball.vz *= -0.4; }
+
+                    // Goalie Save Zone
+                    const goalieDepth = 180;
+                    if (this.ball.y < goalieDepth + 40 && this.ball.y > goalieDepth - 40) {
+                        if (Math.abs(this.ball.x - this.goalie.x) < 70 && this.ball.z < 100) {
+                            this.triggerEvent("SAVED!", false);
+                        }
+                    }
+
+                    // Collision Detection with Goal
+                    const goalLeft = this.goal.x - this.goal.w/2;
+                    const goalRight = this.goal.x + this.goal.w/2;
+                    if (this.ball.y < 150) {
+                        if (this.ball.x > goalLeft && this.ball.x < goalRight && this.ball.z < this.goal.h) {
+                            this.triggerEvent("GOAL!", true);
+                        } else if (this.ball.y < 100) {
+                            this.triggerEvent("MISS!", false);
+                        }
+                    }
+
+                    // Bounds
+                    if (this.ball.y > 800 || this.ball.x < -100 || this.ball.x > 1100) {
+                        this.triggerEvent("MISS!", false);
+                    }
+                }
+
+                this.particles.forEach((p, i) => {
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                });
+            }
+
+            triggerEvent(txt, success) {
+                this.ball.active = false;
+                const el = document.getElementById('event-banner');
+                el.textContent = txt; el.style.display = 'block';
+                el.style.color = success ? 'var(--gold)' : 'var(--accent)';
+                
+                if (success) {
+                    this.score += 100;
+                    this.spawnParticles(this.ball.x, this.ball.y, 'var(--gold)', 40);
+                } else {
+                    this.strikes--;
+                    this.spawnParticles(this.ball.x, this.ball.y, '#94a3b8', 15);
+                }
+
+                this.updateUI();
+                setTimeout(() => {
+                    el.style.display = 'none';
+                    if (this.strikes <= 0) this.gameOver();
+                    else this.resetBall();
+                }, 1500);
+            }
+
+            updateUI() {
+                document.getElementById('score-val').textContent = this.score;
+                document.getElementById('strikes-val').textContent = this.strikes;
+            }
+
+            gameOver() {
+                this.playing = false;
+                document.getElementById('end-modal').style.display = 'flex';
+                document.getElementById('final-score-val').textContent = `FINAL SCORE: ${this.score}`;
+            }
+
+            spawnParticles(x, y, color, count) {
+                for(let i=0; i<count; i++) {
+                    this.particles.push({ x, y, vx: (Math.random()-0.5)*20, vy: (Math.random()-0.5)*20, life: 1, color });
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // --- STADIUM ---
+                if (this.mode === 'soccer') {
+                    const grad = ctx.createLinearGradient(0, 0, 0, this.height);
+                    grad.addColorStop(0, '#1b5e20'); grad.addColorStop(1, '#2e7d32');
+                    ctx.fillStyle = grad; ctx.fillRect(0, 0, this.width, this.height);
+                    ctx.fillStyle = 'rgba(0,0,0,0.05)';
+                    for(let i=0; i<15; i+=2) ctx.fillRect(0, i*(this.height/15), this.width, this.height/15);
+                    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.arc(500, 150, 180, 0, Math.PI, false); ctx.stroke();
+                } else {
+                    ctx.fillStyle = '#e0f2fe'; ctx.fillRect(0, 0, this.width, this.height);
+                    ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1;
+                    this.iceScratches.forEach(s => {
+                        ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(s.a);
+                        ctx.beginPath(); ctx.moveTo(-s.w/2, 0); ctx.lineTo(s.w/2, 0); ctx.stroke();
+                        ctx.restore();
+                    });
+                    ctx.strokeStyle = 'rgba(0,0,255,0.1)'; ctx.lineWidth = 6;
+                    ctx.beginPath(); ctx.arc(500, 150, 180, 0, Math.PI, false); ctx.stroke();
+                    ctx.strokeStyle = 'rgba(255,0,0,0.2)'; ctx.beginPath(); ctx.moveTo(0, 150); ctx.lineTo(1000, 150); ctx.stroke();
+                }
+
+                // Crowd
+                ctx.fillStyle = '#020617'; ctx.beginPath(); ctx.moveTo(0, 100);
+                for(let x=0; x<=this.width; x+=15) ctx.lineTo(x, 100 - Math.random()*20);
+                ctx.lineTo(this.width, 0); ctx.lineTo(0, 0); ctx.fill();
+
+                // Goal (Stationary)
+                ctx.save();
+                ctx.translate(this.goal.x, this.goal.y);
+                
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 14; ctx.lineCap = 'round';
+                ctx.strokeRect(-this.goal.w/2, -50, this.goal.w, 100);
+                
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 2;
+                for(let i=-this.goal.w/2; i<=this.goal.w/2; i+=25) { ctx.beginPath(); ctx.moveTo(i, -50); ctx.lineTo(i, 50); ctx.stroke(); }
+                for(let i=-50; i<=50; i+=25) { ctx.beginPath(); ctx.moveTo(-this.goal.w/2, i); ctx.lineTo(this.goal.w/2, i); ctx.stroke(); }
+                ctx.restore();
+
+                // Goalie
+                ctx.save();
+                ctx.translate(this.goalie.x, this.goalie.y);
+                const bob = Math.sin(this.goalie.anim) * 10;
+                ctx.font = '110px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('👤', 0, bob);
+                ctx.font = '55px Arial'; ctx.fillText('🧤', -65, 25 + bob); ctx.fillText('🧤', 65, 25 + bob);
+                ctx.restore();
+
+                // Flick Trace
+                if (this.drag.active) {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.setLineDash([20, 15]); ctx.lineWidth = 5;
+                    ctx.beginPath(); ctx.moveTo(this.drag.startX, this.drag.startY); ctx.lineTo(this.drag.currX, this.drag.currY); ctx.stroke(); ctx.setLineDash([]);
+                }
+
+                // Projectile
+                const ballScale = (1 + (this.ball.z / 250)) * (1 - (this.ball.y / 2000));
+                ctx.save();
+                ctx.translate(this.ball.x, this.ball.y);
+                
+                // Shadow (Fix for IndexSizeError: ensure non-negative radius)
+                const shadowScale = Math.max(0, 1 - this.ball.z / 500);
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.beginPath();
+                ctx.ellipse(0, 25, 30 * shadowScale, 12 * shadowScale, 0, 0, Math.PI*2);
+                ctx.fill();
+
+                ctx.scale(ballScale, ballScale);
+                ctx.rotate(this.ball.rot);
+                ctx.font = '65px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(this.mode === 'soccer' ? '⚽' : '🏒', 0, -this.ball.z/2);
+                ctx.restore();
+
+                this.particles.forEach(p => {
+                    ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(this.loop);
+            }
+        }
+
+        const game = new Shootout();
+    </script>
+</body>
+</html>

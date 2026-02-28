@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Plinko: TPIR Rectangle Edition - K2 games</title>
+    <style>
+        :root {
+            --tpir-red: #cc0000;
+            --tpir-yellow: #ffcc00;
+            --tpir-blue: #0066cc;
+            --bg: #111;
+            --text: #fff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; }
+        body {
+            font-family: 'Arial Black', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        header {
+            background: linear-gradient(to bottom, var(--tpir-red), #860000);
+            padding: 1rem;
+            text-align: center;
+            border-bottom: 4px solid var(--tpir-yellow);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        .main-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            padding: 1rem;
+            gap: 1rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .ui-panel {
+            width: 250px;
+            background: rgba(0,0,0,0.8);
+            padding: 1.5rem;
+            border: 2px solid var(--tpir-yellow);
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            height: fit-content;
+        }
+
+        .game-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .board-wrapper {
+            position: relative;
+            background: #222;
+            border: 6px solid var(--tpir-yellow);
+            border-radius: 10px;
+            padding: 0;
+            line-height: 0;
+            width: 100%;
+            max-width: 500px;
+            cursor: crosshair;
+        }
+
+        canvas {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .stat-box {
+            text-align: center;
+            padding: 10px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+        }
+        .stat-label { font-size: 0.7rem; color: var(--tpir-yellow); text-transform: uppercase; }
+        .stat-value { font-size: 1.8rem; font-weight: 900; }
+
+        .slots {
+            display: flex;
+            width: 100%;
+            background: var(--tpir-blue);
+            border-top: 3px solid var(--tpir-yellow);
+        }
+        .slot {
+            flex: 1;
+            text-align: center;
+            padding: 8px 2px;
+            font-size: 0.6rem;
+            border-right: 1px solid rgba(255,255,255,0.3);
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .slot:last-child { border-right: none; }
+        .slot.big { background: var(--tpir-yellow); color: black; font-size: 0.75rem; }
+
+        #drop-msg {
+            text-align: center;
+            color: var(--tpir-yellow);
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+        @media (max-width: 800px) {
+            .main-layout { flex-direction: column; align-items: center; }
+            .ui-panel { width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+            .stat-box { flex: 1; min-width: 100px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>PLINKO</h1>
+    </header>
+
+    <div class="main-layout">
+        <div class="ui-panel">
+            <div class="stat-box">
+                <div class="stat-label">Chips Remaining</div>
+                <div class="stat-value" id="chips-val">5</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Total Winnings</div>
+                <div class="stat-value" id="total-val">$0</div>
+            </div>
+            <a href="index.html" style="color: var(--tpir-yellow); text-decoration: none; text-align: center; font-size: 0.8rem; margin-top: auto; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px;">← BACK TO HUB</a>
+        </div>
+
+        <div class="game-area">
+            <div id="drop-msg">TAP TO DROP CHIP</div>
+            <div class="board-wrapper" id="board-container">
+                <canvas id="board"></canvas>
+                <div class="slots" id="slots-ui"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('board');
+        const ctx = canvas.getContext('2d');
+        const slotsUI = document.getElementById('slots-ui');
+        const boardContainer = document.getElementById('board-container');
+        const chipsLabel = document.getElementById('chips-val');
+        const totalLabel = document.getElementById('total-val');
+
+        // Logic constants
+        const COLS = 9;
+        const ROWS = 13;
+        const PRIZES = [100, 500, 1000, 0, 10000, 0, 1000, 500, 100];
+        
+        let chips = 5;
+        let total = 0;
+        let activeChips = [];
+        let pegs = [];
+        let mouseX = -100;
+        let gameOver = false;
+
+        function init() {
+            canvas.width = 500;
+            canvas.height = 650;
+            createPegs();
+            createSlots();
+            requestAnimationFrame(update);
+        }
+
+        function createPegs() {
+            const margin = 30;
+            const spacingX = (canvas.width - margin * 2) / (COLS - 1);
+            const spacingY = (canvas.height - 150) / (ROWS - 1);
+
+            for (let r = 0; r < ROWS; r++) {
+                const isOffset = r % 2 !== 0;
+                const count = isOffset ? COLS - 1 : COLS;
+                const rowXOffset = isOffset ? spacingX / 2 : 0;
+
+                for (let i = 0; i < count; i++) {
+                    pegs.push({
+                        x: margin + rowXOffset + (i * spacingX),
+                        y: 80 + (r * spacingY)
+                    });
+                }
+            }
+        }
+
+        function createSlots() {
+            slotsUI.innerHTML = '';
+            PRIZES.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'slot' + (p === 10000 ? ' big' : '');
+                div.textContent = '$' + p.toLocaleString();
+                slotsUI.appendChild(div);
+            });
+        }
+
+        class Chip {
+            constructor(startX) {
+                this.x = startX;
+                this.y = 30;
+                this.radius = 10;
+                this.vx = (Math.random() - 0.5) * 1.5;
+                this.vy = 0;
+                this.gravity = 0.25;
+                this.friction = 0.98;
+                this.bounce = 0.5;
+            }
+
+            update() {
+                this.vy += this.gravity;
+                this.vx *= this.friction;
+                this.x += this.vx;
+                this.y += this.vy;
+
+                pegs.forEach(p => {
+                    const dx = this.x - p.x;
+                    const dy = this.y - p.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < this.radius + 3) {
+                        const angle = Math.atan2(dy, dx);
+                        const force = 2.5;
+                        this.vx = Math.cos(angle) * force + (Math.random() - 0.5);
+                        this.vy = Math.sin(angle) * force;
+                        if (this.vy < 0) this.vy *= -0.5;
+                    }
+                });
+
+                if (this.x < this.radius) { this.x = this.radius; this.vx *= -this.bounce; }
+                if (this.x > canvas.width - this.radius) { this.x = canvas.width - this.radius; this.vx *= -this.bounce; }
+
+                if (this.y > canvas.height - 5) {
+                    this.resolve();
+                    return false;
+                }
+                return true;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+                ctx.fillStyle = '#ffcc00'; 
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.fill();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius - 4, 0, Math.PI*2);
+                ctx.stroke();
+            }
+
+            resolve() {
+                const slotWidth = canvas.width / PRIZES.length;
+                const idx = Math.floor(this.x / slotWidth);
+                const prize = PRIZES[Math.max(0, Math.min(idx, PRIZES.length - 1))];
+                total += prize;
+                totalLabel.textContent = '$' + total.toLocaleString();
+                if (chips === 0 && activeChips.length === 1) {
+                    gameOver = true;
+                    document.getElementById('drop-msg').textContent = "GAME OVER - RELOAD TO PLAY";
+                }
+            }
+        }
+
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Pegs
+            ctx.fillStyle = '#777';
+            pegs.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            // Draw Preview Chip
+            if (!gameOver && chips > 0 && mouseX > 0) {
+                ctx.globalAlpha = 0.5;
+                ctx.beginPath();
+                ctx.arc(mouseX, 30, 10, 0, Math.PI*2);
+                ctx.fillStyle = '#ffcc00';
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+
+            // Update Chips
+            activeChips = activeChips.filter(c => c.update());
+            activeChips.forEach(c => c.draw());
+
+            requestAnimationFrame(update);
+        }
+
+        function handleMove(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scale = canvas.width / rect.width;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            mouseX = (clientX - rect.left) * scale;
+        }
+
+        function handleDrop(e) {
+            if (gameOver || chips <= 0) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const scale = canvas.width / rect.width;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const dropX = (clientX - rect.left) * scale;
+
+            if (dropX >= 0 && dropX <= canvas.width) {
+                chips--;
+                chipsLabel.textContent = chips;
+                activeChips.push(new Chip(dropX));
+                if (chips === 0) document.getElementById('drop-msg').textContent = "WAIT FOR CHIPS TO FINISH";
+            }
+        }
+
+        boardContainer.addEventListener('mousemove', handleMove);
+        boardContainer.addEventListener('touchstart', (e) => { handleMove(e); e.preventDefault(); }, {passive: false});
+        boardContainer.addEventListener('mousedown', handleDrop);
+        boardContainer.addEventListener('touchend', (e) => { handleDrop(e); e.preventDefault(); }, {passive: false});
+
+        init();
+    </script>
+</body>
+</html>

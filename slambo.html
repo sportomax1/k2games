@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Slambo! - K2 games</title>
+    <style>
+        :root {
+            --bg: #020617;
+            --reactor: #1e1b4b;
+            --fuel: #3b82f6; /* Blue */
+            --coolant: #ef4444; /* Red */
+            --accent: #fbbf24;
+            --glass: rgba(255, 255, 255, 0.05);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: var(--accent); letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            gap: 20px;
+            position: relative;
+        }
+
+        /* Stability Meter */
+        #stability-container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--glass);
+            border: 2px solid var(--border);
+            border-radius: 20px;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        #stability-val {
+            font-size: 5rem;
+            font-weight: 900;
+            font-family: monospace;
+            text-shadow: 0 0 20px var(--accent);
+            color: var(--accent);
+        }
+
+        .meter-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 3px; opacity: 0.6; }
+
+        #gauge-track {
+            height: 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 6px;
+            margin-top: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        #gauge-fill {
+            height: 100%;
+            width: 50%;
+            background: linear-gradient(to right, #ef4444, #fbbf24, #22c55e, #fbbf24, #ef4444);
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Opponents Area */
+        #opponents {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .player-card {
+            background: var(--glass);
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+            text-align: center;
+            min-width: 100px;
+            transition: 0.3s;
+        }
+        .player-card.active { border-color: var(--accent); box-shadow: 0 0 15px rgba(251, 191, 36, 0.2); transform: scale(1.05); }
+        .player-card.bust { border-color: var(--coolant); opacity: 0.5; }
+
+        .error-icons { font-size: 1.2rem; margin-top: 5px; color: var(--coolant); }
+
+        /* Hand Area */
+        #hand-area {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        #hand {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 10px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .card {
+            min-width: 80px;
+            height: 120px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            border: 3px solid rgba(255,255,255,0.2);
+        }
+        .card:hover { transform: translateY(-10px); }
+        .card.fuel { background: var(--fuel); color: #fff; }
+        .card.coolant { background: var(--coolant); color: #fff; }
+        .card.special { background: #8b5cf6; color: #fff; font-size: 1.2rem; }
+        .card.disabled { opacity: 0.3; pointer-events: none; }
+
+        /* Banner */
+        #msg-banner {
+            position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
+            background: var(--coolant); color: white; padding: 10px 40px; border-radius: 50px;
+            font-weight: 900; z-index: 150; display: none;
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.5);
+        }
+
+        .screen-overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--accent); color: #000; border: none; padding: 1.2rem 3.5rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.3rem;
+        }
+
+        @media (max-width: 600px) {
+            #stability-val { font-size: 3.5rem; }
+            .card { min-width: 60px; height: 100px; font-size: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">QUANTUM BALANCE</div>
+        <a href="index.html" class="back-link">← HUB</a>
+    </nav>
+
+    <div id="game-layout">
+        <div id="opponents">
+            <!-- Bot Cards -->
+        </div>
+
+        <div id="msg-banner">SYSTEM CRITICAL!</div>
+
+        <div id="stability-container">
+            <div class="meter-label">Core Stability</div>
+            <div id="stability-val">5</div>
+            <div id="gauge-track">
+                <div id="gauge-fill"></div>
+            </div>
+            <div style="display:flex; justify-content: space-between; font-size: 0.6rem; opacity: 0.5; margin-top: 5px;">
+                <span>0 MIN</span>
+                <span>10 MAX</span>
+            </div>
+        </div>
+
+        <div id="hand-area">
+            <div class="meter-label" id="turn-label">Your Turn</div>
+            <div id="hand"></div>
+        </div>
+
+        <div id="start-screen" class="screen-overlay">
+            <h1 style="font-size: 3.5rem; font-style: italic; color: var(--accent); font-weight: 900;">QUANTUM BALANCE</h1>
+            <p style="opacity: 0.7; margin-top: 10px; max-width: 450px;">Keep the stability total between 0 and 10. Force opponents to overload the core!</p>
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button class="btn-large" onclick="game.init(2)" style="margin-top:0">2 PLAYERS</button>
+                <button class="btn-large" onclick="game.init(3)" style="margin-top:0; background: #818cf8; color: white;">3 PLAYERS</button>
+                <button class="btn-large" onclick="game.init(4)" style="margin-top:0; background: #22c55e; color: white;">4 PLAYERS</button>
+            </div>
+        </div>
+
+        <div id="win-screen" class="screen-overlay" style="display:none">
+            <h1 id="winner-text" style="font-size: 4rem; color: var(--accent); font-style: italic;">VICTORY</h1>
+            <p id="final-stats" style="margin-top:10px; opacity:0.8; font-size: 1.2rem;"></p>
+            <button class="btn-large" onclick="location.reload()">NEW BOUT</button>
+        </div>
+    </div>
+
+    <script>
+        class SlamboMock {
+            constructor() {
+                this.stability = 5;
+                this.players = [];
+                this.turn = 0;
+                this.deck = [];
+                this.errorsInPot = 1;
+                this.state = 'playing';
+                
+                this.init();
+            }
+
+            init(count) {
+                if(!count) return;
+                this.players = Array(count).fill(0).map((_, i) => ({
+                    id: i, name: i === 0 ? 'You' : `Bot ${i}`,
+                    errors: 0, hand: [], isBot: i !== 0
+                }));
+
+                this.generateDeck();
+                this.dealHands();
+                this.startBout();
+                document.getElementById('start-screen').style.display = 'none';
+            }
+
+            generateDeck() {
+                this.deck = [];
+                // 1-5 Fuel (Blue)
+                for(let v=1; v<=5; v++) for(let i=0; i<4; i++) this.deck.push({ type: 'fuel', val: v });
+                // 1-5 Coolant (Red)
+                for(let v=1; v<=5; v++) for(let i=0; i<4; i++) this.deck.push({ type: 'coolant', val: -v });
+                
+                if (this.players.length > 2) {
+                    for(let i=0; i<2; i++) {
+                        this.deck.push({ type: 'special', val: 'REV', name: '🔄' });
+                        this.deck.push({ type: 'special', val: 'COPY', name: '📋' });
+                        this.deck.push({ type: 'special', val: 'CHOICE', name: '±' });
+                    }
+                }
+                this.deck.sort(() => Math.random() - 0.5);
+            }
+
+            dealHands() {
+                const count = this.players.length === 2 ? 7 : 6;
+                this.players.forEach(p => {
+                    p.hand = [];
+                    for(let i=0; i<count; i++) p.hand.push(this.deck.pop());
+                });
+            }
+
+            startBout() {
+                this.stability = 5;
+                this.updateUI();
+                this.renderHand();
+                this.renderOpponents();
+            }
+
+            playCard(pIdx, cardIdx) {
+                const p = this.players[pIdx];
+                const card = p.hand.splice(cardIdx, 1)[0];
+                
+                let change = card.val;
+                if (card.type === 'special') {
+                    if (card.val === 'CHOICE') {
+                        // AI choice or player choice? Simplified: AI picks what's safer
+                        if (p.isBot) change = (this.stability > 5) ? -2 : 2;
+                        else change = prompt("Fuel (+2) or Coolant (-2)?", "2") == "2" ? 2 : -2;
+                    }
+                    if (card.val === 'COPY') {
+                        // Takes previous card val
+                        change = this.lastChange || 1;
+                    }
+                    if (card.val === 'REV') {
+                        this.direction = (this.direction || 1) * -1;
+                        change = 0;
+                    }
+                }
+                
+                this.lastChange = change;
+                this.stability += change;
+                
+                this.updateUI();
+                
+                if (this.stability < 0 || this.stability > 10) {
+                    this.triggerBust(pIdx);
+                } else {
+                    if (this.players.every(pl => pl.hand.length === 0)) {
+                        this.triggerBreak();
+                    } else {
+                        this.nextTurn();
+                    }
+                }
+            }
+
+            nextTurn() {
+                const dir = this.direction || 1;
+                this.turn = (this.turn + dir + this.players.length) % this.players.length;
+                this.updateUI();
+                this.renderHand();
+                this.renderOpponents();
+
+                if (this.players[this.turn].isBot) {
+                    setTimeout(() => this.aiTurn(), 1000);
+                }
+            }
+
+            aiTurn() {
+                const p = this.players[this.turn];
+                // AI Strategy: pick card that keeps stability closest to 5
+                let bestIdx = 0;
+                let bestDiff = 99;
+                
+                p.hand.forEach((c, i) => {
+                    const v = typeof c.val === 'number' ? c.val : 0;
+                    const diff = Math.abs(5 - (this.stability + v));
+                    if (diff < bestDiff) {
+                        bestDiff = diff;
+                        bestIdx = i;
+                    }
+                });
+                
+                this.playCard(this.turn, bestIdx);
+            }
+
+            triggerBust(pIdx) {
+                const p = this.players[pIdx];
+                p.errors += this.errorsInPot;
+                this.errorsInPot = 1;
+                
+                const banner = document.getElementById('msg-banner');
+                banner.textContent = `${p.name.toUpperCase()} OVERLOADED!`;
+                banner.style.display = 'block';
+                
+                setTimeout(() => {
+                    banner.style.display = 'none';
+                    if (p.errors >= 3) this.endGame();
+                    else {
+                        this.generateDeck();
+                        this.dealHands();
+                        this.startBout();
+                    }
+                }, 2000);
+            }
+
+            triggerBreak() {
+                this.errorsInPot++;
+                const banner = document.getElementById('msg-banner');
+                banner.textContent = "SYSTEM STABILIZED. RECHARGING...";
+                banner.style.background = "#22c55e";
+                banner.style.display = 'block';
+                
+                setTimeout(() => {
+                    banner.style.display = 'none';
+                    banner.style.background = "var(--coolant)";
+                    this.generateDeck();
+                    this.dealHands();
+                    this.startBout();
+                }, 2000);
+            }
+
+            updateUI() {
+                const valEl = document.getElementById('stability-val');
+                valEl.textContent = this.stability;
+                
+                const fill = document.getElementById('gauge-fill');
+                fill.style.width = (this.stability * 10) + '%';
+                
+                const label = document.getElementById('turn-label');
+                const currP = this.players[this.turn];
+                label.textContent = currP.isBot ? `${currP.name}'s turn...` : "Your Turn";
+                label.style.color = currP.isBot ? '#fff' : 'var(--accent)';
+            }
+
+            renderHand() {
+                const el = document.getElementById('hand');
+                el.innerHTML = '';
+                const p = this.players[0];
+                p.hand.forEach((c, i) => {
+                    const div = document.createElement('div');
+                    div.className = `card ${c.type}`;
+                    div.textContent = typeof c.val === 'number' ? Math.abs(c.val) : c.name;
+                    if (this.turn !== 0) div.classList.add('disabled');
+                    div.onclick = () => this.playCard(0, i);
+                    el.appendChild(div);
+                });
+            }
+
+            renderOpponents() {
+                const el = document.getElementById('opponents');
+                el.innerHTML = '';
+                this.players.slice(1).forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = `player-card ${this.players[this.turn] === p ? 'active' : ''}`;
+                    div.innerHTML = `
+                        <div style="font-weight:900">${p.name}</div>
+                        <div style="font-size:0.7rem; opacity:0.6">${p.hand.length} Cards</div>
+                        <div class="error-icons">${'⚠️'.repeat(p.errors)}</div>
+                    `;
+                    el.appendChild(div);
+                });
+                
+                // My Errors
+                const myCard = document.createElement('div');
+                myCard.className = `player-card ${this.turn === 0 ? 'active' : ''}`;
+                myCard.innerHTML = `
+                    <div style="font-weight:900">You</div>
+                    <div class="error-icons">${'⚠️'.repeat(this.players[0].errors)}</div>
+                `;
+                el.insertBefore(myCard, el.firstChild);
+            }
+
+            endGame() {
+                const winScreen = document.getElementById('win-screen');
+                const text = document.getElementById('winner-text');
+                const stats = document.getElementById('final-stats');
+                
+                const winner = this.players.sort((a,b) => a.errors - b.errors)[0];
+                text.textContent = winner.id === 0 ? "STABILITY RESTORED" : "MISSION FAILED";
+                text.style.color = winner.id === 0 ? "var(--accent)" : "var(--coolant)";
+                stats.textContent = `${winner.name} managed the core best.`;
+                winScreen.style.display = 'flex';
+            }
+        }
+
+        const game = new SlamboMock();
+    </script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sidewalk: Real Life - K4 Games</title>
+    <title>Sidewalk: Real Life - K2 games</title>
     <style>
         :root {
             --sky-day: #87ceeb;
@@ -12,6 +12,7 @@
             --sidewalk: #94a3b8;
             --grass: #22c55e;
             --road: #334155;
+            --accent: #38bdf8;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -30,10 +31,10 @@
             position: relative;
             width: 100%;
             max-width: 1200px;
-            height: 700px;
+            height: 750px;
             background: #000;
             border-radius: 24px;
-            border: 10px solid #222;
+            border: 8px solid #334155;
             box-shadow: 0 50px 100px rgba(0,0,0,0.8);
             overflow: hidden;
         }
@@ -44,33 +45,39 @@
             position: absolute;
             inset: 0;
             pointer-events: none;
-            padding: 30px;
+            padding: 25px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             z-index: 100;
         }
 
+        .hud-row { display: flex; justify-content: space-between; align-items: flex-start; }
+
         .hud-card {
-            background: rgba(0,0,0,0.6);
+            background: rgba(15, 23, 42, 0.7);
             backdrop-filter: blur(12px);
             padding: 15px 25px;
             border-radius: 20px;
             border: 1px solid rgba(255,255,255,0.1);
-            display: inline-flex;
+            display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 4px;
+            min-width: 160px;
         }
 
-        .stat-val { font-size: 1.8rem; font-weight: 900; color: #38bdf8; font-family: monospace; }
-        .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7; }
+        .stat-val { font-size: 1.8rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+        .stat-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; opacity: 0.6; font-weight: 800; }
 
-        .time-display {
-            position: absolute;
-            top: 30px;
-            right: 30px;
-            text-align: right;
+        .stamina-container {
+            width: 200px;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
         }
+        #stamina-fill { height: 100%; width: 100%; background: #22c55e; transition: width 0.1s; }
 
         .back-link {
             position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
@@ -80,8 +87,25 @@
         .back-link:hover { background: rgba(255,255,255,0.2); transform: scale(1.05); }
 
         .hint {
-            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
-            color: rgba(255,255,255,0.4); font-size: 0.9rem; font-weight: 600; letter-spacing: 1px;
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            color: rgba(255,255,255,0.4); font-size: 0.8rem; font-weight: 600; letter-spacing: 1px;
+            text-align: center;
+        }
+
+        #inventory {
+            position: absolute;
+            top: 150px;
+            left: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .inv-item {
+            background: rgba(0,0,0,0.5);
+            padding: 8px 15px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            border: 1px solid rgba(255,255,255,0.1);
         }
     </style>
 </head>
@@ -92,22 +116,31 @@
         <canvas id="gameCanvas"></canvas>
         
         <div id="ui-layer">
-            <div>
+            <div class="hud-row">
                 <div class="hud-card">
-                    <div class="stat-label">Walk Distance</div>
-                    <div id="dist-val" class="stat-val">0.0 km</div>
+                    <div class="stat-label">Distance Walked</div>
+                    <div id="dist-val" class="stat-val">0.00 mi</div>
+                    <div class="stat-label" style="margin-top: 10px;">Stamina</div>
+                    <div class="stamina-container"><div id="stamina-fill"></div></div>
+                </div>
+
+                <div class="hud-card" style="text-align: right; align-items: flex-end;">
+                    <div class="stat-label">Mountain Time (MT)</div>
+                    <div id="time-val" class="stat-val">--:-- --</div>
+                    <div id="date-val" class="stat-label" style="margin-top: 5px; opacity: 0.4;">---, --- --</div>
                 </div>
             </div>
 
-            <div class="time-display">
-                <div class="hud-card">
-                    <div class="stat-label">Local Time</div>
-                    <div id="time-val" class="stat-val">12:00 PM</div>
-                </div>
+            <div id="inventory">
+                <div class="inv-item">💰 Wallet: $<span id="money-val">0.00</span></div>
+                <div class="inv-item">🐕 Dogs Petted: <span id="dogs-val">0</span></div>
             </div>
         </div>
 
-        <div class="hint">HOLD W OR UP TO WALK • SHIFT TO RUN</div>
+        <div class="hint">
+            WASD TO MOVE • SHIFT TO SPRINT<br>
+            SPACE TO INTERACT (PET DOGS / COLLECT COINS)
+        </div>
     </div>
 
     <script>
@@ -116,312 +149,253 @@
                 this.canvas = document.getElementById('gameCanvas');
                 this.ctx = this.canvas.getContext('2d');
                 this.width = 1200;
-                this.height = 700;
+                this.height = 750;
                 this.canvas.width = this.width;
                 this.canvas.height = this.height;
 
                 this.cameraZ = 0;
                 this.speed = 0;
-                this.maxSpeed = 6;
-                this.accel = 0.15;
-                this.groundY = 450;
+                this.maxSpeed = 5;
+                this.accel = 0.12;
+                this.groundY = 480;
                 
-                this.objects = []; // Buildings, trees, street lights
-                this.traffic = []; // Cars
-                this.pedestrians = []; // NPCs
+                this.objects = []; 
+                this.traffic = []; 
+                this.pedestrians = []; 
+                this.entities = []; // Coins, Dogs
                 this.clouds = [];
                 this.keys = {};
-                this.timeOfDay = 0.5; // 0.0 to 1.0 (noon is 0.5)
+                
+                this.stamina = 100;
+                this.money = 0;
+                this.dogsPetted = 0;
 
                 this.init();
             }
 
             init() {
-                // Initial world generation
-                for(let i=0; i<30; i++) {
-                    this.spawnObject(i * 200 + 100);
+                for(let i=0; i<40; i++) {
+                    this.spawnObject(i * 180 + 100);
                 }
-                for(let i=0; i<10; i++) {
+                for(let i=0; i<12; i++) {
                     this.clouds.push({
                         x: Math.random() * this.width,
                         y: 50 + Math.random() * 200,
-                        w: 120 + Math.random() * 200,
-                        s: 0.1 + Math.random() * 0.3
+                        w: 150 + Math.random() * 250,
+                        s: 0.05 + Math.random() * 0.2
                     });
                 }
 
-                window.onkeydown = (e) => this.keys[e.code] = true;
+                window.onkeydown = (e) => {
+                    this.keys[e.code] = true;
+                    if(e.code === 'Space') this.interact();
+                };
                 window.onkeyup = (e) => this.keys[e.code] = false;
 
                 this.loop();
             }
 
             spawnObject(z) {
-                // Decide side and type
                 const side = Math.random() < 0.5 ? 'L' : 'R';
                 const rand = Math.random();
-                
                 let obj = { z, side };
 
-                if (rand < 0.4) {
-                    // Building
+                if (rand < 0.45) {
                     obj.type = 'building';
-                    obj.w = 120 + Math.random() * 100;
-                    obj.h = 200 + Math.random() * 400;
-                    obj.color = `hsl(${Math.random()*360}, 20%, ${30 + Math.random()*40}%)`;
-                    obj.windows = Array.from({length: Math.floor(obj.h/40) * 3}, () => Math.random() < 0.3);
-                } else if (rand < 0.7) {
-                    // Tree
+                    obj.w = 140 + Math.random() * 120;
+                    obj.h = 300 + Math.random() * 500;
+                    obj.color = `hsl(${Math.random()*360}, 15%, ${20 + Math.random()*30}%)`;
+                    obj.windows = Array.from({length: Math.floor(obj.h/50) * 4}, () => Math.random() < 0.4);
+                } else if (rand < 0.75) {
                     obj.type = 'tree';
-                    obj.h = 80 + Math.random() * 100;
+                    obj.h = 100 + Math.random() * 120;
                 } else if (rand < 0.9) {
-                    // Street Light
                     obj.type = 'light';
-                    obj.h = 150;
+                    obj.h = 180;
                 } else {
-                    // Small prop (hydrant, trash can)
-                    obj.type = 'prop';
-                    obj.propType = Math.random() < 0.5 ? 'hydrant' : 'trash';
+                    obj.type = 'bench';
                 }
-
                 this.objects.push(obj);
             }
 
-            spawnCar(z) {
-                this.traffic.push({
-                    z,
-                    lane: Math.random() < 0.5 ? 0 : 1, // Two lanes
-                    speed: 15 + Math.random() * 10,
-                    color: `hsl(${Math.random()*360}, 70%, 50%)`,
-                    type: Math.random() < 0.2 ? 'truck' : 'car'
-                });
+            spawnEntity(z) {
+                const rand = Math.random();
+                if (rand < 0.7) {
+                    this.entities.push({ z, type: 'coin', xOff: 250 + Math.random()*100, collected: false });
+                } else {
+                    this.entities.push({ z, type: 'dog', xOff: 280, petted: false, color: ['#8B4513', '#D2B48C', '#000'][Math.floor(Math.random()*3)] });
+                }
             }
 
-            spawnNPC(z) {
-                this.pedestrians.push({
-                    z,
-                    side: Math.random() < 0.5 ? 'L' : 'R',
-                    speed: (Math.random() - 0.5) * 4, // Some walk towards, some away
-                    color: `hsl(${Math.random()*360}, 50%, 60%)`,
-                    bob: 0
-                });
+            interact() {
+                const near = this.entities.find(e => Math.abs(e.z - this.cameraZ) < 100);
+                if (near) {
+                    if (near.type === 'coin' && !near.collected) {
+                        near.collected = true;
+                        this.money += 0.25;
+                    } else if (near.type === 'dog' && !near.petted) {
+                        near.petted = true;
+                        this.dogsPetted++;
+                    }
+                }
+            }
+
+            updateTime() {
+                // Get MT (Mountain Time) - UTC-7
+                const now = new Date();
+                const mtTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Denver"}));
+                
+                const hours = mtTime.getHours();
+                const mins = mtTime.getMinutes().toString().padStart(2, '0');
+                const ampm = hours >= 12 ? 'PM' : 'AM';
+                const h12 = hours % 12 || 12;
+                
+                document.getElementById('time-val').textContent = `${h12}:${mins} ${ampm}`;
+                document.getElementById('date-val').textContent = mtTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+                // Use the MT hour to set game lighting (0 to 1)
+                this.gameTimeFactor = (mtTime.getHours() * 60 + mtTime.getMinutes()) / 1440;
             }
 
             update() {
-                // Movement
-                const targetMax = this.keys['ShiftLeft'] ? this.maxSpeed * 2 : this.maxSpeed;
+                this.updateTime();
+
+                // Stamina & Speed
+                const isSprinting = this.keys['ShiftLeft'] && this.stamina > 0;
+                const targetMax = isSprinting ? this.maxSpeed * 2.2 : this.maxSpeed;
+                
                 if(this.keys['ArrowUp'] || this.keys['KeyW']) {
                     this.speed = Math.min(targetMax, this.speed + this.accel);
+                    if (isSprinting) this.stamina = Math.max(0, this.stamina - 0.4);
                 } else {
-                    this.speed = Math.max(0, this.speed - this.accel * 2);
+                    this.speed = Math.max(0, this.speed - this.accel * 1.5);
                 }
+
+                if (!isSprinting) this.stamina = Math.min(100, this.stamina + 0.2);
+                document.getElementById('stamina-fill').style.width = this.stamina + '%';
+                document.getElementById('stamina-fill').style.background = this.stamina < 30 ? '#ef4444' : '#22c55e';
 
                 this.cameraZ += this.speed;
-                this.timeOfDay = (0.5 + (this.cameraZ / 20000)) % 1.0;
 
-                // Update UI
-                document.getElementById('dist-val').textContent = (this.cameraZ / 1000).toFixed(1) + ' km';
-                const hours = Math.floor(this.timeOfDay * 24);
-                const ampm = hours >= 12 ? 'PM' : 'AM';
-                const displayHours = hours % 12 || 12;
-                document.getElementById('time-val').textContent = `${displayHours}:00 ${ampm}`;
+                // Update UI (Miles)
+                const miles = this.cameraZ / 1609.34;
+                document.getElementById('dist-val').textContent = miles.toFixed(2) + ' mi';
+                document.getElementById('money-val').textContent = this.money.toFixed(2);
+                document.getElementById('dogs-val').textContent = this.dogsPetted;
 
-                // Continuous Generation
-                this.objects = this.objects.filter(o => o.z - this.cameraZ > -500);
-                if(this.objects.length < 40) {
+                // Generation
+                if(this.objects.length < 50) {
                     const maxZ = Math.max(...this.objects.map(o => o.z), this.cameraZ);
-                    this.spawnObject(maxZ + 150);
+                    this.spawnObject(maxZ + 160);
                 }
+                if(Math.random() < 0.015) this.spawnEntity(this.cameraZ + 2000);
 
-                // Traffic Logic
-                if(Math.random() < 0.02) this.spawnCar(this.cameraZ + 2000);
+                // Movement of others
+                if(Math.random() < 0.02) {
+                    this.traffic.push({
+                        z: this.cameraZ + 3000, lane: Math.random() < 0.5 ? 0 : 1, 
+                        speed: 12 + Math.random() * 8, color: `hsl(${Math.random()*360}, 60%, 40%)`
+                    });
+                }
                 this.traffic.forEach(c => c.z -= c.speed);
+                this.pedestrians.forEach(p => p.z += p.speed);
+
+                // Cleanup
+                this.objects = this.objects.filter(o => o.z - this.cameraZ > -500);
                 this.traffic = this.traffic.filter(c => c.z - this.cameraZ > -500);
+                this.entities = this.entities.filter(e => e.z - this.cameraZ > -500 && !e.collected);
 
-                // NPC Logic
-                if(Math.random() < 0.01) this.spawnNPC(this.cameraZ + 1500);
-                this.pedestrians.forEach(p => {
-                    p.z += p.speed;
-                    p.bob += 0.1;
-                });
-                this.pedestrians = this.pedestrians.filter(p => Math.abs(p.z - this.cameraZ) < 2000);
-
-                // Clouds
                 this.clouds.forEach(c => {
                     c.x += c.s;
-                    if(c.x > this.width + 200) c.x = -200;
+                    if(c.x > this.width + 300) c.x = -300;
                 });
             }
 
             draw() {
                 const ctx = this.ctx;
-                ctx.clearRect(0, 0, this.width, this.height);
-
-                // Get Sky Color
-                let skyColor;
-                if (this.timeOfDay < 0.2 || this.timeOfDay > 0.8) skyColor = '#0f172a'; // Night
-                else if (this.timeOfDay < 0.3 || this.timeOfDay > 0.7) skyColor = '#ff7e5f'; // Sunrise/Set
-                else skyColor = '#87ceeb'; // Day
-
-                ctx.fillStyle = skyColor;
-                ctx.fillRect(0, 0, this.width, this.groundY);
-
-                // Draw Sun/Moon
-                ctx.save();
-                const orbit = (this.timeOfDay * Math.PI * 2) - Math.PI/2;
-                const ox = this.width/2 + Math.cos(orbit) * 400;
-                const oy = this.groundY - 100 + Math.sin(orbit) * 300;
+                const f = this.gameTimeFactor;
                 
-                if (this.timeOfDay > 0.25 && this.timeOfDay < 0.75) {
-                    // Sun
-                    ctx.shadowBlur = 50; ctx.shadowColor = 'yellow';
-                    ctx.fillStyle = '#fef08a';
-                    ctx.beginPath(); ctx.arc(ox, oy, 40, 0, Math.PI*2); ctx.fill();
-                } else {
-                    // Moon
-                    ctx.shadowBlur = 30; ctx.shadowColor = 'white';
-                    ctx.fillStyle = '#f8fafc';
-                    ctx.beginPath(); ctx.arc(ox, oy, 30, 0, Math.PI*2); ctx.fill();
-                }
-                ctx.restore();
-
-                // Clouds
-                ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                this.clouds.forEach(c => {
-                    ctx.beginPath(); ctx.ellipse(c.x, c.y, c.w, c.w*0.4, 0, 0, Math.PI*2); ctx.fill();
-                });
-
-                // --- Ground Setup ---
-                const horizonY = this.groundY;
+                // Sky Color Logic based on real MT hour
+                let sky;
+                if (f < 0.2 || f > 0.8) sky = '#020617';
+                else if (f < 0.3 || f > 0.7) sky = '#4c1d95';
+                else sky = '#bae6fd';
                 
-                // Grass
-                ctx.fillStyle = '#166534';
-                ctx.fillRect(0, horizonY, this.width, this.height - horizonY);
+                ctx.fillStyle = sky;
+                ctx.fillRect(0, 0, this.width, this.height);
 
-                // Road (Center-Left)
-                ctx.fillStyle = '#334155';
-                ctx.beginPath();
-                ctx.moveTo(this.width/2 - 400, this.height);
-                ctx.lineTo(this.width/2 - 50, horizonY);
-                ctx.lineTo(this.width/2 + 50, horizonY);
-                ctx.lineTo(this.width/2 + 100, this.height);
-                ctx.fill();
+                // Ground
+                ctx.fillStyle = '#064e3b';
+                ctx.fillRect(0, this.groundY, this.width, this.height - this.groundY);
 
-                // Road Markings
-                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                ctx.setLineDash([20, 20]);
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(this.width/2 - 150, this.height);
-                ctx.lineTo(this.width/2, horizonY);
-                ctx.stroke();
-                ctx.setLineDash([]);
+                // Road & Sidewalk
+                ctx.fillStyle = '#1e293b';
+                this.drawTrapezoid(this.width/2 - 450, this.width/2 + 50, 1.0); // Road
+                ctx.fillStyle = '#64748b';
+                this.drawTrapezoid(this.width/2 + 50, this.width/2 + 500, 1.0); // Sidewalk
 
-                // Sidewalk (Right of road)
-                ctx.fillStyle = '#94a3b8';
-                ctx.beginPath();
-                ctx.moveTo(this.width/2 + 100, this.height);
-                ctx.lineTo(this.width/2 + 50, horizonY);
-                ctx.lineTo(this.width/2 + 150, horizonY);
-                ctx.lineTo(this.width/2 + 500, this.height);
-                ctx.fill();
-
-                // Sort everything by Z for depth
-                const allRenderables = [
+                // Sort and Render
+                const renderList = [
                     ...this.objects.map(o => ({...o, rType: 'obj'})),
                     ...this.traffic.map(c => ({...c, rType: 'car'})),
-                    ...this.pedestrians.map(p => ({...p, rType: 'npc'}))
+                    ...this.entities.map(e => ({...e, rType: 'ent'}))
                 ].sort((a, b) => b.z - a.z);
 
-                const isDark = (this.timeOfDay < 0.25 || this.timeOfDay > 0.75);
-
-                allRenderables.forEach(item => {
+                renderList.forEach(item => {
                     const dz = item.z - this.cameraZ;
-                    if (dz < 0 || dz > 3000) return;
+                    if (dz < 0 || dz > 4000) return;
 
-                    const scale = 600 / (dz + 600);
-                    const xSide = (item.side === 'L' || item.rType === 'car') ? -1 : 1;
+                    const scale = 800 / (dz + 800);
+                    const cx = this.width/2 + (item.side === 'L' ? -500 : (item.rType === 'car' ? -200 : 300)) * scale;
                     
-                    // Perspective Logic
-                    let cx, baseY = horizonY;
-                    if (item.rType === 'car') {
-                        cx = this.width/2 + (-150 + item.lane * 100) * scale;
-                    } else if (item.rType === 'npc') {
-                        cx = this.width/2 + (item.side === 'L' ? -250 : 250) * scale;
-                    } else {
-                        // Obj
-                        cx = this.width/2 + (xSide * 400) * scale;
-                    }
-
                     ctx.save();
-                    ctx.translate(cx, baseY);
+                    ctx.translate(cx, this.groundY);
                     ctx.scale(scale, scale);
-                    ctx.globalAlpha = Math.min(1, scale * 2);
 
                     if (item.rType === 'obj') {
+                        ctx.fillStyle = item.color;
                         if (item.type === 'building') {
-                            ctx.fillStyle = item.color;
                             ctx.fillRect(-item.w/2, -item.h, item.w, item.h);
-                            // Windows
-                            ctx.fillStyle = isDark ? '#fef08a' : '#1e293b';
-                            item.windows.forEach((lit, i) => {
-                                if (lit || !isDark) {
-                                    const wx = (-item.w/2 + 15) + (i % 3) * (item.w/4);
-                                    const wy = (-item.h + 20) + Math.floor(i / 3) * 40;
-                                    ctx.fillRect(wx, wy, 15, 15);
-                                }
-                            });
+                            ctx.fillStyle = (f < 0.25 || f > 0.75) ? '#fde047' : '#0f172a';
+                            for(let i=0; i<8; i++) ctx.fillRect(-item.w/2 + 20 + (i%2)*60, -item.h + 40 + Math.floor(i/2)*80, 20, 30);
                         } else if (item.type === 'tree') {
-                            ctx.fillStyle = '#451a03';
-                            ctx.fillRect(-5, -20, 10, 20);
-                            ctx.fillStyle = '#15803d';
-                            ctx.beginPath(); ctx.arc(0, -item.h/2 - 20, item.h/2, 0, Math.PI*2); ctx.fill();
+                            ctx.fillStyle = '#451a03'; ctx.fillRect(-8, -30, 16, 30);
+                            ctx.fillStyle = '#14532d'; ctx.beginPath(); ctx.arc(0, -80, 60, 0, Math.PI*2); ctx.fill();
                         } else if (item.type === 'light') {
-                            ctx.fillStyle = '#334155';
-                            ctx.fillRect(-3, -150, 6, 150);
-                            ctx.fillRect(-3, -150, 30, 8);
-                            if (isDark) {
-                                ctx.shadowBlur = 40; ctx.shadowColor = 'yellow';
-                                ctx.fillStyle = 'yellow';
-                                ctx.beginPath(); ctx.arc(25, -145, 10, 0, Math.PI*2); ctx.fill();
+                            ctx.fillStyle = '#334155'; ctx.fillRect(-4, -200, 8, 200);
+                            if (f < 0.3 || f > 0.7) {
+                                ctx.shadowBlur = 50; ctx.shadowColor = 'yellow';
+                                ctx.fillStyle = 'yellow'; ctx.beginPath(); ctx.arc(0, -200, 15, 0, Math.PI*2); ctx.fill();
                             }
-                        } else if (item.type === 'prop') {
-                            ctx.fillStyle = item.propType === 'hydrant' ? '#ef4444' : '#475569';
-                            ctx.fillRect(-8, -25, 16, 25);
                         }
                     } else if (item.rType === 'car') {
                         ctx.fillStyle = item.color;
-                        ctx.fillRect(-30, -40, 60, 40);
-                        ctx.fillStyle = '#000';
-                        ctx.fillRect(-25, -10, 15, 15); ctx.fillRect(10, -10, 15, 15);
-                        if (isDark) {
-                            ctx.shadowBlur = 20; ctx.shadowColor = 'white';
-                            ctx.fillStyle = '#fff';
-                            ctx.fillRect(-25, -35, 10, 10); ctx.fillRect(15, -35, 10, 10);
+                        ctx.fillRect(-40, -50, 80, 50);
+                        ctx.fillStyle = '#000'; ctx.fillRect(-35, -15, 20, 20); ctx.fillRect(15, -15, 20, 20);
+                    } else if (item.rType === 'ent') {
+                        const ex = item.xOff * (item.side === 'L' ? -1 : 1);
+                        if (item.type === 'coin') {
+                            ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(ex, -10, 15, 0, Math.PI*2); ctx.fill();
+                            ctx.strokeStyle = '#b45309'; ctx.stroke();
+                        } else {
+                            ctx.fillStyle = item.color; ctx.fillRect(ex, -30, 40, 30); // Simple dog
+                            ctx.fillStyle = '#000'; ctx.fillRect(ex+30, -35, 10, 10);
                         }
-                    } else if (item.rType === 'npc') {
-                        const bob = Math.sin(item.bob) * 5;
-                        ctx.fillStyle = item.color;
-                        ctx.fillRect(-10, -60 + bob, 20, 40);
-                        ctx.fillStyle = '#ffccaa';
-                        ctx.beginPath(); ctx.arc(0, -75 + bob, 12, 0, Math.PI*2); ctx.fill();
                     }
-
                     ctx.restore();
                 });
 
-                // First-person bobbing
-                const walkBob = Math.sin(this.cameraZ * 0.1) * 10 * (this.speed / this.maxSpeed);
-                ctx.save();
-                ctx.translate(0, walkBob);
-                // Hint at hands/body at the very bottom
-                ctx.restore();
+                requestAnimationFrame(() => { this.update(); this.draw(); });
             }
 
-            loop() {
-                this.update();
-                this.draw();
-                requestAnimationFrame(() => this.loop());
+            drawTrapezoid(x1, x2, s) {
+                const ctx = this.ctx;
+                ctx.beginPath();
+                ctx.moveTo(this.width/2 + (x1 - this.width/2)*0.1, this.groundY);
+                ctx.lineTo(this.width/2 + (x2 - this.width/2)*0.1, this.groundY);
+                ctx.lineTo(x2, this.height);
+                ctx.lineTo(x1, this.height);
+                ctx.fill();
             }
         }
 

@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GhostCatcher: Phantom Protocol - K2 games</title>
+    <style>
+        :root {
+            --primary: #a855f7;
+            --accent: #22d3ee;
+            --danger: #ef4444;
+            --bg: #020617;
+            --panel: rgba(15, 23, 42, 0.9);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; touch-action: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: #f8fafc;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+
+        /* HUD Overlay */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .stat-card {
+            background: var(--panel);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 15px;
+            border: 1px solid var(--glass-border);
+            display: flex;
+            flex-direction: column;
+            min-width: 120px;
+        }
+
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; }
+        .stat-val { font-size: 1.4rem; font-weight: 900; font-family: monospace; color: var(--accent); }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            right: 0;
+            padding: 0 30px;
+            display: none;
+            justify-content: space-between;
+            align-items: flex-end;
+            z-index: 60;
+        }
+
+        @media (max-width: 900px) { #mobile-controls { display: flex; } }
+
+        .joystick-base {
+            width: 120px; height: 120px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.2);
+            position: relative;
+            pointer-events: auto;
+        }
+        .joystick-thumb {
+            width: 50px; height: 50px;
+            background: #fff; border-radius: 50%;
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .action-btns { display: flex; gap: 15px; pointer-events: auto; }
+        .circle-btn {
+            width: 70px; height: 70px; border-radius: 50%;
+            background: var(--panel); border: 2px solid var(--primary);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .circle-btn:active { transform: scale(0.9); background: var(--primary); }
+
+        /* Screens */
+        .screen-overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--primary); color: white; border: none; padding: 1rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.2rem; box-shadow: 0 10px 25px rgba(168, 85, 247, 0.4);
+        }
+
+        .hint-box {
+            margin-top: 20px; color: #94a3b8; font-size: 0.9rem;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left;
+        }
+
+        .back-link {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            color: #94a3b8; text-decoration: none; font-size: 0.8rem; z-index: 70;
+        }
+
+        .mobile-hint { display: none; }
+
+        @media (max-width: 900px) {
+            .desktop-hint { display: none !important; }
+            .mobile-hint { display: inline !important; }
+            #game-controls-hint { bottom: 150px !important; }
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← EXIT HUB</a>
+
+    <div id="hud">
+        <div class="stat-card">
+            <span class="stat-label">Ghosts Captured</span>
+            <span id="score-val" class="stat-val">0</span>
+        </div>
+        <div class="stat-card" style="align-items: flex-end;">
+            <span class="stat-label">Power Stability</span>
+            <span id="hp-val" class="stat-val">100%</span>
+            <div style="width:100px; height:4px; background:#1e293b; border-radius:2px; margin-top:5px; overflow:hidden;">
+                <div id="hp-bar" style="height:100%; width:100%; background:var(--accent); transition:0.3s;"></div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="game-controls-hint" style="position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); pointer-events: none; text-align: center; color: rgba(255,255,255,0.4); font-size: 0.7rem; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; z-index: 40; width: 100%;">
+        <span class="desktop-hint">WASD / ARROWS to Move • Click to Fire • Space for Trap</span>
+        <span class="mobile-hint">Joystick to Move • 🔥 to Fire • 🪤 for Trap</span>
+    </div>
+
+    <div id="mobile-controls">
+        <div class="joystick-base" id="joy-base">
+            <div class="joystick-thumb" id="joy-thumb"></div>
+        </div>
+        <div class="action-btns">
+            <div class="circle-btn" id="btn-trap">🪤</div>
+            <div class="circle-btn" id="btn-fire">🔥</div>
+        </div>
+    </div>
+
+    <div id="start-screen" class="screen-overlay">
+        <h1 style="font-size: 3.5rem; background: linear-gradient(to right, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">GHOSTCATCHER</h1>
+        <p style="opacity: 0.7; margin-top: 10px;">PHANTOM PROTOCOL V2.0</p>
+        
+        <div class="hint-box">
+            <div>
+                <b style="color:white">DESKTOP</b><br>
+                WASD: Move<br>
+                MOUSE: Aim & Fire<br>
+                SPACE: Deploy Trap
+            </div>
+            <div>
+                <b style="color:white">MOBILE</b><br>
+                STICK: Move<br>
+                FIRE: Stream Toggle<br>
+                TRAP: Deploy
+            </div>
+        </div>
+        
+        <button class="btn-large" onclick="game.start()">INITIALIZE SCAN</button>
+    </div>
+
+    <div id="game-over-screen" class="screen-overlay" style="display:none">
+        <h1 style="color: var(--danger); font-size: 3rem;">CONTAINMENT BREACH</h1>
+        <p id="final-stats" style="margin-top:15px; font-size: 1.2rem;"></p>
+        <button class="btn-large" onclick="location.reload()">RE-INITIALIZE</button>
+    </div>
+
+    <script>
+        class GhostCatcher {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize();
+
+                this.player = { x: 0, y: 0, r: 25, speed: 5, angle: 0, hp: 100, anim: 0 };
+                this.mouse = { x: 0, y: 0, down: false };
+                this.keys = {};
+                this.joy = { active: false, x: 0, y: 0 };
+                
+                this.ghosts = [];
+                this.particles = [];
+                this.traps = [];
+                this.score = 0;
+                this.gameActive = false;
+                this.flashlightAngle = 0.8; // Radians (~45 deg)
+                this.flashlightRange = 450;
+
+                window.addEventListener('resize', () => this.resize());
+                this.setupInputs();
+                this.loop();
+            }
+
+            resize() {
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+                if(this.player) {
+                    this.player.x = this.width/2;
+                    this.player.y = this.height/2;
+                }
+            }
+
+            setupInputs() {
+                window.onkeydown = (e) => {
+                    this.keys[e.code] = true;
+                    if(e.code === 'Space') this.spawnTrap();
+                };
+                window.onkeyup = (e) => this.keys[e.code] = false;
+                
+                this.canvas.onmousedown = () => this.mouse.down = true;
+                window.onmouseup = () => this.mouse.down = false;
+                this.canvas.onmousemove = (e) => {
+                    this.mouse.x = e.clientX;
+                    this.mouse.y = e.clientY;
+                };
+
+                // Virtual Joystick
+                const base = document.getElementById('joy-base');
+                const thumb = document.getElementById('joy-thumb');
+                const handleJoy = (e) => {
+                    if(!this.joy.active) return;
+                    const rect = base.getBoundingClientRect();
+                    const touch = e.touches ? e.touches[0] : e;
+                    const dx = touch.clientX - (rect.left + rect.width/2);
+                    const dy = touch.clientY - (rect.top + rect.height/2);
+                    const dist = Math.min(50, Math.hypot(dx, dy));
+                    const angle = Math.atan2(dy, dx);
+                    this.joy.x = (Math.cos(angle) * dist) / 50;
+                    this.joy.y = (Math.sin(angle) * dist) / 50;
+                    thumb.style.transform = `translate(calc(-50% + ${Math.cos(angle)*dist}px), calc(-50% + ${Math.sin(angle)*dist}px))`;
+                };
+                base.addEventListener('touchstart', (e) => { this.joy.active = true; handleJoy(e); e.preventDefault(); }, {passive: false});
+                window.addEventListener('touchmove', (e) => handleJoy(e), {passive: false});
+                window.addEventListener('touchend', () => {
+                    this.joy.active = false; this.joy.x = 0; this.joy.y = 0;
+                    thumb.style.transform = 'translate(-50%, -50%)';
+                });
+
+                // Mobile Fire/Trap
+                document.getElementById('btn-fire').addEventListener('touchstart', (e) => { this.mouse.down = !this.mouse.down; e.preventDefault(); });
+                document.getElementById('btn-trap').addEventListener('touchstart', (e) => { this.spawnTrap(); e.preventDefault(); });
+            }
+
+            start() {
+                document.getElementById('start-screen').style.display = 'none';
+                this.player.x = this.width/2;
+                this.player.y = this.height/2;
+                for(let i=0; i<6; i++) this.spawnGhost();
+                this.gameActive = true;
+            }
+
+            spawnGhost() {
+                const types = [
+                    { color: '#4ade80', speed: 1.5, hp: 100 },
+                    { color: '#a855f7', speed: 3, hp: 60 },
+                    { color: '#f43f5e', speed: 1, hp: 200 }
+                ];
+                const type = types[Math.floor(Math.random() * types.length)];
+                const angle = Math.random() * Math.PI * 2;
+                this.ghosts.push({
+                    x: this.player.x + Math.cos(angle) * 1000,
+                    y: this.player.y + Math.sin(angle) * 1000,
+                    ...type, currHp: type.hp,
+                    tx: Math.random() * this.width, ty: Math.random() * this.height,
+                    tethered: false, visible: false
+                });
+            }
+
+            spawnTrap() {
+                if (this.traps.length >= 1 || !this.gameActive) return;
+                this.traps.push({ x: this.player.x, y: this.player.y, r: 120, life: 800 });
+            }
+
+            update() {
+                if (!this.gameActive) return;
+
+                // Move
+                let dx = 0, dy = 0;
+                if(this.keys['KeyW'] || this.keys['ArrowUp']) dy = -1;
+                if(this.keys['KeyS'] || this.keys['ArrowDown']) dy = 1;
+                if(this.keys['KeyA'] || this.keys['ArrowLeft']) dx = -1;
+                if(this.keys['KeyD'] || this.keys['ArrowRight']) dx = 1;
+                
+                if(this.joy.active) { dx = this.joy.x; dy = this.joy.y; }
+
+                this.player.x += dx * this.player.speed;
+                this.player.y += dy * this.player.speed;
+                
+                if(!this.joy.active) {
+                    this.player.angle = Math.atan2(this.mouse.y - this.player.y, this.mouse.x - this.player.x);
+                } else if (Math.hypot(dx, dy) > 0.1) {
+                    this.player.angle = Math.atan2(dy, dx);
+                }
+
+                if(dx !== 0 || dy !== 0) this.player.anim += 0.2;
+
+                // Keep in bounds
+                this.player.x = Math.max(50, Math.min(this.width-50, this.player.x));
+                this.player.y = Math.max(50, Math.min(this.height-50, this.player.y));
+
+                // Ghosts
+                this.ghosts.forEach(g => {
+                    // Flashlight visibility check
+                    const dx = g.x - this.player.x;
+                    const dy = g.y - this.player.y;
+                    const dist = Math.hypot(dx, dy);
+                    const angleToGhost = Math.atan2(dy, dx);
+                    let diff = Math.abs(angleToGhost - this.player.angle);
+                    if (diff > Math.PI) diff = Math.PI * 2 - diff;
+                    
+                    g.visible = (dist < this.flashlightRange && diff < this.flashlightAngle);
+
+                    if (!g.tethered) {
+                        if (Math.hypot(g.tx - g.x, g.ty - g.y) < 20) {
+                            g.tx = Math.random() * this.width; g.ty = Math.random() * this.height;
+                        }
+                        const ang = Math.atan2(g.ty - g.y, g.tx - g.x);
+                        g.x += Math.cos(ang) * g.speed;
+                        g.y += Math.sin(ang) * g.speed;
+
+                        if (Math.hypot(g.x - this.player.x, g.y - this.player.y) < 40) {
+                            this.player.hp -= 0.15;
+                        }
+                    }
+                });
+
+                // Proton Stream
+                if (this.mouse.down) {
+                    this.ghosts.forEach(g => {
+                        if (g.visible) {
+                            const dToBeam = this.distToSegment(g, this.player, {
+                                x: this.player.x + Math.cos(this.player.angle) * this.flashlightRange,
+                                y: this.player.y + Math.sin(this.player.angle) * this.flashlightRange
+                            });
+                            if (dToBeam < 50) {
+                                g.currHp -= 1.5;
+                                g.tethered = true;
+                                g.x += (this.player.x - g.x) * 0.03;
+                                g.y += (this.player.y - g.y) * 0.03;
+                                this.spawnParticles(g.x, g.y, g.color, 2);
+                            } else g.tethered = false;
+                        } else g.tethered = false;
+                    });
+                } else this.ghosts.forEach(g => g.tethered = false);
+
+                // Traps
+                this.traps.forEach((t, i) => {
+                    t.life--;
+                    this.ghosts.forEach((g, gi) => {
+                        const d = Math.hypot(g.x - t.x, g.y - t.y);
+                        if (d < t.r && g.currHp < 25) {
+                            g.x += (t.x - g.x) * 0.15;
+                            g.y += (t.y - g.y) * 0.15;
+                            if (d < 15) {
+                                this.ghosts.splice(gi, 1);
+                                this.score++;
+                                this.spawnGhost();
+                                this.spawnParticles(t.x, t.y, '#fff', 15);
+                            }
+                        }
+                    });
+                    if (t.life <= 0) this.traps.splice(i, 1);
+                });
+
+                this.particles.forEach((p, i) => {
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                });
+
+                if (this.player.hp <= 0) this.gameOver();
+                this.updateUI();
+            }
+
+            distToSegment(p, a, b) {
+                const l2 = Math.hypot(a.x - b.x, a.y - b.y)**2;
+                if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+                let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+                t = Math.max(0, Math.min(1, t));
+                return Math.hypot(p.x - (a.x + t * (b.x - a.x)), p.y - (a.y + t * (b.y - a.y)));
+            }
+
+            spawnParticles(x, y, color, count) {
+                for(let i=0; i<count; i++) {
+                    this.particles.push({
+                        x, y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8,
+                        color, life: 1
+                    });
+                }
+            }
+
+            updateUI() {
+                document.getElementById('score-val').textContent = this.score;
+                document.getElementById('hp-val').textContent = Math.max(0, Math.ceil(this.player.hp)) + '%';
+                document.getElementById('hp-bar').style.width = this.player.hp + '%';
+            }
+
+            gameOver() {
+                this.gameActive = false;
+                document.getElementById('game-over-screen').style.display = 'flex';
+                document.getElementById('final-stats').textContent = `Ghosts Captured: ${this.score}`;
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Dark Background
+                ctx.fillStyle = '#020617';
+                ctx.fillRect(0, 0, this.width, this.height);
+
+                // Grid
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 1;
+                for(let i=0; i<this.width; i+=100) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,this.height); ctx.stroke(); }
+                for(let i=0; i<this.height; i+=100) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(this.width,i); ctx.stroke(); }
+
+                // Flashlight Cone
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(this.player.x, this.player.y);
+                ctx.arc(this.player.x, this.player.y, this.flashlightRange, this.player.angle - this.flashlightAngle, this.player.angle + this.flashlightAngle);
+                ctx.closePath();
+                
+                const fGrad = ctx.createRadialGradient(this.player.x, this.player.y, 50, this.player.x, this.player.y, this.flashlightRange);
+                fGrad.addColorStop(0, 'rgba(255,255,255,0.15)');
+                fGrad.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = fGrad;
+                ctx.fill();
+                
+                // Only draw ghosts inside this clip
+                ctx.clip();
+                this.ghosts.forEach(g => this.drawGhost(g));
+                ctx.restore();
+
+                // Traps & Proton Beam (Drawn above shadow)
+                this.traps.forEach(t => {
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.fillRect(t.x-15, t.y-10, 30, 20);
+                    const beam = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, t.r);
+                    beam.addColorStop(0, 'rgba(34, 211, 238, 0.3)');
+                    beam.addColorStop(1, 'transparent');
+                    ctx.fillStyle = beam;
+                    ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI*2); ctx.fill();
+                });
+
+                if (this.mouse.down && this.gameActive) {
+                    ctx.save();
+                    ctx.strokeStyle = '#fb923c';
+                    ctx.lineWidth = 3;
+                    ctx.shadowBlur = 10; ctx.shadowColor = '#f97316';
+                    ctx.beginPath();
+                    ctx.moveTo(this.player.x, this.player.y);
+                    for(let i=1; i<=8; i++) {
+                        const tx = this.player.x + Math.cos(this.player.angle) * (this.flashlightRange * i/8) + (Math.random()-0.5)*30;
+                        const ty = this.player.y + Math.sin(this.player.angle) * (this.flashlightRange * i/8) + (Math.random()-0.5)*30;
+                        ctx.lineTo(tx, ty);
+                    }
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                this.particles.forEach(p => {
+                    ctx.globalAlpha = p.life;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+
+                this.drawPlayer();
+            }
+
+            drawGhost(g) {
+                const ctx = this.ctx;
+                ctx.save();
+                ctx.shadowBlur = 15; ctx.shadowColor = g.color;
+                ctx.fillStyle = g.color;
+                ctx.globalAlpha = 0.7;
+                const wobble = Math.sin(Date.now()/200) * 5;
+                ctx.beginPath(); ctx.ellipse(g.x, g.y + wobble, 20, 25, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#000';
+                ctx.beginPath(); ctx.arc(g.x-7, g.y+wobble-5, 3, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(g.x+7, g.y+wobble-5, 3, 0, Math.PI*2); ctx.fill();
+                ctx.restore();
+            }
+
+            drawPlayer() {
+                const ctx = this.ctx;
+                ctx.save();
+                ctx.translate(this.player.x, this.player.y);
+                ctx.rotate(this.player.angle);
+                const w = Math.sin(this.player.anim) * 3;
+                ctx.fillStyle = '#1e293b'; ctx.fillRect(-25, -15, 20, 30); // Pack
+                ctx.fillStyle = '#d4d4d8'; ctx.beginPath(); ctx.arc(0, w, 20, 0, Math.PI*2); ctx.fill(); // Body
+                ctx.fillStyle = '#444'; ctx.fillRect(10, 5 + w, 30, 8); // Gun
+                ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        const game = new GhostCatcher();
+    </script>
+</body>
+</html>

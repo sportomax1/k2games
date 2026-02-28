@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Memoarrr! Island - K2 games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: rgba(30, 41, 59, 0.8);
+            --border: rgba(255, 255, 255, 0.1);
+            --p1: #3b82f6;
+            --p2: #ef4444;
+            --p3: #22c55e;
+            --p4: #eab308;
+            /* Themes */
+            --green: #4ade80; /* Plants */
+            --red: #f87171;   /* Lava */
+            --blue: #60a5fa;  /* Water */
+            --yellow: #fde047; /* Desert */
+            --pink: #f472b6;   /* Flowers */
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            padding: 0.75rem 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: #fff; letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            gap: 20px;
+        }
+
+        /* Players HUD */
+        #hud {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            justify-content: space-around;
+            gap: 10px;
+        }
+
+        .player-chip {
+            background: var(--panel);
+            padding: 8px 15px;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            text-align: center;
+            transition: 0.3s;
+            opacity: 0.5;
+        }
+        .player-chip.active { opacity: 1; transform: scale(1.1); border-color: #fff; box-shadow: 0 0 15px rgba(255,255,255,0.2); }
+        .player-chip.out { opacity: 0.2; text-decoration: line-through; filter: grayscale(1); }
+        .player-chip.p1.active { border-color: var(--p1); }
+        .player-chip.p2.active { border-color: var(--p2); }
+        .player-chip.p3.active { border-color: var(--p3); }
+        .player-chip.p4.active { border-color: var(--p4); }
+
+        /* Grid */
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 1/1;
+        }
+
+        .card {
+            background: #1e293b;
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid var(--border);
+        }
+        .card.flipped { transform: rotateY(180deg); }
+        
+        .card-face {
+            position: absolute;
+            inset: 0;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 2rem;
+        }
+
+        .card-back {
+            background: linear-gradient(135deg, #334155 0%, #0f172a 100%);
+            border: 2px solid rgba(255,255,255,0.05);
+        }
+        .card-back::after { content: '❓'; opacity: 0.2; font-size: 1.2rem; }
+
+        .card-front {
+            transform: rotateY(180deg);
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        /* Background Colors */
+        .bg-green { background-color: var(--green); color: #064e3b; }
+        .bg-red { background-color: var(--red); color: #450a0a; }
+        .bg-blue { background-color: var(--blue); color: #1e3a8a; }
+        .bg-yellow { background-color: var(--yellow); color: #713f12; }
+        .bg-pink { background-color: var(--pink); color: #500724; }
+
+        #center-treasure {
+            grid-area: 3 / 3;
+            background: #fbbf24 !important;
+            cursor: default !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.4);
+        }
+
+        /* Interaction Overlay */
+        .screen-overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: #3b82f6; color: white; border: none; padding: 1rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.2rem; box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+        }
+
+        #turn-msg {
+            font-size: 1.2rem; font-weight: 800; color: #fff;
+            background: var(--panel); padding: 10px 30px; border-radius: 50px;
+        }
+
+        @media (max-width: 600px) {
+            .card-face { font-size: 1.5rem; }
+            #grid { gap: 5px; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">K2 MEMOARRR!</div>
+        <a href="index.html" class="back-link">← HUB</a>
+    </nav>
+
+    <div id="game-layout">
+        <div id="hud">
+            <div id="p1-chip" class="player-chip p1 active">P1: <span id="p1-score">0</span></div>
+            <div id="p2-chip" class="player-chip p2">P2: <span id="p2-score">0</span></div>
+            <div id="p3-chip" class="player-chip p3">P3: <span id="p3-score">0</span></div>
+            <div id="p4-chip" class="player-chip p4">P4: <span id="p4-score">0</span></div>
+        </div>
+
+        <div id="turn-msg">STARTING GAME...</div>
+
+        <div id="grid">
+            <!-- Cards via JS -->
+        </div>
+
+        <div id="start-screen" class="screen-overlay">
+            <h1 style="font-size: 3rem; font-style: italic;">MEMOARRR!</h1>
+            <p style="opacity: 0.7; margin-top: 10px; max-width: 400px;">Flip a card that matches the animal or the location of the previous flip. Don't reshuffle your memory!</p>
+            <button class="btn-large" onclick="game.init(2)">2 PLAYERS</button>
+            <button class="btn-large" onclick="game.init(4)" style="margin-top: 10px; background: #8b5cf6;">4 PLAYERS</button>
+        </div>
+
+        <div id="round-overlay" class="screen-overlay" style="display:none">
+            <h1 id="round-result">PLAYER 1 WINS ROUND!</h1>
+            <p style="opacity: 0.7; margin-top: 10px;">Cards are staying where they are...</p>
+            <button class="btn-large" onclick="game.nextRound()">NEXT ROUND</button>
+        </div>
+    </div>
+
+    <script>
+        const ANIMALS = ['🐢', '🐙', '🐧', '🦀', '🦭'];
+        const LOCATIONS = ['green', 'red', 'blue', 'yellow', 'pink']; // plants, lava, water, desert, flowers
+
+        class Memoarrr {
+            constructor() {
+                this.gridEl = document.getElementById('grid');
+                this.cards = [];
+                this.players = [];
+                this.turn = 0;
+                this.lastFlip = null;
+                this.playing = false;
+                this.round = 1;
+            }
+
+            init(playerCount) {
+                this.players = Array(playerCount).fill(0).map((_, i) => ({
+                    id: i,
+                    score: 0,
+                    out: false
+                }));
+                
+                this.generateCards();
+                this.startRound();
+                document.getElementById('start-screen').style.display = 'none';
+            }
+
+            generateCards() {
+                const deck = [];
+                ANIMALS.forEach(animal => {
+                    LOCATIONS.forEach(loc => {
+                        deck.push({ animal, loc });
+                    });
+                });
+
+                // Shuffle
+                deck.sort(() => Math.random() - 0.5);
+
+                this.cards = deck.map((data, i) => ({
+                    ...data,
+                    id: i,
+                    flipped: false
+                }));
+
+                // The middle card (idx 12) is always special in the board game
+                // We'll treat it as the treasure spot
+                this.renderGrid();
+            }
+
+            renderGrid() {
+                this.gridEl.innerHTML = '';
+                this.cards.forEach((c, i) => {
+                    if (i === 12) {
+                        const treasure = document.createElement('div');
+                        treasure.id = 'center-treasure';
+                        treasure.textContent = '💎';
+                        this.gridEl.appendChild(treasure);
+                        return;
+                    }
+
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.dataset.id = i;
+                    card.onclick = () => this.handleFlip(i);
+
+                    const back = document.createElement('div');
+                    back.className = 'card-face card-back';
+                    
+                    const front = document.createElement('div');
+                    front.className = `card-face card-front bg-${c.loc}`;
+                    front.textContent = c.animal;
+
+                    card.appendChild(back);
+                    card.appendChild(front);
+                    this.gridEl.appendChild(card);
+                });
+            }
+
+            startRound() {
+                this.cards.forEach(c => c.flipped = false);
+                this.players.forEach(p => p.out = false);
+                this.lastFlip = null;
+                this.turn = 0;
+                this.updateUI();
+                this.updateGridVisuals();
+                document.getElementById('round-overlay').style.display = 'none';
+                this.playing = true;
+            }
+
+            handleFlip(idx) {
+                if (!this.playing || this.cards[idx].flipped) return;
+
+                const card = this.cards[idx];
+                const p = this.players[this.turn];
+
+                // Check Match
+                let success = true;
+                if (this.lastFlip) {
+                    if (card.animal !== this.lastFlip.animal && card.loc !== this.lastFlip.loc) {
+                        success = false;
+                    }
+                }
+
+                // Execute Flip
+                card.flipped = true;
+                this.updateGridVisuals();
+
+                if (!success) {
+                    p.out = true;
+                    this.nextTurn(); // Move turn away before marking out? No, just next.
+                } else {
+                    this.lastFlip = card;
+                    this.nextTurn();
+                }
+
+                this.checkRoundEnd();
+            }
+
+            nextTurn() {
+                let attempts = 0;
+                do {
+                    this.turn = (this.turn + 1) % this.players.length;
+                    attempts++;
+                } while (this.players[this.turn].out && attempts < this.players.length);
+                
+                this.updateUI();
+            }
+
+            checkRoundEnd() {
+                const active = this.players.filter(p => !p.out);
+                if (active.length <= 1) {
+                    this.playing = false;
+                    const winner = active[0] || this.players[0]; // Fallback
+                    winner.score++;
+                    
+                    setTimeout(() => {
+                        document.getElementById('round-overlay').style.display = 'flex';
+                        document.getElementById('round-result').textContent = `PLAYER ${winner.id + 1} WINS!`;
+                        document.getElementById('round-result').style.color = `var(--p${winner.id + 1})`;
+                    }, 1000);
+                }
+            }
+
+            nextRound() {
+                this.round++;
+                this.startRound();
+            }
+
+            updateUI() {
+                this.players.forEach((p, i) => {
+                    const chip = document.getElementById(`p${i+1}-chip`);
+                    const score = document.getElementById(`p${i+1}-score`);
+                    chip.style.display = 'block';
+                    score.textContent = p.score;
+                    chip.classList.toggle('active', this.turn === i && !p.out);
+                    chip.classList.toggle('out', p.out);
+                });
+
+                const currentP = this.players[this.turn];
+                document.getElementById('turn-msg').textContent = `PLAYER ${currentP.id + 1}'S TURN`;
+                document.getElementById('turn-msg').style.color = `var(--p${currentP.id + 1})`;
+            }
+
+            updateGridVisuals() {
+                const cardEls = document.querySelectorAll('.card');
+                this.cards.forEach((c, i) => {
+                    if (i === 12) return;
+                    const el = Array.from(cardEls).find(e => e.dataset.id == i);
+                    if (c.flipped) el.classList.add('flipped');
+                    else el.classList.remove('flipped');
+                });
+            }
+        }
+
+        const game = new Memoarrr();
+    </script>
+</body>
+</html>

@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Air Hockey - K2 games</title>
+    <style>
+        :root {
+            --bg: #020617;
+            --primary: #00f2ff;
+            --accent: #ff007a;
+            --glass: rgba(255, 255, 255, 0.05);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: #fff;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: var(--primary); letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #1e1b4b 0%, #020617 100%);
+            overflow: hidden;
+        }
+
+        canvas {
+            background: #000;
+            border: 4px solid #334155;
+            border-radius: 20px;
+            box-shadow: 0 0 50px rgba(0, 242, 255, 0.15);
+            max-width: 95vw;
+            max-height: 80vh;
+        }
+
+        /* Score HUD */
+        #hud {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .score-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: monospace;
+        }
+        .score-val { font-size: 3rem; font-weight: 900; text-shadow: 0 0 15px currentColor; }
+        .score-label { font-size: 0.7rem; text-transform: uppercase; opacity: 0.6; letter-spacing: 2px; }
+
+        .p1-score { color: var(--primary); }
+        .p2-score { color: var(--accent); }
+
+        #controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.3);
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        /* Overlays */
+        .screen-overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--primary); color: #000; border: none; padding: 1rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 1rem;
+            font-size: 1.2rem; box-shadow: 0 10px 25px rgba(0, 242, 255, 0.4);
+        }
+
+        .mode-select {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .mode-btn {
+            background: var(--glass);
+            border: 2px solid var(--border);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        .mode-btn.selected { border-color: var(--primary); background: rgba(0, 242, 255, 0.1); }
+
+        @media (max-width: 768px) {
+            #hud { gap: 30px; }
+            .score-val { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">K2 AIR HOCKEY</div>
+        <a href="index.html" class="back-link">← EXIT HUB</a>
+    </nav>
+
+    <div id="game-container">
+        <div id="hud">
+            <div class="score-box p1-score">
+                <div class="score-label">Player 1</div>
+                <div id="score-p1" class="score-val">0</div>
+            </div>
+            <div class="score-box p2-score">
+                <div id="p2-label" class="score-label">Computer</div>
+                <div id="score-p2" class="score-val">0</div>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="controls-hint">DRAG TO MOVE MALLET • DEFEND THE GOAL</div>
+
+        <div id="start-screen" class="screen-overlay">
+            <h1 style="font-size: 3rem; font-style: italic; color: var(--primary); font-weight: 900;">NEON AIR HOCKEY</h1>
+            <p style="opacity: 0.7; margin-top: 10px;">First to 7 goals wins.</p>
+            
+            <div class="mode-select">
+                <button id="mode-ai" class="mode-btn selected" onclick="game.setMode('ai')">VS COMPUTER</button>
+                <button id="mode-1v1" class="mode-btn" onclick="game.setMode('1v1')">1 VS 1 LOCAL</button>
+            </div>
+
+            <button class="btn-large" onclick="game.start()">START MATCH</button>
+        </div>
+
+        <div id="win-screen" class="screen-overlay" style="display:none">
+            <h1 id="winner-text" style="font-size: 3.5rem; color: var(--primary);">VICTORY!</h1>
+            <button class="btn-large" onclick="location.reload()">REPLAY</button>
+        </div>
+    </div>
+
+    <script>
+        class AirHockey {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 500;
+                this.height = 800;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                this.playing = false;
+                this.scores = { p1: 0, p2: 0 };
+                this.mode = 'ai'; // ai or 1v1
+                
+                this.puck = { x: 250, y: 400, vx: 0, vy: 0, r: 15, color: '#fff' };
+                this.m1 = { x: 250, y: 700, r: 25, color: '#00f2ff', vx: 0, vy: 0 }; // Player
+                this.m2 = { x: 250, y: 100, r: 25, color: '#ff007a', vx: 0, vy: 0 }; // AI / P2
+                
+                this.touches = {};
+                this.particles = [];
+                
+                this.init();
+            }
+
+            setMode(m) {
+                this.mode = m;
+                document.getElementById('mode-ai').classList.toggle('selected', m === 'ai');
+                document.getElementById('mode-1v1').classList.toggle('selected', m === '1v1');
+                document.getElementById('p2-label').textContent = m === 'ai' ? 'Computer' : 'Player 2';
+            }
+
+            init() {
+                const getPos = (touch) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    return {
+                        x: (touch.clientX - rect.left) * (this.width / rect.width),
+                        y: (touch.clientY - rect.top) * (this.height / rect.height)
+                    };
+                };
+
+                const handleTouches = (e) => {
+                    if (!this.playing) return;
+                    e.preventDefault();
+                    
+                    const currentTouches = e.touches;
+                    for (let i = 0; i < currentTouches.length; i++) {
+                        const touch = currentTouches[i];
+                        const pos = getPos(touch);
+                        
+                        // Check which half the touch is in
+                        if (pos.y > this.height / 2) {
+                            // Player 1 half
+                            const dx = pos.x - this.m1.x;
+                            const dy = pos.y - this.m1.y;
+                            this.m1.x = Math.max(this.m1.r, Math.min(this.width - this.m1.r, pos.x));
+                            this.m1.y = Math.max(this.height / 2 + this.m1.r, Math.min(this.height - this.m1.r, pos.y));
+                            this.m1.vx = dx;
+                            this.m1.vy = dy;
+                        } else if (this.mode === '1v1') {
+                            // Player 2 half
+                            const dx = pos.x - this.m2.x;
+                            const dy = pos.y - this.m2.y;
+                            this.m2.x = Math.max(this.m2.r, Math.min(this.width - this.m2.r, pos.x));
+                            this.m2.y = Math.max(this.m2.r, Math.min(this.height / 2 - this.m2.r, pos.y));
+                            this.m2.vx = dx;
+                            this.m2.vy = dy;
+                        }
+                    }
+                };
+
+                const handleMouseMove = (e) => {
+                    if (!this.playing) return;
+                    const pos = getPos(e);
+                    
+                    const dx = pos.x - this.m1.x;
+                    const dy = pos.y - this.m1.y;
+                    this.m1.x = Math.max(this.m1.r, Math.min(this.width - this.m1.r, pos.x));
+                    this.m1.y = Math.max(this.height / 2 + this.m1.r, Math.min(this.height - this.m1.r, pos.y));
+                    this.m1.vx = dx;
+                    this.m1.vy = dy;
+                };
+
+                this.canvas.addEventListener('mousemove', handleMouseMove);
+                this.canvas.addEventListener('touchstart', handleTouches, {passive: false});
+                this.canvas.addEventListener('touchmove', handleTouches, {passive: false});
+
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            start() {
+                this.playing = true;
+                document.getElementById('start-screen').style.display = 'none';
+                this.resetPuck();
+            }
+
+            resetPuck() {
+                this.puck.x = this.width / 2;
+                this.puck.y = this.height / 2;
+                this.puck.vx = (Math.random() - 0.5) * 4;
+                this.puck.vy = (Math.random() - 0.5) * 4;
+            }
+
+            update() {
+                if (!this.playing) return;
+
+                // --- AI MALLET ---
+                if (this.mode === 'ai') {
+                    const targetX = this.puck.x;
+                    const targetY = Math.min(this.height / 2 - this.m2.r, this.puck.y - 50);
+                    const aiSpeed = 0.15;
+                    const dx = (targetX - this.m2.x) * aiSpeed;
+                    const dy = (100 - this.m2.y) * aiSpeed;
+                    this.m2.x += dx;
+                    this.m2.y += dy;
+                    this.m2.vx = dx;
+                    this.m2.vy = dy;
+                }
+
+                // --- PUCK PHYSICS ---
+                this.puck.x += this.puck.vx;
+                this.puck.y += this.puck.vy;
+                this.puck.vx *= 0.99;
+                this.puck.vy *= 0.99;
+
+                // Friction for mallets (decay velocity)
+                if (this.mode === '1v1') {
+                    this.m1.vx *= 0.5; this.m1.vy *= 0.5;
+                    this.m2.vx *= 0.5; this.m2.vy *= 0.5;
+                }
+
+                // Wall Collisions
+                if (this.puck.x < this.puck.r || this.puck.x > this.width - this.puck.r) {
+                    this.puck.vx *= -0.8;
+                    this.puck.x = Math.max(this.puck.r, Math.min(this.width - this.puck.r, this.puck.x));
+                }
+                
+                // Goal Detection
+                const inGoalX = this.puck.x > 150 && this.puck.x < 350;
+                if (this.puck.y < this.puck.r) {
+                    if (inGoalX) this.goal(1); // P1 scores
+                    else {
+                        this.puck.vy *= -0.8;
+                        this.puck.y = this.puck.r;
+                    }
+                }
+                if (this.puck.y > this.height - this.puck.r) {
+                    if (inGoalX) this.goal(2); // P2 scores
+                    else {
+                        this.puck.vy *= -0.8;
+                        this.puck.y = this.height - this.puck.r;
+                    }
+                }
+
+                // Mallet Collisions
+                [this.m1, this.m2].forEach(m => {
+                    const dist = Math.hypot(this.puck.x - m.x, this.puck.y - m.y);
+                    if (dist < this.puck.r + m.r) {
+                        const angle = Math.atan2(this.puck.y - m.y, this.puck.x - m.x);
+                        const relativeVx = this.puck.vx - (m.vx || 0);
+                        const relativeVy = this.puck.vy - (m.vy || 0);
+                        
+                        // Reflection physics
+                        this.puck.vx = Math.cos(angle) * (Math.abs(relativeVx) + 5) * 0.8;
+                        this.puck.vy = Math.sin(angle) * (Math.abs(relativeVy) + 5) * 0.8;
+                        
+                        // Push puck out to avoid overlap sticking
+                        this.puck.x = m.x + Math.cos(angle) * (this.puck.r + m.r + 1);
+                        this.puck.y = m.y + Math.sin(angle) * (this.puck.r + m.r + 1);
+                        
+                        this.spawnParticles(this.puck.x, this.puck.y, m.color, 5);
+                    }
+                });
+
+                // Particles
+                this.particles.forEach((p, i) => {
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                });
+            }
+
+            goal(p) {
+                this.scores[p === 1 ? 'p1' : 'p2']++;
+                document.getElementById(`score-p${p}`).textContent = this.scores[p === 1 ? 'p1' : 'p2'];
+                this.spawnParticles(this.width / 2, p === 1 ? 0 : this.height, p === 1 ? '#00f2ff' : '#ff007a', 30);
+                
+                if (this.scores.p1 >= 7 || this.scores.p2 >= 7) {
+                    this.endGame(p === 1);
+                } else {
+                    this.playing = false;
+                    setTimeout(() => {
+                        this.resetPuck();
+                        this.playing = true;
+                    }, 1000);
+                }
+            }
+
+            endGame(victory) {
+                this.playing = false;
+                const screen = document.getElementById('win-screen');
+                const text = document.getElementById('winner-text');
+                screen.style.display = 'flex';
+                text.textContent = victory ? "P1 VICTORIOUS!" : "CPU VICTORIOUS!";
+                text.style.color = victory ? "var(--primary)" : "var(--accent)";
+            }
+
+            spawnParticles(x, y, color, count) {
+                for(let i=0; i<count; i++) {
+                    this.particles.push({
+                        x, y, vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15,
+                        life: 1, color
+                    });
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // --- BOARD ---
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 4;
+                
+                // Center Line
+                ctx.beginPath(); ctx.moveTo(0, this.height / 2); ctx.lineTo(this.width, this.height / 2); ctx.stroke();
+                
+                // Center Circle
+                ctx.beginPath(); ctx.arc(this.width / 2, this.height / 2, 60, 0, Math.PI * 2); ctx.stroke();
+                
+                // Goals
+                ctx.lineWidth = 8;
+                ctx.strokeStyle = '#00f2ff';
+                ctx.beginPath(); ctx.moveTo(150, this.height); ctx.lineTo(350, this.height); ctx.stroke();
+                ctx.strokeStyle = '#ff007a';
+                ctx.beginPath(); ctx.moveTo(150, 0); ctx.lineTo(350, 0); ctx.stroke();
+
+                // --- PUCK ---
+                ctx.save();
+                ctx.shadowBlur = 15; ctx.shadowColor = '#fff';
+                ctx.fillStyle = this.puck.color;
+                ctx.beginPath(); ctx.arc(this.puck.x, this.puck.y, this.puck.r, 0, Math.PI * 2); ctx.fill();
+                ctx.restore();
+
+                // --- MALLETS ---
+                [this.m1, this.m2].forEach(m => {
+                    ctx.save();
+                    ctx.shadowBlur = 20; ctx.shadowColor = m.color;
+                    ctx.fillStyle = m.color;
+                    ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
+                    // Mallet Cap
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                    ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 0.6, 0, Math.PI * 2); ctx.fill();
+                    ctx.restore();
+                });
+
+                // Particles
+                this.particles.forEach(p => {
+                    ctx.globalAlpha = p.life;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(this.loop);
+            }
+        }
+
+        const game = new AirHockey();
+    </script>
+</body>
+</html>

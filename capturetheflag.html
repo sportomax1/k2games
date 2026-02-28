@@ -2,239 +2,331 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Capture the Flag: 5v5 Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Capture the Flag: Cyber Arena - K2 games</title>
     <style>
-        body { margin: 0; background: #2d5a27; color: white; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        canvas { background: #4CAF50; border: 5px solid #fff; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); cursor: crosshair; }
-        #ui { position: absolute; top: 20px; display: flex; gap: 40px; background: rgba(0,0,0,0.7); padding: 10px 30px; border-radius: 30px; backdrop-filter: blur(5px); pointer-events: none; border: 2px solid rgba(255,255,255,0.2); }
-        .score-box { text-align: center; font-weight: 900; }
-        .blue { color: #3b82f6; }
-        .red { color: #ef4444; }
-        .controls { position: absolute; bottom: 20px; right: 20px; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; text-align: right; }
-        .back { position: absolute; bottom: 20px; left: 20px; color: white; text-decoration: none; background: #3b82f6; padding: 10px 20px; border-radius: 8px; font-weight: bold; }
+        :root {
+            --team-blue: #3b82f6;
+            --team-red: #ef4444;
+            --field: #0f172a;
+            --wall: #334155;
+            --jail: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: #020617;
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; background: #000; }
+
+        #hud {
+            position: absolute; top: 20px; width: 100%;
+            display: flex; justify-content: center; gap: 40px;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .score-box {
+            background: rgba(0,0,0,0.7);
+            padding: 10px 30px;
+            border-radius: 12px;
+            text-align: center;
+            border: 2px solid;
+        }
+        .score-val { font-size: 2rem; font-weight: 900; }
+
+        #mobile-controls {
+            position: absolute; bottom: 30px; width: 100%;
+            display: none; justify-content: space-between; padding: 0 40px;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .virtual-stick {
+            width: 120px; height: 120px;
+            background: rgba(255,255,255,0.1); border-radius: 50%;
+            pointer-events: auto; position: relative;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        .stick-knob {
+            width: 50px; height: 50px; background: white; border-radius: 50%;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+
+        .action-btn {
+            width: 80px; height: 80px; border-radius: 50%;
+            background: rgba(255,255,255,0.2); border: 2px solid white;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; pointer-events: auto;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px;
+            color: white; text-decoration: none; opacity: 0.5;
+            z-index: 100;
+        }
+
+        #event-banner {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 3rem; font-weight: 900; color: #fbbf24; text-shadow: 0 0 20px rgba(0,0,0,0.8);
+            display: none; pointer-events: none; z-index: 150; text-align: center;
+        }
+
+        @media (max-width: 900px) { #mobile-controls { display: flex; } }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <div class="score-box blue">BLUE: <span id="blueScore">0</span> | <small>JAIL: <span id="blueJailCount">0</span></small></div>
-        <div class="score-box red">RED: <span id="redScore">0</span> | <small>JAIL: <span id="redJailCount">0</span></small></div>
-    </div>
+    <a href="index.html" class="back-link">← HUB</a>
 
-    <canvas id="game"></canvas>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="event-banner">FLAG CAPTURED!</div>
+        
+        <div id="hud">
+            <div class="score-box" style="border-color: var(--team-blue); color: var(--team-blue)">
+                <div id="score-blue" class="score-val">0</div>
+            </div>
+            <div class="score-box" style="border-color: var(--team-red); color: var(--team-red)">
+                <div id="score-red" class="score-val">0</div>
+            </div>
+        </div>
 
-    <div class="controls">
-        <b>YOU ARE BLUE (Circle with White Outline)</b><br>
-        WASD/Arrows to Move • Space to Dash<br>
-        Capture Red Flag (Right) • Touch your Jail to Free Friends
+        <div id="mobile-controls">
+            <div class="virtual-stick" id="joy-base"><div class="stick-knob" id="joy-knob"></div></div>
+            <div class="action-btn" id="btn-boost">🏃</div>
+        </div>
     </div>
-    <a href="index.html" class="back">← HUB</a>
 
     <script>
-        const canvas = document.getElementById('game');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 1000; canvas.height = 600;
+        class CTF {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize();
 
-        // Constants
-        const TEAM_SIZE = 5;
-        const MID = canvas.width / 2;
-        const SPEED = 3.5;
-        const BOT_SPEED = 3.2;
-
-        let scores = { blue: 0, red: 0 };
-        let keys = {};
-        
-        // Entities
-        let player;
-        let blueTeam = [];
-        let redTeam = [];
-        let redFlag = { x: 920, y: 300, team: 'red', holder: null, homeX: 920, homeY: 300 };
-        let blueFlag = { x: 80, y: 300, team: 'blue', holder: null, homeX: 80, homeY: 300 };
-        let redJail = { x: 900, y: 50, w: 80, h: 80 }; // Where Blue team goes
-        let blueJail = { x: 20, y: 50, w: 80, h: 80 }; // Where Red team goes
-
-        function init() {
-            // Setup Player
-            player = { x: 150, y: 300, r: 14, team: 'blue', isPlayer: true, inJail: false, hasFlag: false, dash: 0 };
-            blueTeam = [player];
-            
-            // Add Blue AI
-            for(let i=1; i<TEAM_SIZE; i++) {
-                blueTeam.push({
-                    x: 100, y: 100 + i*100, r: 12, team: 'blue', 
-                    role: i < 3 ? 'attacker' : 'defender',
-                    inJail: false, hasFlag: false, vx: 0, vy: 0
-                });
-            }
-
-            // Add Red AI
-            for(let i=0; i<TEAM_SIZE; i++) {
-                redTeam.push({
-                    x: 900, y: 100 + i*100, r: 12, team: 'red',
-                    role: i < 2 ? 'attacker' : 'defender',
-                    inJail: false, hasFlag: false, vx: 0, vy: 0
-                });
-            }
-            
-            loop();
-        }
-
-        function updateBot(bot, teammates, opponents, myFlag, enemyFlag, myJail, enemyJail) {
-            if (bot.inJail) return;
-
-            let target = null;
-            const side = bot.team === 'blue' ? 1 : -1;
-            const homeSide = bot.team === 'blue' ? (bot.x < MID) : (bot.x > MID);
-
-            if (bot.hasFlag) {
-                // Return flag to base
-                target = { x: bot.team === 'blue' ? 50 : 950, y: 300 };
-            } else if (teammates.some(t => t.inJail)) {
-                // Go to enemy jail to rescue
-                target = { x: enemyJail.x + enemyJail.w/2, y: enemyJail.y + enemyJail.h/2 };
-            } else if (bot.role === 'attacker') {
-                // Go for flag
-                target = enemyFlag;
-            } else {
-                // Defender: Guard base or chase enemies on our side
-                const intruder = opponents.find(o => !o.inJail && (bot.team === 'blue' ? o.x < MID : o.x > MID));
-                if (intruder) target = intruder;
-                else target = { x: bot.team === 'blue' ? 200 : 800, y: bot.y }; // Idle patrol
-            }
-
-            if (target) {
-                let ang = Math.atan2(target.y - bot.y, target.x - bot.x);
-                bot.x += Math.cos(ang) * BOT_SPEED;
-                bot.y += Math.sin(ang) * BOT_SPEED;
-            }
-
-            // Keep in bounds
-            bot.x = Math.max(bot.r, Math.min(canvas.width - bot.r, bot.x));
-            bot.y = Math.max(bot.r, Math.min(canvas.height - bot.r, bot.y));
-        }
-
-        function update() {
-            // 1. Player Move
-            if (!player.inJail) {
-                let speed = keys['Space'] && player.dash > 0 ? SPEED * 2 : SPEED;
-                if (keys['ArrowUp'] || keys['KeyW']) player.y -= speed;
-                if (keys['ArrowDown'] || keys['KeyS']) player.y += speed;
-                if (keys['ArrowLeft'] || keys['KeyA']) player.x -= speed;
-                if (keys['ArrowRight'] || keys['KeyD']) player.x += speed;
-            }
-
-            // 2. Bots Logic
-            blueTeam.slice(1).forEach(b => updateBot(b, blueTeam, redTeam, blueFlag, redFlag, blueJail, redJail));
-            redTeam.forEach(b => updateBot(b, redTeam, blueTeam, redFlag, blueFlag, redJail, blueJail));
-
-            // 3. Interactions (Flag / Tag / Jail)
-            const allBlue = blueTeam;
-            const allRed = redTeam;
-
-            // Flags
-            [redFlag, blueFlag].forEach(f => {
-                const team = f.team === 'red' ? allBlue : allRed;
-                const opponents = f.team === 'red' ? allRed : allBlue;
+                this.players = [];
+                this.flags = {
+                    blue: { x: 150, y: this.height/2, owner: null, home: {x: 150, y: this.height/2} },
+                    red: { x: this.width-150, y: this.height/2, owner: null, home: {x: this.width-150, y: this.height/2} }
+                };
+                this.jails = {
+                    blue: { x: 50, y: 50, w: 150, h: 150 }, 
+                    red: { x: this.width-200, y: this.height-200, w: 150, h: 150 } 
+                };
                 
-                if (!f.holder) {
-                    team.forEach(p => {
-                        if (!p.inJail && Math.hypot(p.x - f.x, p.y - f.y) < 30) {
-                            f.holder = p; p.hasFlag = true;
+                this.scores = { blue: 0, red: 0 };
+                this.keys = {};
+                this.joy = { active: false, x: 0, y: 0 };
+                
+                this.initTeams();
+                this.setupControls();
+                window.addEventListener('resize', () => this.resize());
+                
+                // Fixed loop call: bind this and start requestAnimationFrame
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            resize() {
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+                if(this.flags) {
+                    this.flags.blue.home = {x: 150, y: this.height/2};
+                    this.flags.red.home = {x: this.width-150, y: this.height/2};
+                    if(!this.flags.blue.owner) { this.flags.blue.x = 150; this.flags.blue.y = this.height/2; }
+                    if(!this.flags.red.owner) { this.flags.red.x = this.width-150; this.flags.red.y = this.height/2; }
+                    
+                    this.jails.blue = { x: 50, y: 50, w: 150, h: 150 };
+                    this.jails.red = { x: this.width-200, y: this.height-200, w: 150, h: 150 };
+                }
+            }
+
+            initTeams() {
+                this.players = [];
+                this.players.push({ x: 300, y: this.height/2, r: 18, team: 'blue', isPlayer: true, speed: 4.5, hasFlag: false, inJail: false, invuln: 0 });
+                for(let i=0; i<4; i++) this.players.push({ x: 250, y: 100 + i*150, r: 18, team: 'blue', isPlayer: false, speed: 3.8, hasFlag: false, inJail: false, invuln: 0 });
+                for(let i=0; i<5; i++) this.players.push({ x: this.width-250, y: 100 + i*150, r: 18, team: 'red', isPlayer: false, speed: 3.8, hasFlag: false, inJail: false, invuln: 0 });
+            }
+
+            setupControls() {
+                window.onkeydown = e => this.keys[e.code] = true;
+                window.onkeyup = e => this.keys[e.code] = false;
+
+                const base = document.getElementById('joy-base');
+                const knob = document.getElementById('joy-knob');
+                
+                const handleJoy = (e) => {
+                    if(!this.joy.active) return;
+                    const rect = base.getBoundingClientRect();
+                    const t = e.touches ? e.touches[0] : e;
+                    const dx = t.clientX - (rect.left + rect.width/2);
+                    const dy = t.clientY - (rect.top + rect.height/2);
+                    const dist = Math.min(50, Math.hypot(dx, dy));
+                    const angle = Math.atan2(dy, dx);
+                    this.joy.x = Math.cos(angle) * (dist/50);
+                    this.joy.y = Math.sin(angle) * (dist/50);
+                    knob.style.transform = `translate(calc(-50% + ${this.joy.x*50}px), calc(-50% + ${this.joy.y*50}px))`;
+                };
+
+                base.addEventListener('touchstart', (e) => { this.joy.active = true; handleJoy(e); e.preventDefault(); }, {passive: false});
+                window.addEventListener('touchmove', (e) => { handleJoy(e); e.preventDefault(); }, {passive: false});
+                window.addEventListener('touchend', () => { 
+                    this.joy.active = false; this.joy.x = 0; this.joy.y = 0; 
+                    knob.style.transform = 'translate(-50%, -50%)'; 
+                });
+            }
+
+            showBanner(txt) {
+                const b = document.getElementById('event-banner');
+                b.textContent = txt; b.style.display = 'block';
+                setTimeout(() => b.style.display = 'none', 2000);
+            }
+
+            update() {
+                this.players.forEach(p => {
+                    if(p.invuln > 0) p.invuln--;
+                    
+                    let dx = 0, dy = 0;
+                    if(p.inJail) {
+                    } else if(p.isPlayer) {
+                        if(this.keys['KeyW'] || this.keys['ArrowUp']) dy = -1;
+                        if(this.keys['KeyS'] || this.keys['ArrowDown']) dy = 1;
+                        if(this.keys['KeyA'] || this.keys['ArrowLeft']) dx = -1;
+                        if(this.keys['KeyD'] || this.keys['ArrowRight']) dx = 1;
+                        if(this.joy.active) { dx = this.joy.x; dy = this.joy.y; }
+                    } else {
+                        const target = p.hasFlag ? this.flags[p.team].home : (p.team === 'blue' ? this.flags.red : this.flags.blue);
+                        const mateInJail = this.players.find(m => m.team === p.team && m.inJail);
+                        const goTo = mateInJail && Math.random() < 0.3 ? (p.team === 'blue' ? {x: this.jails.red.x + 75, y: this.jails.red.y + 75} : {x: this.jails.blue.x + 75, y: this.jails.blue.y + 75}) : target;
+                        
+                        const tx = goTo.owner ? goTo.owner.x : goTo.x;
+                        const ty = goTo.owner ? goTo.owner.y : goTo.y;
+                        const ang = Math.atan2(ty - p.y, tx - p.x);
+                        dx = Math.cos(ang); dy = Math.sin(ang);
+                    }
+
+                    p.x += dx * p.speed;
+                    p.y += dy * p.speed;
+
+                    this.players.forEach(other => {
+                        if(p.team !== other.team && !p.inJail && !other.inJail && p.invuln === 0 && other.invuln === 0) {
+                            if(Math.hypot(p.x - other.x, p.y - other.y) < 35) {
+                                const pInEnemy = p.team === 'blue' ? p.x > this.width/2 : p.x < this.width/2;
+                                const otherInEnemy = other.team === 'blue' ? other.x > this.width/2 : other.x < this.width/2;
+                                
+                                if(pInEnemy && !otherInEnemy) {
+                                    this.sendToJail(p);
+                                } else if(otherInEnemy && !pInEnemy) {
+                                    this.sendToJail(other);
+                                }
+                            }
+                        }
+                        
+                        if(p.team === other.team && other.inJail && Math.hypot(p.x - other.x, p.y - other.y) < 40) {
+                            other.inJail = false;
+                            other.invuln = 120;
+                            this.showBanner(`${other.team.toUpperCase()} RESCUED!`);
                         }
                     });
-                } else {
-                    f.x = f.holder.x; f.y = f.holder.y;
-                    // Score check
-                    const homeLine = f.team === 'red' ? (f.x < MID) : (f.x > MID);
-                    if (homeLine) {
-                        scores[f.holder.team]++;
-                        f.holder.hasFlag = false;
-                        f.holder = null;
-                        f.x = f.homeX; f.y = f.homeY;
-                        alert(`${f.team.toUpperCase()} FLAG CAPTURED!`);
-                    }
-                }
-            });
 
-            // Tagging
-            allBlue.forEach(b => {
-                if (b.inJail) return;
-                allRed.forEach(r => {
-                    if (r.inJail) return;
-                    if (Math.hypot(b.x - r.x, b.y - r.y) < 25) {
-                        // Tag!
-                        if (b.x > MID && r.x > MID) { // Blue tagged on Red side
-                            b.inJail = true; b.x = redJail.x + 20 + Math.random()*40; b.y = redJail.y + 20 + Math.random()*40;
-                            if(b.hasFlag) { redFlag.holder = null; redFlag.x = redFlag.homeX; redFlag.y = redFlag.homeY; b.hasFlag = false; }
-                        } else if (r.x < MID && b.x < MID) { // Red tagged on Blue side
-                            r.inJail = true; r.x = blueJail.x + 20 + Math.random()*40; r.y = blueJail.y + 20 + Math.random()*40;
-                            if(r.hasFlag) { blueFlag.holder = null; blueFlag.x = blueFlag.homeX; blueFlag.y = blueFlag.homeY; r.hasFlag = false; }
+                    const enemyFlag = p.team === 'blue' ? this.flags.red : this.flags.blue;
+                    if(!p.inJail && !enemyFlag.owner && Math.hypot(p.x - enemyFlag.x, p.y - enemyFlag.y) < 35) {
+                        enemyFlag.owner = p;
+                        p.hasFlag = true;
+                        this.showBanner(`${p.team.toUpperCase()} HAS THE FLAG!`);
+                    }
+
+                    if(p.hasFlag) {
+                        enemyFlag.x = p.x; enemyFlag.y = p.y;
+                        const homeBase = this.flags[p.team].home;
+                        if(Math.hypot(p.x - homeBase.x, p.y - homeBase.y) < 40) {
+                            this.scores[p.team]++;
+                            document.getElementById(`score-${p.team}`).textContent = this.scores[p.team];
+                            p.hasFlag = false; enemyFlag.owner = null;
+                            enemyFlag.x = enemyFlag.home.x; enemyFlag.y = enemyFlag.home.y;
+                            this.showBanner(`${p.team.toUpperCase()} SCORED!`);
                         }
                     }
                 });
-            });
+            }
 
-            // Jailbreak
-            allBlue.forEach(b => {
-                if (!b.inJail && b.x > redJail.x && b.x < redJail.x + redJail.w && b.y > redJail.y && b.y < redJail.y + redJail.h) {
-                    allBlue.forEach(t => { if(t.inJail) { t.inJail = false; t.x = MID - 50; }});
+            sendToJail(p) {
+                p.inJail = true;
+                if(p.hasFlag) {
+                    const flag = p.team === 'blue' ? this.flags.red : this.flags.blue;
+                    flag.owner = null; flag.x = flag.home.x; flag.y = flag.home.y;
+                    p.hasFlag = false;
                 }
-            });
-            allRed.forEach(r => {
-                if (!r.inJail && r.x > blueJail.x && r.x < blueJail.x + blueJail.w && r.y > blueJail.y && r.y < blueJail.y + blueJail.h) {
-                    allRed.forEach(t => { if(t.inJail) { t.inJail = false; t.x = MID + 50; }});
-                }
-            });
+                const jail = p.team === 'blue' ? this.jails.red : this.jails.blue;
+                p.x = jail.x + Math.random() * jail.w;
+                p.y = jail.y + Math.random() * jail.h;
+                this.showBanner(`${p.team.toUpperCase()} JAILED!`);
+            }
 
-            document.getElementById('blueScore').textContent = scores.blue;
-            document.getElementById('redScore').textContent = scores.red;
-            document.getElementById('blueJailCount').textContent = allBlue.filter(b => b.inJail).length;
-            document.getElementById('redJailCount').textContent = allRed.filter(r => r.inJail).length;
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+                ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, this.width, this.height);
+                
+                ctx.strokeStyle = '#334155'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(this.width/2, 0); ctx.lineTo(this.width/2, this.height); ctx.stroke();
+                
+                ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                ctx.fillRect(this.jails.blue.x, this.jails.blue.y, this.jails.blue.w, this.jails.blue.h);
+                ctx.fillRect(this.jails.red.x, this.jails.red.y, this.jails.red.w, this.jails.red.h);
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.setLineDash([5,5]);
+                ctx.strokeRect(this.jails.blue.x, this.jails.blue.y, this.jails.blue.w, this.jails.blue.h);
+                ctx.strokeRect(this.jails.red.x, this.jails.red.y, this.jails.red.w, this.jails.red.h);
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = 'rgba(59, 130, 246, 0.1)'; ctx.beginPath(); ctx.arc(150, this.height/2, 100, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.1)'; ctx.beginPath(); ctx.arc(this.width-150, this.height/2, 100, 0, Math.PI*2); ctx.fill();
+
+                const dF = (f, color) => {
+                    ctx.save(); ctx.translate(f.x, f.y);
+                    ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(25, -15); ctx.lineTo(0, -30); ctx.fill();
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 15); ctx.stroke();
+                    ctx.restore();
+                };
+                dF(this.flags.blue, '#3b82f6'); dF(this.flags.red, '#ef4444');
+
+                this.players.forEach(p => {
+                    ctx.save();
+                    if(p.invuln > 0) ctx.globalAlpha = 0.5 + Math.sin(Date.now()/50)*0.5;
+                    ctx.fillStyle = p.team === 'blue' ? '#3b82f6' : '#ef4444';
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+                    if(p.isPlayer) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke(); }
+                    if(p.inJail) { ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x-10, p.y-10); ctx.lineTo(p.x+10, p.y+10); ctx.stroke(); ctx.beginPath(); ctx.moveTo(p.x+10, p.y-10); ctx.lineTo(p.x-10, p.y+10); ctx.stroke(); }
+                    if(p.hasFlag) { ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(p.x, p.y-30, 8, 0, Math.PI*2); ctx.fill(); }
+                    ctx.restore();
+                });
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(this.loop);
+            }
         }
-
-        function loop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Field
-            ctx.fillStyle = 'rgba(59, 130, 246, 0.15)'; ctx.fillRect(0, 0, MID, canvas.height);
-            ctx.fillStyle = 'rgba(239, 68, 68, 0.15)'; ctx.fillRect(MID, 0, MID, canvas.height);
-            ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.setLineDash([10, 5]);
-            ctx.beginPath(); ctx.moveTo(MID, 0); ctx.lineTo(MID, canvas.height); ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Jails
-            ctx.strokeStyle = '#ef4444'; ctx.strokeRect(redJail.x, redJail.y, redJail.w, redJail.h);
-            ctx.strokeStyle = '#3b82f6'; ctx.strokeRect(blueJail.x, blueJail.y, blueJail.w, blueJail.h);
-
-            // Flags
-            [blueFlag, redFlag].forEach(f => {
-                ctx.fillStyle = f.team === 'blue' ? '#3b82f6' : '#ef4444';
-                ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x+25, f.y-15); ctx.lineTo(f.x, f.y-30); ctx.fill();
-                ctx.strokeStyle = 'white'; ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x, f.y-40); ctx.stroke();
-            });
-
-            // Teams
-            const drawUnit = (u) => {
-                ctx.fillStyle = u.team === 'blue' ? '#3b82f6' : '#ef4444';
-                ctx.beginPath(); ctx.arc(u.x, u.y, u.r, 0, Math.PI*2); ctx.fill();
-                ctx.strokeStyle = u.isPlayer ? 'white' : 'rgba(0,0,0,0.3)';
-                ctx.lineWidth = u.isPlayer ? 3 : 1;
-                ctx.stroke();
-                if (u.hasFlag) { ctx.fillStyle = 'gold'; ctx.beginPath(); ctx.arc(u.x, u.y-20, 6, 0, Math.PI*2); ctx.fill(); }
-                if (u.inJail) { ctx.fillStyle = 'white'; ctx.font = '10px Arial'; ctx.textAlign='center'; ctx.fillText("JAIL", u.x, u.y+4); }
-            };
-
-            blueTeam.forEach(drawUnit);
-            redTeam.forEach(drawUnit);
-
-            update();
-            requestAnimationFrame(loop);
-        }
-
-        window.onkeydown = e => keys[e.code] = true;
-        window.onkeyup = e => keys[e.code] = false;
-
-        init();
+        const game = new CTF();
     </script>
 </body>
 </html>

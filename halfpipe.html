@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Halfpipe Hero - K2 games</title>
+    <style>
+        :root {
+            --snow: #f0f9ff;
+            --sky: #0ea5e9;
+            --board: #ff4757;
+            --accent: #fbbf24;
+            --bg: #0f172a;
+            --glass: rgba(15, 23, 42, 0.85);
+            --neon: #22d3ee;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: #fff; letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-container {
+            height: calc(100vh - 60px);
+            position: relative;
+            background: linear-gradient(to bottom, var(--sky), #fff);
+            overflow: hidden;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        #hud {
+            position: absolute; top: 15px; left: 15px; right: 15px;
+            display: flex; justify-content: space-between; pointer-events: none;
+            z-index: 50;
+        }
+
+        .stat-card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            padding: 8px 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+            min-width: 90px;
+        }
+
+        .stat-val { font-size: 1.2rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+        .stat-label { font-size: 0.5rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+
+        #trick-text {
+            position: absolute; bottom: 180px; width: 100%; text-align: center;
+            font-size: 2.2rem; font-weight: 900; font-style: italic; color: #fff;
+            text-shadow: 0 0 20px rgba(0,0,0,0.5); pointer-events: none;
+            z-index: 100; opacity: 0; transition: 0.3s;
+        }
+
+        #controls-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            z-index: 60;
+            pointer-events: none;
+        }
+
+        .trick-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            pointer-events: auto;
+        }
+
+        .btn-move {
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        .action-btn {
+            width: 60px; height: 60px;
+            background: var(--glass);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 12px;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 0.7rem;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: 0.1s;
+        }
+        .action-btn:active, .action-btn.pressed {
+            background: #fff;
+            color: #000;
+            transform: scale(0.95);
+            border-color: #fff;
+        }
+        .action-btn.move { width: 70px; height: 70px; border-radius: 50%; font-size: 1rem; border-color: var(--neon); color: var(--neon); }
+        .action-btn.jump { width: 80px; height: 80px; border-radius: 50%; border-color: var(--accent); color: var(--accent); font-size: 1.1rem; }
+
+        #start-screen {
+            position: absolute; inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--board); color: white; border: none; padding: 1rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.2rem; box-shadow: 0 10px 25px rgba(255, 71, 87, 0.4);
+        }
+
+        @media (max-height: 500px) {
+            nav { height: 40px; }
+            .action-btn { width: 50px; height: 50px; }
+            .action-btn.move, .action-btn.jump { width: 60px; height: 60px; }
+            #trick-text { bottom: 120px; font-size: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">K2 HALFPIPE</div>
+        <a href="index.html" class="back-link">← HUB</a>
+    </nav>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="trick-text">METHOD GRAB</div>
+        
+        <div id="hud">
+            <div class="stat-card">
+                <div class="stat-label">Score</div>
+                <div id="score-val" class="stat-val">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Height</div>
+                <div id="height-val" class="stat-val">0m</div>
+            </div>
+        </div>
+
+        <div id="controls-overlay">
+            <div class="btn-move">
+                <div class="action-btn move" id="btn-left">←</div>
+                <div class="action-btn move" id="btn-right">→</div>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+                <div class="trick-grid">
+                    <div class="action-btn" id="btn-1">INDY</div>
+                    <div class="action-btn" id="btn-2">METHOD</div>
+                    <div class="action-btn" id="btn-3">FLIP</div>
+                    <div class="action-btn" id="btn-4">360</div>
+                </div>
+                <div class="action-btn jump" id="btn-jump">JUMP</div>
+            </div>
+        </div>
+
+        <div id="start-screen">
+            <h1 style="font-size: 3.5rem; font-style: italic; font-weight: 900;">HALFPIPE HERO</h1>
+            <p style="opacity: 0.7; margin-top: 10px; max-width: 400px;">Pump the transition to build speed. Launch off the lip and land clean!</p>
+            <div style="margin-top: 20px; font-size: 0.8rem; color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 12px;">
+                <b>DESKTOP</b>: Arrows or A/D to Pump • SPACE to Jump • 1-4 for Tricks
+            </div>
+            <button class="btn-large" onclick="game.start()">SHRED THE PIPE</button>
+        </div>
+    </div>
+
+    <script>
+        const SLANG = ["Sick air!", "Gnarly!", "Radical!", "Too clean!", "Stomped it!", "Massive!", "Huge jump!", "So stoked!", "Epic!", "Legit!", "Insane!"];
+
+        class Halfpipe {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize();
+
+                this.player = {
+                    pos: 0, 
+                    vel: 0,
+                    altitude: 0, 
+                    verticalVel: 0,
+                    rotation: 0,
+                    trick: '',
+                    state: 'pipe',
+                    anim: 0,
+                    tilt: 0 // Smooth visual board tilt
+                };
+
+                this.score = 0;
+                this.maxHeight = 0;
+                this.keys = {};
+                this.bubbles = []; 
+                this.playing = false;
+                
+                this.setupInputs();
+                window.addEventListener('resize', () => this.resize());
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            resize() {
+                this.width = window.innerWidth;
+                this.height = window.innerHeight - 60;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+            }
+
+            setupInputs() {
+                window.onkeydown = e => {
+                    this.keys[e.key] = true;
+                    this.updateBtnStates();
+                };
+                window.onkeyup = e => {
+                    this.keys[e.key] = false;
+                    this.updateBtnStates();
+                };
+
+                const mapping = {
+                    'btn-left': 'ArrowLeft', 'btn-right': 'ArrowRight', 'btn-1': '1', 'btn-2': '2', 'btn-3': '3', 'btn-4': '4', 'btn-jump': ' '
+                };
+
+                Object.entries(mapping).forEach(([id, key]) => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        const start = (e) => { e.preventDefault(); this.keys[key] = true; this.updateBtnStates(); };
+                        const end = () => { this.keys[key] = false; this.updateBtnStates(); };
+                        el.addEventListener('mousedown', start);
+                        el.addEventListener('mouseup', end);
+                        el.addEventListener('touchstart', start, {passive: false});
+                        el.addEventListener('touchend', end);
+                    }
+                });
+            }
+
+            updateBtnStates() {
+                const mapping = {
+                    'btn-left': ['a', 'ArrowLeft'], 
+                    'btn-right': ['d', 'ArrowRight'], 
+                    'btn-1': ['1'], 
+                    'btn-2': ['2'], 
+                    'btn-3': ['3'], 
+                    'btn-4': ['4'], 
+                    'btn-jump': [' ', 'Spacebar']
+                };
+                Object.entries(mapping).forEach(([id, keys]) => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        const isPressed = keys.some(k => this.keys[k]);
+                        el.classList.toggle('pressed', isPressed);
+                    }
+                });
+            }
+
+            start() {
+                this.playing = true;
+                this.score = 0;
+                this.player.pos = 0;
+                this.player.vel = 0;
+                this.player.altitude = 0;
+                this.player.rotation = 0;
+                this.player.state = 'pipe';
+                this.player.trick = '';
+                this.player.tilt = 0;
+                this.bubbles = [];
+                document.getElementById('start-screen').style.display = 'none';
+            }
+
+            update() {
+                if(!this.playing) return;
+
+                const p = this.player;
+                if(p.state === 'pipe') {
+                    // Slower pumping for more deliberate animation feel
+                    if(this.keys['a'] || this.keys['ArrowLeft'] || this.keys['ArrowLeft']) {
+                        if(p.pos < 0) p.vel -= 0.008; else p.vel -= 0.004;
+                    }
+                    if(this.keys['d'] || this.keys['ArrowRight'] || this.keys['ArrowRight']) {
+                        if(p.pos > 0) p.vel += 0.008; else p.vel += 0.004;
+                    }
+
+                    p.pos += p.vel;
+                    p.vel *= 0.99; 
+                    p.vel -= p.pos * 0.004;
+
+                    if(Math.abs(p.pos) > 0.9) {
+                        if(this.keys[' '] || Math.abs(p.vel) > 0.06) {
+                            p.state = 'air';
+                            p.altitude = 1;
+                            p.verticalVel = Math.abs(p.vel) * 28;
+                            p.vel *= 0.1;
+                            if (p.verticalVel > 15) this.spawnBubble();
+                        } else {
+                            p.pos = p.pos > 0 ? 0.9 : -0.9;
+                            p.vel *= -0.6;
+                        }
+                    }
+                } else if(p.state === 'air') {
+                    p.altitude += p.verticalVel;
+                    p.verticalVel -= 0.35; // Slower gravity for hang time
+                    
+                    let targetTilt = 0;
+                    if(this.keys['1']) { this.setTrick('INDY GRAB', 250); targetTilt = 0.4; }
+                    else if(this.keys['2']) { this.setTrick('METHOD GRAB', 300); targetTilt = -0.4; }
+                    else if(this.keys['3']) { this.setTrick('BACKFLIP', 600); p.rotation += 0.18; }
+                    else if(this.keys['4']) { this.setTrick('360 SPIN', 500); p.rotation += 0.18; }
+                    else { p.trick = ''; }
+
+                    // Interpolate board tilt
+                    p.tilt += (targetTilt - p.tilt) * 0.1;
+
+                    if(p.altitude < 0) {
+                        // Wide landing window for "slowed down" feel
+                        const rotationMod = p.rotation % (Math.PI * 2);
+                        if(Math.abs(rotationMod) < 1.2 || Math.abs(rotationMod - Math.PI*2) < 1.2) {
+                            p.state = 'pipe';
+                            p.altitude = 0;
+                            p.rotation = 0;
+                            p.tilt = 0;
+                            p.vel = p.pos > 0 ? -0.12 : 0.12; 
+                            this.score += 1500;
+                            if (Math.random() < 0.6) this.spawnBubble();
+                        } else {
+                            this.gameOver();
+                        }
+                    }
+                }
+
+                this.bubbles.forEach((b, i) => {
+                    b.life -= 0.012;
+                    b.y -= 0.8;
+                    if (b.life <= 0) this.bubbles.splice(i, 1);
+                });
+
+                this.updateUI();
+            }
+
+            spawnBubble() {
+                const text = SLANG[Math.floor(Math.random() * SLANG.length)];
+                this.bubbles.push({
+                    text,
+                    x: Math.random() * (this.width - 150) + 75,
+                    y: this.height - 100,
+                    life: 1.0
+                });
+            }
+
+            setTrick(name, pts) {
+                this.player.trick = name;
+                this.score += pts / 60;
+                const el = document.getElementById('trick-text');
+                if (el) { el.textContent = name; el.style.opacity = 1; }
+            }
+
+            updateUI() {
+                const scoreEl = document.getElementById('score-val');
+                const heightEl = document.getElementById('height-val');
+                const trickEl = document.getElementById('trick-text');
+                if (scoreEl) scoreEl.textContent = Math.floor(this.score);
+                if (heightEl) heightEl.textContent = (this.player.altitude / 10).toFixed(1) + 'm';
+                if (trickEl && this.player.trick === '') trickEl.style.opacity = 0;
+            }
+
+            gameOver() {
+                this.playing = false;
+                this.player.state = 'crash';
+                setTimeout(() => {
+                    document.getElementById('start-screen').style.display = 'flex';
+                    const h1 = document.querySelector('#start-screen h1');
+                    if (h1) h1.textContent = 'WASTED!';
+                }, 1000);
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                const grad = ctx.createLinearGradient(0, 0, 0, this.height);
+                grad.addColorStop(0, '#0ea5e9'); grad.addColorStop(1, '#fff');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, this.width, this.height);
+
+                const centerX = this.width / 2;
+                const pipeY = this.height * 0.65;
+                const pipeW = Math.min(this.width * 0.85, 900);
+                const pipeH = 180;
+
+                ctx.fillStyle = '#f0f9ff';
+                ctx.beginPath();
+                ctx.moveTo(centerX - pipeW/2, pipeY - pipeH);
+                ctx.quadraticCurveTo(centerX, pipeY + pipeH, centerX + pipeW/2, pipeY - pipeH);
+                ctx.lineTo(centerX + pipeW/2 + 200, pipeY - pipeH);
+                ctx.lineTo(centerX + pipeW/2 + 200, this.height);
+                ctx.lineTo(centerX - pipeW/2 - 200, this.height);
+                ctx.lineTo(centerX - pipeW/2 - 200, pipeY - pipeH);
+                ctx.fill();
+
+                ctx.strokeStyle = 'rgba(0,0,0,0.05)'; ctx.lineWidth = 15; ctx.stroke();
+
+                ctx.fillStyle = '#1e293b';
+                ctx.beginPath();
+                ctx.moveTo(0, this.height);
+                for(let x=0; x<this.width; x+=20) ctx.lineTo(x, this.height - 10 - Math.random()*15);
+                ctx.lineTo(this.width, this.height);
+                ctx.fill();
+
+                this.bubbles.forEach(b => {
+                    ctx.save();
+                    ctx.globalAlpha = b.life;
+                    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.roundRect(b.x - 60, b.y - 30, 120, 40, 15); ctx.fill(); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(b.x, b.y+10); ctx.lineTo(b.x-10, b.y+20); ctx.lineTo(b.x+10, b.y+10); ctx.fill();
+                    ctx.fillStyle = '#000'; ctx.font = 'bold 14px Segoe UI'; ctx.textAlign = 'center';
+                    ctx.fillText(b.text, b.x, b.y - 5);
+                    ctx.restore();
+                });
+
+                const p = this.player;
+                let px, py, angle;
+                if(p.state === 'pipe' || p.state === 'crash') {
+                    px = centerX + (p.pos * pipeW/2);
+                    const normPos = p.pos;
+                    py = pipeY + (normPos * normPos * -pipeH) + (1 - normPos * normPos) * pipeH;
+                    angle = Math.atan2(normPos * -pipeH * 2, pipeW/2);
+                } else {
+                    px = centerX + (p.pos * pipeW/2);
+                    py = pipeY - pipeH - p.altitude;
+                    angle = p.rotation;
+                }
+
+                ctx.save();
+                ctx.translate(px, py);
+                ctx.rotate(angle);
+                ctx.rotate(p.tilt); // Apply smoothed trick tilt
+                
+                ctx.fillStyle = '#ff4757';
+                ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(0,0,0,0.4)';
+                ctx.beginPath(); ctx.roundRect(-30, 5, 60, 10, 5); ctx.fill();
+                
+                ctx.font = '55px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                if(p.state === 'crash') {
+                    ctx.fillText('💥', 0, 0);
+                } else if (p.trick === 'INDY GRAB') {
+                    ctx.fillText('🛹', 0, -10);
+                } else if (p.trick === 'METHOD GRAB') {
+                    ctx.fillText('🏂', -10, -5);
+                } else {
+                    ctx.fillText('🏂', 0, 0);
+                }
+                ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(this.loop);
+            }
+        }
+
+        let game;
+        window.onload = () => { game = new Halfpipe(); };
+    </script>
+</body>
+</html>

@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shuffleboard Elite - K2 games</title>
+    <style>
+        :root {
+            --wood: #5d4037;
+            --wood-light: #8d6e63;
+            --primary: #3b82f6;
+            --accent: #ef4444;
+            --bg: #0f172a;
+            --glass: rgba(255, 255, 255, 0.1);
+            --border: rgba(255, 255, 255, 0.2);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Top Header */
+        nav {
+            padding: 0.75rem 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: #fff; letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        /* Game Layout */
+        #game-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #1e293b 0%, #020617 100%);
+            padding: 20px;
+        }
+
+        canvas {
+            background: #000;
+            box-shadow: 0 50px 100px rgba(0,0,0,0.8);
+            border-radius: 10px;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        /* HUD Layer */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .score-card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            padding: 10px 25px;
+            border-radius: 15px;
+            border: 1px solid var(--border);
+            text-align: center;
+            min-width: 100px;
+        }
+
+        .score-val { font-size: 1.8rem; font-weight: 900; font-family: monospace; }
+        .score-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+
+        #turn-display {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 0.8rem;
+            border: 2px solid transparent;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            z-index: 50;
+        }
+
+        /* Interaction Hint */
+        #hint {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.4);
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-align: center;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        /* Modals */
+        .screen-overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--primary); color: white; border: none; padding: 1rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.2rem; box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+        }
+
+        .player-select { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .p-opt { background: var(--glass); border: 2px solid var(--border); padding: 15px 20px; border-radius: 15px; cursor: pointer; font-weight: bold; }
+        .p-opt:hover { border-color: var(--primary); }
+
+        @media (max-width: 768px) {
+            .score-card { min-width: 80px; padding: 8px 15px; }
+            .score-val { font-size: 1.4rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">K2 SHUFFLEBOARD</div>
+        <a href="index.html" class="back-link">← EXIT HUB</a>
+    </nav>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="hud">
+            <div class="score-card" style="border-color: var(--primary);">
+                <div class="score-label" style="color: var(--primary);">Blue Team</div>
+                <div id="score-blue" class="score-val">0</div>
+            </div>
+            <div class="score-card" style="border-color: var(--accent);">
+                <div class="score-label" style="color: var(--accent);">Red Team</div>
+                <div id="score-red" class="score-val">0</div>
+            </div>
+        </div>
+
+        <div id="turn-display">BLUE'S TURN</div>
+
+        <div id="hint">DRAG BACK AND FLICK FORWARD TO SHUFFLE</div>
+
+        <div id="start-screen" class="screen-overlay">
+            <h1 style="font-size: 3rem; font-style: italic; color: #fff;">SHUFFLEBOARD ELITE</h1>
+            <p style="opacity: 0.7; margin-top: 10px;">The classic bar game, perfected for digital play.</p>
+            <div class="player-select">
+                <div class="p-opt" onclick="game.initMatch(1)">SOLO VS CPU</div>
+                <div class="p-opt" onclick="game.initMatch(2)">PASS & PLAY</div>
+            </div>
+        </div>
+
+        <div id="end-modal" class="screen-overlay" style="display:none">
+            <h1 id="winner-text" style="font-size: 3rem; color: var(--primary);">BLUE WINS!</h1>
+            <p id="final-stats" style="margin-top:10px; opacity:0.7"></p>
+            <button class="btn-large" onclick="location.reload()">NEW MATCH</button>
+        </div>
+    </div>
+
+    <script>
+        class Shuffleboard {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 500;
+                this.height = 900;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                this.playing = false;
+                this.players = 1;
+                this.turn = 'blue'; 
+                this.pucks = [];
+                this.currentPuck = null;
+                this.round = 1;
+                this.shotsInRound = 0;
+                this.scores = { blue: 0, red: 0 };
+                this.state = 'idle'; 
+                
+                this.drag = { active: false, startX: 0, startY: 0, currX: 0, currY: 0 };
+                this.friction = 0.988;
+                
+                this.setupInputs();
+                this.loop();
+            }
+
+            initMatch(count) {
+                this.players = count;
+                this.scores = { blue: 0, red: 0 };
+                this.round = 1;
+                this.shotsInRound = 0;
+                this.pucks = [];
+                this.playing = true;
+                this.nextTurn();
+                document.getElementById('start-screen').style.display = 'none';
+            }
+
+            setupInputs() {
+                const getPos = (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const t = e.touches ? e.touches[0] : e;
+                    return {
+                        x: (t.clientX - rect.left) * (this.width / rect.width),
+                        y: (t.clientY - rect.top) * (this.height / rect.height)
+                    };
+                };
+
+                const startDrag = (e) => {
+                    if (!this.playing || this.state !== 'aiming') return;
+                    const pos = getPos(e);
+                    if (pos.y > 700) {
+                        this.drag.active = true;
+                        this.drag.startX = this.drag.currX = this.currentPuck.x;
+                        this.drag.startY = this.drag.currY = this.currentPuck.y;
+                    }
+                };
+
+                const moveDrag = (e) => {
+                    if (this.drag.active) {
+                        const pos = getPos(e);
+                        this.drag.currX = pos.x;
+                        this.drag.currY = pos.y;
+                    }
+                };
+
+                const endDrag = () => {
+                    if (this.drag.active) {
+                        const dy = this.drag.startY - this.drag.currY;
+                        const dx = this.drag.startX - this.drag.currX;
+                        if (dy > 30) { 
+                            this.shoot(dx * 0.15, dy * 0.25);
+                        }
+                        this.drag.active = false;
+                    }
+                };
+
+                this.canvas.addEventListener('mousedown', startDrag);
+                window.addEventListener('mousemove', moveDrag);
+                window.addEventListener('mouseup', endDrag);
+                this.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrag(e); }, {passive: false});
+                window.addEventListener('touchmove', (e) => { if(this.drag.active) e.preventDefault(); moveDrag(e); }, {passive: false});
+                window.addEventListener('touchend', endDrag);
+            }
+
+            shoot(vx, vy) {
+                this.state = 'moving';
+                this.currentPuck.vx = vx;
+                this.currentPuck.vy = -Math.min(vy, 25);
+                this.shotsInRound++;
+            }
+
+            nextTurn() {
+                if (this.shotsInRound >= 8) {
+                    this.resolveRound();
+                    return;
+                }
+
+                this.state = 'aiming';
+                this.turn = this.shotsInRound % 2 === 0 ? 'blue' : 'red';
+                this.currentPuck = {
+                    x: 250, y: 820,
+                    vx: 0, vy: 0,
+                    r: 22,
+                    color: this.turn === 'blue' ? '#3b82f6' : '#ef4444',
+                    team: this.turn,
+                    active: true
+                };
+                this.pucks.push(this.currentPuck);
+                this.updateUI();
+
+                if (this.players === 1 && this.turn === 'red') {
+                    setTimeout(() => this.cpuTurn(), 1000);
+                }
+            }
+
+            cpuTurn() {
+                if(this.state !== 'aiming' || !this.playing) return;
+                const targetPower = 18 + Math.random() * 4;
+                const targetAngle = (Math.random() - 0.5) * 2;
+                this.shoot(targetAngle, targetPower);
+            }
+
+            resolveRound() {
+                const blueBest = this.getBestPuck('blue');
+                const redBest = this.getBestPuck('red');
+
+                if (blueBest && (!redBest || blueBest.y < redBest.y)) {
+                    this.scores.blue += this.getPuckPoints(blueBest);
+                } else if (redBest && (!blueBest || redBest.y < blueBest.y)) {
+                    this.scores.red += this.getPuckPoints(redBest);
+                }
+
+                this.pucks = [];
+                this.shotsInRound = 0;
+                this.round++;
+                
+                if (this.scores.blue >= 15 || this.scores.red >= 15) {
+                    this.endMatch();
+                } else {
+                    this.nextTurn();
+                }
+            }
+
+            getBestPuck(team) {
+                const teamPucks = this.pucks.filter(p => p.team === team && p.y > 50 && p.y < 850);
+                if (teamPucks.length === 0) return null;
+                return teamPucks.reduce((prev, curr) => (prev.y < curr.y) ? prev : curr);
+            }
+
+            getPuckPoints(p) {
+                if (p.y < 150) return 3;
+                if (p.y < 250) return 2;
+                if (p.y < 400) return 1;
+                return 0;
+            }
+
+            update() {
+                if (!this.playing) return;
+
+                let moving = false;
+                this.pucks.forEach(p => {
+                    if (Math.abs(p.vx) > 0.1 || Math.abs(p.vy) > 0.1) {
+                        moving = true;
+                        p.x += p.vx;
+                        p.y += p.vy;
+                        p.vx *= this.friction;
+                        p.vy *= this.friction;
+
+                        if (p.x < 45 || p.x > 455) p.vx *= -0.5;
+                        if (p.y < 50 || p.y > 850) { p.vx = p.vy = 0; p.active = false; }
+
+                        this.pucks.forEach(other => {
+                            if (p !== other && other.active) {
+                                const dist = Math.hypot(p.x - other.x, p.y - other.y);
+                                if (dist < 44) {
+                                    const angle = Math.atan2(other.y - p.y, other.x - p.x);
+                                    const force = 1.0;
+                                    other.vx += Math.cos(angle) * force;
+                                    other.vy += Math.sin(angle) * force;
+                                    p.vx -= Math.cos(angle) * force;
+                                    p.vy -= Math.sin(angle) * force;
+                                }
+                            }
+                        });
+                    } else { p.vx = 0; p.vy = 0; }
+                });
+
+                if (this.state === 'moving' && !moving) {
+                    this.nextTurn();
+                }
+            }
+
+            updateUI() {
+                const bVal = document.getElementById('score-blue');
+                const rVal = document.getElementById('score-red');
+                const turnEl = document.getElementById('turn-display');
+                if(bVal) bVal.textContent = this.scores.blue;
+                if(rVal) rVal.textContent = this.scores.red;
+                if(turnEl) {
+                    turnEl.textContent = `${this.turn.toUpperCase()}'S TURN`;
+                    turnEl.style.color = this.turn === 'blue' ? 'var(--primary)' : 'var(--accent)';
+                    turnEl.style.borderColor = this.turn === 'blue' ? 'var(--primary)' : 'var(--accent)';
+                }
+            }
+
+            endMatch() {
+                this.playing = false;
+                const blueWin = this.scores.blue > this.scores.red;
+                const modal = document.getElementById('end-modal');
+                const winTxt = document.getElementById('winner-text');
+                if(modal) modal.style.display = 'flex';
+                if(winTxt) {
+                    winTxt.textContent = blueWin ? "BLUE WINS!" : "RED WINS!";
+                    winTxt.style.color = blueWin ? 'var(--primary)' : 'var(--accent)';
+                }
+                const stats = document.getElementById('final-stats');
+                if(stats) stats.textContent = `Final Score: ${this.scores.blue} - ${this.scores.red}`;
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Board
+                const grad = ctx.createLinearGradient(0, 0, this.width, 0);
+                grad.addColorStop(0, '#3e2723'); grad.addColorStop(0.5, '#5d4037'); grad.addColorStop(1, '#3e2723');
+                ctx.fillStyle = grad;
+                ctx.fillRect(25, 0, 450, this.height);
+
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 3;
+                [150, 250, 400, 700].forEach(y => { ctx.beginPath(); ctx.moveTo(25, y); ctx.lineTo(475, y); ctx.stroke(); });
+
+                ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.font = 'bold 60px Arial'; ctx.textAlign = 'center';
+                ctx.fillText('3', 250, 120); ctx.fillText('2', 250, 220); ctx.fillText('1', 250, 350);
+                ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(25, 700, 450, 200);
+
+                this.pucks.forEach(p => {
+                    if (!p.active) return;
+                    ctx.save(); ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                    const pGrad = ctx.createRadialGradient(p.x-5, p.y-5, 2, p.x, p.y, p.r);
+                    pGrad.addColorStop(0, '#eee'); pGrad.addColorStop(1, '#999');
+                    ctx.fillStyle = pGrad; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r - 6, 0, Math.PI*2); ctx.fill();
+                    ctx.restore();
+                });
+
+                if (this.drag.active) {
+                    ctx.strokeStyle = this.turn === 'blue' ? 'var(--primary)' : 'var(--accent)';
+                    ctx.lineWidth = 4; ctx.setLineDash([10, 5]);
+                    ctx.beginPath(); ctx.moveTo(this.drag.startX, this.drag.startY);
+                    ctx.lineTo(this.drag.currX, this.drag.currY); ctx.stroke(); ctx.setLineDash([]);
+                }
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        const game = new Shuffleboard();
+    </script>
+</body>
+</html>

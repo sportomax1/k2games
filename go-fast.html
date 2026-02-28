@@ -1,164 +1,485 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Go Fast Racing Pro</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Go Fast: Kart GP - K2 games</title>
     <style>
-        body { margin: 0; background: #1a1a2e; color: white; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; overflow: hidden; height: 100vh; }
-        #ui { position: absolute; top: 20px; left: 20px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
-        .stat-card { background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 8px; border-left: 5px solid #3498db; }
-        canvas { background: #2c3e50; border: 5px solid #16213e; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 95vw; max-height: 80vh; }
-        .controls { position: absolute; bottom: 20px; right: 20px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; font-size: 0.8rem; text-align: right; }
-        .back { position: absolute; bottom: 20px; left: 20px; color: #3498db; text-decoration: none; background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 8px; }
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; text-align: center; }
-        .btn { padding: 15px 40px; background: #e74c3c; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.5rem; font-weight: bold; margin-top: 20px; transition: 0.2s; }
-        .btn:hover { transform: scale(1.05); background: #ff5e4d; }
+        :root {
+            --sky: #87ceeb;
+            --grass: #4ade80;
+            --road: #64748b;
+            --curb: #ef4444;
+            --ui-bg: rgba(0,0,0,0.6);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: #0f172a;
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .stat-badge {
+            background: var(--ui-bg);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 50px;
+            border: 2px solid rgba(255,255,255,0.2);
+            font-weight: 900;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Character Select */
+        .modal {
+            position: absolute; inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100;
+        }
+
+        .char-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .char-card {
+            background: rgba(255,255,255,0.1);
+            border: 3px solid transparent;
+            border-radius: 20px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .char-card.selected { background: rgba(59, 130, 246, 0.2); border-color: #3b82f6; transform: scale(1.05); }
+        
+        .char-icon { font-size: 4rem; display: block; margin-bottom: 10px; }
+        .char-name { font-weight: 900; font-size: 1.2rem; }
+        .char-stats { font-size: 0.8rem; opacity: 0.7; margin-top: 5px; }
+
+        .btn-start {
+            background: #3b82f6; color: white; border: none; padding: 15px 50px;
+            border-radius: 50px; font-weight: 900; font-size: 1.5rem; cursor: pointer;
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+        }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            position: absolute; bottom: 30px; width: 100%;
+            display: none; justify-content: space-between; padding: 0 30px;
+            pointer-events: none; z-index: 60;
+        }
+        @media (max-width: 900px) { #mobile-controls { display: flex; } }
+
+        .control-btn {
+            width: 80px; height: 80px;
+            background: rgba(255,255,255,0.2);
+            border: 2px solid rgba(255,255,255,0.4);
+            border-radius: 50%;
+            pointer-events: auto;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem;
+        }
+        .control-btn:active { background: rgba(255,255,255,0.4); }
+
+        .lap-time {
+            position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+            font-size: 3rem; font-weight: 900; color: #fbbf24;
+            text-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            display: none; animation: popIn 0.5s;
+        }
+        @keyframes popIn { from { transform: translateX(-50%) scale(0); } to { transform: translateX(-50%) scale(1); } }
     </style>
 </head>
 <body>
-    <div id="selection" class="overlay">
-        <h1>🏎️ GO FAST RACING PRO 🏎️</h1>
-        <p>Choose Your Machine</p>
-        <div style="display: flex; gap: 20px; margin-top: 20px;">
-            <button class="btn" style="background:#ef4444" onclick="startRace('#ef4444')">Red Blaze</button>
-            <button class="btn" style="background:#3b82f6" onclick="startRace('#3b82f6')">Blue Storm</button>
-            <button class="btn" style="background:#10b981" onclick="startRace('#10b981')">Green Ghost</button>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="hud">
+            <div class="stat-badge">🏁 <span id="lap-val">1/3</span></div>
+            <div class="stat-badge">⏱️ <span id="time-val">00:00</span></div>
+            <div class="stat-badge">🏅 <span id="pos-val">1st</span></div>
+        </div>
+
+        <div id="mobile-controls">
+            <div style="display:flex; gap:20px;">
+                <div class="control-btn" id="btn-left">←</div>
+                <div class="control-btn" id="btn-right">→</div>
+            </div>
+            <div class="control-btn" id="btn-gas" style="background:rgba(34,197,94,0.3); border-color:#22c55e;">A</div>
+        </div>
+
+        <div id="lap-pop" class="lap-time">LAP 2</div>
+
+        <div id="menu" class="modal">
+            <h1 style="font-size: 4rem; font-style: italic; color: #fbbf24; margin-bottom: 20px;">GO FAST GP</h1>
+            <div class="char-grid">
+                <div class="char-card selected" onclick="game.selectChar(0)">
+                    <span class="char-icon">🏎️</span>
+                    <div class="char-name">Mario</div>
+                    <div class="char-stats">Balanced</div>
+                </div>
+                <div class="char-card" onclick="game.selectChar(1)">
+                    <span class="char-icon">🚜</span>
+                    <div class="char-name">Bowser</div>
+                    <div class="char-stats">Heavy / Fast</div>
+                </div>
+                <div class="char-card" onclick="game.selectChar(2)">
+                    <span class="char-icon">🏍️</span>
+                    <div class="char-name">Peach</div>
+                    <div class="char-stats">Light / Accel</div>
+                </div>
+                <div class="char-card" onclick="game.selectChar(3)">
+                    <span class="char-icon">🚓</span>
+                    <div class="char-name">Toad</div>
+                    <div class="char-stats">Handling</div>
+                </div>
+            </div>
+            <button class="btn-start" onclick="game.start()">START RACE</button>
         </div>
     </div>
 
-    <div id="ui">
-        <div class="stat-card">LAP: <span id="lap">1</span>/3</div>
-        <div class="stat-card">POS: <span id="pos">1</span>/4</div>
-        <div class="stat-card">SPEED: <span id="speed">0</span> km/h</div>
-    </div>
-
-    <canvas id="game"></canvas>
-    <div class="controls">WASD or ARROWS to Drive<br>Complete 3 laps to Win</div>
-    <a href="index.html" class="back">← HUB</a>
-
     <script>
-        const canvas = document.getElementById('game');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 1000; canvas.height = 600;
+        class GoFast {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
 
-        let gameActive = false;
-        let keys = {};
-        const track = { cx: 500, cy: 300, rx: 400, ry: 220, width: 100 };
-        
-        let player = { x: 900, y: 300, angle: 0, speed: 0, maxSpeed: 8, accel: 0.2, color: '#ef4444', lap: 1, cp: 0 };
-        let ais = [
-            { x: 940, y: 300, angle: 0, speed: 0, maxSpeed: 7.5, accel: 0.18, color: '#f1c40f', lap: 1, cp: 0, offset: 30 },
-            { x: 860, y: 300, angle: 0, speed: 0, maxSpeed: 7.2, accel: 0.15, color: '#9b59b6', lap: 1, cp: 0, offset: -30 },
-            { x: 820, y: 300, angle: 0, speed: 0, maxSpeed: 7.8, accel: 0.22, color: '#7f8c8d', lap: 1, cp: 0, offset: -60 }
-        ];
-
-        function startRace(color) {
-            player.color = color;
-            document.getElementById('selection').style.display = 'none';
-            gameActive = true;
-            requestAnimationFrame(loop);
-        }
-
-        function drawTrack() {
-            // Infield Grass
-            ctx.fillStyle = '#27ae60';
-            ctx.fillRect(0, 0, 1000, 600);
-            
-            // Road
-            ctx.strokeStyle = '#34495e';
-            ctx.lineWidth = track.width;
-            ctx.beginPath();
-            ctx.ellipse(track.cx, track.cy, track.rx, track.ry, 0, 0, Math.PI * 2);
-            ctx.stroke();
-
-            // Lines
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([20, 20]);
-            ctx.beginPath();
-            ctx.ellipse(track.cx, track.cy, track.rx, track.ry, 0, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Start/Finish
-            ctx.fillStyle = 'white';
-            ctx.fillRect(850, 295, 100, 10);
-            ctx.fillStyle = 'black';
-            for(let i=0; i<10; i+=2) ctx.fillRect(850 + i*10, 295, 10, 10);
-        }
-
-        function drawCar(c) {
-            ctx.save();
-            ctx.translate(c.x, c.y);
-            ctx.rotate(c.angle);
-            // Body
-            ctx.fillStyle = c.color;
-            ctx.fillRect(-15, -25, 30, 50);
-            // Roof/Window
-            ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.fillRect(-10, -10, 20, 20);
-            // Spoiler
-            ctx.fillStyle = c.color;
-            ctx.fillRect(-18, 15, 36, 10);
-            ctx.restore();
-        }
-
-        function updateCar(c, isPlayer) {
-            if (isPlayer) {
-                if (keys['ArrowUp'] || keys['KeyW']) c.speed = Math.min(c.speed + c.accel, c.maxSpeed);
-                else if (keys['ArrowDown'] || keys['KeyS']) c.speed = Math.max(c.speed - c.accel, -2);
-                else c.speed *= 0.97;
-
-                if (Math.abs(c.speed) > 0.5) {
-                    const turn = 0.05 * (Math.min(c.speed, 4) / 4);
-                    if (keys['ArrowLeft'] || keys['KeyA']) c.angle -= turn;
-                    if (keys['ArrowRight'] || keys['KeyD']) c.angle += turn;
-                }
-            } else {
-                // AI Logic: Follow ellipse path
-                const t = (Date.now() * 0.001 * c.maxSpeed * 0.1) + (ais.indexOf(c) * 0.5);
-                const targetX = track.cx + Math.cos(t) * (track.rx + c.offset);
-                const targetY = track.cy + Math.sin(t) * (track.ry + c.offset);
+                this.player = { x: 0, z: 0, speed: 0, maxSpeed: 1200, accel: 20, turn: 0 };
+                this.opponents = [];
+                this.track = [];
+                this.lap = 1;
+                this.lapTime = 0;
+                this.totalLaps = 3;
+                this.pos = 0; // Player Z position on track
+                this.trackLength = 0;
                 
-                c.angle = Math.atan2(targetY - c.y, targetX - c.x) + Math.PI/2;
-                c.x = targetX; c.y = targetY;
+                this.keys = {};
+                this.selectedChar = 0;
+                this.playing = false;
+
+                // Mode 7 / Pseudo 3D Params
+                this.fov = 300;
+                this.camHeight = 1000;
+                this.drawDist = 300;
+                this.segLen = 200;
+
+                this.setupControls();
+                this.initTrack();
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
             }
 
-            if (isPlayer) {
-                c.x += Math.sin(c.angle) * c.speed;
-                c.y -= Math.cos(c.angle) * c.speed;
+            selectChar(idx) {
+                this.selectedChar = idx;
+                document.querySelectorAll('.char-card').forEach((el, i) => {
+                    el.classList.toggle('selected', i === idx);
+                });
                 
-                // Simplified Lap/Checkpoint
-                if (c.y < 300 && c.x > 800 && c.cp === 0) c.cp = 1;
-                if (c.y > 300 && c.x < 200 && c.cp === 1) c.cp = 2;
-                if (c.y > 300 && c.x > 800 && c.cp === 2) {
-                    c.cp = 0; c.lap++;
-                    if (c.lap > 3) { alert("You Win! First Place!"); location.reload(); }
+                // Adjust stats
+                if (idx === 1) { this.player.maxSpeed = 1300; this.player.accel = 15; }
+                else if (idx === 2) { this.player.maxSpeed = 1100; this.player.accel = 25; }
+                else { this.player.maxSpeed = 1200; this.player.accel = 20; }
+            }
+
+            setupControls() {
+                window.onkeydown = e => this.keys[e.key] = true;
+                window.onkeyup = e => this.keys[e.key] = false;
+
+                const addTouch = (id, key) => {
+                    const el = document.getElementById(id);
+                    el.addEventListener('touchstart', (e) => { e.preventDefault(); this.keys[key] = true; });
+                    el.addEventListener('touchend', () => this.keys[key] = false);
+                };
+                addTouch('btn-left', 'ArrowLeft');
+                addTouch('btn-right', 'ArrowRight');
+                addTouch('btn-gas', ' '); // Space for gas
+            }
+
+            initTrack() {
+                this.track = [];
+                // Generate a loop
+                this.createStraight(50);
+                this.createCurve(50, 2);
+                this.createStraight(20);
+                this.createCurve(40, -3);
+                this.createCurve(40, 3);
+                this.createStraight(50);
+                this.createCurve(50, -2);
+                this.createStraight(100); // Finish line stretch
+
+                this.trackLength = this.track.length * this.segLen;
+                
+                // Add Sprites (Trees, Coins)
+                this.track.forEach((seg, i) => {
+                    if (i % 20 === 0) seg.sprites.push({ type: 'tree', x: -2.5 });
+                    if (i % 20 === 5) seg.sprites.push({ type: 'tree', x: 2.5 });
+                });
+            }
+
+            createSegment(curve) {
+                return {
+                    curve: curve,
+                    sprites: [],
+                    cars: []
+                };
+            }
+
+            createStraight(len) {
+                for(let i=0; i<len; i++) this.track.push(this.createSegment(0));
+            }
+
+            createCurve(len, curve) {
+                for(let i=0; i<len; i++) this.track.push(this.createSegment(curve));
+            }
+
+            start() {
+                this.playing = true;
+                this.pos = 0;
+                this.player.speed = 0;
+                this.lap = 1;
+                this.startTime = Date.now();
+                
+                // Spawn Opponents
+                this.opponents = [
+                    { z: 500, x: 0.5, speed: 1100, sprite: '🏎️' },
+                    { z: 1000, x: -0.5, speed: 1150, sprite: '🚜' },
+                    { z: 1500, x: 0.2, speed: 1080, sprite: '🏍️' }
+                ];
+
+                document.getElementById('menu').style.display = 'none';
+            }
+
+            update() {
+                if (!this.playing) return;
+
+                const dt = 1/60;
+                const p = this.player;
+
+                // Input
+                if (this.keys['ArrowUp'] || this.keys[' '] || this.keys['w']) {
+                    p.speed += p.accel;
+                } else {
+                    p.speed -= p.accel * 2;
                 }
+                
+                if (this.keys['ArrowLeft'] || this.keys['a']) {
+                    if (p.speed > 0) p.x -= 0.04;
+                }
+                if (this.keys['ArrowRight'] || this.keys['d']) {
+                    if (p.speed > 0) p.x += 0.04;
+                }
+
+                // Physics
+                p.speed = Math.max(0, Math.min(p.speed, p.maxSpeed));
+                this.pos += p.speed;
+
+                // Off-road slow down
+                if (Math.abs(p.x) > 1.2) p.speed *= 0.95;
+
+                // Lap Logic
+                if (this.pos >= this.trackLength) {
+                    this.pos -= this.trackLength;
+                    this.lap++;
+                    if (this.lap > this.totalLaps) this.finish();
+                    else this.showLapPopup();
+                }
+
+                // Opponents AI
+                this.opponents.forEach(opp => {
+                    opp.z += opp.speed * 0.015; // Simplified relative speed
+                    if (opp.z >= this.trackLength) opp.z -= this.trackLength;
+                });
+
+                // Update UI
+                const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+                const mins = Math.floor(elapsed / 60);
+                const secs = elapsed % 60;
+                document.getElementById('time-val').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+                document.getElementById('lap-val').textContent = `${this.lap}/${this.totalLaps}`;
+                
+                // Calculate Position
+                let rank = 1;
+                const myTotalDist = (this.lap-1)*this.trackLength + this.pos;
+                // Simplified rank tracking would go here
+            }
+
+            showLapPopup() {
+                const el = document.getElementById('lap-pop');
+                el.textContent = `LAP ${this.lap}`;
+                el.style.display = 'block';
+                setTimeout(() => el.style.display = 'none', 2000);
+            }
+
+            finish() {
+                this.playing = false;
+                alert("RACE FINISHED!");
+                location.reload();
+            }
+
+            // Pseudo-3D Projection
+            project(line, camX, camZ, camDepth) {
+                // World Coords
+                let z = line.z - camZ;
+                if (z < 0) z += this.trackLength;
+                
+                // Screen Coords
+                const scale = this.fov / (z + this.fov); // Depth scale
+                const x = (1 + scale * (line.x - camX)) * this.width / 2;
+                const y = (1 - scale * (line.y - camDepth)) * this.height / 2;
+                const w = scale * this.width * 2; // Line width at this depth
+
+                return { x, y, w, scale, z };
+            }
+
+            drawPoly(x1, y1, w1, x2, y2, w2, color) {
+                this.ctx.fillStyle = color;
+                this.ctx.beginPath();
+                this.ctx.moveTo(x1 - w1, y1);
+                this.ctx.lineTo(x2 - w2, y2);
+                this.ctx.lineTo(x2 + w2, y2);
+                this.ctx.lineTo(x1 + w1, y1);
+                this.ctx.fill();
+            }
+
+            draw() {
+                this.ctx.fillStyle = '#87ceeb'; // Sky
+                this.ctx.fillRect(0, 0, this.width, this.height);
+                this.ctx.fillStyle = '#166534'; // Ground
+                this.ctx.fillRect(0, this.height/2, this.width, this.height/2);
+
+                const startPos = Math.floor(this.pos / this.segLen);
+                let dx = 0; // Current curve accumulation
+                let maxY = this.height;
+
+                for (let n = startPos; n < startPos + this.drawDist; n++) {
+                    const idx = n % this.track.length;
+                    const seg = this.track[idx];
+                    
+                    // Simplified Mode 7 style horizontal offset per line
+                    dx += seg.curve;
+                    const curveOffset = Math.pow(n - startPos, 2) * (dx * 0.001);
+
+                    const p1 = { x: -this.player.x - curveOffset, y: 0, z: n * this.segLen };
+                    const p2 = { x: -this.player.x - curveOffset - seg.curve*0.05, y: 0, z: (n+1) * this.segLen }; // Next seg
+
+                    const proj1 = this.project(p1, 0, this.pos, 1500); // 1500 = cam height relative
+                    const proj2 = this.project(p2, 0, this.pos, 1500);
+
+                    // Clip check
+                    if (proj1.y >= maxY) continue;
+                    maxY = proj1.y;
+
+                    // Draw Grass
+                    this.ctx.fillStyle = (Math.floor(n/3)%2) ? '#4ade80' : '#22c55e';
+                    this.ctx.fillRect(0, proj2.y, this.width, proj1.y - proj2.y);
+
+                    // Draw Road
+                    const laneW = proj1.scale * 2000; // Road width in pixels at depth
+                    const laneW2 = proj2.scale * 2000;
+
+                    // Rumble
+                    const rCol = (Math.floor(n/2)%2) ? '#ef4444' : '#fff';
+                    this.drawPoly(proj1.x, proj1.y, laneW * 1.2, proj2.x, proj2.y, laneW2 * 1.2, rCol);
+
+                    // Road
+                    const col = (Math.floor(n/2)%2) ? '#64748b' : '#475569';
+                    this.drawPoly(proj1.x, proj1.y, laneW, proj2.x, proj2.y, laneW2, col);
+
+                    // Sprites
+                    seg.sprites.forEach(s => {
+                        this.drawSprite(s, proj1);
+                    });
+                }
+
+                // Draw Player
+                this.drawPlayer();
+            }
+
+            drawSprite(sprite, proj) {
+                // Draw tree or coin at segment position
+                const size = proj.scale * 1500;
+                const x = proj.x + (sprite.x * size); // Offset from center
+                
+                this.ctx.font = `${size}px Arial`;
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(sprite.type === 'tree' ? '🌲' : '🪙', x, proj.y);
+            }
+
+            drawPlayer() {
+                const char = ['🏎️', '🚜', '🏍️', '🚓'][this.selectedChar];
+                const steer = this.keys['ArrowLeft'] || this.keys['a'] ? -1 : (this.keys['ArrowRight'] || this.keys['d'] ? 1 : 0);
+                
+                this.ctx.save();
+                this.ctx.translate(this.width/2, this.height - 150);
+                
+                // Tilt
+                if (steer !== 0) this.ctx.rotate(steer * 0.1);
+                
+                // Kart
+                this.ctx.font = '120px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.shadowBlur = 20;
+                this.ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                this.ctx.fillText(char, 0, 0);
+                
+                // Exhaust
+                if (this.player.speed > 500 && Math.random() > 0.5) {
+                    this.ctx.font = '40px Arial';
+                    this.ctx.fillText('💨', -40, 20);
+                    this.ctx.fillText('💨', 40, 20);
+                }
+                
+                this.ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(this.loop);
             }
         }
 
-        function loop() {
-            if (!gameActive) return;
-            ctx.clearRect(0, 0, 1000, 600);
-            drawTrack();
-
-            updateCar(player, true);
-            drawCar(player);
-
-            ais.forEach(ai => {
-                updateCar(ai, false);
-                drawCar(ai);
-            });
-
-            document.getElementById('speed').textContent = Math.round(Math.abs(player.speed) * 25);
-            document.getElementById('lap').textContent = Math.min(player.lap, 3);
-            
-            requestAnimationFrame(loop);
-        }
-
-        window.onkeydown = e => keys[e.code] = true;
-        window.onkeyup = e => keys[e.code] = false;
+        const game = new GoFast();
     </script>
 </body>
 </html>

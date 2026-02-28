@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pizza Rush: K2 Kitchen - K2 games</title>
+    <style>
+        :root {
+            --bg: #fff7ed;
+            --table: #78350f;
+            --oven: #ea580c;
+            --accent: #16a34a;
+            --card-bg: #fff;
+            --text: #431407;
+            --glass: rgba(255, 255, 255, 0.9);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-image: radial-gradient(#fdba74 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        nav {
+            padding: 0.75rem 1.5rem;
+            background: #fff;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: #ea580c; letter-spacing: -0.5px; }
+        .back-link { color: #9a3412; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            gap: 10px;
+            position: relative;
+        }
+
+        /* Top Bar (AI & Deck) */
+        #top-bar {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 10px;
+        }
+
+        .chef-avatar { font-size: 2.5rem; background: #fff; border-radius: 50%; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 2px solid #fdba74; }
+        .chef-info { display: flex; flex-direction: column; }
+        .chef-name { font-weight: 900; font-size: 0.9rem; }
+        .chef-status { font-size: 0.7rem; color: #ea580c; font-weight: bold; }
+
+        /* The Oven (Central Stack) */
+        #oven-area {
+            flex: 1;
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        #oven-stack {
+            width: 140px;
+            height: 200px;
+            background: #2d2a26;
+            border-radius: 15px;
+            position: relative;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            border: 6px solid #57534e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #oven-stack::before { content: '🔥'; font-size: 3rem; opacity: 0.5; }
+        
+        .card-in-oven {
+            position: absolute;
+            width: 130px; height: 190px;
+            background: white;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 2rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: transform 0.5s;
+        }
+
+        /* Player Hand */
+        #hand-area {
+            width: 100%;
+            max-width: 800px;
+            height: 220px;
+            background: rgba(255,255,255,0.8);
+            border-top: 1px solid #fed7aa;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            border-radius: 20px 20px 0 0;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.05);
+        }
+
+        #hand-scroll {
+            display: flex;
+            gap: -20px;
+            overflow-x: auto;
+            padding: 10px 20px;
+            height: 100%;
+            align-items: center;
+        }
+
+        .card {
+            min-width: 100px;
+            height: 150px;
+            background: white;
+            border-radius: 12px;
+            border: 2px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            cursor: pointer;
+            transition: transform 0.2s, margin 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: relative;
+            margin-right: -40px; /* Overlap */
+        }
+        .card:hover, .card.selected { transform: translateY(-20px); z-index: 10; border-color: #ea580c; }
+        .card.selected { background: #fff7ed; box-shadow: 0 0 15px #fdba74; }
+        .card:last-child { margin-right: 0; }
+
+        .ing-icon { font-size: 3rem; }
+        .card-type { font-size: 0.7rem; text-transform: uppercase; font-weight: 900; color: #9ca3af; }
+        
+        .order-reqs { display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; }
+        .req-icon { font-size: 0.8rem; }
+
+        /* Action Buttons */
+        #actions {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border-radius: 50px;
+            border: none;
+            font-weight: 900;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: 0.2s;
+        }
+        .btn-primary { background: #ea580c; color: white; }
+        .btn-primary:disabled { background: #fed7aa; cursor: not-allowed; }
+        .btn:active { transform: scale(0.95); }
+
+        /* Baking Phase Overlay */
+        #baking-overlay {
+            position: absolute; inset: 0; background: rgba(255,255,255,0.95);
+            z-index: 50; display: none; flex-direction: column;
+            padding: 20px; overflow-y: auto;
+        }
+        
+        #kitchen-counter {
+            display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;
+            margin: 20px 0; padding: 20px; background: #fff; border-radius: 15px;
+            border: 2px dashed #fdba74;
+        }
+        
+        .stock-item { font-size: 2rem; position: relative; }
+        .stock-count { position: absolute; bottom: -5px; right: -5px; font-size: 0.8rem; background: #ea580c; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+
+        #baking-log {
+            flex: 1; overflow-y: auto; width: 100%; max-width: 600px; margin: 0 auto;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+
+        .log-entry {
+            padding: 10px; background: #fff; border-radius: 8px; border: 1px solid #e5e7eb;
+            display: flex; justify-content: space-between; align-items: center;
+            animation: slideIn 0.3s;
+        }
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .log-success { border-left: 5px solid #22c55e; }
+        .log-fail { border-left: 5px solid #ef4444; }
+        .log-add { border-left: 5px solid #3b82f6; }
+
+        #end-screen {
+            position: absolute; inset: 0; background: rgba(124, 45, 18, 0.95);
+            color: white; display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">PIZZA RUSH 🍕</div>
+        <a href="index.html" class="back-link">← HUB</a>
+    </nav>
+
+    <div id="game-layout">
+        <div id="top-bar">
+            <div style="display:flex; gap:10px; align-items: center;">
+                <div class="chef-avatar">🤖</div>
+                <div class="chef-info">
+                    <span class="chef-name">Chef Bot</span>
+                    <span class="chef-status" id="ai-status">Waiting...</span>
+                </div>
+            </div>
+            <div style="font-weight:900; color:#ea580c;">DECK: <span id="deck-count">0</span></div>
+        </div>
+
+        <div id="oven-area">
+            <div id="oven-stack"></div>
+        </div>
+
+        <div id="hand-area">
+            <div id="actions">
+                <div style="font-weight:bold; font-size:0.8rem; align-self:center; color:#78350f;">YOUR HAND</div>
+                <button class="btn btn-primary" id="play-btn" onclick="game.playSelected()" disabled>PLACE IN OVEN</button>
+            </div>
+            <div id="hand-scroll">
+                <!-- Cards -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Baking Phase UI -->
+    <div id="baking-overlay">
+        <h2 style="text-align:center; color:#ea580c; font-style:italic;">THE BAKING PHASE</h2>
+        <div id="kitchen-counter"></div>
+        <div id="baking-log"></div>
+        <button class="btn btn-primary" id="next-bake-btn" onclick="game.processNextBake()" style="margin-top:20px; display:none;">REVEAL NEXT</button>
+        <button class="btn btn-primary" id="finish-btn" onclick="game.endGame()" style="margin-top:20px; display:none; background:#22c55e;">FINISH SERVICE</button>
+    </div>
+
+    <div id="end-screen">
+        <h1 style="font-size: 4rem; color: #fbbf24;">SERVICE OVER!</h1>
+        <div style="font-size: 2rem; margin: 20px 0;">
+            <div>YOU: <span id="final-score-p">0</span> 🍕</div>
+            <div>BOT: <span id="final-score-ai">0</span> 🍕</div>
+        </div>
+        <h2 id="winner-text">YOU WIN!</h2>
+        <button class="btn" style="background:#fff; color:#000; margin-top:30px;" onclick="location.reload()">NEW SHIFT</button>
+    </div>
+
+    <script>
+        const INGREDIENTS = [
+            { id: 'pep', icon: '🍕', name: 'Pepperoni' },
+            { id: 'mush', icon: '🍄', name: 'Mushroom' },
+            { id: 'olive', icon: '🫒', name: 'Olive' },
+            { id: 'pepp', icon: '🌶️', name: 'Pepper' },
+            { id: 'pine', icon: '🍍', name: 'Pineapple' }
+        ];
+
+        class PizzaRush {
+            constructor() {
+                this.deck = [];
+                this.oven = [];
+                this.pHand = [];
+                this.aiHand = [];
+                this.kitchen = {}; // For phase 2
+                
+                this.scores = { p: 0, ai: 0 };
+                this.turn = 'p'; // p or ai
+                this.phase = 1; // 1=Placing, 2=Baking
+                this.selectedIndices = [];
+
+                this.init();
+            }
+
+            init() {
+                this.generateDeck();
+                this.dealInitialHands();
+                this.renderHand();
+                this.updateUI();
+            }
+
+            generateDeck() {
+                // Ingredients: 8 of each (40 total)
+                INGREDIENTS.forEach(ing => {
+                    for(let i=0; i<8; i++) this.deck.push({ type: 'ingredient', ...ing });
+                });
+
+                // Orders: 20 total
+                for(let i=0; i<20; i++) {
+                    // Random recipe of 3-4 ingredients
+                    const count = 3 + Math.floor(Math.random() * 2);
+                    const recipe = [];
+                    for(let j=0; j<count; j++) {
+                        recipe.push(INGREDIENTS[Math.floor(Math.random() * INGREDIENTS.length)].id);
+                    }
+                    this.deck.push({ type: 'order', recipe });
+                }
+
+                // Shuffle
+                this.deck.sort(() => Math.random() - 0.5);
+            }
+
+            dealInitialHands() {
+                for(let i=0; i<7; i++) {
+                    this.pHand.push(this.deck.pop());
+                    this.aiHand.push(this.deck.pop());
+                }
+            }
+
+            renderHand() {
+                const container = document.getElementById('hand-scroll');
+                container.innerHTML = '';
+                
+                this.pHand.forEach((card, idx) => {
+                    const el = document.createElement('div');
+                    el.className = `card ${this.selectedIndices.includes(idx) ? 'selected' : ''}`;
+                    el.onclick = () => this.toggleSelect(idx);
+
+                    if (card.type === 'ingredient') {
+                        el.innerHTML = `
+                            <div class="card-type">Ingredient</div>
+                            <div class="ing-icon">${card.icon}</div>
+                            <div style="font-size:0.7rem; font-weight:bold;">${card.name}</div>
+                        `;
+                    } else {
+                        const reqs = card.recipe.map(rid => {
+                            const ing = INGREDIENTS.find(i => i.id === rid);
+                            return `<span class="req-icon">${ing.icon}</span>`;
+                        }).join('');
+                        el.innerHTML = `
+                            <div class="card-type" style="color:#ea580c">Order</div>
+                            <div style="font-size:2rem;">📝</div>
+                            <div class="order-reqs">${reqs}</div>
+                        `;
+                    }
+                    container.appendChild(el);
+                });
+
+                document.getElementById('play-btn').disabled = this.selectedIndices.length === 0;
+            }
+
+            toggleSelect(idx) {
+                if (this.turn !== 'p') return;
+
+                const card = this.pHand[idx];
+                
+                // If selecting an Order, it must be alone
+                if (card.type === 'order') {
+                    this.selectedIndices = [idx];
+                } else {
+                    // If selecting ingredients, must be same type
+                    if (this.selectedIndices.length > 0) {
+                        const first = this.pHand[this.selectedIndices[0]];
+                        if (first.type === 'order') {
+                            this.selectedIndices = [idx];
+                        } else if (first.id !== card.id) {
+                            this.selectedIndices = [idx]; // Switch type
+                        } else {
+                            // Toggle
+                            if (this.selectedIndices.includes(idx)) {
+                                this.selectedIndices = this.selectedIndices.filter(i => i !== idx);
+                            } else {
+                                this.selectedIndices.push(idx);
+                            }
+                        }
+                    } else {
+                        this.selectedIndices = [idx];
+                    }
+                }
+                this.renderHand();
+            }
+
+            playSelected() {
+                // Move cards to Oven
+                // Sort descending to remove correctly
+                this.selectedIndices.sort((a,b) => b - a);
+                this.selectedIndices.forEach(idx => {
+                    const card = this.pHand.splice(idx, 1)[0];
+                    card.owner = 'p';
+                    this.oven.push(card);
+                });
+
+                this.animatePlay();
+                this.drawCards('p');
+                this.selectedIndices = [];
+                this.renderHand();
+                
+                if (this.deck.length === 0) {
+                    this.startBakingPhase();
+                } else {
+                    this.turn = 'ai';
+                    this.updateUI();
+                    setTimeout(() => this.aiTurn(), 1000);
+                }
+            }
+
+            drawCards(player) {
+                const hand = player === 'p' ? this.pHand : this.aiHand;
+                while (hand.length < 7 && this.deck.length > 0) {
+                    hand.push(this.deck.pop());
+                }
+            }
+
+            aiTurn() {
+                if (this.deck.length === 0) {
+                    this.startBakingPhase();
+                    return;
+                }
+
+                document.getElementById('ai-status').textContent = "Cooking...";
+                
+                // Simple AI: 
+                // 1. If has Order, 30% chance to play it
+                // 2. Else find most common ingredient and play all of them
+                
+                let played = false;
+                const orderIdx = this.aiHand.findIndex(c => c.type === 'order');
+                
+                if (orderIdx !== -1 && Math.random() < 0.3) {
+                    const card = this.aiHand.splice(orderIdx, 1)[0];
+                    card.owner = 'ai';
+                    this.oven.push(card);
+                    played = true;
+                } else {
+                    // Find counts
+                    const counts = {};
+                    this.aiHand.forEach((c, i) => {
+                        if(c.type === 'ingredient') {
+                            counts[c.id] = (counts[c.id] || []).concat(i);
+                        }
+                    });
+                    
+                    // Pick type with most cards (or random if tie)
+                    const types = Object.keys(counts);
+                    if (types.length > 0) {
+                        const type = types[Math.floor(Math.random() * types.length)];
+                        // Play all of this type
+                        const indices = counts[type].sort((a,b) => b - a);
+                        indices.forEach(idx => {
+                            const card = this.aiHand.splice(idx, 1)[0];
+                            card.owner = 'ai';
+                            this.oven.push(card);
+                        });
+                        played = true;
+                    } else if (orderIdx !== -1) {
+                        // Only orders left, play one
+                        const card = this.aiHand.splice(orderIdx, 1)[0];
+                        card.owner = 'ai';
+                        this.oven.push(card);
+                        played = true;
+                    }
+                }
+
+                if (played) {
+                    this.animatePlay();
+                    this.drawCards('ai');
+                    if (this.deck.length === 0) {
+                        this.startBakingPhase();
+                    } else {
+                        this.turn = 'p';
+                        this.updateUI();
+                    }
+                }
+            }
+
+            animatePlay() {
+                const stack = document.getElementById('oven-stack');
+                // visual feedback (card flying in)
+                const card = document.createElement('div');
+                card.className = 'card-in-oven';
+                card.innerHTML = '🍕';
+                card.style.transform = `rotate(${Math.random()*20 - 10}deg)`;
+                stack.appendChild(card);
+                // Keep only last few to save DOM
+                if(stack.children.length > 5) stack.removeChild(stack.firstChild);
+            }
+
+            updateUI() {
+                document.getElementById('deck-count').textContent = this.deck.length;
+                document.getElementById('ai-status').textContent = this.turn === 'ai' ? "Thinking..." : "Waiting";
+                document.getElementById('play-btn').textContent = this.turn === 'p' ? "PLACE IN OVEN" : "OPPONENT'S TURN";
+            }
+
+            startBakingPhase() {
+                this.phase = 2;
+                document.getElementById('baking-overlay').style.display = 'flex';
+                this.ovenIndex = 0; // Start from bottom of stack? Mamma Mia is flipped stack.
+                // Normally you flip the stack. So index 0 is first card played.
+                // Wait, Mamma Mia you process the stack *top to bottom*? No, you flip it.
+                // Let's just process array 0 to end (First In, First Out)
+                
+                // Initialize Kitchen
+                INGREDIENTS.forEach(ing => this.kitchen[ing.id] = 0);
+                
+                document.getElementById('next-bake-btn').style.display = 'block';
+                this.updateKitchenUI();
+            }
+
+            processNextBake() {
+                if (this.ovenIndex >= this.oven.length) {
+                    document.getElementById('next-bake-btn').style.display = 'none';
+                    document.getElementById('finish-btn').style.display = 'block';
+                    return;
+                }
+
+                const card = this.oven[this.ovenIndex];
+                this.ovenIndex++;
+
+                if (card.type === 'ingredient') {
+                    this.kitchen[card.id]++;
+                    this.log(`${card.icon} added to kitchen.`, 'log-add');
+                } else {
+                    // It's an order
+                    const needed = {};
+                    card.recipe.forEach(id => needed[id] = (needed[id] || 0) + 1);
+                    
+                    let canBake = true;
+                    for (const [id, count] of Object.entries(needed)) {
+                        if (this.kitchen[id] < count) canBake = false;
+                    }
+
+                    const ownerName = card.owner === 'p' ? 'You' : 'Bot';
+                    
+                    if (canBake) {
+                        // Consume ingredients
+                        for (const [id, count] of Object.entries(needed)) {
+                            this.kitchen[id] -= count;
+                        }
+                        this.scores[card.owner]++;
+                        this.log(`✅ ${ownerName} baked a pizza!`, 'log-success');
+                    } else {
+                        this.log(`❌ ${ownerName}'s order failed. Missing ingredients.`, 'log-fail');
+                        // In full game, you can use hand cards here. We skip for simplicity/speed.
+                    }
+                }
+                this.updateKitchenUI();
+            }
+
+            updateKitchenUI() {
+                const container = document.getElementById('kitchen-counter');
+                container.innerHTML = '';
+                INGREDIENTS.forEach(ing => {
+                    const count = this.kitchen[ing.id];
+                    if (count > 0) {
+                        const div = document.createElement('div');
+                        div.className = 'stock-item';
+                        div.innerHTML = `${ing.icon}<span class="stock-count">${count}</span>`;
+                        container.appendChild(div);
+                    }
+                });
+            }
+
+            log(msg, type) {
+                const container = document.getElementById('baking-log');
+                const div = document.createElement('div');
+                div.className = `log-entry ${type}`;
+                div.textContent = msg;
+                container.insertBefore(div, container.firstChild);
+            }
+
+            endGame() {
+                document.getElementById('end-screen').style.display = 'flex';
+                document.getElementById('final-score-p').textContent = this.scores.p;
+                document.getElementById('final-score-ai').textContent = this.scores.ai;
+                
+                const winText = document.getElementById('winner-text');
+                if (this.scores.p > this.scores.ai) {
+                    winText.textContent = "YOU ARE THE MASTER CHEF!";
+                    winText.style.color = "#4ade80";
+                } else if (this.scores.p < this.scores.ai) {
+                    winText.textContent = "BOT CHEF WINS!";
+                    winText.style.color = "#f87171";
+                } else {
+                    winText.textContent = "IT'S A PIZZA TIE!";
+                    winText.style.color = "#fbbf24";
+                }
+            }
+        }
+
+        const game = new PizzaRush();
+    </script>
+</body>
+</html>

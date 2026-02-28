@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Qwingo: Pass & Play - K2 games</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --accent: #f59e0b;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --surface-hover: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Avoid scrolling */
+        }
+
+        nav { 
+            padding: 0.5rem 1rem; 
+            border-bottom: 1px solid var(--glass-border); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            height: 50px;
+            flex-shrink: 0;
+        }
+        .logo { font-weight: 900; background: linear-gradient(to right, #818cf8, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; font-size: 1.1rem; }
+        
+        .game-container { 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 0.5rem; 
+            width: 100%;
+            overflow: hidden;
+            justify-content: space-between;
+        }
+        
+        .phase-panel { 
+            text-align: center; 
+            background: var(--surface); 
+            padding: 0.75rem; 
+            border-radius: 12px; 
+            border: 1px solid var(--primary); 
+            width: 100%; 
+            max-width: 450px;
+            margin-bottom: 0.5rem;
+        }
+
+        .game-board { 
+            display: flex; 
+            gap: 6px; 
+            padding: 8px; 
+            background: rgba(255,255,255,0.05); 
+            border-radius: 15px; 
+            position: relative;
+            flex: 1;
+            max-height: 60vh;
+            justify-content: center;
+        }
+        .column { display: flex; flex-direction: column; gap: 4px; flex: 1; max-width: 60px; }
+        .column-header { text-align: center; font-weight: 900; color: var(--accent); font-size: 1rem; margin-bottom: 2px; }
+        .cell {
+            flex: 1;
+            background: var(--surface); border: 1px solid var(--glass-border);
+            display: flex; align-items: center; justify-content: center; font-weight: 700; border-radius: 4px;
+            cursor: pointer; transition: 0.2s; position: relative; font-size: 0.85rem;
+            min-height: 25px;
+        }
+        .cell:hover:not(.filled) { background: var(--surface-hover); border-color: var(--primary); }
+        .cell.filled { background: var(--primary); color: white; cursor: default; }
+        .cell.valid-target { box-shadow: 0 0 8px var(--primary); border-color: var(--primary); animation: pulse 1s infinite; }
+        .cell.invalid { background: #ef4444 !important; }
+
+        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+
+        .die-area { 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 1.5rem; 
+            padding: 0.75rem 1rem; 
+            background: var(--surface); 
+            border-radius: 15px; 
+            border: 1px solid var(--glass-border); 
+            width: 100%; 
+            max-width: 450px;
+            margin: 0.5rem 0;
+        }
+        .called-number { font-size: 2.2rem; font-weight: 900; color: var(--accent); min-width: 60px; text-align: center; }
+        .die { width: 60px; height: 60px; background: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--bg); font-size: 1.6rem; box-shadow: 0 8px 15px rgba(0,0,0,0.4); font-weight: 900; }
+        .die.lightning { background: #fde047; }
+
+        .controls { margin-top: 0.5rem; }
+        button { padding: 0.7rem 1.2rem; font-weight: 800; border-radius: 8px; border: none; background: var(--primary); color: white; cursor: pointer; transition: 0.2s; font-size: 0.9rem; }
+        button:hover { transform: translateY(-2px); filter: brightness(1.1); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .message { margin-top: 0.25rem; font-weight: 600; min-height: 1.2rem; color: #818cf8; text-align: center; font-size: 0.85rem; }
+        .player-indicator { font-weight: 900; color: var(--accent); text-transform: uppercase; font-size: 1rem; margin-bottom: 0.25rem; }
+        
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: var(--surface); padding: 2rem; border-radius: 20px; text-align: center; border: 1px solid var(--primary); width: 90%; max-width: 380px; }
+
+        .player-select { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 1rem; }
+        .player-opt { padding: 0.75rem; background: var(--bg); border: 2px solid var(--glass-border); border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 0.9rem; }
+        .player-opt:hover { border-color: var(--primary); }
+
+        @media (max-height: 600px) {
+            nav { height: 40px; }
+            .logo { font-size: 1rem; }
+            .called-number { font-size: 1.8rem; }
+            .die { width: 50px; height: 50px; font-size: 1.4rem; }
+            .column-header { font-size: 0.85rem; }
+            .cell { font-size: 0.75rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav><a href="index.html" class="logo">K2 games</a><a href="index.html" style="color:var(--text-muted); text-decoration:none; font-size: 0.8rem;">← Exit</a></nav>
+
+    <div class="game-container">
+        <div id="player-turn-header" class="player-indicator" style="display:none;">Player 1's Turn</div>
+
+        <div id="setup-area" class="phase-panel" style="display:none;">
+            <h3 style="font-size: 0.9rem;">SETUP PHASE</h3>
+            <p style="margin: 0.25rem 0; font-size: 0.85rem;">Place your starting numbers: <span id="pending-numbers" style="color: var(--accent); font-weight: 800;">10, 20, 30, 40, 50</span></p>
+        </div>
+
+        <div id="play-area" style="display:none; text-align: center; width: 100%;">
+            <div class="die-area">
+                <div>
+                    <div style="font-size: 0.5rem; text-transform: uppercase; opacity: 0.7;">Called</div>
+                    <div class="called-number" id="current-num">--</div>
+                </div>
+                <div id="game-die" class="die">?</div>
+                <button id="roll-btn">ROLL</button>
+            </div>
+        </div>
+
+        <div class="message" id="msg">Initializing...</div>
+
+        <div class="game-board" id="board" style="display:none;">
+            <!-- Rendered via JS -->
+        </div>
+    </div>
+
+    <!-- Start Modal -->
+    <div class="modal" id="start-modal">
+        <div class="modal-content">
+            <h2 style="font-size: 1.5rem;">QWINGO</h2>
+            <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 5px;">Pass & Play on one device</p>
+            <div class="player-select">
+                <div class="player-opt" onclick="startGame(1)">1 Player</div>
+                <div class="player-opt" onclick="startGame(2)">2 Players</div>
+                <div class="player-opt" onclick="startGame(3)">3 Players</div>
+                <div class="player-opt" onclick="startGame(4)">4 Players</div>
+                <div class="player-opt" onclick="startGame(5)">5 Players</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Win Modal -->
+    <div class="modal" id="win-modal" style="display:none;">
+        <div class="modal-content">
+            <h2 id="win-msg" style="font-size: 2rem;">QWINGO!</h2>
+            <p id="winner-announce" style="margin: 1rem 0; font-weight: 800; font-size: 1.2rem; color: var(--accent);"></p>
+            <button onclick="location.reload()">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <!-- Pass Notification -->
+    <div class="modal" id="pass-modal" style="display:none;">
+        <div class="modal-content">
+            <h2 id="pass-title">Next Player</h2>
+            <p id="pass-instr" style="margin: 1rem 0; font-size: 0.9rem;">Pass the device to <b>Player 2</b></p>
+            <button onclick="confirmPass()">I HAVE THE DEVICE</button>
+        </div>
+    </div>
+
+    <script>
+        const COLS = ['A', 'B', 'C', 'D', 'E'];
+        const ROWS = 12;
+        const START_NUMS = [10, 20, 30, 40, 50];
+        
+        let playerCount = 1;
+        let currentPlayerIndex = 0;
+        let callerIndex = 0; 
+        let placementIndex = 0; 
+        
+        let gameState = 'init'; 
+        let playerBoards = []; 
+        let playerSetupIndices = []; 
+        
+        let currentCalledNum = null;
+        let currentDieSymbol = null;
+
+        const boardEl = document.getElementById('board');
+        const setupArea = document.getElementById('setup-area');
+        const playArea = document.getElementById('play-area');
+        const msgEl = document.getElementById('msg');
+        const rollBtn = document.getElementById('roll-btn');
+        const turnHeader = document.getElementById('player-turn-header');
+        const passModal = document.getElementById('pass-modal');
+
+        function startGame(count) {
+            playerCount = count;
+            playerBoards = Array.from({length: count}, () => 
+                Array(5).fill().map(() => Array(ROWS).fill(null))
+            );
+            playerSetupIndices = Array(count).fill(0);
+            
+            document.getElementById('start-modal').style.display = 'none';
+            boardEl.style.display = 'flex';
+            turnHeader.style.display = 'block';
+            
+            startSetup();
+        }
+
+        function startSetup() {
+            gameState = 'setup';
+            setupArea.style.display = 'block';
+            renderBoard();
+            updateUI();
+        }
+
+        function updateUI() {
+            if (gameState === 'setup') {
+                turnHeader.textContent = `Player ${currentPlayerIndex + 1}: Setup`;
+                const sIdx = playerSetupIndices[currentPlayerIndex];
+                msgEl.textContent = `Place "${START_NUMS[sIdx]}" in Col ${COLS[sIdx]}`;
+            } else if (gameState === 'rolling') {
+                turnHeader.textContent = `P${callerIndex + 1}'s Turn to Roll`;
+                msgEl.textContent = `Roll the die!`;
+            } else if (gameState === 'placing') {
+                turnHeader.textContent = `P${placementIndex + 1}: Place ${currentCalledNum}`;
+                if (currentDieSymbol === '⚡') {
+                    msgEl.textContent = `WILD! Place anywhere valid.`;
+                } else {
+                    msgEl.textContent = `Place in Column ${currentDieSymbol}`;
+                }
+            }
+        }
+
+        function renderBoard() {
+            boardEl.innerHTML = '';
+            const currentGrid = playerBoards[currentPlayerIndex];
+            
+            COLS.forEach((char, cIdx) => {
+                const col = document.createElement('div');
+                col.className = 'column';
+                const header = document.createElement('div');
+                header.className = 'column-header';
+                header.textContent = char;
+                col.appendChild(header);
+
+                for(let r = 0; r < ROWS; r++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    if (currentGrid[cIdx][r] !== null) {
+                        cell.textContent = currentGrid[cIdx][r];
+                        cell.classList.add('filled');
+                    }
+                    cell.dataset.col = cIdx;
+                    cell.dataset.row = r;
+                    cell.addEventListener('click', () => handleCellClick(cIdx, r));
+                    col.appendChild(cell);
+                }
+                boardEl.appendChild(col);
+            });
+
+            if (gameState === 'placing') highlightValidSpots();
+        }
+
+        function handleCellClick(c, r) {
+            if (gameState === 'setup') {
+                const sIdx = playerSetupIndices[currentPlayerIndex];
+                if (c !== sIdx) return;
+                if (playerBoards[currentPlayerIndex][c][r] !== null) return;
+
+                placeNumber(currentPlayerIndex, c, r, START_NUMS[sIdx]);
+                playerSetupIndices[currentPlayerIndex]++;
+
+                if (playerSetupIndices[currentPlayerIndex] < 5) {
+                    renderBoard();
+                    updateUI();
+                } else {
+                    if (currentPlayerIndex < playerCount - 1) {
+                        currentPlayerIndex++;
+                        showPassModal(`Player ${currentPlayerIndex + 1}`, `Pass the device to <b>Player ${currentPlayerIndex + 1}</b> for setup.`);
+                    } else {
+                        startPlaying();
+                    }
+                }
+            } else if (gameState === 'placing') {
+                if (currentPlayerIndex !== placementIndex) return;
+                
+                if (currentDieSymbol === '⚡' || currentDieSymbol === COLS[c]) {
+                    if (isValidPlacement(currentPlayerIndex, c, r, currentCalledNum)) {
+                        placeNumber(currentPlayerIndex, c, r, currentCalledNum);
+                        if (checkWin(currentPlayerIndex, c)) return;
+                        
+                        nextPlacement();
+                    } else {
+                        const cell = getCellEl(c, r);
+                        cell.classList.add('invalid');
+                        setTimeout(() => cell.classList.remove('invalid'), 300);
+                    }
+                }
+            }
+        }
+
+        function nextPlacement() {
+            if (placementIndex < playerCount - 1) {
+                placementIndex++;
+                currentPlayerIndex = placementIndex;
+                checkCanPlace();
+            } else {
+                callerIndex = (callerIndex + 1) % playerCount;
+                currentPlayerIndex = callerIndex;
+                gameState = 'rolling';
+                playArea.style.display = 'block';
+                rollBtn.disabled = false;
+                document.getElementById('current-num').textContent = '--';
+                document.getElementById('game-die').textContent = '?';
+                document.getElementById('game-die').className = 'die';
+                
+                showPassModal(`Player ${callerIndex + 1}`, `Round over. <b>Player ${callerIndex + 1}</b> is the next caller.`);
+            }
+        }
+
+        function showPassModal(title, instr) {
+            document.getElementById('pass-title').textContent = title;
+            document.getElementById('pass-instr').innerHTML = instr;
+            passModal.style.display = 'flex';
+        }
+
+        function confirmPass() {
+            passModal.style.display = 'none';
+            renderBoard();
+            updateUI();
+        }
+
+        function placeNumber(pIdx, c, r, val) {
+            playerBoards[pIdx][c][r] = val;
+        }
+
+        function isValidPlacement(pIdx, c, r, val) {
+            const grid = playerBoards[pIdx];
+            if (grid[c][r] !== null) return false;
+            for (let i = 0; i < r; i++) {
+                if (grid[c][i] !== null && grid[c][i] >= val) return false;
+            }
+            for (let i = r + 1; i < ROWS; i++) {
+                if (grid[c][i] !== null && grid[c][i] <= val) return false;
+            }
+            return true;
+        }
+
+        function startPlaying() {
+            gameState = 'rolling';
+            currentPlayerIndex = 0;
+            callerIndex = 0;
+            setupArea.style.display = 'none';
+            playArea.style.display = 'block';
+            renderBoard();
+            updateUI();
+        }
+
+        function rollDie() {
+            if (gameState !== 'rolling') return;
+            rollBtn.disabled = true;
+            
+            currentCalledNum = Math.floor(Math.random() * 100) + 1;
+            const symbols = [...COLS, '⚡'];
+            currentDieSymbol = symbols[Math.floor(Math.random() * symbols.length)];
+            
+            document.getElementById('current-num').textContent = currentCalledNum;
+            const dieEl = document.getElementById('game-die');
+            dieEl.textContent = currentDieSymbol;
+            dieEl.className = 'die' + (currentDieSymbol === '⚡' ? ' lightning' : '');
+
+            gameState = 'placing';
+            placementIndex = 0;
+            currentPlayerIndex = placementIndex;
+            
+            checkCanPlace();
+        }
+
+        function checkCanPlace() {
+            let canPlace = false;
+            if (currentDieSymbol === '⚡') {
+                for(let c=0; c<5; c++) {
+                    for(let r=0; r<ROWS; r++) { if (isValidPlacement(currentPlayerIndex, c, r, currentCalledNum)) canPlace = true; }
+                }
+            } else {
+                const cIdx = COLS.indexOf(currentDieSymbol);
+                for(let r=0; r<ROWS; r++) { if (isValidPlacement(currentPlayerIndex, cIdx, r, currentCalledNum)) canPlace = true; }
+            }
+
+            if (!canPlace) {
+                msgEl.textContent = `P${currentPlayerIndex + 1}: No valid spots for ${currentCalledNum}. Skip!`;
+                setTimeout(() => {
+                    nextPlacement();
+                }, 1200);
+            } else {
+                if (playerCount > 1) {
+                    showPassModal(`Player ${currentPlayerIndex + 1}`, `Your turn to place <b>${currentCalledNum}</b>.`);
+                } else {
+                    renderBoard();
+                    updateUI();
+                }
+            }
+        }
+
+        function highlightValidSpots() {
+            for(let c=0; c<5; c++) {
+                for(let r=0; r<ROWS; r++) {
+                    const isTargetCol = (currentDieSymbol === '⚡' || currentDieSymbol === COLS[c]);
+                    if (isTargetCol && isValidPlacement(currentPlayerIndex, c, r, currentCalledNum)) {
+                        getCellEl(c, r).classList.add('valid-target');
+                    }
+                }
+            }
+        }
+
+        function checkWin(pIdx, c) {
+            const isFull = playerBoards[pIdx][c].every(val => val !== null);
+            if (isFull) {
+                document.getElementById('winner-announce').textContent = `Player ${pIdx + 1} Wins!`;
+                document.getElementById('win-modal').style.display = 'flex';
+                return true;
+            }
+            return false;
+        }
+
+        function getCellEl(c, r) {
+            return document.querySelector(`.cell[data-col="${c}"][data-row="${r}"]`);
+        }
+
+        rollBtn.addEventListener('click', rollDie);
+    </script>
+</body>
+</html>

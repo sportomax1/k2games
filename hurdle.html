@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hurdle Pro: Sprint Championship - K2 games</title>
+    <style>
+        :root {
+            --track: #e11d48;
+            --lane: #fb7185;
+            --grass: #166534;
+            --sky: #0ea5e9;
+            --accent: #fbbf24;
+            --bg: #020617;
+            --glass: rgba(15, 23, 42, 0.85);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: #fff; letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            background: linear-gradient(to bottom, #075985, #020617);
+            overflow: hidden;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* HUD Layer */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .stat-card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            padding: 12px 24px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+            min-width: 130px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .stat-val { font-size: 1.8rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; font-weight: 800; }
+
+        /* Controls Layer */
+        #mobile-controls {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            display: none;
+            justify-content: space-between;
+            padding: 0 40px;
+            z-index: 60;
+            pointer-events: none;
+        }
+
+        @media (max-width: 900px) { #mobile-controls { display: flex; } }
+
+        .action-btn {
+            width: 100px; height: 100px;
+            background: var(--glass);
+            border: 3px solid rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-weight: 900; pointer-events: auto;
+            backdrop-filter: blur(10px);
+            color: white;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.4);
+        }
+        .action-btn:active, .action-btn.pressed { background: white; color: black; transform: scale(0.9); }
+        .action-btn span { font-size: 0.6rem; opacity: 0.6; }
+
+        /* Modals */
+        .screen-overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--track); color: white; border: none; padding: 1.2rem 3.5rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.4rem; box-shadow: 0 15px 35px rgba(225, 29, 72, 0.4);
+        }
+
+        #speed-bar-container {
+            position: absolute;
+            bottom: 160px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            overflow: hidden;
+            z-index: 50;
+        }
+        #speed-bar-fill { height: 100%; width: 0%; background: linear-gradient(to right, #4ade80, #fbbf24, #ef4444); transition: width 0.1s; }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">K2 HURDLE PRO</div>
+        <a href="index.html" class="back-link">← EXIT HUB</a>
+    </nav>
+
+    <div id="hud">
+        <div class="stat-card">
+            <span class="stat-label">Velocity</span>
+            <span id="speed-val" class="stat-val">0.0</span>
+        </div>
+        <div class="stat-card" style="align-items: flex-end;">
+            <span class="stat-label">Race Clock</span>
+            <span id="time-val" class="stat-val">00.00</span>
+        </div>
+    </div>
+
+    <div id="speed-bar-container"><div id="speed-bar-fill"></div></div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="mobile-controls">
+            <div class="action-btn" id="btn-run">RUN<span>ARROWS</span></div>
+            <div class="action-btn" id="btn-jump">JUMP<span>SPACE</span></div>
+        </div>
+
+        <div id="start-screen" class="screen-overlay">
+            <h1 style="font-size: 4rem; font-style: italic; background: linear-gradient(to bottom, #fff, var(--lane)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900;">HURDLE PRO</h1>
+            <p style="opacity: 0.7; margin-top: 10px; font-size: 1.2rem;">Elite Sprint Championship</p>
+            <div style="margin-top: 30px; border: 1px solid rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; background: rgba(255,255,255,0.05); max-width: 450px;">
+                <p style="font-size: 0.9rem; line-height: 1.6;">
+                    <b>DESKTOP</b>: Alternate <b>LEFT/RIGHT</b> arrows to run. Press <b>SPACE</b> to jump.<br>
+                    <b>MOBILE</b>: Tap <b>RUN</b> repeatedly and <b>JUMP</b> over gates.
+                </p>
+            </div>
+            <button class="btn-large" onclick="game.start()">START SPRINT</button>
+        </div>
+
+        <div id="finish-screen" class="screen-overlay" style="display:none">
+            <h1 style="color: var(--accent); font-size: 4rem; font-style: italic;">PHOTO FINISH!</h1>
+            <p id="final-stats" style="margin-top:15px; font-size: 1.8rem; font-weight: 900;"></p>
+            <button class="btn-large" onclick="location.reload()">RE-RUN EVENT</button>
+        </div>
+    </div>
+
+    <script>
+        class HurdleSprint {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize();
+
+                this.state = 'menu';
+                this.time = 0;
+                this.distance = 0;
+                this.trackLength = 10000; // Total world units
+                
+                this.player = {
+                    x: 200, y: 0,
+                    w: 60, h: 90,
+                    speed: 0,
+                    vy: 0,
+                    jumpPower: 18,
+                    gravity: 0.85,
+                    anim: 0,
+                    lastRunKey: '',
+                    isGrounded: true
+                };
+
+                this.hurdles = [];
+                this.particles = [];
+                this.keys = {};
+                this.bgLayers = [
+                    { x: 0, speed: 0.1, color: '#0c4a6e', type: 'crowd' },
+                    { x: 0, speed: 0.5, color: '#166534', type: 'field' }
+                ];
+
+                this.setupControls();
+                window.addEventListener('resize', () => this.resize());
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            resize() {
+                this.width = window.innerWidth;
+                this.height = window.innerHeight - 60;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+                this.groundY = this.height * 0.8;
+            }
+
+            setupControls() {
+                const runAction = (key) => {
+                    if (this.state !== 'playing') return;
+                    if (key !== this.player.lastRunKey) {
+                        this.player.speed = Math.min(22, this.player.speed + 1.5);
+                        this.player.lastRunKey = key;
+                        this.spawnParticles(this.player.x, this.groundY, '#fff', 3);
+                        document.getElementById('btn-run').classList.add('pressed');
+                        setTimeout(() => document.getElementById('btn-run').classList.remove('pressed'), 100);
+                    }
+                };
+
+                const jumpAction = () => {
+                    if (this.state !== 'playing') return;
+                    if (this.player.isGrounded) {
+                        this.player.vy = -this.player.jumpPower;
+                        this.player.isGrounded = false;
+                        document.getElementById('btn-jump').classList.add('pressed');
+                        setTimeout(() => document.getElementById('btn-jump').classList.remove('pressed'), 100);
+                    }
+                };
+
+                window.addEventListener('keydown', (e) => {
+                    if (e.code === 'ArrowRight' || e.code === 'ArrowLeft') runAction(e.code);
+                    if (e.code === 'Space') jumpAction();
+                });
+
+                document.getElementById('btn-run').addEventListener('touchstart', (e) => { e.preventDefault(); runAction(Math.random()); });
+                document.getElementById('btn-jump').addEventListener('touchstart', (e) => { e.preventDefault(); jumpAction(); });
+            }
+
+            start() {
+                this.state = 'playing';
+                this.time = 0;
+                this.distance = 0;
+                this.player.speed = 0;
+                this.player.y = 0;
+                this.player.isGrounded = true;
+                this.initHurdles();
+                document.getElementById('start-screen').style.display = 'none';
+            }
+
+            initHurdles() {
+                this.hurdles = [];
+                for(let i=1; i<=15; i++) {
+                    this.hurdles.push({
+                        x: i * 800 + 400, // World position
+                        hit: false,
+                        w: 20, h: 60
+                    });
+                }
+            }
+
+            update() {
+                if (this.state === 'playing') {
+                    this.time += 1/60;
+                    this.player.speed *= 0.98; // Natural drag
+                    this.distance += this.player.speed;
+
+                    // Jumping Physics
+                    if (!this.player.isGrounded) {
+                        this.player.y += this.player.vy;
+                        this.player.vy += this.player.gravity;
+                        if (this.player.y >= 0) {
+                            this.player.y = 0;
+                            this.player.vy = 0;
+                            this.player.isGrounded = true;
+                        }
+                    }
+
+                    // Hurdle Collisions
+                    this.hurdles.forEach(h => {
+                        const screenX = h.x - this.distance + this.player.x;
+                        if (!h.hit && screenX > this.player.x && screenX < this.player.x + this.player.w) {
+                            if (this.player.y > -h.h) {
+                                h.hit = true;
+                                this.player.speed *= 0.4; // Massive slowdown
+                                this.spawnParticles(screenX, this.groundY - 30, '#ef4444', 15);
+                            }
+                        }
+                    });
+
+                    // Update BG
+                    this.bgLayers.forEach(l => l.x = -(this.distance * l.speed) % this.width);
+
+                    if (this.distance >= this.trackLength) this.finish();
+                }
+
+                // Particles
+                this.particles.forEach((p, i) => {
+                    p.x += p.vx - (this.state === 'playing' ? this.player.speed : 0);
+                    p.y += p.vy;
+                    p.life -= 0.02;
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                });
+
+                this.updateUI();
+            }
+
+            updateUI() {
+                document.getElementById('speed-val').textContent = (this.player.speed * 2).toFixed(1);
+                document.getElementById('time-val').textContent = this.time.toFixed(2);
+                document.getElementById('speed-bar-fill').style.width = (this.player.speed / 22 * 100) + '%';
+            }
+
+            finish() {
+                this.state = 'finish';
+                document.getElementById('finish-screen').style.display = 'flex';
+                document.getElementById('final-stats').textContent = `OFFICIAL TIME: ${this.time.toFixed(2)}s`;
+            }
+
+            spawnParticles(x, y, color, count) {
+                for(let i=0; i<count; i++) {
+                    this.particles.push({
+                        x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10,
+                        life: 1, color
+                    });
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                const w = this.width;
+                const h = this.height;
+                ctx.clearRect(0, 0, w, h);
+
+                // --- ENVIRONMENT ---
+                // Sky
+                const skyGrad = ctx.createLinearGradient(0, 0, 0, h/2);
+                skyGrad.addColorStop(0, '#0c4a6e'); skyGrad.addColorStop(1, '#0ea5e9');
+                ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, w, h/2);
+
+                // Stadium / Crowd (Simplified Parallax)
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                const crowdX = -(this.distance * 0.2) % 400;
+                for(let i=-1; i<w/400 + 1; i++) {
+                    ctx.fillRect(i*400 + crowdX, h/2 - 100, 380, 100);
+                }
+
+                // Grass
+                ctx.fillStyle = '#166534'; ctx.fillRect(0, h/2, w, h/2);
+
+                // Track (Main Running Surface)
+                ctx.fillStyle = '#e11d48'; ctx.fillRect(0, this.groundY, w, h - this.groundY);
+                // Track Markings (Lanes)
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 4;
+                for(let i=0; i<5; i++) {
+                    const lineY = this.groundY + i*30;
+                    ctx.beginPath(); ctx.moveTo(0, lineY); ctx.lineTo(w, lineY); ctx.stroke();
+                }
+                // Vertical Lines (Movement feel)
+                const lineSpacing = 200;
+                const lineOff = -(this.distance) % lineSpacing;
+                ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+                for(let x=lineOff; x<w; x+=lineSpacing) {
+                    ctx.beginPath(); ctx.moveTo(x, this.groundY); ctx.lineTo(x, h); ctx.stroke();
+                }
+
+                // --- HURDLES ---
+                this.hurdles.forEach(hurdle => {
+                    const hx = hurdle.x - this.distance + this.player.x;
+                    if (hx < -100 || hx > w + 100) return;
+
+                    ctx.save();
+                    ctx.translate(hx, this.groundY);
+                    
+                    ctx.strokeStyle = hurdle.hit ? '#475569' : '#fff';
+                    ctx.lineWidth = 8;
+                    ctx.lineCap = 'round';
+                    // Main Post
+                    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -hurdle.h); ctx.lineTo(40, -hurdle.h); ctx.lineTo(40, 0); ctx.stroke();
+                    // Stripe
+                    ctx.fillStyle = '#000'; ctx.fillRect(0, -hurdle.h + 5, 40, 15);
+                    
+                    ctx.restore();
+                });
+
+                // --- PLAYER (High Quality Silhouette/Emoji) ---
+                ctx.save();
+                ctx.translate(this.player.x, this.groundY + this.player.y);
+                
+                const speedMod = this.player.speed * 0.015;
+                if (this.player.isGrounded) this.player.anim += speedMod;
+                const bob = Math.sin(this.player.anim * 10) * 8;
+                const tilt = this.player.speed * 0.02;
+
+                ctx.rotate(tilt);
+
+                // Body
+                ctx.fillStyle = '#fff';
+                ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(255,255,255,0.5)';
+                // Head
+                ctx.beginPath(); ctx.arc(30, bob - 100, 20, 0, Math.PI*2); ctx.fill();
+                // Torso
+                ctx.beginPath(); ctx.roundRect(15, bob - 85, 30, 50, 10); ctx.fill();
+                
+                // Animated Limbs
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 10; ctx.lineCap = 'round';
+                const swing = Math.sin(this.player.anim * 10) * 40;
+                
+                // Legs
+                if (this.player.isGrounded) {
+                    // Front Leg
+                    ctx.beginPath(); ctx.moveTo(30, bob - 40); ctx.lineTo(30 + swing, bob); ctx.stroke();
+                    // Back Leg
+                    ctx.beginPath(); ctx.moveTo(30, bob - 40); ctx.lineTo(30 - swing, bob); ctx.stroke();
+                } else {
+                    // Jumping Pose
+                    ctx.beginPath(); ctx.moveTo(30, -40); ctx.lineTo(60, -10); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30, -40); ctx.lineTo(0, 10); ctx.stroke();
+                }
+                
+                // Arms
+                ctx.beginPath(); ctx.moveTo(30, bob - 75); ctx.lineTo(30 - swing*0.5, bob - 40); ctx.stroke();
+                
+                ctx.restore();
+
+                // Particles
+                this.particles.forEach(p => {
+                    ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(this.loop);
+            }
+        }
+
+        const game = new HurdleSprint();
+    </script>
+</body>
+</html>

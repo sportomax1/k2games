@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>K2 Illusion: Optical Order - K2 games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: rgba(30, 41, 59, 0.8);
+            --border: rgba(255, 255, 255, 0.1);
+            --red: #ef4444;
+            --blue: #3b82f6;
+            --yellow: #eab308;
+            --green: #22c55e;
+            --gold: #fbbf24;
+            --p1: #3b82f6;
+            --p2: #ef4444;
+            --p3: #22c55e;
+            --p4: #eab308;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            padding: 0.75rem 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: #fff; letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            gap: 15px;
+            overflow: hidden;
+        }
+
+        /* Player HUD */
+        #players-hud {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            max-width: 600px;
+            justify-content: center;
+        }
+        .player-chip {
+            background: var(--panel);
+            padding: 8px 15px;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            opacity: 0.4;
+            transition: 0.3s;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+        .player-chip.active { opacity: 1; transform: scale(1.1); border-color: #fff; }
+        .player-chip.p1.active { border-color: var(--p1); }
+        .player-chip.p2.active { border-color: var(--p2); }
+        .player-chip.p3.active { border-color: var(--p3); }
+        .player-chip.p4.active { border-color: var(--p4); }
+
+        /* Target Color Indicator */
+        #round-info {
+            background: var(--panel);
+            padding: 10px 25px;
+            border-radius: 50px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .color-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff; }
+
+        /* The Card Line */
+        #sequence-container {
+            width: 100%;
+            flex: 1;
+            background: rgba(255,255,255,0.02);
+            border-radius: 20px;
+            border: 2px dashed rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            padding: 20px;
+            overflow-x: auto;
+            position: relative;
+            scrollbar-width: thin;
+        }
+
+        .card {
+            min-width: 120px;
+            height: 170px;
+            background: #fff;
+            border-radius: 10px;
+            position: relative;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+            flex-shrink: 0;
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.3s;
+            overflow: hidden;
+            border: 4px solid transparent;
+        }
+        .card.wrong { border-color: var(--red); box-shadow: 0 0 20px var(--red); }
+        .card.right { border-color: var(--green); box-shadow: 0 0 20px var(--green); }
+
+        .percentage-reveal {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            background: rgba(0,0,0,0.85);
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 900;
+            text-align: center;
+            padding: 6px;
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .revealed .percentage-reveal { transform: translateY(0); }
+
+        /* Insertion Slots */
+        .drop-zone {
+            width: 40px;
+            height: 150px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 8px;
+            transition: 0.2s;
+            flex-shrink: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            color: rgba(255,255,255,0.3);
+            border: 2px solid transparent;
+            touch-action: manipulation;
+        }
+        .drop-zone:hover { background: rgba(59, 130, 246, 0.2); color: #fff; border-color: var(--blue); }
+        .drop-zone.disabled { pointer-events: none; opacity: 0; }
+
+        /* Explanation Box */
+        #game-explanation {
+            background: rgba(0,0,0,0.4);
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            max-width: 600px;
+            text-align: center;
+            line-height: 1.4;
+            opacity: 0.7;
+            margin-top: 10px;
+        }
+
+        /* Current Player Area */
+        #action-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            background: var(--panel);
+            width: 100%;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn-check {
+            background: var(--gold);
+            color: #000;
+            border: none;
+            padding: 12px 40px;
+            border-radius: 50px;
+            font-weight: 900;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(251, 191, 36, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            touch-action: manipulation;
+        }
+        .btn-check:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* Overlays */
+        .screen-overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--blue); color: white; border: none; padding: 1.2rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 1.5rem;
+            font-size: 1.2rem;
+            touch-action: manipulation;
+        }
+
+        #msg-popup {
+            position: absolute; top: 120px;
+            background: var(--panel);
+            padding: 12px 30px;
+            border-radius: 12px;
+            font-weight: 900;
+            opacity: 0;
+            transition: 0.4s;
+            pointer-events: none;
+            z-index: 300;
+            border: 2px solid currentColor;
+        }
+        #msg-popup.show { opacity: 1; transform: translateY(-20px); }
+
+        @media (max-width: 600px) {
+            .card { min-width: 100px; height: 140px; }
+            .drop-zone { width: 35px; }
+            #sequence-container { padding: 10px; }
+            #action-area { padding: 10px; }
+            #game-explanation { font-size: 0.65rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">K2 ILLUSION</div>
+        <a href="index.html" class="back-link">← HUB</a>
+    </nav>
+
+    <div id="game-layout">
+        <div id="players-hud">
+            <div id="p1-chip" class="player-chip p1 active">P1: <span id="p1-score">0</span></div>
+            <div id="p2-chip" class="player-chip p2">P2: <span id="p2-score">0</span></div>
+            <div id="p3-chip" class="player-chip p3" style="display:none">P3: 0</div>
+            <div id="p4-chip" class="player-chip p4" style="display:none">P4: 0</div>
+        </div>
+
+        <div id="round-info">
+            <span style="font-size: 0.7rem; opacity: 0.7;">SORT BY:</span>
+            <div id="target-dot" class="color-dot"></div>
+            <span id="target-name" style="font-weight: 900; letter-spacing: 1px;">BLUE</span>
+        </div>
+
+        <div id="msg-popup">Correct Sequence!</div>
+
+        <div id="sequence-container">
+            <!-- Cards and Dropzones -->
+        </div>
+
+        <div id="game-explanation">
+            <b>HOW TO PLAY:</b> On your turn, place the <b>Current Card</b> into the sequence by tapping a <b>+ zone</b>. You must ensure cards are in <b>increasing order</b> of the target color's percentage. If you think the previous player messed up, click <b>"I DOUBT THE ORDER!"</b> to reveal and score!
+        </div>
+
+        <div id="action-area">
+            <div style="font-size: 0.6rem; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px;">Current Card</div>
+            <div id="next-card-container"></div>
+            
+            <div style="display:flex; gap:10px; margin-top: 5px;">
+                <button class="btn-check" id="check-btn" onclick="game.checkSequence()">I DOUBT THE ORDER!</button>
+                <button class="btn-check" id="next-round-btn" style="display:none; background: var(--green); color: white;" onclick="game.nextRound()">NEXT ROUND</button>
+            </div>
+        </div>
+
+        <div id="start-screen" class="screen-overlay">
+            <h1 style="font-size: 3.5rem; font-style: italic; font-weight: 900; color: var(--gold);">ILLUSION</h1>
+            <p style="opacity: 0.7; margin-top: 10px; max-width: 400px;">A game of visual estimation. Place cards in ascending order or doubt the player before you!</p>
+            <div style="display:flex; gap:10px; margin-top: 20px;">
+                <button class="btn-large" onclick="game.init(2)" style="margin-top:0">2 PLAYERS</button>
+                <button class="btn-large" onclick="game.init(3)" style="margin-top:0; background: #8b5cf6;">3 PLAYERS</button>
+                <button class="btn-large" onclick="game.init(4)" style="margin-top:0; background: var(--green);">4 PLAYERS</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const COLORS = {
+            red: '#ef4444',
+            blue: '#3b82f6',
+            yellow: '#eab308',
+            green: '#22c55e'
+        };
+
+        class CardGenerator {
+            static generate() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 140;
+                canvas.height = 200;
+                const ctx = canvas.getContext('2d');
+                
+                // Clear / Base
+                const colors = Object.keys(COLORS);
+                const baseColor = colors[Math.floor(Math.random() * colors.length)];
+                ctx.fillStyle = COLORS[baseColor];
+                ctx.fillRect(0, 0, 140, 200);
+
+                // Random Shapes
+                for(let i = 0; i < 25; i++) {
+                    ctx.fillStyle = COLORS[colors[Math.floor(Math.random() * colors.length)]];
+                    const type = Math.random();
+                    if(type < 0.4) {
+                        ctx.fillRect(Math.random() * 140, Math.random() * 200, Math.random() * 80, Math.random() * 80);
+                    } else if (type < 0.7) {
+                        ctx.beginPath();
+                        ctx.arc(Math.random() * 140, Math.random() * 200, Math.random() * 50, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else {
+                        // Fixed Triangle logic
+                        ctx.beginPath();
+                        ctx.moveTo(Math.random() * 140, Math.random() * 200);
+                        ctx.lineTo(Math.random() * 140, Math.random() * 200);
+                        ctx.lineTo(Math.random() * 140, Math.random() * 200);
+                        ctx.fill();
+                    }
+                }
+
+                // Calculate Percentages (Pixel counting)
+                const imgData = ctx.getImageData(0, 0, 140, 200).data;
+                const counts = { red: 0, blue: 0, yellow: 0, green: 0 };
+                const totalPixels = 140 * 200;
+
+                for(let i = 0; i < imgData.length; i += 4) {
+                    const r = imgData[i], g = imgData[i+1], b = imgData[i+2];
+                    // Detect colors based on simple thresholds
+                    if(r > 200 && g < 150 && b < 150) counts.red++;
+                    else if(b > 200 && r < 150 && g < 150) counts.blue++;
+                    else if(r > 200 && g > 180 && b < 150) counts.yellow++;
+                    else if(g > 180 && r < 150 && b < 150) counts.green++;
+                }
+
+                const percentages = {};
+                Object.keys(counts).forEach(k => {
+                    percentages[k] = Math.max(1, Math.round((counts[k] / totalPixels) * 100));
+                });
+
+                return { img: canvas.toDataURL(), percentages };
+            }
+        }
+
+        class Illusion {
+            constructor() {
+                this.sequence = [];
+                this.nextCard = null;
+                this.targetColor = 'blue';
+                this.revealed = false;
+                this.players = [];
+                this.turn = 0;
+                this.container = document.getElementById('sequence-container');
+                this.nextContainer = document.getElementById('next-card-container');
+            }
+
+            init(count) {
+                this.players = Array(count).fill(0).map((_, i) => ({ id: i, score: 0 }));
+                for(let i = 1; i <= 4; i++) {
+                    const el = document.getElementById(`p${i}-chip`);
+                    if (el) el.style.display = i <= count ? 'block' : 'none';
+                }
+                document.getElementById('start-screen').style.display = 'none';
+                this.nextRound();
+            }
+
+            nextRound() {
+                this.sequence = [];
+                this.revealed = false;
+                this.targetColor = Object.keys(COLORS)[Math.floor(Math.random() * 4)];
+                
+                const dot = document.getElementById('target-dot');
+                const name = document.getElementById('target-name');
+                dot.style.backgroundColor = COLORS[this.targetColor];
+                name.textContent = this.targetColor.toUpperCase();
+                name.style.color = COLORS[this.targetColor];
+
+                const popup = document.getElementById('msg-popup');
+                popup.classList.remove('show');
+
+                document.getElementById('check-btn').style.display = 'block';
+                document.getElementById('check-btn').disabled = true;
+                document.getElementById('next-round-btn').style.display = 'none';
+
+                // Initial card
+                this.sequence.push(CardGenerator.generate());
+                this.drawNextCard();
+                this.renderSequence();
+                this.updateUI();
+            }
+
+            drawNextCard() {
+                this.nextCard = CardGenerator.generate();
+                this.nextContainer.innerHTML = '';
+                const cardEl = this.createCardElement(this.nextCard);
+                this.nextContainer.appendChild(cardEl);
+            }
+
+            createCardElement(data) {
+                const div = document.createElement('div');
+                div.className = 'card' + (this.revealed ? ' revealed' : '');
+                div.style.backgroundImage = `url("${data.img}")`;
+                div.style.backgroundSize = 'cover';
+                
+                const reveal = document.createElement('div');
+                reveal.className = 'percentage-reveal';
+                reveal.textContent = `${data.percentages[this.targetColor]}%`;
+                div.appendChild(reveal);
+                return div;
+            }
+
+            renderSequence() {
+                this.container.innerHTML = '';
+                this.sequence.forEach((data, i) => {
+                    this.container.appendChild(this.createDropZone(i));
+                    this.container.appendChild(this.createCardElement(data));
+                });
+                this.container.appendChild(this.createDropZone(this.sequence.length));
+            }
+
+            createDropZone(idx) {
+                const div = document.createElement('div');
+                div.className = 'drop-zone' + (this.revealed ? ' disabled' : '');
+                div.innerHTML = '<span>+</span>';
+                div.onclick = () => this.placeCardAt(idx);
+                return div;
+            }
+
+            placeCardAt(idx) {
+                if (this.revealed || !this.nextCard) return;
+                
+                // Add current card to sequence
+                this.sequence.splice(idx, 0, this.nextCard);
+                
+                // Move turn
+                this.turn = (this.turn + 1) % this.players.length;
+                
+                // Prepare next card
+                this.drawNextCard();
+                
+                // Update display
+                this.renderSequence();
+                this.updateUI();
+                
+                document.getElementById('check-btn').disabled = false;
+                
+                // Auto scroll to the newly placed card area
+                setTimeout(() => {
+                    const cards = this.container.querySelectorAll('.card');
+                    if (cards[idx]) cards[idx].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                }, 50);
+            }
+
+            updateUI() {
+                this.players.forEach((p, i) => {
+                    const chip = document.getElementById(`p${i+1}-chip`);
+                    if (chip) {
+                        chip.classList.toggle('active', this.turn === i);
+                        const scoreEl = chip.querySelector('span');
+                        if (scoreEl) scoreEl.textContent = p.score;
+                    }
+                });
+            }
+
+            checkSequence() {
+                this.revealed = true;
+                this.renderSequence();
+                
+                let brokenAt = -1;
+                for(let i=0; i<this.sequence.length-1; i++) {
+                    if (this.sequence[i].percentages[this.targetColor] > this.sequence[i+1].percentages[this.targetColor]) {
+                        brokenAt = i;
+                        break;
+                    }
+                }
+
+                const correct = (brokenAt === -1);
+                const previousPlayer = (this.turn - 1 + this.players.length) % this.players.length;
+                const currentPlayer = this.turn;
+
+                // Mark visuals
+                const cardEls = this.container.querySelectorAll('.card');
+                if (!correct) {
+                    cardEls[brokenAt].classList.add('wrong');
+                    cardEls[brokenAt+1].classList.add('wrong');
+                    // Current player was right to doubt
+                    this.players[currentPlayer].score++;
+                } else {
+                    cardEls.forEach(el => el.classList.add('right'));
+                    // Previous player was right, current player was wrong to doubt
+                    this.players[previousPlayer].score++;
+                }
+
+                const pop = document.getElementById('msg-popup');
+                pop.textContent = correct ? "ORDER WAS CORRECT! 🏆" : "SEQUENCE BROKEN! ❌";
+                pop.style.color = correct ? "var(--green)" : "var(--red)";
+                pop.classList.add('show');
+                
+                document.getElementById('check-btn').style.display = 'none';
+                document.getElementById('next-round-btn').style.display = 'block';
+                this.updateUI();
+            }
+        }
+
+        const game = new Illusion();
+    </script>
+</body>
+</html>

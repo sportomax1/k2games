@@ -2,146 +2,168 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home Run Derby - K4 Games</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Home Run Derby: World Series - K2 games</title>
     <style>
         :root {
-            --grass: #27ae60;
-            --dirt: #d35400;
-            --sky: #3498db;
-            --text: #ffffff;
-            --gold: #fbc02d;
+            --grass: #2e7d32;
+            --dirt: #8d6e63;
+            --sky: #818cf8;
+            --gold: #fbbf24;
+            --bg: #0f172a;
+            --glass: rgba(15, 23, 42, 0.85);
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
         body {
-            background-color: #1a1a2e;
-            color: var(--text);
+            background-color: var(--bg);
+            color: white;
             font-family: 'Segoe UI', system-ui, sans-serif;
-            overflow: hidden;
             height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #game-layout {
+            flex: 1;
+            position: relative;
             display: flex;
             justify-content: center;
             align-items: center;
-        }
-
-        #game-container {
-            position: relative;
-            width: 100%;
-            max-width: 1000px;
-            height: 700px;
-            background: var(--grass);
-            border-radius: 20px;
-            border: 8px solid #333;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
-            overflow: hidden;
+            background: radial-gradient(circle at center, #1e293b 0%, #020617 100%);
         }
 
         canvas {
+            background: #000;
             display: block;
-            width: 100%;
-            height: 100%;
+            border-radius: 20px;
+            box-shadow: 0 50px 100px rgba(0,0,0,0.8);
+            max-width: 95vw;
+            max-height: 75vh;
         }
 
-        #ui-layer {
+        /* HUD */
+        #hud {
             position: absolute;
-            inset: 0;
-            pointer-events: none;
-            padding: 25px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .header {
+            top: 20px;
+            left: 20px;
+            right: 20px;
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            pointer-events: none;
+            z-index: 50;
         }
 
         .stat-card {
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(10px);
-            padding: 15px 25px;
-            border-radius: 15px;
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            padding: 12px 24px;
+            border-radius: 16px;
             border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+            min-width: 140px;
+        }
+
+        .stat-val { font-size: 1.8rem; font-weight: 900; color: var(--gold); font-family: monospace; }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+
+        #event-banner {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5rem;
+            font-weight: 900;
+            color: var(--gold);
+            text-shadow: 0 0 30px rgba(0,0,0,0.8);
+            display: none;
+            z-index: 150;
+            pointer-events: none;
+            font-style: italic;
             text-align: center;
         }
 
-        .stat-val { font-size: 2rem; font-weight: 900; color: var(--gold); }
-        .stat-label { font-size: 0.7rem; text-transform: uppercase; opacity: 0.7; }
-
         .back-link {
-            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
-            background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 12px; z-index: 100;
-            font-weight: bold; border: 1px solid rgba(255,255,255,0.1); pointer-events: auto;
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            color: #94a3b8; text-decoration: none; font-size: 0.8rem; z-index: 100;
         }
 
-        #swing-meter {
-            position: absolute;
-            left: 50%;
-            bottom: 100px;
-            transform: translateX(-50%);
-            width: 200px;
-            height: 10px;
-            background: rgba(0,0,0,0.5);
-            border-radius: 10px;
-            overflow: hidden;
-            display: none;
-        }
-        #swing-fill { height: 100%; width: 0%; background: var(--gold); }
-
-        #overlay {
-            position: absolute; inset: 0; background: rgba(0,0,0,0.8);
-            display: none; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 1000; pointer-events: auto;
+        /* Controls */
+        #controls {
+            position: absolute; bottom: 30px; width: 100%;
+            display: flex; justify-content: center; padding: 0 40px;
+            pointer-events: none;
         }
 
-        .btn {
-            background: #e67e22; color: white; border: none; padding: 15px 40px;
-            border-radius: 50px; font-weight: 800; cursor: pointer; font-size: 1.2rem;
-            margin-top: 20px; transition: 0.2s;
+        .swing-btn {
+            width: 100px; height: 100px;
+            background: var(--accent);
+            border: 4px solid white;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; color: #000; font-weight: 900;
+            pointer-events: auto; cursor: pointer;
+            box-shadow: 0 10px 25px rgba(251, 191, 36, 0.4);
+            transition: 0.1s;
         }
-        .btn:hover { transform: scale(1.05); background: #f39c12; }
+        .swing-btn:active { transform: scale(0.9); filter: brightness(1.2); }
 
-        #hit-text {
-            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 5rem; font-weight: 900; color: var(--gold); text-shadow: 0 0 20px black;
-            opacity: 0; pointer-events: none; transition: 0.3s;
+        #start-screen {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
         }
-        #hit-text.show { opacity: 1; transform: translate(-50%, -60%); }
+
+        .btn-large {
+            background: #e67e22; color: white; border: none; padding: 1.2rem 3.5rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.4rem; box-shadow: 0 10px 25px rgba(230, 126, 34, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            .stat-card { padding: 8px 15px; min-width: 100px; }
+            .stat-val { font-size: 1.2rem; }
+            #event-banner { font-size: 3rem; }
+        }
     </style>
 </head>
 <body>
-    <a href="index.html" class="back-link">← HUB</a>
+    <nav style="height: 0; overflow: visible;">
+        <a href="index.html" class="back-link">← EXIT HUB</a>
+    </nav>
 
-    <div id="game-container">
-        <canvas id="gameCanvas"></canvas>
+    <div id="game-layout">
+        <canvas id="gameCanvas" width="1000" height="700"></canvas>
         
-        <div id="ui-layer">
-            <div class="header">
-                <div class="stat-card">
-                    <div class="stat-label">Home Runs</div>
-                    <div id="hr-count" class="stat-val">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Pitches Left</div>
-                    <div id="pitches-left" class="stat-val">10</div>
-                </div>
+        <div id="hud">
+            <div class="stat-card">
+                <span class="stat-label">Home Runs</span>
+                <span id="hr-val" class="stat-val">0</span>
             </div>
-
-            <div id="swing-meter"><div id="swing-fill"></div></div>
-            
-            <div style="margin-top: auto; color: rgba(255,255,255,0.6); text-align: center;">
-                HOLD SPACE to Charge • RELEASE to Swing
+            <div class="stat-card">
+                <span class="stat-label">Best Distance</span>
+                <span id="dist-val" class="stat-val">0ft</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Outs Left</span>
+                <span id="outs-val" class="stat-val">10</span>
             </div>
         </div>
 
-        <div id="hit-text">HOME RUN!</div>
+        <div id="event-banner">HOME RUN!</div>
 
-        <div id="overlay">
-            <h1 style="font-size: 3rem; color: var(--gold); margin-bottom: 1rem;">HOME RUN DERBY</h1>
-            <p id="final-msg">Ready to hit some moonshots?</p>
-            <button class="btn" onclick="startGame()">START DERBY</button>
+        <div id="controls">
+            <div class="swing-btn" id="btn-swing">SWING</div>
+        </div>
+
+        <div id="start-screen">
+            <h1 style="font-size: 4rem; font-style: italic; background: linear-gradient(to bottom, #fff, var(--gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">HOME RUN DERBY</h1>
+            <p style="opacity: 0.7; margin-top: 10px;">Time your swing. Hit moonshots.</p>
+            <p id="final-stats" style="margin-top: 20px; font-weight: bold; color: var(--gold);"></p>
+            <button class="btn-large" id="start-btn" onclick="game.start()">BATTER UP</button>
         </div>
     </div>
 
@@ -152,143 +174,210 @@
                 this.ctx = this.canvas.getContext('2d');
                 this.width = 1000;
                 this.height = 700;
-                this.canvas.width = this.width;
-                this.canvas.height = this.height;
 
-                this.reset();
-                this.setupInput();
+                this.state = 'menu'; // menu, pitching, hit, foul, out
+                this.ball = { x: 500, y: 350, z: 0, vx: 0, vy: 0, vz: 0, active: false };
+                this.bat = { angle: -Math.PI/4, targetAngle: -Math.PI/4, active: false };
+                this.score = { hrs: 0, bestDist: 0, outs: 10 };
+                this.pitcher = { anim: 0, frame: 0 };
+                this.batter = { x: 420, y: 620 };
+                this.particles = [];
+                this.clouds = Array(8).fill(0).map(() => ({ x: Math.random()*1000, y: 50+Math.random()*100, s: 0.2+Math.random()*0.5, w: 100+Math.random()*150 }));
+
+                this.setupControls();
                 this.loop();
             }
 
-            reset() {
-                this.hrs = 0;
-                this.pitches = 10;
+            setupControls() {
+                const swing = () => {
+                    if (this.state === 'pitching' && !this.bat.active) {
+                        this.bat.active = true;
+                        this.bat.targetAngle = Math.PI/2;
+                        this.checkHit();
+                    }
+                };
+
+                window.onkeydown = (e) => { if (e.code === 'Space') swing(); };
+                const btn = document.getElementById('btn-swing');
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); swing(); });
+                btn.onclick = swing;
+            }
+
+            start() {
+                this.score = { hrs: 0, bestDist: 0, outs: 10 };
                 this.state = 'idle';
-                this.ball = { x: 500, y: 350, r: 8, active: false, vx: 0, vy: 0 };
-                this.charge = 0;
-                this.isCharging = false;
-                this.isGameOver = false;
-                
-                document.getElementById('hr-count').textContent = '0';
-                document.getElementById('pitches-left').textContent = '10';
+                this.isPlaying = true;
+                document.getElementById('start-screen').style.display = 'none';
+                this.updateUI();
+                this.newPitch();
             }
 
-            setupInput() {
-                window.onkeydown = (e) => {
-                    if(e.code === 'Space' && this.state === 'pitch-incoming' && !this.isCharging) {
-                        this.isCharging = true;
-                        document.getElementById('swing-meter').style.display = 'block';
-                    }
-                };
-                window.onkeyup = (e) => {
-                    if(e.code === 'Space' && this.isCharging) {
-                        this.swing();
-                    }
-                };
+            newPitch() {
+                if (this.score.outs <= 0) return this.gameOver();
+                this.state = 'pitching';
+                this.ball.active = true;
+                this.ball.x = 500;
+                this.ball.y = 350;
+                this.ball.z = 0;
+                this.ball.vx = (Math.random() - 0.5) * 2;
+                this.ball.vy = 8 + Math.random() * 4;
+                this.ball.vz = 0;
+                this.bat.active = false;
+                this.bat.angle = -Math.PI/4;
+                this.bat.targetAngle = -Math.PI/4;
             }
 
-            swing() {
-                this.isCharging = false;
-                document.getElementById('swing-meter').style.display = 'none';
-                
-                // Hitting logic
-                const dist = Math.abs(this.ball.y - 620);
-                if(dist < 40 && this.ball.active) {
-                    const power = this.charge / 100;
-                    this.ball.vy = -15 - (power * 10);
-                    this.ball.vx = (Math.random() - 0.5) * 10;
+            checkHit() {
+                // Perfect contact at y=640
+                const dist = Math.abs(this.ball.y - 640);
+                if (dist < 50 && this.ball.active) {
+                    const timing = 1 - (dist / 50); // 1.0 is perfect
                     this.state = 'hit';
+                    this.ball.vy = -15 - (timing * 15);
+                    this.ball.vx = (this.ball.x - 500) * 0.5 + (Math.random()-0.5)*10;
+                    this.ball.vz = 5 + timing * 10;
                     
-                    if(this.ball.vy < -20) {
-                        this.triggerHR();
+                    if (timing > 0.6) {
+                        const d = Math.floor(350 + timing * 150);
+                        this.triggerEvent("HOME RUN!", d);
+                    } else {
+                        this.triggerEvent("FOUL BALL", 0);
                     }
+                    this.spawnParticles(this.ball.x, this.ball.y, '#fff', 15);
                 }
-                this.charge = 0;
             }
 
-            triggerHR() {
-                this.hrs++;
-                document.getElementById('hr-count').textContent = this.hrs;
-                const el = document.getElementById('hit-text');
-                el.classList.add('show');
-                setTimeout(() => el.classList.remove('show'), 1500);
+            triggerEvent(txt, dist) {
+                const el = document.getElementById('event-banner');
+                el.textContent = txt;
+                el.style.display = 'block';
+                setTimeout(() => el.style.display = 'none', 2000);
+
+                if (dist > 0) {
+                    this.score.hrs++;
+                    if (dist > this.score.bestDist) this.score.bestDist = dist;
+                } else {
+                    this.score.outs--;
+                }
+                this.updateUI();
             }
 
             update() {
-                if(this.state === 'idle' && this.pitches > 0 && !this.isGameOver) {
-                    this.state = 'waiting';
-                    setTimeout(() => this.pitch(), 2000);
-                }
+                if (this.state === 'menu') return;
 
-                if(this.isCharging) {
-                    this.charge = Math.min(100, this.charge + 2);
-                    document.getElementById('swing-fill').style.width = this.charge + '%';
-                }
+                // Clouds
+                this.clouds.forEach(c => { c.x += c.s; if(c.x > 1100) c.x = -200; });
 
-                if(this.ball.active) {
+                // Ball Physics
+                if (this.ball.active) {
                     this.ball.x += this.ball.vx;
                     this.ball.y += this.ball.vy;
-                    
-                    if(this.state === 'pitch-incoming') {
-                        this.ball.vy = 6;
-                    } else {
-                        this.ball.vy += 0.2; // Gravity
+                    if (this.state === 'hit') {
+                        this.ball.vy += 0.25; // Gravity
                     }
 
-                    if(this.ball.y > 750 || this.ball.y < -100) {
+                    if (this.ball.y > 800 || this.ball.y < -500) {
                         this.ball.active = false;
-                        this.pitches--;
-                        document.getElementById('pitches-left').textContent = this.pitches;
-                        if(this.pitches <= 0) this.endGame();
-                        else this.state = 'idle';
+                        if (this.state === 'pitching') {
+                            this.score.outs--;
+                            this.updateUI();
+                        }
+                        setTimeout(() => this.newPitch(), 1000);
                     }
+                }
+
+                // Bat Animation
+                if (this.bat.active) {
+                    this.bat.angle += (this.bat.targetAngle - this.bat.angle) * 0.3;
+                    if (Math.abs(this.bat.angle - this.bat.targetAngle) < 0.1) {
+                        this.bat.active = false;
+                    }
+                }
+
+                // Particles
+                this.particles.forEach((p, i) => {
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                });
+            }
+
+            updateUI() {
+                document.getElementById('hr-val').textContent = this.score.hrs;
+                document.getElementById('dist-val').textContent = this.score.bestDist + 'ft';
+                document.getElementById('outs-val').textContent = this.score.outs;
+            }
+
+            spawnParticles(x, y, color, count) {
+                for(let i=0; i<count; i++) {
+                    this.particles.push({ x, y, vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15, life: 1, color });
                 }
             }
 
-            pitch() {
-                this.ball.x = 500;
-                this.ball.y = 350;
-                this.ball.vx = (Math.random() - 0.5) * 2;
-                this.ball.active = true;
-                this.state = 'pitch-incoming';
-            }
-
-            endGame() {
-                this.isGameOver = true;
-                const overlay = document.getElementById('overlay');
-                overlay.style.display = 'flex';
-                document.getElementById('final-msg').textContent = `FINAL SCORE: ${this.hrs} HOME RUNS`;
+            gameOver() {
+                this.state = 'menu';
+                document.getElementById('start-screen').style.display = 'flex';
+                document.getElementById('start-btn').textContent = "REPLAY DERBY";
+                document.getElementById('final-stats').textContent = `SCORE: ${this.score.hrs} HRs • LONG: ${this.score.bestDist}ft`;
             }
 
             draw() {
                 const ctx = this.ctx;
-                ctx.clearRect(0,0,this.width,this.height);
+                ctx.clearRect(0, 0, this.width, this.height);
 
-                // Field
-                ctx.fillStyle = '#d35400';
-                ctx.beginPath(); ctx.moveTo(500, 650); ctx.lineTo(200, 400); ctx.lineTo(800, 400); ctx.fill();
+                // Sky
+                ctx.fillStyle = '#818cf8'; ctx.fillRect(0, 0, this.width, 400);
+                this.clouds.forEach(c => {
+                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                    ctx.beginPath(); ctx.ellipse(c.x, c.y, c.w, c.w*0.4, 0, 0, Math.PI*2); ctx.fill();
+                });
+
+                // Grass & Outfield
+                ctx.fillStyle = '#2e7d32'; ctx.beginPath(); ctx.moveTo(0, 400); ctx.lineTo(1000, 400); ctx.lineTo(1000, 700); ctx.lineTo(0, 700); ctx.fill();
                 
+                // Diamond
+                ctx.fillStyle = '#8d6e63';
+                ctx.beginPath(); ctx.moveTo(500, 680); ctx.lineTo(100, 400); ctx.lineTo(500, 300); ctx.lineTo(900, 400); ctx.closePath(); ctx.fill();
+                
+                // Outfield Wall
+                ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 10;
+                ctx.beginPath(); ctx.arc(500, 400, 600, Math.PI, Math.PI*2); ctx.stroke();
+
                 // Plate
-                ctx.fillStyle = 'white';
-                ctx.fillRect(485, 640, 30, 10);
+                ctx.fillStyle = '#fff'; ctx.fillRect(480, 660, 40, 10);
 
                 // Pitcher
-                ctx.fillStyle = '#2980b9';
-                ctx.fillRect(485, 330, 30, 40);
-                ctx.beginPath(); ctx.arc(500, 320, 12, 0, Math.PI*2); ctx.fill();
+                ctx.font = '60px Arial';
+                ctx.fillText('👤', 475, 380);
 
-                // Batter
-                ctx.fillStyle = '#c0392b';
-                ctx.fillRect(420, 600, 30, 50);
-                ctx.beginPath(); ctx.arc(435, 590, 12, 0, Math.PI*2); ctx.fill();
+                // Particles
+                this.particles.forEach(p => {
+                    ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha = 1;
 
                 // Ball
-                if(this.ball.active) {
-                    ctx.fillStyle = 'white';
-                    ctx.shadowBlur = 10; ctx.shadowColor = 'white';
-                    ctx.beginPath(); ctx.arc(this.ball.x, this.ball.y, this.ball.r, 0, Math.PI*2); ctx.fill();
-                    ctx.shadowBlur = 0;
+                if (this.ball.active) {
+                    const scale = 1 + (this.ball.y / 700);
+                    ctx.save();
+                    ctx.shadowBlur = 10; ctx.shadowColor = '#fff';
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath(); ctx.arc(this.ball.x, this.ball.y, 8 * scale, 0, Math.PI*2); ctx.fill();
+                    ctx.restore();
                 }
+
+                // Batter & Bat
+                ctx.save();
+                ctx.translate(this.batter.x, this.batter.y);
+                ctx.font = '80px Arial'; ctx.fillText('👤', -40, 40);
+                
+                // Bat
+                ctx.translate(30, 0);
+                ctx.rotate(this.bat.angle);
+                ctx.fillStyle = '#b45309';
+                ctx.beginPath(); ctx.roundRect(0, -10, 80, 12, 5); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+                ctx.restore();
             }
 
             loop() {
@@ -298,11 +387,7 @@
             }
         }
 
-        let game = new Derby();
-        function startGame() {
-            document.getElementById('overlay').style.display = 'none';
-            game.reset();
-        }
+        const game = new Derby();
     </script>
 </body>
 </html>

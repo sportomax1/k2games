@@ -2,141 +2,464 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Four Square Playground</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>K2 Four Square: Pro Court - K2 games</title>
     <style>
-        body { margin: 0; background: #333; color: white; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        canvas { background: #555; border: 10px solid #444; border-radius: 5px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); cursor: none; }
-        #ui { position: absolute; top: 20px; text-align: center; }
-        .back { position: absolute; bottom: 20px; left: 20px; color: #ffeb3b; text-decoration: none; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 8px; font-weight: bold; }
-        .label { position: absolute; font-weight: 900; font-size: 2rem; opacity: 0.3; color: white; pointer-events: none; }
+        :root {
+            --bg: #0f172a;
+            --court: #1e293b;
+            --primary: #3b82f6;
+            --accent: #fbbf24;
+            --danger: #ef4444;
+            --glass: rgba(15, 23, 42, 0.85);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: #fff; letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #1e293b 0%, #020617 100%);
+        }
+
+        canvas {
+            background: var(--court);
+            box-shadow: 0 50px 100px rgba(0,0,0,0.8);
+            border-radius: 10px;
+            max-width: 95vw;
+            max-height: 80vh;
+            cursor: none;
+        }
+
+        /* HUD Layer */
+        #hud {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 30px;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .stat-card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+            min-width: 120px;
+        }
+
+        .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+
+        #event-banner {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 4rem;
+            font-weight: 900;
+            color: var(--accent);
+            text-shadow: 0 0 30px rgba(0,0,0,0.8);
+            display: none;
+            z-index: 150;
+            pointer-events: none;
+            font-style: italic;
+            text-align: center;
+        }
+
+        #controls-hint {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.4);
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .screen-overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--primary); color: white; border: none; padding: 1rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.2rem; box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            #event-banner { font-size: 2.5rem; }
+        }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <h1>FOUR SQUARE</h1>
-        <p>Move mouse to intercept the ball • Click to hit!</p>
+    <nav>
+        <div class="logo">K2 FOUR SQUARE</div>
+        <a href="index.html" class="back-link">← EXIT HUB</a>
+    </nav>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="hud">
+            <div class="stat-card">
+                <div class="stat-label">Your Rank</div>
+                <div id="rank-val" class="stat-val">DUNCE</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Score</div>
+                <div id="score-val" class="stat-val">0</div>
+            </div>
+        </div>
+
+        <div id="event-banner">OUT!</div>
+
+        <div id="controls-hint">MOVE MOUSE/TOUCH TO INTERCEPT THE BALL</div>
+
+        <div id="start-screen" class="screen-overlay">
+            <h1 style="font-size: 3rem; font-style: italic; color: var(--accent);">PRO FOUR SQUARE</h1>
+            <p style="opacity: 0.7; margin-top: 10px;">Defend your square. Rank up from Dunce to Ace!</p>
+            <button class="btn-large" onclick="game.start()">ENTER COURT</button>
+        </div>
     </div>
 
-    <div class="label" style="top: 25%; left: 25%;">1</div>
-    <div class="label" style="top: 25%; left: 75%;">2</div>
-    <div class="label" style="top: 75%; left: 25%;">3</div>
-    <div class="label" style="top: 75%; left: 75%;">4</div>
-
-    <canvas id="game"></canvas>
-    <a href="index.html" class="back">← HUB</a>
-
     <script>
-        const canvas = document.getElementById('game');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 600; canvas.height = 600;
+        const RANKS = ['DUNCE', 'JACK', 'QUEEN', 'KING', 'ACE'];
+        const EMOJIS = ['🤡', '🃏', '👸', '🤴', '🏆'];
 
-        // Game State
-        let ball = { x: 300, y: 300, z: 0, vx: 3, vy: 3, vz: 5, shadowR: 15 };
-        let player = { x: 0, y: 0 };
-        let squares = [
-            { id: 1, x: 0, y: 0, w: 300, h: 300, name: 'KING' },
-            { id: 2, x: 300, y: 0, w: 300, h: 300, name: 'QUEEN' },
-            { id: 3, x: 0, y: 300, w: 300, h: 300, name: 'JACK' },
-            { id: 4, x: 300, y: 300, w: 300, h: 300, name: 'YOU' }
-        ];
+        class FourSquare {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 600;
+                this.height = 600;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
 
-        function update() {
-            // Ball Physics
-            ball.x += ball.vx;
-            ball.y += ball.vy;
-            ball.z += ball.vz;
-            ball.vz -= 0.2; // Gravity
-
-            // Bounce on Ground
-            if (ball.z < 0) {
-                ball.z = 0;
-                ball.vz = 4 + Math.random() * 2;
+                this.playing = false;
+                this.score = 0;
+                this.myRankIdx = 0; // Starts as Dunce
                 
-                // Which square did it land in?
-                const sq = squares.find(s => ball.x > s.x && ball.x < s.x + s.w && ball.y > s.y && ball.y < s.y + s.h);
-                if (!sq) {
-                    // Out of bounds reset
-                    ball.x = 300; ball.y = 300; ball.vx = 3; ball.vy = 3;
-                }
+                this.ball = { 
+                    x: 300, y: 300, z: 0, 
+                    vx: 2, vy: 2, vz: 8, 
+                    r: 12, shadowR: 15,
+                    lastSquare: -1,
+                    bouncesInSquare: 0
+                };
+
+                this.squares = [
+                    { id: 0, x: 0, y: 0, w: 300, h: 300, name: 'ACE', emoji: '🏆', ai: true },
+                    { id: 1, x: 300, y: 0, w: 300, h: 300, name: 'KING', emoji: '🤴', ai: true },
+                    { id: 2, x: 0, y: 300, w: 300, h: 300, name: 'QUEEN', emoji: '👸', ai: true },
+                    { id: 3, x: 300, y: 300, w: 300, h: 300, name: 'YOU', emoji: '🤡', ai: false }
+                ];
+
+                this.characters = this.squares.map(sq => ({
+                    sqId: sq.id,
+                    x: sq.x + 150,
+                    y: sq.y + 150,
+                    targetX: sq.x + 150,
+                    targetY: sq.y + 150,
+                    anim: 0
+                }));
+
+                this.mouse = { x: 450, y: 450 };
+                this.particles = [];
+                
+                this.setupInputs();
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
             }
 
-            // Wall Collisions
-            if (ball.x < 0 || ball.x > 600) ball.vx *= -1;
-            if (ball.y < 0 || ball.y > 600) ball.vy *= -1;
+            setupInputs() {
+                const getPos = (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const t = e.touches ? e.touches[0] : e;
+                    return {
+                        x: (t.clientX - rect.left) * (this.width / rect.width),
+                        y: (t.clientY - rect.top) * (this.height / rect.height)
+                    };
+                };
 
-            // Player Interaction
-            const distToPlayer = Math.hypot(ball.x - player.x, ball.y - player.y);
-            if (distToPlayer < 40 && ball.z < 20 && ball.z > 0) {
-                // Player hits ball!
-                ball.vz = 6;
-                // Hit towards a random opponent square
-                const target = squares[Math.floor(Math.random() * 3)];
-                ball.vx = (target.x + 150 - ball.x) * 0.05;
-                ball.vy = (target.y + 150 - ball.y) * 0.05;
+                const updatePos = (e) => {
+                    const pos = getPos(e);
+                    this.mouse.x = pos.x;
+                    this.mouse.y = pos.y;
+                };
+
+                this.canvas.addEventListener('mousemove', updatePos);
+                this.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); updatePos(e); }, {passive: false});
+                this.canvas.addEventListener('touchmove', (e) => { e.preventDefault(); updatePos(e); }, {passive: false});
             }
 
-            // AI Interaction (Squares 1, 2, 3)
-            squares.slice(0, 3).forEach(sq => {
-                const distToBall = Math.hypot(ball.x - (sq.x + 150), ball.y - (sq.y + 150));
-                if (ball.x > sq.x && ball.x < sq.x + sq.w && ball.y > sq.y && ball.y < sq.y + sq.h) {
-                    if (ball.z < 15 && ball.vz < 0) {
-                        // AI hit back
-                        ball.vz = 5 + Math.random() * 2;
-                        const targets = [1, 2, 3, 4].filter(id => id !== sq.id);
-                        const targetId = targets[Math.floor(Math.random() * 3)];
-                        const tSq = squares.find(s => s.id === targetId);
-                        ball.vx = (tSq.x + 150 - ball.x) * 0.04;
-                        ball.vy = (tSq.y + 150 - ball.y) * 0.04;
+            start() {
+                this.playing = true;
+                this.score = 0;
+                this.myRankIdx = 0;
+                this.resetBall();
+                document.getElementById('start-screen').style.display = 'none';
+                this.updateUI();
+            }
+
+            resetBall() {
+                this.ball.x = 300;
+                this.ball.y = 300;
+                this.ball.z = 100;
+                this.ball.vx = (Math.random() - 0.5) * 4;
+                this.ball.vy = (Math.random() - 0.5) * 4;
+                this.ball.vz = 0;
+                this.ball.lastSquare = -1;
+                this.ball.bouncesInSquare = 0;
+            }
+
+            triggerOut(sqId) {
+                this.playing = false;
+                const banner = document.getElementById('event-banner');
+                const sq = this.squares.find(s => s.id === sqId);
+                
+                banner.textContent = `${sq.name} IS OUT!`;
+                banner.style.display = 'block';
+                banner.style.color = sq.ai ? 'var(--accent)' : 'var(--danger)';
+
+                // Rank up/down logic
+                if (sqId === 3) {
+                    // You are out, drop to Dunce
+                    this.myRankIdx = 0;
+                } else {
+                    // Someone else out, you rank up if you were below them
+                    if (this.myRankIdx < 4) {
+                        this.myRankIdx++;
+                        this.score += 100;
                     }
                 }
-            });
+
+                setTimeout(() => {
+                    banner.style.display = 'none';
+                    this.resetRound();
+                }, 2000);
+            }
+
+            resetRound() {
+                this.playing = true;
+                this.resetBall();
+                this.updateUI();
+            }
+
+            updateUI() {
+                document.getElementById('rank-val').textContent = RANKS[this.myRankIdx];
+                document.getElementById('score-val').textContent = this.score;
+                // Update player emoji
+                this.squares[3].emoji = EMOJIS[this.myRankIdx];
+                this.squares[3].name = RANKS[this.myRankIdx];
+            }
+
+            update() {
+                if (!this.playing) return;
+
+                // Ball Physics
+                this.ball.x += this.ball.vx;
+                this.ball.y += this.ball.vy;
+                this.ball.z += this.ball.vz;
+                this.ball.vz -= 0.25; // Gravity
+
+                // Wall Collisions
+                if (this.ball.x < 0 || this.ball.x > 600) { this.ball.vx *= -0.8; this.ball.x = Math.max(0, Math.min(600, this.ball.x)); }
+                if (this.ball.y < 0 || this.ball.y > 600) { this.ball.vy *= -0.8; this.ball.y = Math.max(0, Math.min(600, this.ball.y)); }
+
+                // Ground Bounce
+                if (this.ball.z < 0) {
+                    this.ball.z = 0;
+                    this.ball.vz *= -0.7; // Bounce dampening
+                    this.spawnParticles(this.ball.x, this.ball.y, '#fff', 5);
+
+                    // Determine current square
+                    const col = this.ball.x < 300 ? 0 : 1;
+                    const row = this.ball.y < 300 ? 0 : 1;
+                    const sqIdx = row * 2 + col;
+
+                    if (this.ball.lastSquare === sqIdx) {
+                        this.ball.bouncesInSquare++;
+                        if (this.ball.bouncesInSquare >= 2) {
+                            this.triggerOut(sqIdx);
+                        }
+                    } else {
+                        this.ball.lastSquare = sqIdx;
+                        this.ball.bouncesInSquare = 1;
+                    }
+                }
+
+                // AI Character Movement & Interaction
+                this.characters.forEach((char, i) => {
+                    const sq = this.squares[i];
+                    if (sq.ai) {
+                        // AI follows the ball if it's in their quadrant
+                        if (this.ball.x > sq.x && this.ball.x < sq.x + sq.w && this.ball.y > sq.y && this.ball.y < sq.y + sq.h) {
+                            char.targetX = this.ball.x;
+                            char.targetY = this.ball.y;
+                        } else {
+                            // Go back to center of square
+                            char.targetX = sq.x + 150;
+                            char.targetY = sq.y + 150;
+                        }
+                    } else {
+                        // Player follows mouse
+                        char.targetX = Math.max(sq.x, Math.min(sq.x + sq.w, this.mouse.x));
+                        char.targetY = Math.max(sq.y, Math.min(sq.y + sq.h, this.mouse.y));
+                    }
+
+                    // Smooth move
+                    char.x += (char.targetX - char.x) * 0.15;
+                    char.y += (char.targetY - char.y) * 0.15;
+                    char.anim += 0.1;
+
+                    // Interaction with ball
+                    const dist = Math.hypot(this.ball.x - char.x, this.ball.y - char.y);
+                    if (dist < 40 && this.ball.z < 30 && this.ball.vz < 0) {
+                        // HIT!
+                        this.ball.vz = 6 + Math.random() * 2;
+                        
+                        // Pick a target square (not own)
+                        const others = this.squares.filter(s => s.id !== sq.id);
+                        const targetSq = others[Math.floor(Math.random() * others.length)];
+                        
+                        const targetX = targetSq.x + 150 + (Math.random() - 0.5) * 100;
+                        const targetY = targetSq.y + 150 + (Math.random() - 0.5) * 100;
+                        
+                        this.ball.vx = (targetX - this.ball.x) * 0.03;
+                        this.ball.vy = (targetY - this.ball.y) * 0.03;
+                        
+                        this.spawnParticles(char.x, char.y, 'var(--accent)', 10);
+                        if (!sq.ai) this.score += 10;
+                    }
+                });
+
+                // Particles
+                this.particles.forEach((p, i) => {
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                });
+            }
+
+            spawnParticles(x, y, color, count) {
+                for(let i=0; i<count; i++) {
+                    this.particles.push({
+                        x, y, 
+                        vx: (Math.random()-0.5)*10, 
+                        vy: (Math.random()-0.5)*10, 
+                        life: 1, 
+                        color 
+                    });
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Draw Court Lines
+                ctx.strokeStyle = "rgba(255,255,255,0.2)";
+                ctx.lineWidth = 4;
+                ctx.strokeRect(5, 5, 590, 590);
+                ctx.beginPath(); ctx.moveTo(300, 0); ctx.lineTo(300, 600); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, 300); ctx.lineTo(600, 300); ctx.stroke();
+
+                // Draw Characters
+                this.characters.forEach((char, i) => {
+                    const sq = this.squares[i];
+                    ctx.save();
+                    ctx.translate(char.x, char.y);
+                    const bob = Math.sin(char.anim) * 5;
+                    
+                    // Label
+                    ctx.fillStyle = "rgba(255,255,255,0.3)";
+                    ctx.font = "bold 10px Segoe UI";
+                    ctx.textAlign = "center";
+                    ctx.fillText(sq.name, 0, 40);
+
+                    // Shadow
+                    ctx.fillStyle = "rgba(0,0,0,0.2)";
+                    ctx.beginPath(); ctx.ellipse(0, 25, 20, 10, 0, 0, Math.PI*2); ctx.fill();
+
+                    // Emoji Body
+                    ctx.font = "40px Arial";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(sq.emoji, 0, bob);
+                    ctx.restore();
+                });
+
+                // Ball Shadow
+                ctx.fillStyle = "rgba(0,0,0,0.3)";
+                ctx.beginPath();
+                ctx.ellipse(this.ball.x, this.ball.y, this.ball.shadowR + this.ball.z/10, (this.ball.shadowR + this.ball.z/10)/2, 0, 0, Math.PI*2);
+                ctx.fill();
+
+                // Ball
+                ctx.save();
+                ctx.translate(this.ball.x, this.ball.y - this.ball.z);
+                const ballGrad = ctx.createRadialGradient(-5, -5, 2, 0, 0, this.ball.r);
+                ballGrad.addColorStop(0, '#ff9e80');
+                ballGrad.addColorStop(1, '#ff5722');
+                ctx.fillStyle = ballGrad;
+                ctx.beginPath(); ctx.arc(0, 0, this.ball.r + this.ball.z/20, 0, Math.PI*2); ctx.fill();
+                ctx.restore();
+
+                // Particles
+                this.particles.forEach(p => {
+                    ctx.globalAlpha = p.life;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(this.loop);
+            }
         }
 
-        function draw() {
-            ctx.clearRect(0, 0, 600, 600);
-
-            // Draw Court
-            ctx.strokeStyle = "white";
-            ctx.lineWidth = 5;
-            ctx.strokeRect(0, 0, 600, 600);
-            ctx.beginPath(); ctx.moveTo(300, 0); ctx.lineTo(300, 600); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, 300); ctx.lineTo(600, 300); ctx.stroke();
-
-            // Ball Shadow
-            ctx.fillStyle = "rgba(0,0,0,0.3)";
-            ctx.beginPath();
-            ctx.ellipse(ball.x, ball.y, ball.shadowR, ball.shadowR/2, 0, 0, Math.PI*2);
-            ctx.fill();
-
-            // Ball
-            ctx.fillStyle = "#ff5722";
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y - ball.z, 15 + ball.z/10, 0, Math.PI*2);
-            ctx.fill();
-            ctx.strokeStyle = "rgba(0,0,0,0.2)";
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Player Hand / Marker
-            ctx.fillStyle = "#ffeb3b";
-            ctx.beginPath();
-            ctx.arc(player.x, player.y, 10, 0, Math.PI*2);
-            ctx.fill();
-            ctx.strokeStyle = "white";
-            ctx.stroke();
-
-            update();
-            requestAnimationFrame(draw);
-        }
-
-        window.onmousemove = (e) => {
-            const rect = canvas.getBoundingClientRect();
-            player.x = e.clientX - rect.left;
-            player.y = e.clientY - rect.top;
-        };
-
-        draw();
+        const game = new FourSquare();
     </script>
 </body>
 </html>

@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Slalom Waterski</title>
+    <style>
+        :root {
+            --ui-font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --primary: #00d2ff;
+            --secondary: #3a7bd5;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: var(--ui-font);
+            color: white;
+            user-select: none;
+        }
+
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+            backdrop-filter: blur(5px);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.8;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .instructions {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 15px 30px;
+            border-radius: 50px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: opacity 0.5s;
+        }
+
+        .key {
+            display: inline-block;
+            padding: 5px 10px;
+            border: 1px solid white;
+            border-radius: 4px;
+            margin: 0 5px;
+            font-size: 14px;
+        }
+
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            pointer-events: auto;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        button {
+            padding: 15px 40px;
+            font-size: 20px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+            font-family: var(--ui-font);
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            background: var(--secondary);
+        }
+
+        #game-over {
+            display: none;
+            color: #ff4b2b;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui-overlay">
+        <div class="hud-top">
+            <div class="stat-box">
+                <div class="stat-label">Score</div>
+                <div class="stat-value" id="score-val">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">High Score</div>
+                <div class="stat-value" id="high-score-val">0</div>
+            </div>
+        </div>
+
+        <div class="instructions" id="controls-hint">
+            Use <span class="key">←</span> <span class="key">→</span> or <span class="key">A</span> <span class="key">D</span> to Carve
+        </div>
+    </div>
+
+    <div id="start-screen">
+        <h1>PRO SLALOM</h1>
+        <p>Go around the buoys! Stay inside the gates.</p>
+        <div id="game-over">
+            <h2 id="fail-reason">WIPEOUT!</h2>
+            <p>Final Score: <span id="final-score">0</span></p>
+        </div>
+        <button id="start-btn">START GAME</button>
+    </div>
+
+    <div id="game-container"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { Sky } from 'three/addons/objects/Sky.js';
+
+        // --- Game Config (Official Metrics) ---
+        // 1 unit = 1 meter
+        const CONFIG = {
+            boatSpeed: 0.6, // m/frame (approx 36mph / 60fps scaled)
+            skierLatAccel: 0.025,
+            skierFriction: 0.96,
+            ropeLength: 23, // slightly longer than standard 18.25m to make game forgiving
+            
+            // Course Dimensions
+            gateWidth: 2.5,
+            buoyWidth: 11.5,
+            entranceGap: 27,
+            buoySpacing: 41,
+            preStartDistance: 200 // Time to get ready
+        };
+
+        // --- State ---
+        let scene, camera, renderer, sky, sun;
+        let skier, boat, rope, water;
+        let courseObjects = [];
+        let particles = [];
+        let score = 0;
+        let highScore = localStorage.getItem('slalom_high_score') || 0;
+        let gameActive = false;
+        let keys = { left: false, right: false };
+        let skierVelX = 0;
+        let courseProgressZ = 0; // Distance travelled
+        
+        // Materials
+        const mats = {
+            redBuoy: new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.2 }),
+            yellowBuoy: new THREE.MeshStandardMaterial({ color: 0xffcc00, roughness: 0.2 }),
+            greenBuoy: new THREE.MeshStandardMaterial({ color: 0x00ff00, roughness: 0.2 }),
+            whiteHull: new THREE.MeshStandardMaterial({ color: 0xffffff }),
+            rope: new THREE.LineBasicMaterial({ color: 0xffffff })
+        };
+
+        // --- Init ---
+        function init() {
+            scene = new THREE.Scene();
+            
+            // Camera setup for chase view
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 2000);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.shadowMap.enabled = true;
+            document.getElementById('game-container').appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+
+            // Sun & Sky
+            initSky();
+
+            // Water
+            const waterGeo = new THREE.PlaneGeometry(2000, 2000);
+            const waterMat = new THREE.MeshStandardMaterial({
+                color: 0x005580,
+                roughness: 0.2,
+                metalness: 0.1,
+                transparent: true,
+                opacity: 0.9
+            });
+            water = new THREE.Mesh(waterGeo, waterMat);
+            water.rotation.x = -Math.PI / 2;
+            water.receiveShadow = true;
+            scene.add(water);
+
+            // Objects
+            createBoat();
+            createSkier();
+            createRope();
+            
+            // Initial Course Generation
+            resetGameLogic();
+
+            // HUD
+            document.getElementById('high-score-val').innerText = highScore;
+
+            // Events
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('keydown', (e) => handleKey(e.code, true));
+            window.addEventListener('keyup', (e) => handleKey(e.code, false));
+            document.getElementById('start-btn').addEventListener('click', startGame);
+
+            animate();
+        }
+
+        function initSky() {
+            sky = new Sky();
+            sky.scale.setScalar(450000);
+            scene.add(sky);
+
+            sun = new THREE.Vector3();
+            const uniforms = sky.material.uniforms;
+            uniforms['turbidity'].value = 10;
+            uniforms['rayleigh'].value = 2;
+            uniforms['mieCoefficient'].value = 0.005;
+            uniforms['mieDirectionalG'].value = 0.8;
+
+            const phi = THREE.MathUtils.degToRad(90 - 2); // Elevation
+            const theta = THREE.MathUtils.degToRad(180); // Azimuth
+            sun.setFromSphericalCoords(1, phi, theta);
+            uniforms['sunPosition'].value.copy(sun);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            dirLight.position.copy(sun).multiplyScalar(100);
+            dirLight.castShadow = true;
+            dirLight.shadow.camera.top = 50;
+            dirLight.shadow.camera.bottom = -50;
+            dirLight.shadow.camera.left = -50;
+            dirLight.shadow.camera.right = 50;
+            scene.add(dirLight);
+        }
+
+        function createBoat() {
+            const group = new THREE.Group();
+            // Simple boat shape
+            const hull = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 6), mats.whiteHull);
+            hull.position.y = 0.3;
+            hull.castShadow = true;
+            group.add(hull);
+            
+            const windshield = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 0.4, 0.1), 
+                new THREE.MeshStandardMaterial({color: 0x88ccff, transparent:true, opacity:0.6})
+            );
+            windshield.position.set(0, 0.9, 0.5);
+            windshield.rotation.x = -0.5;
+            group.add(windshield);
+
+            boat = group;
+            boat.position.set(0, 0, 0);
+            scene.add(boat);
+        }
+
+        function createSkier() {
+            const group = new THREE.Group();
+            
+            // Skier is simple geometry
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffff00 });
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.8, 0.3), bodyMat);
+            torso.position.y = 1.0;
+            torso.castShadow = true;
+            group.add(torso);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.25), new THREE.MeshStandardMaterial({ color: 0xffccaa }));
+            head.position.y = 1.6;
+            group.add(head);
+            
+            // Skis
+            const skiGeo = new THREE.BoxGeometry(0.15, 0.05, 1.8);
+            const skiMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            const skiL = new THREE.Mesh(skiGeo, skiMat);
+            const skiR = new THREE.Mesh(skiGeo, skiMat);
+            skiL.position.set(-0.25, 0.05, 0);
+            skiR.position.set(0.25, 0.05, 0);
+            group.add(skiL, skiR);
+
+            skier = group;
+            // Start position behind boat (Positive Z in our chase camera setup)
+            skier.position.set(0, 0, CONFIG.ropeLength);
+            scene.add(skier);
+        }
+
+        function createRope() {
+            // Rope from Boat (0,0,0) to Skier (+Z)
+            const mat = new THREE.LineBasicMaterial({ color: 0xffffff });
+            const points = [new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, 1, CONFIG.ropeLength)];
+            const geo = new THREE.BufferGeometry().setFromPoints(points);
+            rope = new THREE.Line(geo, mat);
+            rope.frustumCulled = false;
+            scene.add(rope);
+        }
+
+        // --- Course Generation Logic ---
+
+        class CourseObject {
+            constructor(type, x, z, side = 0) {
+                this.type = type; // 'gate', 'buoy', 'boat_guide'
+                this.initialZ = z; // relative to start of run
+                this.x = x;
+                this.z = z;
+                this.side = side; // -1 left, 1 right, 0 center
+                this.passed = false;
+                this.mesh = this.createMesh();
+                this.mesh.position.set(x, 0, z); // Initial placement far away
+                scene.add(this.mesh);
+            }
+
+            createMesh() {
+                let geo, mat;
+                if (this.type === 'buoy') {
+                    // Turn buoy: Large Red Sphere
+                    geo = new THREE.SphereGeometry(0.4, 16, 16);
+                    mat = mats.redBuoy;
+                } else if (this.type === 'gate') {
+                    // Gate: Green Cylinder
+                    geo = new THREE.CylinderGeometry(0.15, 0.15, 0.5);
+                    mat = mats.greenBuoy; 
+                } else {
+                    // Boat Guide: Small Yellow Cylinder
+                    geo = new THREE.CylinderGeometry(0.08, 0.08, 0.3); // Smaller
+                    mat = mats.yellowBuoy;
+                }
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.castShadow = true;
+                return mesh;
+            }
+
+            destroy() {
+                scene.remove(this.mesh);
+                this.mesh.geometry.dispose();
+            }
+        }
+
+        function generateCourseSegment(startZ) {
+            let currentZ = startZ;
+
+            // Course Generation Direction: Objects approach from negative Z.
+            
+            // 1. Entrance Gate (Centered)
+            addGate(currentZ);
+            addBoatGuides(currentZ);
+            
+            // 2. The 6 Turn Buoys
+            // Buoy 1 (Right) - 27m AFTER gate
+            currentZ -= CONFIG.entranceGap;
+            addTurnBuoy(1, currentZ); // 1 = Right
+            addBoatGuides(currentZ);
+
+            // Buoys 2-6
+            for (let i = 2; i <= 6; i++) {
+                currentZ -= CONFIG.buoySpacing;
+                // Odd (1, 3, 5) = Right (1)
+                // Even (2, 4, 6) = Left (-1)
+                const side = (i % 2 !== 0) ? 1 : -1;
+                addTurnBuoy(side, currentZ);
+                addBoatGuides(currentZ);
+            }
+
+            // 3. Exit Gate (Centered)
+            currentZ -= CONFIG.entranceGap;
+            addGate(currentZ);
+            addBoatGuides(currentZ);
+
+            return currentZ; 
+        }
+
+        function checkPass(obj) {
+            if (obj.type === 'boat_guide') return; // Ignore guides
+
+            const skierX = skier.position.x;
+
+            if (obj.type === 'gate') {
+                // Must be INSIDE (-2.0 to 2.0 approx)
+                if (Math.abs(skierX) <= 2.0) {
+                     score += 5;
+                     document.getElementById('score-val').innerText = score;
+                } else {
+                    // Missed gate - just no score
+                    showFloatText("MISS", "#ff0000");
+                }
+            } else if (obj.type === 'buoy') {
+                // Must be OUTSIDE
+                let success = false;
+                if (obj.side === -1) { // Left Buoy
+                    if (skierX < obj.x) success = true; // Passed on left
+                } else { // Right Buoy
+                    if (skierX > obj.x) success = true; // Passed on right
+                }
+
+                if (success) {
+                    score += 100;
+                    document.getElementById('score-val').innerText = score;
+                    showFloatText("NICE!", "#00ff00");
+                } else {
+                    showFloatText("MISS", "#ff0000");
+                }
+            }
+        }
+
+        function showFloatText(text, color) {
+            const el = document.createElement('div');
+            el.innerText = text;
+            el.style.position = 'absolute';
+            el.style.color = color;
+            el.style.fontWeight = 'bold';
+            el.style.left = '50%';
+            el.style.top = '30%';
+            el.style.fontSize = '40px';
+            el.style.textShadow = '0 0 10px black';
+            el.style.transform = 'translateX(-50%)';
+            el.style.transition = 'all 1s';
+            el.style.pointerEvents = 'none';
+            document.body.appendChild(el);
+            
+            // Animate
+            requestAnimationFrame(() => {
+                el.style.top = '20%';
+                el.style.opacity = '0';
+            });
+            
+            setTimeout(() => el.remove(), 1000);
+        }
+
+        function addGate(z) {
+            courseObjects.push(new CourseObject('gate', -CONFIG.gateWidth/2, z));
+            courseObjects.push(new CourseObject('gate', CONFIG.gateWidth/2, z));
+        }
+
+        function addTurnBuoy(side, z) {
+            const x = side * CONFIG.buoyWidth;
+            courseObjects.push(new CourseObject('buoy', x, z, side));
+        }
+
+        function addBoatGuides(z) {
+            courseObjects.push(new CourseObject('boat_guide', -1.0, z)); // Slightly narrower for guides
+            courseObjects.push(new CourseObject('boat_guide', 1.0, z));
+        }
+
+        function resetGameLogic() {
+            courseObjects.forEach(o => o.destroy());
+            courseObjects = [];
+            
+            courseProgressZ = 0;
+            score = 0;
+            skierVelX = 0;
+            
+            // Skier Position Logic:
+            // Skier is at +CONFIG.ropeLength (23).
+            // Objects spawn at -Z and move +Z.
+            // To give "Ample Time", start the first gate far negative.
+            
+            let nextStart = -CONFIG.preStartDistance; // e.g., -200
+            
+            // Generate multiple laps extending into the distance (more negative)
+            for(let i=0; i<5; i++) {
+                nextStart = generateCourseSegment(nextStart);
+                nextStart -= 100; // 100m gap between courses
+            }
+            
+            updateCourseObjectPositions();
+        }
+        
+        function updateCourseObjectPositions() {
+            // Objects are static in "Course Space".
+            // We just add courseProgressZ to their Z.
+            courseObjects.forEach(obj => {
+                obj.mesh.position.z = obj.initialZ + courseProgressZ;
+            });
+        }
+
+        // --- Game Loop ---
+
+        function handleKey(code, isPressed) {
+            if (code === 'ArrowLeft' || code === 'KeyA') keys.left = isPressed;
+            if (code === 'ArrowRight' || code === 'KeyD') keys.right = isPressed;
+        }
+
+        function startGame() {
+            resetGameLogic();
+            gameActive = true;
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('score-val').innerText = '0';
+            document.getElementById('controls-hint').style.opacity = '1';
+        }
+
+        function gameOver(reason) {
+            gameActive = false;
+            document.getElementById('start-screen').style.display = 'flex';
+            document.getElementById('game-over').style.display = 'block';
+            document.getElementById('fail-reason').innerText = reason;
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('start-btn').innerText = 'TRY AGAIN';
+            
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('slalom_high_score', highScore);
+                document.getElementById('high-score-val').innerText = highScore;
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = Date.now() * 0.001;
+
+            if (gameActive) {
+                // --- Physics ---
+                let steer = 0;
+                if (keys.left) steer -= 1;
+                if (keys.right) steer += 1;
+
+                // Acceleration
+                skierVelX += steer * CONFIG.skierLatAccel;
+                
+                // Rope Tension / Centering Force
+                // The further out, the harder it is to go further
+                const pullBack = -(skier.position.x * 0.005);
+                skierVelX += pullBack;
+                
+                // Friction
+                skierVelX *= CONFIG.skierFriction;
+
+                skier.position.x += skierVelX;
+                
+                // Skier Lean Visuals
+                skier.rotation.z = -skierVelX * 3; // Bank
+                skier.rotation.y = -skierVelX * 2; // Turn
+                
+                // Move World (Boat Speed)
+                courseProgressZ += CONFIG.boatSpeed;
+                
+                // --- Logic & Collision ---
+                const skierZ = skier.position.z; // Constant +23
+                
+                courseObjects.forEach(obj => {
+                    // Update visual position
+                    const worldZ = obj.initialZ + courseProgressZ;
+                    obj.mesh.position.z = worldZ;
+                    
+                    // Passing Logic
+                    // Check if object just passed the skier
+                    // We use a small window or state check
+                    if (!obj.passed) {
+                        // Check if it's "abeam" the skier (crossing Z plane)
+                        // Give a small margin for frame skipping
+                        if (worldZ >= skierZ) {
+                            obj.passed = true;
+                            checkPass(obj);
+                        }
+                    }
+                });
+
+                // Update Rope
+                const positions = rope.geometry.attributes.position.array;
+                positions[0] = boat.position.x; // 0
+                positions[1] = 0.5;
+                positions[2] = 0; // Boat is at 0
+                positions[3] = skier.position.x;
+                positions[4] = 1.0;
+                positions[5] = skier.position.z;
+                rope.geometry.attributes.position.needsUpdate = true;
+
+                // Wake Particles
+                if (Math.random() > 0.5) {
+                    spawnWake(skier.position.x, skier.position.z);
+                }
+                
+                // Camera Chase
+                // Camera sits behind skier (+Z) and follows X slightly
+                camera.position.x = THREE.MathUtils.lerp(camera.position.x, skier.position.x * 0.3, 0.1);
+                camera.position.z = skier.position.z + 15;
+                camera.position.y = 6;
+                camera.lookAt(0, 2, skier.position.z - 20); // Look ahead of skier
+
+            } else {
+                // Idle Animation
+                const t = Date.now() * 0.0005;
+                camera.position.set(Math.sin(t)*20, 10, 30);
+                camera.lookAt(0,0,0);
+            }
+
+            // Water Animation
+            water.material.normalScale.set(1, 1); // If we had normal map... 
+            // Just pulse opacity for "shimmer" since we don't have textures loaded
+            water.material.opacity = 0.8 + Math.sin(time * 2) * 0.05;
+
+            // Particle Updates
+            updateParticles();
+
+            renderer.render(scene, camera);
+        }
+
+        function spawnWake(x, z) {
+            const p = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.5, 0.5),
+                new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, side: THREE.DoubleSide })
+            );
+            p.rotation.x = -Math.PI / 2;
+            p.position.set(x, 0.05, z);
+            scene.add(p);
+            particles.push({ mesh: p, life: 1.0 });
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.life -= 0.02;
+                p.mesh.scale.multiplyScalar(1.05); // Expand
+                p.mesh.material.opacity = p.life * 0.5;
+                if (p.life <= 0) {
+                    scene.remove(p.mesh);
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

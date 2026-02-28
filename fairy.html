@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fairy Charm: Master Edition - K2 games</title>
+    <style>
+        :root {
+            --bg: #fdf4ff;
+            --panel: rgba(255, 255, 255, 0.85);
+            --border: rgba(232, 121, 249, 0.3);
+            --p1: #3b82f6;
+            --p2: #ef4444;
+            --p3: #22c55e;
+            --p4: #eab308;
+            --harp: #fbbf24;
+            --clover: #22c55e;
+            --rainbow: #3b82f6;
+            --gold: #fbbf24;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: #4a044e;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(232, 121, 249, 0.1) 0%, transparent 25%),
+                radial-gradient(circle at 85% 85%, rgba(129, 140, 248, 0.1) 0%, transparent 25%);
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(12px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: #d946ef; letter-spacing: -0.5px; }
+        .back-link { color: #a21caf; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            padding: 10px;
+        }
+
+        /* Player Corners */
+        .player-corner {
+            position: absolute;
+            width: 150px;
+            padding: 12px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.7);
+            border: 2px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 50;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+
+        .p1-corner { top: 10px; left: 10px; border-left: 6px solid var(--p1); }
+        .p2-corner { top: 10px; right: 10px; border-right: 6px solid var(--p2); text-align: right; }
+        .p3-corner { bottom: 10px; left: 10px; border-left: 6px solid var(--p3); }
+        .p4-corner { bottom: 10px; right: 10px; border-right: 6px solid var(--p4); text-align: right; }
+
+        .score-bubble {
+            font-size: 1.2rem;
+            font-weight: 900;
+            color: #fff;
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center; justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .p1-corner .score-bubble { background: var(--p1); }
+        .p2-corner .score-bubble { background: var(--p2); }
+        .p3-corner .score-bubble { background: var(--p3); }
+        .p4-corner .score-bubble { background: var(--p4); }
+
+        .choice-btns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .choice-btn {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .choice-btn:active, .choice-btn.selected {
+            background: #d946ef;
+            color: white;
+            transform: scale(0.92);
+            border-color: #fff;
+        }
+        .choice-btn.disabled { opacity: 0.2; pointer-events: none; }
+
+        /* Central Table */
+        #table {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .card {
+            width: 150px;
+            height: 220px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 6px solid #fff;
+            position: relative;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+
+        .card.revealing { transform: rotateY(180deg); }
+        .card.revealed { transform: rotateY(180deg); transition: none; }
+
+        .card-face {
+            position: absolute;
+            inset: 0;
+            backface-visibility: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 14px;
+        }
+
+        .card-back {
+            background: linear-gradient(135deg, #f0abfc 0%, #818cf8 100%);
+            color: white;
+            font-size: 4rem;
+        }
+
+        .card-front {
+            transform: rotateY(180deg);
+            background: #fff;
+            transition: background 0.3s;
+        }
+
+        /* Suit-specific front styles */
+        .card.suit-harp .card-front { background: #fffcf0; border: 4px solid var(--harp); }
+        .card.suit-clover .card-front { background: #f0fdf4; border: 4px solid var(--clover); }
+        .card.suit-rainbow .card-front { background: #eef2ff; border: 4px solid var(--rainbow); }
+
+        .card-suit { font-size: 2rem; position: absolute; top: 12px; left: 12px; }
+        .card-value { font-size: 5.5rem; font-weight: 900; }
+        .card-fairy { font-size: 6.5rem; }
+        .star-badge { position: absolute; bottom: 15px; right: 15px; font-size: 1.5rem; filter: drop-shadow(0 0 5px var(--gold)); }
+
+        .suit-harp { color: var(--harp); }
+        .suit-clover { color: var(--clover); }
+        .suit-rainbow { color: var(--rainbow); }
+
+        #deck-info {
+            background: var(--panel);
+            padding: 6px 20px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            border: 1px solid var(--border);
+            letter-spacing: 1px;
+        }
+
+        #status-msg {
+            font-size: 1.2rem;
+            font-weight: 900;
+            text-align: center;
+            height: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #d946ef;
+        }
+
+        #win-overlay {
+            position: absolute; inset: 0;
+            background: rgba(253, 244, 255, 0.98);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: #d946ef; color: white; border: none; padding: 1.2rem 3.5rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.3rem; box-shadow: 0 10px 25px rgba(217, 70, 239, 0.3);
+        }
+
+        #fairy-tracker {
+            display: flex; gap: 15px; font-size: 2.2rem;
+        }
+        .fairy-dot { opacity: 0.1; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .fairy-dot.found { opacity: 1; transform: scale(1.3); filter: drop-shadow(0 0 10px var(--gold)); }
+
+        @media (max-width: 600px) {
+            .player-corner { width: 130px; padding: 8px; }
+            .choice-btn { font-size: 1rem; padding: 6px; }
+            .card { width: 120px; height: 180px; }
+            .card-value { font-size: 4rem; }
+            .card-fairy { font-size: 5rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">FAIRY CHARM</div>
+        <a href="index.html" class="back-link">← HUB</a>
+    </nav>
+
+    <div id="game-layout">
+        <!-- Player HUDs -->
+        <div id="p1-area" class="player-corner p1-corner">
+            <div style="display:flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 900; color: var(--p1);">P1</span>
+                <div id="p1-score" class="score-bubble">0</div>
+            </div>
+            <div class="choice-btns">
+                <button class="choice-btn" onclick="game.makeChoice(0, 'up')">👆</button>
+                <button class="choice-btn" onclick="game.makeChoice(0, 'down')">👇</button>
+                <button class="choice-btn" onclick="game.makeChoice(0, 'side')">🫲</button>
+                <button class="choice-btn" onclick="game.makeChoice(0, 'fairy')">✊</button>
+            </div>
+        </div>
+
+        <div id="p2-area" class="player-corner p2-corner">
+            <div style="display:flex; justify-content: space-between; align-items: center;">
+                <div id="p2-score" class="score-bubble">0</div>
+                <span style="font-weight: 900; color: var(--p2);">P2</span>
+            </div>
+            <div class="choice-btns">
+                <button class="choice-btn" onclick="game.makeChoice(1, 'up')">👆</button>
+                <button class="choice-btn" onclick="game.makeChoice(1, 'down')">👇</button>
+                <button class="choice-btn" onclick="game.makeChoice(1, 'side')">🫲</button>
+                <button class="choice-btn" onclick="game.makeChoice(1, 'fairy')">✊</button>
+            </div>
+        </div>
+
+        <div id="p3-area" class="player-corner p3-corner" style="display:none">
+            <div style="display:flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 900; color: var(--p3);">P3</span>
+                <div id="p3-score" class="score-bubble">0</div>
+            </div>
+            <div class="choice-btns">
+                <button class="choice-btn" onclick="game.makeChoice(2, 'up')">👆</button>
+                <button class="choice-btn" onclick="game.makeChoice(2, 'down')">👇</button>
+                <button class="choice-btn" onclick="game.makeChoice(2, 'side')">🫲</button>
+                <button class="choice-btn" onclick="game.makeChoice(2, 'fairy')">✊</button>
+            </div>
+        </div>
+
+        <div id="p4-area" class="player-corner p4-corner" style="display:none">
+            <div style="display:flex; justify-content: space-between; align-items: center;">
+                <div id="p4-score" class="score-bubble">0</div>
+                <span style="font-weight: 900; color: var(--p4);">P4</span>
+            </div>
+            <div class="choice-btns">
+                <button class="choice-btn" onclick="game.makeChoice(3, 'up')">👆</button>
+                <button class="choice-btn" onclick="game.makeChoice(3, 'down')">👇</button>
+                <button class="choice-btn" onclick="game.makeChoice(3, 'side')">🫲</button>
+                <button class="choice-btn" onclick="game.makeChoice(3, 'fairy')">✊</button>
+            </div>
+        </div>
+
+        <div id="table">
+            <div id="fairy-tracker">
+                <span class="fairy-dot">✨</span>
+                <span class="fairy-dot">✨</span>
+                <span class="fairy-dot">✨</span>
+            </div>
+            
+            <div id="status-msg">Guess the Next Card</div>
+
+            <div class="card revealed" id="current-card">
+                <div class="card-face card-back">✨</div>
+                <div class="card-face card-front" id="card-content">
+                    <span class="card-suit" id="card-suit">🪕</span>
+                    <span class="card-value" id="card-value">1</span>
+                    <span class="star-badge" id="card-star">⭐</span>
+                </div>
+            </div>
+
+            <div id="deck-info">DECK: 20</div>
+        </div>
+
+        <!-- Screens -->
+        <div id="start-screen" class="screen-overlay">
+            <h1 style="font-size: 4rem; font-style: italic; color: #d946ef; font-weight: 900;">FAIRY CHARM</h1>
+            <p style="opacity: 0.7; margin-top: 10px; max-width: 400px; font-size: 1.1rem;">Predict the next card's relation! Simultaneous local multiplayer.</p>
+            <div style="display:flex; gap:15px; margin-top: 30px; flex-wrap: wrap; justify-content: center;">
+                <button class="btn-large" onclick="game.init(2)" style="margin-top:0">2 PLAYERS</button>
+                <button class="btn-large" onclick="game.init(3)" style="margin-top:0; background: #818cf8;">3 PLAYERS</button>
+                <button class="btn-large" onclick="game.init(4)" style="margin-top:0; background: #22c55e;">4 PLAYERS</button>
+            </div>
+        </div>
+
+        <div id="win-screen" class="screen-overlay" style="display:none">
+            <h1 id="winner-text" style="font-size: 4rem; color: var(--gold); font-style: italic;">VICTORY!</h1>
+            <p id="final-stats" style="margin-top:10px; opacity:0.8; font-size: 1.2rem;"></p>
+            <button class="btn-large" onclick="location.reload()">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const SUITS = [
+            { id: 'harp', name: 'Yellow Harp', emoji: '🪕', color: '#fbbf24', range: [1, 7], fairy: 4 },
+            { id: 'clover', name: 'Green Clover', emoji: '☘️', color: '#22c55e', range: [8, 14], fairy: 11 },
+            { id: 'rainbow', name: 'Blue Rainbow', emoji: '🌈', color: '#3b82f6', range: [15, 21], fairy: 18 }
+        ];
+
+        class FairyGame {
+            constructor() {
+                this.deck = [];
+                this.players = [];
+                this.fairiesFound = 0;
+                this.currentCard = null;
+                this.nextCard = null;
+                this.state = 'waiting'; 
+                this.playerCount = 0;
+            }
+
+            init(count) {
+                this.playerCount = count;
+                this.players = Array(count).fill(0).map((_, i) => ({
+                    id: i, score: 0, choice: null
+                }));
+
+                for(let i=1; i<=4; i++) {
+                    document.getElementById(`p${i}-area`).style.display = i <= count ? 'flex' : 'none';
+                }
+
+                this.generateDeck();
+                this.currentCard = this.deck.pop();
+                this.fairiesFound = 0;
+                document.querySelectorAll('.fairy-dot').forEach(dot => dot.classList.remove('found'));
+
+                this.startRound();
+                document.getElementById('start-screen').style.display = 'none';
+            }
+
+            generateDeck() {
+                this.deck = [];
+                SUITS.forEach(suit => {
+                    for(let v = suit.range[0]; v <= suit.range[1]; v++) {
+                        this.deck.push({ 
+                            suit, 
+                            value: v, 
+                            isFairy: v === suit.fairy 
+                        });
+                    }
+                });
+                this.deck.sort(() => Math.random() - 0.5);
+            }
+
+            startRound() {
+                this.state = 'waiting';
+                this.players.forEach((p, i) => {
+                    p.choice = null;
+                    this.updateChoiceUI(i);
+                });
+                this.renderCard(this.currentCard);
+                document.getElementById('status-msg').textContent = "All Players Guess!";
+                document.getElementById('deck-info').textContent = `DECK: ${this.deck.length}`;
+            }
+
+            renderCard(card) {
+                const cardEl = document.getElementById('current-card');
+                const suitEl = document.getElementById('card-suit');
+                const valEl = document.getElementById('card-value');
+                const starEl = document.getElementById('card-star');
+                
+                cardEl.className = `card revealed suit-${card.suit.id}`;
+                suitEl.textContent = card.suit.emoji;
+                valEl.textContent = card.value;
+                starEl.style.display = card.isFairy ? 'block' : 'none';
+            }
+
+            makeChoice(pIdx, choice) {
+                if (this.state !== 'waiting' || this.players[pIdx].choice) return;
+                this.players[pIdx].choice = choice;
+                this.updateChoiceUI(pIdx);
+
+                if (this.players.every(p => p.choice)) {
+                    this.revealNext();
+                }
+            }
+
+            updateChoiceUI(pIdx) {
+                const container = document.getElementById(`p${pIdx+1}-area`).querySelector('.choice-btns');
+                const buttons = container.querySelectorAll('.choice-btn');
+                const choice = this.players[pIdx].choice;
+
+                buttons.forEach((btn, i) => {
+                    const btnChoice = ['up', 'down', 'side', 'fairy'][i];
+                    btn.classList.toggle('selected', choice === btnChoice);
+                    btn.classList.toggle('disabled', choice !== null && choice !== btnChoice);
+                });
+            }
+
+            revealNext() {
+                if (this.deck.length === 0) {
+                    this.endGame();
+                    return;
+                }
+
+                this.state = 'revealing';
+                document.getElementById('status-msg').textContent = "REVEALING...";
+                
+                const cardEl = document.getElementById('current-card');
+                this.nextCard = this.deck.pop();
+
+                cardEl.classList.remove('revealed');
+                cardEl.classList.add('revealing');
+                
+                setTimeout(() => {
+                    this.renderCard(this.nextCard);
+                    this.processScores();
+                    
+                    if (this.nextCard.isFairy) {
+                        this.fairiesFound++;
+                        const dots = document.querySelectorAll('.fairy-dot');
+                        if (dots[this.fairiesFound - 1]) dots[this.fairiesFound - 1].classList.add('found');
+                    }
+
+                    setTimeout(() => {
+                        cardEl.classList.remove('revealing');
+                        this.checkGameEnd();
+                    }, 1200);
+                }, 300);
+            }
+
+            processScores() {
+                const cur = this.currentCard;
+                const next = this.nextCard;
+
+                this.players.forEach(p => {
+                    let correct = false;
+                    let points = 0;
+
+                    switch(p.choice) {
+                        case 'up': 
+                            if (next.value > cur.value) correct = true;
+                            points = 2;
+                            break;
+                        case 'down':
+                            if (next.value < cur.value) correct = true;
+                            points = 2;
+                            break;
+                        case 'side':
+                            if (next.suit.id === cur.suit.id) correct = true;
+                            points = 4;
+                            break;
+                        case 'fairy':
+                            if (next.isFairy) correct = true;
+                            points = 7;
+                            break;
+                    }
+
+                    if (correct) p.score += points;
+                    else p.score -= 1;
+
+                    if (p.score < -4) p.score = -4;
+                    document.getElementById(`p${p.id+1}-score`).textContent = p.score;
+                });
+
+                this.currentCard = next;
+            }
+
+            checkGameEnd() {
+                const topScore = Math.max(...this.players.map(p => p.score));
+                if (this.fairiesFound >= 3 || topScore >= 24 || this.deck.length === 0) {
+                    this.endGame();
+                } else {
+                    this.startRound();
+                }
+            }
+
+            endGame() {
+                this.state = 'over';
+                const winners = [...this.players].sort((a,b) => b.score - a.score);
+                const winner = winners[0];
+                
+                document.getElementById('win-screen').style.display = 'flex';
+                document.getElementById('winner-text').textContent = `PLAYER ${winner.id + 1} WINS!`;
+                document.getElementById('winner-text').style.color = `var(--p${winner.id + 1})`;
+                document.getElementById('final-stats').textContent = `SCORE: ${winner.score} • FAIRIES: ${this.fairiesFound}/3`;
+            }
+        }
+
+        const game = new FairyGame();
+    </script>
+</body>
+</html>

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>K2 Tower: Tiny Tycoon - K2 games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --primary: #3b82f6;
+            --accent: #fbbf24;
+            --residential: #4ade80;
+            --food: #fb7185;
+            --service: #818cf8;
+            --creative: #a78bfa;
+            --retail: #38bdf8;
+            --glass: rgba(255, 255, 255, 0.05);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: var(--accent); letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-layout {
+            flex: 1;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Sidebar / Controls */
+        #sidebar {
+            width: 80px;
+            background: rgba(0,0,0,0.2);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 0;
+            gap: 20px;
+            z-index: 50;
+        }
+
+        .elevator-btn {
+            width: 50px;
+            height: 50px;
+            background: var(--accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            border: none;
+        }
+        .elevator-btn:active { transform: scale(0.9); }
+
+        /* Tower View */
+        #tower-viewport {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column-reverse; /* Build UP */
+            align-items: center;
+            padding: 40px 0 150px 0;
+            background: linear-gradient(to top, #1e293b, #020617);
+            scroll-behavior: smooth;
+        }
+
+        .floor {
+            width: 320px;
+            height: 90px;
+            background: var(--glass);
+            border: 2px solid var(--border);
+            margin-bottom: -2px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            transition: background 0.3s;
+            flex-shrink: 0;
+        }
+
+        .floor.residential { border-left: 10px solid var(--residential); }
+        .floor.food { border-left: 10px solid var(--food); }
+        .floor.service { border-left: 10px solid var(--service); }
+        .floor.creative { border-left: 10px solid var(--creative); }
+        .floor.retail { border-left: 10px solid var(--retail); }
+
+        .floor-label { position: absolute; top: 5px; right: 10px; font-size: 0.6rem; opacity: 0.4; font-weight: 900; }
+        .floor-name { font-weight: 800; font-size: 0.85rem; text-transform: uppercase; color: #fff; }
+        .floor-icon { font-size: 1.8rem; margin-right: 15px; }
+
+        .bitizen-container {
+            position: absolute;
+            bottom: 5px;
+            left: 60px;
+            right: 10px;
+            height: 40px;
+            display: flex;
+            gap: 10px;
+            pointer-events: none;
+        }
+        .bitizen { font-size: 1.5rem; transition: transform 0.5s; animation: walk 3s infinite ease-in-out alternate; }
+        @keyframes walk { from { transform: translateX(0); } to { transform: translateX(20px); } }
+
+        /* Elevator */
+        #elevator {
+            position: absolute;
+            left: 80px;
+            width: 45px;
+            height: 90px;
+            background: rgba(251, 191, 36, 0.15);
+            border: 2px solid var(--accent);
+            z-index: 40;
+            transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            backdrop-filter: blur(5px);
+        }
+
+        /* Stats HUD */
+        #stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 12px 24px;
+            border-radius: 50px;
+            display: flex;
+            gap: 25px;
+            font-weight: 900;
+            border: 1px solid var(--border);
+            z-index: 100;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+
+        .coin-val { color: var(--accent); }
+
+        /* Build Menu */
+        #build-menu {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(12px);
+            padding: 8px;
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .build-opt {
+            padding: 10px 15px;
+            border-radius: 16px;
+            cursor: pointer;
+            text-align: center;
+            font-size: 0.65rem;
+            font-weight: 800;
+            transition: 0.2s;
+            border: 1px solid transparent;
+            min-width: 80px;
+        }
+        .build-opt:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+        .build-opt b { display: block; font-size: 1.2rem; margin-bottom: 2px; }
+
+        .btn-hire {
+            position: absolute; top: 10px; left: 10px;
+            background: var(--accent); color: #000; border: none;
+            padding: 4px 8px; border-radius: 4px; font-size: 0.6rem; font-weight: 900;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">K2 TOWER TYCOON</div>
+        <a href="index.html" class="back-link">← EXIT HUB</a>
+    </nav>
+
+    <div id="game-layout">
+        <div id="sidebar">
+            <button class="elevator-btn" onclick="game.moveElevator(1)">🔼</button>
+            <div id="elev-level" style="font-weight: 900; color: var(--accent); font-size: 1.2rem;">1</div>
+            <button class="elevator-btn" onclick="game.moveElevator(-1)">🔽</button>
+        </div>
+
+        <div id="stats">
+            <div><span class="coin-val">🪙</span> <span id="coins">1000</span></div>
+            <div>🏠 <span id="pop-count">0</span></div>
+            <div>🏢 <span id="floors-count">1</span></div>
+        </div>
+
+        <div id="tower-viewport">
+            <div id="elevator" style="bottom: 40px;">👨‍✈️</div>
+            <!-- Floors via JS -->
+        </div>
+
+        <div id="build-menu">
+            <div class="build-opt" onclick="game.buildFloor('residential')" style="color:var(--residential)"><b>🏠</b> RESI<br>$500</div>
+            <div class="build-opt" onclick="game.buildFloor('food')" style="color:var(--food)"><b>🍔</b> FOOD<br>$1000</div>
+            <div class="build-opt" onclick="game.buildFloor('service')" style="color:var(--service)"><b>🛠️</b> SERV<br>$1500</div>
+            <div class="build-opt" onclick="game.buildFloor('retail')" style="color:var(--retail)"><b>🛍️</b> SHOP<br>$2000</div>
+        </div>
+    </div>
+
+    <script>
+        const FLOOR_DEFS = {
+            lobby: { name: 'Grand Lobby', icons: ['🏢', '🛋️', '🪴'], cost: 0 },
+            residential: { name: 'Apartments', icons: ['🛌', '🛋️', '📺'], cost: 500 },
+            food: { name: 'Sky Cafe', icons: ['🍕', '🍔', '🍦'], cost: 1000, income: 15 },
+            service: { name: 'Auto Repair', icons: ['🛠️', '🏎️', '⛽'], cost: 1500, income: 25 },
+            retail: { name: 'Boutique', icons: ['🛍️', '👗', '💎'], cost: 2000, income: 40 }
+        };
+
+        const BITIZENS = ['👨‍💼', '👩‍💼', '👨‍🎨', '👩‍🎨', '👨‍🔬', '👩‍🔬', '👨‍🍳', '👩‍🍳', '👨‍🚀', '👩‍🚀'];
+
+        class TinyTower {
+            constructor() {
+                this.coins = 1000;
+                this.floors = [{ type: 'lobby', level: 1, occupants: [] }];
+                this.elevatorLevel = 1;
+                this.population = 0;
+                
+                this.init();
+            }
+
+            init() {
+                this.renderTower();
+                this.updateUI();
+                
+                // Income Loop
+                setInterval(() => {
+                    this.floors.forEach(f => {
+                        const def = FLOOR_DEFS[f.type];
+                        if(def.income) {
+                            // Only earn if someone lives in the tower (simulated workforce)
+                            const multi = 1 + (this.population * 0.1);
+                            this.addCoins(def.income * multi / 10); // Per tick
+                        }
+                    });
+                }, 1000);
+
+                // Delivery / Bitizen arrivals
+                setInterval(() => {
+                    if (this.population < this.floors.filter(f => f.type === 'residential').length * 5) {
+                        this.population++;
+                        this.assignBitizen();
+                        this.updateUI();
+                    }
+                }, 8000);
+            }
+
+            addCoins(amt) {
+                this.coins += amt;
+                this.updateUI();
+            }
+
+            updateUI() {
+                document.getElementById('coins').textContent = Math.floor(this.coins);
+                document.getElementById('floors-count').textContent = this.floors.length;
+                document.getElementById('pop-count').textContent = this.population;
+                document.getElementById('elev-level').textContent = this.elevatorLevel;
+            }
+
+            renderTower() {
+                const viewport = document.getElementById('tower-viewport');
+                const oldFloors = viewport.querySelectorAll('.floor');
+                oldFloors.forEach(f => f.remove());
+
+                this.floors.forEach((f, i) => {
+                    const def = FLOOR_DEFS[f.type];
+                    const div = document.createElement('div');
+                    div.className = `floor ${f.type}`;
+                    
+                    let bitsHtml = '';
+                    if (f.occupants) {
+                        f.occupants.forEach(b => bitsHtml += `<span class="bitizen">${b}</span>`);
+                    }
+
+                    div.innerHTML = `
+                        <span class="floor-label">FL ${f.level}</span>
+                        <span class="floor-icon">${def.icons[0]}</span>
+                        <div style="display:flex; flex-direction:column">
+                            <span class="floor-name">${def.name}</span>
+                            <div class="bitizen-container">${bitsHtml}</div>
+                        </div>
+                    `;
+                    viewport.appendChild(div);
+                });
+            }
+
+            buildFloor(type) {
+                const cost = FLOOR_DEFS[type].cost;
+                if(this.coins >= cost) {
+                    this.coins -= cost;
+                    this.floors.push({ type, level: this.floors.length + 1, occupants: [] });
+                    this.renderTower();
+                    this.updateUI();
+                    
+                    const vp = document.getElementById('tower-viewport');
+                    setTimeout(() => vp.scrollTop = 0, 100);
+                }
+            }
+
+            moveElevator(dir) {
+                const next = this.elevatorLevel + dir;
+                if(next >= 1 && next <= this.floors.length) {
+                    this.elevatorLevel = next;
+                    const el = document.getElementById('elevator');
+                    el.style.bottom = (40 + (this.elevatorLevel-1) * 90) + 'px';
+                    this.updateUI();
+                    
+                    const floors = document.querySelectorAll('.floor');
+                    floors[this.elevatorLevel - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+
+            assignBitizen() {
+                const resiFloors = this.floors.filter(f => f.type === 'residential' && f.occupants.length < 5);
+                if (resiFloors.length > 0) {
+                    const f = resiFloors[0];
+                    f.occupants.push(BITIZENS[Math.floor(Math.random() * BITIZENS.length)]);
+                    this.renderTower();
+                }
+            }
+        }
+
+        const game = new TinyTower();
+    </script>
+</body>
+</html>

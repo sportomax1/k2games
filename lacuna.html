@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lacuna: Mystical Pond - K2 games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --pond: #1e293b;
+            --mat: #334155;
+            --p1: #38bdf8; /* Blue */
+            --p2: #f472b6; /* Pink */
+            --text: #f8fafc;
+            --glass: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            padding: 0.8rem 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; background: linear-gradient(to right, #a78bfa, #2dd4bf); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .back-link { color: #94a3b8; text-decoration: none; font-weight: bold; font-size: 0.9rem; }
+
+        #game-layout {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #1e293b 0%, #020617 100%);
+        }
+
+        canvas {
+            display: block;
+            box-shadow: 0 50px 100px rgba(0,0,0,0.5);
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 50%; /* The Pond Mat */
+        }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 30px;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .player-card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            padding: 15px 25px;
+            border-radius: 20px;
+            border: 2px solid transparent;
+            text-align: center;
+            transition: 0.3s;
+            min-width: 140px;
+        }
+        .player-card.active { transform: scale(1.1); box-shadow: 0 0 20px rgba(255,255,255,0.2); }
+        .player-card.p1 { border-color: var(--p1); }
+        .player-card.p2 { border-color: var(--p2); }
+
+        .score-val { font-size: 1.5rem; font-weight: 900; font-family: monospace; }
+        .pawn-count { font-size: 0.8rem; margin-top: 5px; opacity: 0.8; }
+
+        #phase-indicator {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--glass);
+            padding: 10px 30px;
+            border-radius: 50px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 0.9rem;
+            pointer-events: none;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        /* Flower Collection Tray (Bottom) */
+        .collection-tray {
+            display: flex;
+            gap: 5px;
+            margin-top: 8px;
+            justify-content: center;
+        }
+        .flower-icon { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.5); }
+
+        /* Screens */
+        .screen-overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: #8b5cf6; color: white; border: none; padding: 1rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.2rem; box-shadow: 0 10px 25px rgba(139, 92, 246, 0.4);
+        }
+
+        .color-grid { display: flex; gap: 10px; margin-top: 20px; }
+        .color-win { width: 30px; height: 30px; border-radius: 50%; border: 2px solid white; opacity: 0.3; }
+        .color-win.won { opacity: 1; box-shadow: 0 0 15px currentColor; }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">LACUNA</div>
+        <a href="index.html" class="back-link">← HUB</a>
+    </nav>
+
+    <div id="game-layout">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="hud">
+            <div id="p1-card" class="player-card p1 active">
+                <div style="color: var(--p1); font-weight: bold;">PLAYER 1</div>
+                <div class="collection-tray" id="p1-tray"></div>
+                <div class="pawn-count">Pawns: <span id="p1-pawns">6</span></div>
+            </div>
+            <div id="p2-card" class="player-card p2">
+                <div style="color: var(--p2); font-weight: bold;">PLAYER 2</div>
+                <div class="collection-tray" id="p2-tray"></div>
+                <div class="pawn-count">Pawns: <span id="p2-pawns">6</span></div>
+            </div>
+        </div>
+
+        <div id="phase-indicator">PHASE 1: PLACEMENT</div>
+
+        <div id="start-screen" class="screen-overlay">
+            <h1 style="font-size: 4rem; font-style: italic; background: linear-gradient(to right, #c4b5fd, #67e8f9); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">LACUNA</h1>
+            <p style="opacity: 0.7; margin-top: 10px; max-width: 400px;">Collect flowers by placing pawns between matching pairs. Capture the majority of 4 colors to win.</p>
+            <button class="btn-large" onclick="game.start()">ENTER THE POND</button>
+        </div>
+
+        <div id="end-screen" class="screen-overlay" style="display:none">
+            <h1 id="winner-text" style="font-size: 3rem;">PLAYER 1 WINS!</h1>
+            <p style="opacity: 0.7; margin-top: 10px;">Colors Captured:</p>
+            <div class="color-grid" id="end-colors"></div>
+            <button class="btn-large" onclick="location.reload()">NEW MATCH</button>
+        </div>
+    </div>
+
+    <script>
+        const FLOWER_COLORS = [
+            '#ef4444', // Red
+            '#f97316', // Orange
+            '#eab308', // Yellow
+            '#22c55e', // Green
+            '#3b82f6', // Blue
+            '#a855f7', // Purple
+            '#ec4899'  // Pink
+        ];
+
+        class Lacuna {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.size = 800; // Fixed internal size
+                this.canvas.width = this.size;
+                this.canvas.height = this.size;
+
+                this.flowers = [];
+                this.pawns = [];
+                this.scores = { p1: {}, p2: {} }; // Color counts
+                this.pawnCounts = { p1: 6, p2: 6 };
+                this.turn = 'p1';
+                this.phase = 1; // 1=Place, 2=Sweep
+                
+                this.mouse = { x: 0, y: 0 };
+                this.hoverLine = null; // {f1, f2}
+                this.animating = false;
+
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                this.canvas.addEventListener('mousemove', e => this.handleMove(e));
+                this.canvas.addEventListener('click', e => this.handleClick(e));
+                this.canvas.addEventListener('touchstart', e => { e.preventDefault(); this.handleClick(e.touches[0]); }, {passive: false});
+
+                this.loop();
+            }
+
+            resize() {
+                const minDim = Math.min(window.innerWidth, window.innerHeight - 80);
+                this.canvas.style.width = `${minDim - 40}px`;
+                this.canvas.style.height = `${minDim - 40}px`;
+            }
+
+            start() {
+                document.getElementById('start-screen').style.display = 'none';
+                this.generateBoard();
+                this.turn = 'p1';
+                this.updateUI();
+            }
+
+            generateBoard() {
+                this.flowers = [];
+                const radius = this.size / 2 - 40;
+                
+                // 7 colors * 7 flowers = 49 total
+                FLOWER_COLORS.forEach(color => {
+                    for(let i=0; i<7; i++) {
+                        let valid = false;
+                        let f = {};
+                        let attempts = 0;
+                        while(!valid && attempts < 100) {
+                            const r = Math.sqrt(Math.random()) * radius; // Uniform distribution
+                            const theta = Math.random() * 2 * Math.PI;
+                            f = {
+                                x: this.size/2 + r * Math.cos(theta),
+                                y: this.size/2 + r * Math.sin(theta),
+                                color: color,
+                                collected: false,
+                                r: 8
+                            };
+                            // Check overlap
+                            valid = !this.flowers.some(other => Math.hypot(f.x - other.x, f.y - other.y) < 25);
+                            attempts++;
+                        }
+                        this.flowers.push(f);
+                    }
+                });
+
+                // Initialize scores
+                FLOWER_COLORS.forEach(c => { this.scores.p1[c] = 0; this.scores.p2[c] = 0; });
+            }
+
+            handleMove(e) {
+                if (this.phase !== 1 || this.animating) return;
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const scale = this.size / rect.width;
+                const clientX = e.clientX || e.pageX;
+                const clientY = e.clientY || e.pageY;
+                
+                this.mouse.x = (clientX - rect.left) * scale;
+                this.mouse.y = (clientY - rect.top) * scale;
+
+                this.checkLine();
+            }
+
+            checkLine() {
+                this.hoverLine = null;
+                // Find closest line passing through mouse that connects two same-colored flowers
+                // This is computationally exp., so we optimize:
+                // 1. Iterate pairs of same color
+                // 2. Check if mouse is close to segment
+                // 3. Check LOS
+
+                let bestDist = 20; // Hit radius
+                
+                for (let i = 0; i < this.flowers.length; i++) {
+                    for (let j = i + 1; j < this.flowers.length; j++) {
+                        const f1 = this.flowers[i];
+                        const f2 = this.flowers[j];
+                        
+                        if (f1.collected || f2.collected || f1.color !== f2.color) continue;
+
+                        const dist = this.distToSegment(this.mouse, f1, f2);
+                        if (dist < bestDist) {
+                            // Check LOS
+                            if (this.checkLOS(f1, f2)) {
+                                this.hoverLine = { f1, f2, p: this.projectPoint(this.mouse, f1, f2) };
+                                // Don't break, find closest valid
+                            }
+                        }
+                    }
+                }
+            }
+
+            handleClick(e) {
+                if (this.phase !== 1 || this.animating) return;
+                this.handleMove(e); // Update pos
+                
+                if (this.hoverLine) {
+                    this.placePawn(this.hoverLine);
+                }
+            }
+
+            placePawn(line) {
+                this.animating = true;
+                const pawn = {
+                    x: line.p.x, y: line.p.y,
+                    owner: this.turn,
+                    r: 12
+                };
+                this.pawns.push(pawn);
+                
+                // Collect Flowers
+                line.f1.collected = true;
+                line.f2.collected = true;
+                this.scores[this.turn][line.f1.color] += 2;
+                
+                this.pawnCounts[this.turn]--;
+                
+                setTimeout(() => {
+                    this.animating = false;
+                    this.hoverLine = null;
+                    
+                    if (this.pawnCounts.p1 === 0 && this.pawnCounts.p2 === 0) {
+                        this.startPhase2();
+                    } else {
+                        this.turn = this.turn === 'p1' ? 'p2' : 'p1';
+                        this.updateUI();
+                    }
+                }, 500);
+            }
+
+            checkLOS(f1, f2) {
+                // Line segment from f1 to f2
+                // Check collision with all other FLOWERS and PAWNS
+                const margin = 10; // Clearance
+                const len = Math.hypot(f2.x - f1.x, f2.y - f1.y);
+                
+                // Check flowers
+                for (let f of this.flowers) {
+                    if (f === f1 || f === f2 || f.collected) continue;
+                    if (this.distToSegment(f, f1, f2) < f.r + margin) return false;
+                }
+                
+                // Check pawns
+                for (let p of this.pawns) {
+                    if (this.distToSegment(p, f1, f2) < p.r + margin) return false;
+                }
+                
+                return true;
+            }
+
+            startPhase2() {
+                this.phase = 2;
+                document.getElementById('phase-indicator').textContent = "PHASE 2: THE SWEEP";
+                
+                // Claim remaining flowers
+                // Voronoi-style: closest pawn takes it
+                this.flowers.forEach(f => {
+                    if (!f.collected) {
+                        let minDist = 9999;
+                        let owner = null;
+                        
+                        this.pawns.forEach(p => {
+                            const d = Math.hypot(p.x - f.x, p.y - f.y);
+                            if (d < minDist) {
+                                minDist = d;
+                                owner = p.owner;
+                            }
+                        });
+                        
+                        if (owner) {
+                            f.collected = true;
+                            this.scores[owner][f.color]++;
+                            // Visual line to owner
+                            f.sweepOwner = owner;
+                        }
+                    }
+                });
+                
+                this.updateUI();
+                setTimeout(() => this.endGame(), 2000);
+            }
+
+            endGame() {
+                // Calculate Majority
+                let p1Wins = 0;
+                let p2Wins = 0;
+                const colorGrid = document.getElementById('end-colors');
+                colorGrid.innerHTML = '';
+
+                FLOWER_COLORS.forEach(c => {
+                    const s1 = this.scores.p1[c];
+                    const s2 = this.scores.p2[c];
+                    const winner = s1 > s2 ? 'p1' : (s2 > s1 ? 'p2' : null); // Tie = nobody wins color? Or split? Rules say majority. 4 is auto win.
+                    
+                    if (s1 >= 4) p1Wins++;
+                    else if (s2 >= 4) p2Wins++;
+                    else if (s1 > s2) p1Wins++;
+                    else if (s2 > s1) p2Wins++;
+
+                    const el = document.createElement('div');
+                    el.className = 'color-win' + (winner === 'p1' ? ' won' : ''); // Just showing colors P1 won for now visually?
+                    // Actually let's show winner of each color
+                    el.style.backgroundColor = c;
+                    el.style.borderColor = winner === 'p1' ? 'var(--p1)' : (winner === 'p2' ? 'var(--p2)' : '#fff');
+                    el.style.opacity = winner ? 1 : 0.2;
+                    colorGrid.appendChild(el);
+                });
+
+                const modal = document.getElementById('end-screen');
+                const wText = document.getElementById('winner-text');
+                
+                if (p1Wins >= 4) {
+                    wText.textContent = "PLAYER 1 WINS!";
+                    wText.style.color = "var(--p1)";
+                } else if (p2Wins >= 4) {
+                    wText.textContent = "PLAYER 2 WINS!";
+                    wText.style.color = "var(--p2)";
+                } else {
+                    // Tie breaker or whoever has most colors
+                    if (p1Wins > p2Wins) { wText.textContent = "PLAYER 1 WINS!"; wText.style.color = "var(--p1)"; }
+                    else if (p2Wins > p1Wins) { wText.textContent = "PLAYER 2 WINS!"; wText.style.color = "var(--p2)"; }
+                    else wText.textContent = "IT'S A TIE!";
+                }
+                
+                modal.style.display = 'flex';
+            }
+
+            distToSegment(p, v, w) {
+                const l2 = (v.x - w.x)**2 + (v.y - w.y)**2;
+                if (l2 == 0) return Math.hypot(p.x - v.x, p.y - v.y);
+                let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+                t = Math.max(0, Math.min(1, t));
+                return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+            }
+
+            projectPoint(p, v, w) {
+                const l2 = (v.x - w.x)**2 + (v.y - w.y)**2;
+                if (l2 == 0) return v;
+                let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+                t = Math.max(0, Math.min(1, t));
+                return { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) };
+            }
+
+            updateUI() {
+                document.getElementById('p1-card').className = `player-card p1 ${this.turn === 'p1' ? 'active' : ''}`;
+                document.getElementById('p2-card').className = `player-card p2 ${this.turn === 'p2' ? 'active' : ''}`;
+                document.getElementById('p1-pawns').textContent = this.pawnCounts.p1;
+                document.getElementById('p2-pawns').textContent = this.pawnCounts.p2;
+
+                // Update trays
+                ['p1', 'p2'].forEach(p => {
+                    const tray = document.getElementById(`${p}-tray`);
+                    tray.innerHTML = '';
+                    FLOWER_COLORS.forEach(c => {
+                        const count = this.scores[p][c];
+                        for(let i=0; i<count; i++) {
+                            const dot = document.createElement('div');
+                            dot.className = 'flower-icon';
+                            dot.style.backgroundColor = c;
+                            tray.appendChild(dot);
+                        }
+                    });
+                });
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.size, this.size);
+
+                // Mat Background
+                ctx.fillStyle = '#334155'; // Mat color
+                ctx.beginPath(); ctx.arc(this.size/2, this.size/2, this.size/2, 0, Math.PI*2); ctx.fill();
+                
+                // Hover Line
+                if (this.hoverLine && this.phase === 1) {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(this.hoverLine.f1.x, this.hoverLine.f1.y);
+                    ctx.lineTo(this.hoverLine.f2.x, this.hoverLine.f2.y);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    // Ghost Pawn
+                    ctx.fillStyle = this.turn === 'p1' ? 'var(--p1)' : 'var(--p2)';
+                    ctx.globalAlpha = 0.5;
+                    ctx.beginPath(); ctx.arc(this.hoverLine.p.x, this.hoverLine.p.y, 12, 0, Math.PI*2); ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                }
+
+                // Flowers
+                this.flowers.forEach(f => {
+                    if (f.collected && !f.sweepOwner) return; // Hide collected ones in phase 1
+                    
+                    ctx.fillStyle = f.color;
+                    ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+
+                    // Phase 2 sweep lines
+                    if (f.sweepOwner) {
+                        // Find owner pawn position (simplified)
+                        // In reality we should link to specific pawn but we just draw a line to center for effect
+                        // Or just fade them out
+                        ctx.strokeStyle = f.sweepOwner === 'p1' ? '#38bdf8' : '#f472b6';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath(); ctx.arc(f.x, f.y, f.r + 4, 0, Math.PI*2); ctx.stroke();
+                    }
+                });
+
+                // Pawns
+                this.pawns.forEach(p => {
+                    ctx.fillStyle = p.owner === 'p1' ? '#38bdf8' : '#f472b6';
+                    ctx.shadowBlur = 10; ctx.shadowColor = ctx.fillStyle;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.r/2, 0, Math.PI*2); ctx.fill();
+                });
+
+                requestAnimationFrame(() => this.draw());
+            }
+
+            loop() {
+                this.draw();
+            }
+        }
+
+        const game = new Lacuna();
+    </script>
+</body>
+</html>

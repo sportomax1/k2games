@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bobsled Ultra: Winter Pro - K2 games</title>
+    <style>
+        :root {
+            --ice: #e0f2fe;
+            --ice-dark: #0ea5e9;
+            --sled: #ef4444;
+            --accent: #fbbf24;
+            --bg: #020617;
+            --glass: rgba(15, 23, 42, 0.85);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            padding: 0.75rem 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: #fff; letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-container {
+            position: relative;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(to bottom, #0c4a6e, #020617);
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* HUD Overlay */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .stat-card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            padding: 12px 24px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+            min-width: 140px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; font-weight: 800; }
+        .stat-val { font-size: 1.8rem; font-weight: 900; font-family: monospace; color: var(--accent); }
+
+        #gforce-container {
+            position: absolute;
+            right: 20px;
+            bottom: 150px;
+            width: 60px;
+            height: 200px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 30px;
+            border: 2px solid rgba(255,255,255,0.1);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 50;
+        }
+        #gforce-fill {
+            width: 100%;
+            background: linear-gradient(to top, #22c55e, #fbbf24, #ef4444);
+            border-radius: 20px;
+            transition: height 0.1s;
+        }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            display: none;
+            justify-content: space-between;
+            padding: 0 40px;
+            pointer-events: none;
+            z-index: 60;
+        }
+
+        @media (max-width: 900px) { #mobile-controls { display: flex; } }
+
+        .steer-btn {
+            width: 90px; height: 90px;
+            background: var(--glass);
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem; pointer-events: auto;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        .steer-btn:active { background: white; color: black; transform: scale(0.9); }
+
+        .screen-overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--sled); color: white; border: none; padding: 1.2rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.4rem; box-shadow: 0 10px 25px rgba(239, 68, 68, 0.4);
+        }
+
+        #push-phase {
+            display: none;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 150; text-align: center;
+        }
+
+        .mash-btn {
+            width: 140px; height: 140px;
+            background: var(--sled); border: 8px solid white; border-radius: 50%;
+            font-weight: 900; font-size: 1.4rem; cursor: pointer;
+            box-shadow: 0 0 40px var(--sled);
+            animation: pulse 0.8s infinite;
+        }
+
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+        #speedometer {
+            position: absolute;
+            left: 50%;
+            bottom: 40px;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 50;
+        }
+        #speed-dial { font-size: 3rem; font-weight: 900; font-style: italic; color: #fff; text-shadow: 0 0 20px var(--ice-dark); }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">K2 BOBSLED ULTRA</div>
+        <a href="index.html" class="back-link">← EXIT HUB</a>
+    </nav>
+
+    <div id="hud">
+        <div class="stat-card">
+            <span class="stat-label">Sector Time</span>
+            <span id="time-val" class="stat-val">00.00</span>
+        </div>
+        <div class="stat-card" style="align-items: flex-end;">
+            <span class="stat-label">Best Result</span>
+            <span id="best-val" class="stat-val">00.00</span>
+        </div>
+    </div>
+
+    <div id="gforce-container">
+        <div class="stat-label" style="margin-bottom: 5px;">G-FORCE</div>
+        <div style="flex: 1; width: 100%; background: rgba(255,255,255,0.1); border-radius: 15px; position: relative;">
+            <div id="gforce-fill" style="position: absolute; bottom: 0; width: 100%; height: 0%;"></div>
+        </div>
+    </div>
+
+    <div id="speedometer">
+        <div id="speed-dial">0</div>
+        <div class="stat-label">KILOMETERS PER HOUR</div>
+    </div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="mobile-controls">
+            <div class="steer-btn" id="btn-left">←</div>
+            <div class="steer-btn" id="btn-right">→</div>
+        </div>
+
+        <div id="push-phase">
+            <h2 style="font-size: 2.5rem; font-style: italic; margin-bottom: 20px; text-shadow: 0 0 20px #fff;">RAPID MASH!</h2>
+            <button class="mash-btn" id="btn-mash">PUSH</button>
+        </div>
+
+        <div id="start-screen" class="screen-overlay">
+            <h1 style="font-size: 4.5rem; font-style: italic; background: linear-gradient(to bottom, #fff, var(--ice-dark)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900;">BOBSLED ULTRA</h1>
+            <p style="opacity: 0.7; margin-top: 10px; font-size: 1.2rem;">Elite Olympic Simulation • High-Speed Ice Run</p>
+            
+            <div style="margin-top: 40px; background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
+                <div style="margin-bottom: 15px; font-weight: 800; color: var(--accent);">MISSION BRIEFING</div>
+                <ul style="text-align: left; font-size: 0.9rem; color: #cbd5e1; list-style: none;">
+                    <li>1. MASH <b>PUSH</b> to build start velocity.</li>
+                    <li>2. STEER with <b>ARROWS</b> to hold the line.</li>
+                    <li>3. Avoid WALL FRICTION at all costs.</li>
+                </ul>
+            </div>
+            
+            <button class="btn-large" onclick="game.initRace()">ENTER START GATE</button>
+        </div>
+
+        <div id="finish-screen" class="screen-overlay" style="display:none">
+            <h1 style="color: var(--accent); font-size: 4rem; font-style: italic;">TRACK COMPLETE!</h1>
+            <p id="final-stats" style="margin-top:15px; font-size: 1.8rem; font-weight: 900;"></p>
+            <button class="btn-large" onclick="location.reload()">RE-RUN TRACK</button>
+        </div>
+    </div>
+
+    <script>
+        class BobsledUltra {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize();
+
+                this.state = 'menu';
+                this.sled = { x: 0, y: 0, speed: 0, steer: 0, lean: 0, gForce: 0 };
+                this.track = [];
+                this.particles = [];
+                this.time = 0;
+                this.distance = 0;
+                this.keys = {};
+                this.pushPower = 0;
+                this.bestTime = localStorage.getItem('k2-bobsled-hi') || 999;
+
+                this.generateTrack();
+                this.setupControls();
+                window.addEventListener('resize', () => this.resize());
+                this.animate();
+            }
+
+            resize() {
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+            }
+
+            generateTrack() {
+                this.track = [];
+                let x = 0;
+                let dx = 0;
+                for(let i=0; i<4000; i++) {
+                    if(i > 300 && i % 100 === 0) {
+                        dx = (Math.random() - 0.5) * 3.5;
+                    }
+                    if(i > 3700) dx *= 0.8;
+                    x += dx;
+                    if(Math.abs(x) > 100) dx *= -1;
+                    
+                    const lineX = x + Math.sin(i * 0.04) * 8;
+                    this.track.push({ x, curve: dx, lineX });
+                }
+            }
+
+            setupControls() {
+                window.onkeydown = (e) => {
+                    this.keys[e.code] = true;
+                    if(this.state === 'push' && e.code === 'Space') this.doPush();
+                };
+                window.onkeyup = (e) => this.keys[e.code] = false;
+
+                const left = document.getElementById('btn-left');
+                const right = document.getElementById('btn-right');
+                const mash = document.getElementById('btn-mash');
+
+                left.addEventListener('touchstart', (e) => { e.preventDefault(); this.keys['ArrowLeft'] = true; });
+                left.addEventListener('touchend', () => this.keys['ArrowLeft'] = false);
+                right.addEventListener('touchstart', (e) => { e.preventDefault(); this.keys['ArrowRight'] = true; });
+                right.addEventListener('touchend', () => this.keys['ArrowRight'] = false);
+                
+                mash.addEventListener('touchstart', (e) => { e.preventDefault(); this.doPush(); });
+                mash.onclick = () => this.doPush();
+            }
+
+            initRace() {
+                document.getElementById('start-screen').style.display = 'none';
+                document.getElementById('push-phase').style.display = 'block';
+                this.state = 'push';
+                this.pushPower = 0;
+                this.distance = 0;
+                this.time = 0;
+                this.sled.speed = 0;
+                this.sled.x = 0;
+                this.updateUI();
+            }
+
+            doPush() {
+                if(this.state !== 'push') return;
+                this.pushPower += 6;
+                this.sled.speed = Math.min(45, this.sled.speed + 3);
+                this.spawnParticles(this.width/2, this.height-150, '#fff', 8);
+                
+                if(this.pushPower >= 100) {
+                    this.state = 'race';
+                    document.getElementById('push-phase').style.display = 'none';
+                }
+            }
+
+            update() {
+                if(this.state === 'push') {
+                    this.pushPower = Math.max(0, this.pushPower - 0.4);
+                    this.sled.speed = Math.max(5, this.sled.speed - 0.1);
+                }
+
+                if(this.state === 'race') {
+                    this.time += 1/60;
+                    this.sled.speed = Math.min(185, this.sled.speed + 0.18);
+
+                    const tIdx = Math.floor(this.distance) % this.track.length;
+                    const seg = this.track[tIdx];
+
+                    // Steering with Centrifugal Force
+                    let steerForce = 0;
+                    if(this.keys['ArrowLeft'] || this.keys['KeyA']) steerForce = -2.2;
+                    else if(this.keys['ArrowRight'] || this.keys['KeyD']) steerForce = 2.2;
+
+                    // Centrifugal force from curve
+                    const centForce = seg.curve * (this.sled.speed / 40);
+                    this.sled.x += steerForce + centForce;
+                    this.sled.gForce = Math.abs(centForce + steerForce) * 0.2;
+                    
+                    this.sled.lean = (steerForce + centForce) * 0.3;
+
+                    this.distance += this.sled.speed * 0.08;
+                    
+                    // Optimal line bonus (Golden path)
+                    const distToLine = Math.abs(this.sled.x - seg.lineX);
+                    if(distToLine < 8) this.sled.speed += 0.08;
+
+                    // Wall Friction
+                    const distFromWall = Math.abs(this.sled.x - seg.x);
+                    if(distFromWall > 25) {
+                        this.sled.speed *= 0.96;
+                        this.sled.x -= (this.sled.x - seg.x) * 0.1;
+                        this.spawnParticles(this.width/2 + (this.sled.x - seg.x)*4, this.height-150, '#38bdf8', 5);
+                    }
+
+                    if(this.distance > this.track.length - 200) this.finish();
+                }
+
+                this.particles.forEach((p, i) => {
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.03;
+                    if(p.life <= 0) this.particles.splice(i, 1);
+                });
+
+                this.updateUI();
+            }
+
+            updateUI() {
+                document.getElementById('speed-dial').textContent = Math.floor(this.sled.speed);
+                document.getElementById('time-val').textContent = this.time.toFixed(2);
+                document.getElementById('best-val').textContent = this.bestTime === 999 ? '00.00' : Number(this.bestTime).toFixed(2);
+                document.getElementById('gforce-fill').style.height = Math.min(100, this.sled.gForce * 100) + '%';
+            }
+
+            finish() {
+                this.state = 'finish';
+                if(this.time < this.bestTime) {
+                    this.bestTime = this.time;
+                    localStorage.setItem('k2-bobsled-hi', this.bestTime);
+                }
+                document.getElementById('finish-screen').style.display = 'flex';
+                document.getElementById('final-stats').textContent = `TIME: ${this.time.toFixed(2)}s (NEW BEST!)`;
+            }
+
+            spawnParticles(x, y, color, count) {
+                for(let i=0; i<count; i++) {
+                    this.particles.push({
+                        x, y, vx: (Math.random()-0.5)*20, vy: (Math.random()-0.5)*10,
+                        life: 1, color
+                    });
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                const w = this.width;
+                const h = this.height;
+                ctx.clearRect(0, 0, w, h);
+
+                // --- 3D ENVIRONMENT ---
+                const fov = 300;
+                const baseIdx = Math.floor(this.distance);
+                const drawDist = 100;
+
+                // Sky & World
+                ctx.fillStyle = '#075985'; ctx.fillRect(0, 0, w, h);
+
+                for(let i=drawDist; i>=0; i--) {
+                    const z = i * 15;
+                    const scale = fov / (fov + z);
+                    const tIdx = (baseIdx + i) % this.track.length;
+                    const seg = this.track[tIdx];
+
+                    const cx = (seg.x - this.sled.x) * scale * 250 + w/2;
+                    const cy = h/2 + (scale * 300);
+                    const trackW = 800 * scale;
+
+                    if (i < drawDist) {
+                        const nextScale = fov / (fov + (i+1)*15);
+                        const nextSeg = this.track[(baseIdx + i + 1) % this.track.length];
+                        const ncx = (nextSeg.x - this.sled.x) * nextScale * 250 + w/2;
+                        const ncy = h/2 + (nextScale * 300);
+                        const ntw = 800 * nextScale;
+
+                        // Ice Surface
+                        const lum = 230 + Math.sin((baseIdx+i)*0.05)*20;
+                        ctx.fillStyle = `rgb(${lum-10}, ${lum}, 255)`;
+                        ctx.beginPath();
+                        ctx.moveTo(cx - trackW/2, cy);
+                        ctx.lineTo(cx + trackW/2, cy);
+                        ctx.lineTo(ncx + ntw/2, ncy);
+                        ctx.lineTo(ncx - ntw/2, ncy);
+                        ctx.fill();
+
+                        // Ice Textures (Scratches)
+                        if(i % 5 === 0) {
+                            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            ctx.moveTo(cx - trackW/4, cy); ctx.lineTo(ncx - ntw/4, ncy);
+                            ctx.stroke();
+                        }
+
+                        // Golden Racing Line
+                        const lx = (seg.lineX - this.sled.x) * scale * 250 + w/2;
+                        const nlx = (nextSeg.lineX - this.sled.x) * nextScale * 250 + w/2;
+                        ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)';
+                        ctx.lineWidth = 6 * scale;
+                        ctx.beginPath(); ctx.moveTo(lx, cy); ctx.lineTo(nlx, ncy); ctx.stroke();
+
+                        // High-Banked Ice Walls
+                        ctx.fillStyle = i % 2 === 0 ? '#38bdf8' : '#0ea5e9';
+                        // Left Wall
+                        ctx.beginPath();
+                        ctx.moveTo(cx - trackW/2, cy);
+                        ctx.lineTo(cx - trackW/2 - 60*scale, cy - 120*scale);
+                        ctx.lineTo(ncx - ntw/2 - 60*nextScale, ncy - 120*nextScale);
+                        ctx.lineTo(ncx - ntw/2, ncy);
+                        ctx.fill();
+                        // Right Wall
+                        ctx.beginPath();
+                        ctx.moveTo(cx + trackW/2, cy);
+                        ctx.lineTo(cx + trackW/2 + 60*scale, cy - 120*scale);
+                        ctx.lineTo(ncx + ntw/2 + 60*nextScale, ncy - 120*nextScale);
+                        ctx.lineTo(ncx + ntw/2, ncy);
+                        ctx.fill();
+                    }
+                }
+
+                // Speed Lines / Motion Blur
+                if(this.state === 'race') {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+                    ctx.lineWidth = 2;
+                    for(let i=0; i<15; i++) {
+                        const sx = (i * (w/15) + Date.now()*0.8) % w;
+                        ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx - 200, h); ctx.stroke();
+                    }
+                }
+
+                // Sled Sprite (Premium 4-Man Sled)
+                ctx.save();
+                ctx.translate(w/2, h - 150);
+                ctx.rotate(this.sled.lean * 0.2);
+                
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.beginPath(); ctx.ellipse(0, 60, 60, 20, 0, 0, Math.PI*2); ctx.fill();
+
+                // Carbon Fiber Shell
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.moveTo(-40, 60);
+                ctx.bezierCurveTo(-45, -100, 45, -100, 40, 60);
+                ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+
+                // Racing Decals
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText("K2 ULTRA", -30, 0);
+
+                // Windshield (Polycarbonate)
+                const winGrad = ctx.createLinearGradient(0, -30, 0, 0);
+                winGrad.addColorStop(0, 'rgba(30,41,59,0.8)'); winGrad.addColorStop(1, 'rgba(15,23,42,0.4)');
+                ctx.fillStyle = winGrad;
+                ctx.beginPath(); ctx.ellipse(0, -25, 25, 12, 0, 0, Math.PI*2); ctx.fill();
+
+                // Pro Team (4 Man Crew)
+                for(let i=0; i<4; i++) {
+                    const yOffset = -35 + i * 25;
+                    ctx.save();
+                    ctx.translate(0, yOffset);
+                    // Helmet
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI*2); ctx.fill();
+                    // Visor
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(-10, -4, 20, 6);
+                    ctx.restore();
+                }
+                ctx.restore();
+
+                // Particles
+                this.particles.forEach(p => {
+                    ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            animate() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        const game = new BobsledUltra();
+    </script>
+</body>
+</html>

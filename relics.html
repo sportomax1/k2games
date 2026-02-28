@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tutankhamun - K2 games</title>
+    <style>
+        :root {
+            --bg: #020617;
+            --tunnel: #1e1b4b;
+            --p1: #3b82f6; /* Blue Explorer */
+            --p2: #ef4444; /* Red AI */
+            --accent: #fbbf24;
+            --glass: rgba(255, 255, 255, 0.05);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: var(--accent); letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+        #game-layout {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            overflow: hidden;
+        }
+
+        @media (max-width: 900px) {
+            #game-layout { grid-template-columns: 1fr; grid-template-rows: 1fr 200px; }
+            #sidebar { width: 100% !important; border-top: 1px solid var(--border); border-right: none !important; }
+        }
+
+        /* Tunnel Map */
+        #map-container {
+            position: relative;
+            background: radial-gradient(circle at center, #1e1b4b 0%, #020617 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            cursor: pointer;
+        }
+
+        /* Sidebar Stats */
+        #sidebar {
+            background: var(--glass);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        .section-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; color: #94a3b8; font-weight: 800; }
+
+        .score-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .score-card.active { border-color: var(--p1); box-shadow: 0 0 15px rgba(59, 130, 246, 0.2); }
+        .score-card.p2.active { border-color: var(--p2); box-shadow: 0 0 15px rgba(239, 68, 68, 0.2); }
+
+        .relic-inventory {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .inv-item {
+            width: 100%;
+            aspect-ratio: 1/1;
+            background: rgba(0,0,0,0.3);
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6rem;
+            position: relative;
+        }
+        .count-badge { position: absolute; top: -5px; right: -5px; background: var(--accent); color: #000; font-weight: 900; padding: 2px 5px; border-radius: 10px; font-size: 0.5rem; }
+
+        /* Overlays */
+        #msg-banner {
+            position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+            background: var(--accent); color: #000; padding: 10px 30px; border-radius: 50px;
+            font-weight: 900; z-index: 100; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            display: none;
+        }
+
+        .screen-overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--accent); color: #000; border: none; padding: 1rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.2rem;
+        }
+
+        .rules-list { text-align: left; max-width: 400px; margin-top: 20px; font-size: 0.9rem; line-height: 1.6; }
+        .rules-list li { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">COSMIC RELICS</div>
+        <a href="index.html" class="back-link">← EXIT HUB</a>
+    </nav>
+
+    <div id="game-layout">
+        <aside id="sidebar">
+            <div id="p1-card" class="score-card active">
+                <div style="display:flex; flex-direction:column;">
+                    <span class="section-title">Survivor</span>
+                    <span id="p1-score" style="font-size: 1.5rem; font-weight: 900; font-family: monospace;">000</span>
+                </div>
+                <div style="font-size: 2rem;">🧑‍🚀</div>
+            </div>
+            <div class="relic-inventory" id="p1-inv"></div>
+
+            <div id="p2-card" class="score-card p2">
+                <div style="display:flex; flex-direction:column;">
+                    <span class="section-title">Quantum Bot</span>
+                    <span id="p2-score" style="font-size: 1.5rem; font-weight: 900; font-family: monospace;">000</span>
+                </div>
+                <div style="font-size: 2rem;">🤖</div>
+            </div>
+            <div class="relic-inventory" id="p2-inv"></div>
+
+            <div style="margin-top: auto; padding: 15px; background: rgba(251, 191, 36, 0.1); border-radius: 12px; border: 1px solid var(--accent);">
+                <div class="section-title" style="color: var(--accent);">Quantum Majority</div>
+                <div style="font-size: 0.75rem; opacity: 0.8; margin-top: 5px;">
+                    When a set is cleared, the one with most pieces gets full points (8, 6, 4, or 2). Second place gets half!
+                </div>
+            </div>
+        </aside>
+
+        <main id="map-container">
+            <div id="msg-banner">PIECE COLLECTED!</div>
+            <canvas id="gameCanvas"></canvas>
+        </main>
+    </div>
+
+    <div id="start-screen" class="screen-overlay">
+        <h1 style="font-size: 3.5rem; font-style: italic; color: var(--accent); font-weight: 900;">COSMIC RELICS</h1>
+        <p style="opacity: 0.7; margin-top: 10px;">Quantum Exploration • Collection Strategy</p>
+        <ul class="rules-list">
+            <li>1. Move forward to any empty relic tile to collect it.</li>
+            <li>2. You cannot move backwards!</li>
+            <li>3. Any relics left behind by the last explorer are LOST.</li>
+            <li>4. Win by having the most relics of a set when they are all gone.</li>
+        </ul>
+        <button class="btn-large" onclick="game.start()">COMMENCE EXPLORATION</button>
+    </div>
+
+    <div id="end-screen" class="screen-overlay" style="display:none">
+        <h1 id="winner-text" style="font-size: 3rem; color: var(--accent);">MISSION SUCCESSFUL</h1>
+        <p id="final-stats" style="margin-top:10px; opacity:0.7; font-size: 1.2rem;"></p>
+        <button class="btn-large" onclick="location.reload()">NEW MISSION</button>
+    </div>
+
+    <script>
+        const RELIC_TYPES = [
+            { id: 'stabilizer', name: 'Stabilizer', icon: '🔋', count: 8, points: 8 },
+            { id: 'core', name: 'Energy Core', icon: '⚛️', count: 6, points: 6 },
+            { id: 'cube', name: 'Data Cube', icon: '🧊', count: 4, points: 4 },
+            { id: 'orb', name: 'Quantum Orb', icon: '🔮', count: 2, points: 2 },
+            { id: 'tech', name: 'Ancient Tech', icon: '🛰️', count: 1, points: 10 } // Special wildcard?
+        ];
+
+        class CosmicRelics {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 1000;
+                this.height = 1000;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                this.tiles = [];
+                this.players = {
+                    p1: { pos: -1, score: 0, inv: {}, icon: '🧑‍🚀' },
+                    p2: { pos: -1, score: 0, inv: {}, icon: '🤖' }
+                };
+                this.turn = 'p1';
+                this.playing = false;
+                this.animating = false;
+
+                this.init();
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                this.canvas.onclick = (e) => this.handleClick(e);
+            }
+
+            resize() {
+                const rect = document.getElementById('map-container').getBoundingClientRect();
+                const min = Math.min(rect.width, rect.height) - 40;
+                this.canvas.style.width = min + 'px';
+                this.canvas.style.height = min + 'px';
+            }
+
+            init() {
+                // Generate Deck based on counts
+                const deck = [];
+                RELIC_TYPES.forEach(r => {
+                    for(let i=0; i<r.count; i++) deck.push({ ...r });
+                });
+                deck.sort(() => Math.random() - 0.5);
+
+                // Create winding path
+                const tilesCount = deck.length;
+                for(let i=0; i<tilesCount; i++) {
+                    const angle = (i / tilesCount) * Math.PI * 4; // 2 loops
+                    const r = 400 - (i * 10);
+                    this.tiles.push({
+                        idx: i,
+                        x: 500 + Math.cos(angle) * r,
+                        y: 500 + Math.sin(angle) * r,
+                        relic: deck[i],
+                        available: true
+                    });
+                }
+                
+                // Init inventories
+                RELIC_TYPES.forEach(r => {
+                    this.players.p1.inv[r.id] = 0;
+                    this.players.p2.inv[r.id] = 0;
+                });
+            }
+
+            start() {
+                document.getElementById('start-screen').style.display = 'none';
+                this.playing = true;
+                this.render();
+                this.updateUI();
+            }
+
+            handleClick(e) {
+                if (!this.playing || this.turn !== 'p1' || this.animating) return;
+
+                const rect = this.canvas.getBoundingClientRect();
+                const scale = this.width / rect.width;
+                const mx = (e.clientX - rect.left) * scale;
+                const my = (e.clientY - rect.top) * scale;
+
+                const target = this.tiles.find(t => t.available && Math.hypot(mx - t.x, my - t.y) < 40);
+                if (target && target.idx > this.players.p1.pos) {
+                    // Check if unoccupied
+                    if (this.players.p2.pos === target.idx) return;
+                    
+                    this.movePlayer('p1', target.idx);
+                }
+            }
+
+            movePlayer(pId, targetIdx) {
+                const p = this.players[pId];
+                const tile = this.tiles[targetIdx];
+                
+                // Collect
+                p.inv[tile.relic.id]++;
+                tile.available = false;
+                p.pos = targetIdx;
+
+                // Remove tiles left behind by BOTH players
+                const lastPos = Math.min(this.players.p1.pos, this.players.p2.pos);
+                for(let i=0; i<lastPos; i++) {
+                    if (this.tiles[i].available) {
+                        this.tiles[i].available = false;
+                        this.tiles[i].discarded = true;
+                    }
+                }
+
+                // Check for set completion and scoring
+                this.checkScoring();
+
+                this.turn = (pId === 'p1') ? 'p2' : 'p1';
+                this.updateUI();
+                this.render();
+
+                if (this.turn === 'p2' && this.playing) {
+                    setTimeout(() => this.aiTurn(), 1000);
+                }
+
+                // Check game end
+                if (this.players.p1.pos === this.tiles.length - 1 || this.players.p2.pos === this.tiles.length - 1) {
+                    // Force remaining player to finish? No, once one reaches end, game wraps up.
+                    this.endGame();
+                }
+            }
+
+            aiTurn() {
+                if (!this.playing) return;
+                
+                // Simple AI: 
+                // 1. Look ahead 5 tiles.
+                // 2. Pick the most valuable one or one that helps a majority.
+                const start = this.players.p2.pos + 1;
+                const options = this.tiles.slice(start, start + 6).filter(t => t.available && this.players.p1.pos !== t.idx);
+                
+                if (options.length > 0) {
+                    // Sort by points
+                    options.sort((a,b) => b.relic.points - a.relic.points);
+                    this.movePlayer('p2', options[0].idx);
+                } else {
+                    // If no tiles in immediate range, jump to next available
+                    const next = this.tiles.find(t => t.available && t.idx > this.players.p2.pos && this.players.p1.pos !== t.idx);
+                    if (next) this.movePlayer('p2', next.idx);
+                    else this.endGame();
+                }
+            }
+
+            checkScoring() {
+                // For each type, if all pieces are gone from board (either in inv or discarded)
+                RELIC_TYPES.forEach(type => {
+                    const remainingOnBoard = this.tiles.filter(t => t.available && t.relic.id === type.id).length;
+                    if (remainingOnBoard === 0 && !type.scored) {
+                        type.scored = true;
+                        this.resolveMajority(type);
+                    }
+                });
+            }
+
+            resolveMajority(type) {
+                const c1 = this.players.p1.inv[type.id];
+                const c2 = this.players.p2.inv[type.id];
+                
+                if (c1 === 0 && c2 === 0) return;
+
+                if (c1 > c2) {
+                    this.players.p1.score += type.points;
+                    this.players.p2.score += Math.floor(type.points / 2);
+                } else if (c2 > c1) {
+                    this.players.p2.score += type.points;
+                    this.players.p1.score += Math.floor(type.points / 2);
+                } else {
+                    // Tie: both get points? 
+                    this.players.p1.score += type.points;
+                    this.players.p2.score += type.points;
+                }
+            }
+
+            updateUI() {
+                document.getElementById('p1-score').textContent = this.players.p1.score.toString().padStart(3, '0');
+                document.getElementById('p2-score').textContent = this.players.p2.score.toString().padStart(3, '0');
+                
+                document.getElementById('p1-card').classList.toggle('active', this.turn === 'p1');
+                document.getElementById('p2-card').classList.toggle('active', this.turn === 'p2');
+
+                const renderInv = (pId) => {
+                    const el = document.getElementById(`${pId}-inv`);
+                    el.innerHTML = '';
+                    RELIC_TYPES.forEach(type => {
+                        const count = this.players[pId].inv[type.id];
+                        if (count > 0) {
+                            const item = document.createElement('div');
+                            item.className = 'inv-item';
+                            item.innerHTML = `<span>${type.icon}</span><span class="count-badge">${count}</span>`;
+                            el.appendChild(item);
+                        }
+                    });
+                };
+                renderInv('p1');
+                renderInv('p2');
+            }
+
+            endGame() {
+                this.playing = false;
+                const p1 = this.players.p1.score;
+                const p2 = this.players.p2.score;
+                
+                document.getElementById('end-screen').style.display = 'flex';
+                const win = p1 > p2;
+                document.getElementById('winner-text').textContent = win ? "MISSION SUCCESSFUL" : "MISSION FAILED";
+                document.getElementById('winner-text').style.color = win ? "var(--p1)" : "var(--p2)";
+                document.getElementById('final-stats').textContent = `Final Score: ${p1} to ${p2}`;
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Draw Path Lines
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                this.tiles.forEach((t, i) => {
+                    if (i === 0) ctx.moveTo(t.x, t.y);
+                    else ctx.lineTo(t.x, t.y);
+                });
+                ctx.stroke();
+
+                // Draw Tiles
+                this.tiles.forEach(t => {
+                    if (!t.available) {
+                        if (t.discarded) {
+                            ctx.globalAlpha = 0.1;
+                            ctx.font = '20px Arial';
+                            ctx.fillText('🚫', t.x - 10, t.y + 10);
+                            ctx.globalAlpha = 1.0;
+                        }
+                        return;
+                    }
+
+                    ctx.save();
+                    ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(255,255,255,0.1)';
+                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    ctx.beginPath(); ctx.arc(t.x, t.y, 35, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.stroke();
+                    
+                    ctx.font = '30px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(t.relic.icon, t.x, t.y);
+                    
+                    // Points marker
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 10px Arial';
+                    ctx.fillText(t.relic.points, t.x, t.y + 25);
+                    ctx.restore();
+                });
+
+                // Draw Players
+                const drawP = (p, color) => {
+                    if (p.pos === -1) return;
+                    const tile = this.tiles[p.pos];
+                    ctx.save();
+                    ctx.shadowBlur = 20; ctx.shadowColor = color;
+                    ctx.fillStyle = color;
+                    ctx.beginPath(); ctx.arc(tile.x, tile.y, 40, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.font = '40px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(p.icon, tile.x, tile.y);
+                    ctx.restore();
+                };
+                drawP(this.players.p1, 'var(--p1)');
+                drawP(this.players.p2, 'var(--p2)');
+            }
+
+            render() {
+                this.draw();
+            }
+
+            loop() {
+                // requestAnimationFrame handled locally for move anims if added
+            }
+        }
+
+        const game = new CosmicRelics();
+    </script>
+</body>
+</html>
