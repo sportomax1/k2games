@@ -49,7 +49,6 @@
             display: block;
             width: 100%;
             height: 100%;
-            object-fit: cover;
         }
 
         #ui {
@@ -168,11 +167,10 @@
                 this.canvas = document.getElementById('gameCanvas');
                 this.ctx = this.canvas.getContext('2d');
                 
-                this.width = 1000;
-                this.height = 600;
-                this.canvas.width = this.width;
-                this.canvas.height = this.height;
-
+                this.baseHeight = 600;
+                this.width = window.innerWidth * (this.baseHeight / window.innerHeight);
+                this.height = this.baseHeight;
+                
                 this.level = 1;
                 this.score = 0;
                 this.isGameOver = false;
@@ -186,49 +184,55 @@
             }
 
             init() {
+                this.resize();
                 for(let i=0; i<8; i++) this.clouds.push({ x: Math.random()*this.width, y: Math.random()*200, w: 100+Math.random()*150, s: 0.2+Math.random()*0.5 });
                 this.setupInputs();
                 this.loadLevel(1);
                 
-                window.addEventListener('resize', () => this.resize());
-                this.resize();
+                window.addEventListener('resize', () => {
+                    this.resize();
+                    this.loadLevel(this.level); // Reposition items for new width
+                });
                 this.loop();
             }
 
             resize() {
-                const container = document.getElementById('game-container');
-                const ratio = this.width / this.height;
-                let w = window.innerWidth;
-                let h = window.innerHeight;
+                const ratio = window.innerWidth / window.innerHeight;
+                this.height = 600;
+                this.width = 600 * ratio;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
                 
-                if (w / h > ratio) w = h * ratio;
-                else h = w / ratio;
-                
-                this.canvas.style.width = w + 'px';
-                this.canvas.style.height = h + 'px';
+                // Adjust slingshot anchor if screen is too narrow
+                this.bird.anchorX = Math.min(200, this.width * 0.2);
+                if (!this.bird.active) {
+                    this.bird.x = this.bird.anchorX;
+                }
             }
 
             loadLevel(num) {
                 this.level = num;
                 this.objects = [];
-                this.bird.typeIndex = 0;
+                if (!this.bird.active) this.bird.typeIndex = 0;
                 this.resetBird();
                 this.isGameOver = false;
                 document.getElementById('overlay').style.display = 'none';
                 document.getElementById('level-indicator').textContent = `LEVEL ${this.level} / 5`;
 
+                // Layouts anchored from the right side
                 const layout = [
                     [],
-                    [{x: 700, y: 540, w: 40, h: 120}, {x: 850, y: 540, w: 40, h: 120}, {x: 700, y: 420, w: 190, h: 20}, {x: 775, y: 380, p: true}],
-                    [{x: 650, y: 540, w: 30, h: 100}, {x: 750, y: 540, w: 30, h: 100}, {x: 850, y: 540, w: 30, h: 100}, {x: 650, y: 440, w: 230, h: 20}, {x: 700, y: 400, p: true}, {x: 800, y: 400, p: true}],
-                    [{x: 700, y: 540, w: 40, h: 150}, {x: 850, y: 540, w: 40, h: 150}, {x: 700, y: 390, w: 190, h: 20}, {x: 720, y: 340, w: 30, h: 100}, {x: 830, y: 340, w: 30, h: 100}, {x: 775, y: 240, p: true}, {x: 775, y: 500, p: true}],
-                    [{x: 600, y: 540, w: 20, h: 180}, {x: 700, y: 540, w: 20, h: 180}, {x: 800, y: 540, w: 20, h: 180}, {x: 900, y: 540, w: 20, h: 180}, {x: 600, y: 360, w: 320, h: 20}, {x: 650, y: 320, p: true}, {x: 750, y: 320, p: true}, {x: 850, y: 320, p: true}],
-                    [{x: 750, y: 540, w: 100, h: 100}, {x: 750, y: 440, w: 100, h: 100}, {x: 750, y: 340, w: 100, h: 100}, {x: 700, y: 540, w: 20, h: 300}, {x: 900, y: 540, w: 20, h: 300}, {x: 800, y: 240, p: true}, {x: 800, y: 400, p: true}, {x: 800, y: 500, p: true}]
+                    [{x: -300, y: 540, w: 40, h: 120}, {x: -150, y: 540, w: 40, h: 120}, {x: -300, y: 420, w: 190, h: 20}, {x: -225, y: 380, p: true}],
+                    [{x: -350, y: 540, w: 30, h: 100}, {x: -250, y: 540, w: 30, h: 100}, {x: -150, y: 540, w: 30, h: 100}, {x: -350, y: 440, w: 230, h: 20}, {x: -300, y: 400, p: true}, {x: -200, y: 400, p: true}],
+                    [{x: -300, y: 540, w: 40, h: 150}, {x: -150, y: 540, w: 40, h: 150}, {x: -300, y: 390, w: 190, h: 20}, {x: -280, y: 340, w: 30, h: 100}, {x: -170, y: 340, w: 30, h: 100}, {x: -225, y: 240, p: true}, {x: -225, y: 500, p: true}],
+                    [{x: -400, y: 540, w: 20, h: 180}, {x: -300, y: 540, w: 20, h: 180}, {x: -200, y: 540, w: 20, h: 180}, {x: -100, y: 540, w: 20, h: 180}, {x: -400, y: 360, w: 320, h: 20}, {x: -350, y: 320, p: true}, {x: -250, y: 320, p: true}, {x: -150, y: 320, p: true}],
+                    [{x: -250, y: 540, w: 100, h: 100}, {x: -250, y: 440, w: 100, h: 100}, {x: -250, y: 340, w: 100, h: 100}, {x: -300, y: 540, w: 20, h: 300}, {x: -100, y: 540, w: 20, h: 300}, {x: -200, y: 240, p: true}, {x: -200, y: 400, p: true}, {x: -200, y: 500, p: true}]
                 ][this.level];
 
                 layout.forEach(o => {
-                    if (o.p) this.objects.push({ type: 'enemy', x: o.x, y: o.y, r: 22, hp: 10 });
-                    else this.objects.push({ type: 'block', x: o.x, y: o.y - o.h, w: o.w, h: o.h, hp: 100 });
+                    const realX = this.width + o.x;
+                    if (o.p) this.objects.push({ type: 'enemy', x: realX, y: o.y, r: 22, hp: 10 });
+                    else this.objects.push({ type: 'block', x: realX, y: o.y - o.h, w: o.w, h: o.h, hp: 100 });
                 });
 
                 this.updateUI();
@@ -296,7 +300,7 @@
                     this.bird.vx *= 2.8; this.bird.vy *= 0.4;
                     this.spawnParticles(this.bird.x, this.bird.y, '#fff', 12);
                 } else if (type.power === 'TRIPLE') {
-                    this.bird.r *= 1.8; // Actually make it big/heavy for triple effect in this simple engine
+                    this.bird.r *= 1.8;
                 }
                 this.bird.powerUsed = true;
                 document.getElementById('power-hint').style.opacity = 0;
@@ -306,6 +310,7 @@
                 this.bird.active = false; this.bird.powerUsed = false;
                 this.bird.x = this.bird.anchorX; this.bird.y = this.bird.anchorY;
                 this.bird.vx = this.bird.vy = 0;
+                this.bird.r = 25;
                 this.bird.typeIndex = (this.bird.typeIndex + 1) % BIRD_TYPES.length;
                 this.updateUI();
             }
@@ -400,9 +405,9 @@
                 if (this.bird.active) ctx.rotate(Math.atan2(this.bird.vy, this.bird.vx));
                 ctx.fillStyle = type.color;
                 ctx.beginPath(); ctx.arc(0, 0, this.bird.r, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(10, -5, 6, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(12, -5, 2, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#ffa502'; ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(25, 5); ctx.lineTo(15, 10); ctx.fill();
+                ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(this.bird.r * 0.4, -this.bird.r * 0.2, this.bird.r * 0.24, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(this.bird.r * 0.48, -this.bird.r * 0.2, this.bird.r * 0.08, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#ffa502'; ctx.beginPath(); ctx.moveTo(this.bird.r * 0.6, 0); ctx.lineTo(this.bird.r, this.bird.r * 0.2); ctx.lineTo(this.bird.r * 0.6, this.bird.r * 0.4); ctx.fill();
                 ctx.restore();
 
                 if (this.bird.dragging) {
