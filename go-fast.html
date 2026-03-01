@@ -236,6 +236,7 @@
                 this.scene.fog = new THREE.FogExp2(0x0c4a6e, 0.001);
 
                 this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 3000);
+                this.camera.up.set(0, 1, 0); // Force absolute Y-up
                 this.renderer = new THREE.WebGLRenderer({ antialias: true });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
                 this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -277,43 +278,42 @@
                 
                 this.trackCurve = new THREE.CatmullRomCurve3(points, true);
                 
-                // Create Road Ribbon (Better than Tube)
+                // Create Road Ribbon (Corrected Axis & Indexing)
                 const roadWidth = 25;
                 const roadSegments = 400;
-                const roadGeo = new THREE.PlaneGeometry(roadWidth, 1, roadSegments, 1);
+                const roadGeo = new THREE.PlaneGeometry(roadWidth, 1, 1, roadSegments);
+                const curbGeo = new THREE.PlaneGeometry(roadWidth + 4, 1, 1, roadSegments);
                 
-                // Morph Plane into Road
-                const pos = roadGeo.attributes.position;
+                const rPos = roadGeo.attributes.position;
+                const cPos = curbGeo.attributes.position;
+
                 for(let i=0; i<=roadSegments; i++) {
                     const t = i / roadSegments;
                     const p = this.trackCurve.getPoint(t);
-                    const tangent = this.trackCurve.getTangent(t);
-                    const normal = tangent.clone().cross(new THREE.Vector3(0,1,0)).normalize();
-                    const up = normal.clone().cross(tangent).normalize();
+                    const tangent = this.trackCurve.getTangent(t).normalize();
+                    // 'Right' vector is perpendicular to tangent and global UP
+                    const right = tangent.clone().cross(new THREE.Vector3(0,1,0)).normalize();
                     
-                    // Left vertex
-                    pos.setXYZ(i*2, p.x - normal.x * roadWidth/2, p.y - normal.y * roadWidth/2, p.z - normal.z * roadWidth/2);
-                    // Right vertex
-                    pos.setXYZ(i*2 + 1, p.x + normal.x * roadWidth/2, p.y + normal.y * roadWidth/2, p.z + normal.z * roadWidth/2);
-                }
-                roadGeo.computeVertexNormals();
+                    // Road vertices (Pinned to global Y axis for horizontal orientation)
+                    rPos.setXYZ(i*2, p.x - right.x * roadWidth/2, p.y, p.z - right.z * roadWidth/2);
+                    rPos.setXYZ(i*2 + 1, p.x + right.x * roadWidth/2, p.y, p.z + right.z * roadWidth/2);
 
-                const roadMat = new THREE.MeshStandardMaterial({ 
-                    color: 0x1e293b, 
-                    roughness: 0.9, 
-                    metalness: 0.1,
-                    side: THREE.DoubleSide
-                });
-                this.roadMesh = new THREE.Mesh(roadGeo, roadMat);
+                    // Curb vertices (Slightly raised)
+                    const cW = (roadWidth + 4) / 2;
+                    cPos.setXYZ(i*2, p.x - right.x * cW, p.y + 0.1, p.z - right.z * cW);
+                    cPos.setXYZ(i*2 + 1, p.x + right.x * cW, p.y + 0.1, p.z + right.z * cW);
+                }
+                rPos.needsUpdate = true;
+                cPos.needsUpdate = true;
+                roadGeo.computeVertexNormals();
+                curbGeo.computeVertexNormals();
+
+                this.roadMesh = new THREE.Mesh(roadGeo, new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 }));
                 this.roadMesh.receiveShadow = true;
                 this.scene.add(this.roadMesh);
 
-                // Curbs
-                const curbGeo = new THREE.TubeGeometry(this.trackCurve, 400, 13, 8, true);
-                const curbMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.5 });
-                const curb = new THREE.Mesh(curbGeo, curbMat);
-                curb.scale.set(1.02, 1.02, 1.02);
-                this.scene.add(curb);
+                this.curbMesh = new THREE.Mesh(curbGeo, new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.5 }));
+                this.scene.add(this.curbMesh);
 
                 // Ground
                 const groundGeo = new THREE.CircleGeometry(1500, 64);
@@ -474,7 +474,7 @@
                     this.updateCar(opp.mesh, t, Math.sin(Date.now() * 0.001 + opp.dist * 10) * 6);
                 });
 
-                // HUD Optimization
+                // HUD Updates
                 const elapsed = Date.now() - this.state.startTime;
                 document.getElementById('time-val').textContent = this.formatTime(elapsed);
                 document.getElementById('lap-val').textContent = `${Math.min(this.state.lap, this.state.totalLaps)}/${this.state.totalLaps}`;
@@ -483,7 +483,7 @@
                 // Standings
                 this.state.standings.sort((a, b) => b.dist - a.dist);
                 const standingsEl = document.getElementById('standings');
-                if (Date.now() % 500 < 20) { // Update standings list every half second
+                if (Date.now() % 500 < 20) {
                     standingsEl.innerHTML = '';
                     this.state.standings.forEach((s, i) => {
                         const row = document.createElement('div');
@@ -493,21 +493,22 @@
                     });
                 }
 
-                // Dynamic Camera
+                // Dynamic Camera (Stabilized)
                 const camLookAhead = 0.04;
                 const camPosOffset = 0.015;
-                const camPos = this.trackCurve.getPoint((this.state.trackPos - camPosOffset + 1) % 1);
-                const tangent = this.trackCurve.getTangent((this.state.trackPos - camPosOffset + 1) % 1);
-                const normal = tangent.clone().cross(new THREE.Vector3(0,1,0)).normalize();
+                const tCam = (this.state.trackPos - camPosOffset + 1) % 1;
+                const camPos = this.trackCurve.getPoint(tCam);
+                const tangent = this.trackCurve.getTangent(tCam).normalize();
+                const right = tangent.clone().cross(new THREE.Vector3(0,1,0)).normalize();
                 
-                this.camera.position.copy(camPos).add(new THREE.Vector3(0, 8, 0)).add(normal.multiplyScalar(this.state.steering * 0.5));
+                this.camera.position.copy(camPos).add(new THREE.Vector3(0, 8, 0)).add(right.multiplyScalar(this.state.steering * 0.5));
                 
                 const fovTarget = 60 + (this.state.speed / this.state.maxSpeed) * 25;
                 this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, fovTarget, 0.05);
                 this.camera.updateProjectionMatrix();
                 
                 const lookAtTarget = this.trackCurve.getPoint((this.state.trackPos + camLookAhead) % 1);
-                this.camera.lookAt(lookAtTarget);
+                this.camera.lookAt(lookAtTarget.x, lookAtTarget.y + 2, lookAtTarget.z);
                 this.camera.rotation.z = this.state.steering * 0.015 + (Math.random() - 0.5) * (this.state.speed * 0.005);
 
                 this.drawMinimap();
@@ -515,14 +516,17 @@
 
             updateCar(mesh, t, steeringOffset) {
                 const pos = this.trackCurve.getPoint(t);
-                const tangent = this.trackCurve.getTangent(t);
-                const normal = tangent.clone().cross(new THREE.Vector3(0,1,0)).normalize();
-                mesh.position.copy(pos).add(normal.multiplyScalar(steeringOffset));
+                const tangent = this.trackCurve.getTangent(t).normalize();
+                const right = tangent.clone().cross(new THREE.Vector3(0,1,0)).normalize();
+                
+                mesh.position.copy(pos).add(right.multiplyScalar(steeringOffset));
                 mesh.position.y += 0.5;
-                mesh.lookAt(this.trackCurve.getPoint((t + 0.01) % 1));
+                
+                // Stabilized orientation
+                const lookTarget = this.trackCurve.getPoint((t + 0.01) % 1);
+                mesh.lookAt(lookTarget.x, mesh.position.y, lookTarget.z);
                 mesh.rotation.y += Math.PI;
-                // Add slight tilt when turning
-                mesh.rotation.z = steeringOffset * -0.05;
+                mesh.rotation.z = steeringOffset * -0.05; // Banking
             }
 
             drawMinimap() {
