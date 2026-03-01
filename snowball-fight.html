@@ -1,160 +1,478 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snowball Fight</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Snowball Fight Pro - K2 games</title>
     <style>
-        body { margin: 0; background: #eaf6ff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        canvas {
-            background: #fff;
-            border: 4px solid #3498db;
-            border-radius: 10px;
-            width: 90vmin;
-            height: 67.5vmin; /* 800:600 ratio */
-            max-width: 800px;
-            max-height: 600px;
+        :root {
+            --bg: #eaf6ff;
+            --snow: #ffffff;
+            --ui-bg: rgba(15, 23, 42, 0.7);
+            --accent: #3b82f6;
+            --danger: #ef4444;
+            --gold: #fbbf24;
         }
-        .ui { position: absolute; top: 20px; font-size: 1.5rem; font-weight: bold; color: #2980b9; }
-        .back { position: absolute; bottom: 20px; left: 20px; color: #3498db; text-decoration: none; }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #1e293b;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100dvh;
+            width: 100%;
+            position: fixed;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #dbeafe, #ffffff);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui {
+            position: absolute;
+            top: env(safe-area-inset-top, 20px);
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .stat-card {
+            background: var(--ui-bg);
+            backdrop-filter: blur(12px);
+            padding: 8px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            font-weight: 900;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 90px;
+            color: white;
+        }
+
+        .stat-label { font-size: 0.55rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px; }
+        .stat-val { font-size: 1.2rem; color: var(--gold); font-family: monospace; }
+
+        /* Controls */
+        #mobile-controls {
+            position: absolute;
+            bottom: 40px;
+            left: 0;
+            right: 0;
+            display: none;
+            justify-content: space-between;
+            padding: 0 30px;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        @media (max-width: 1024px) { #mobile-controls { display: flex; } }
+
+        .joystick-container {
+            width: 120px;
+            height: 120px;
+            background: rgba(0,0,0,0.2);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+        }
+
+        .joystick-knob {
+            width: 50px;
+            height: 50px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .action-btn {
+            width: 90px;
+            height: 90px;
+            background: var(--accent);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            pointer-events: auto;
+            box-shadow: 0 8px 15px rgba(59, 130, 246, 0.4);
+            border: 4px solid rgba(255,255,255,0.3);
+            font-size: 1.1rem;
+        }
+        .action-btn:active { transform: scale(0.9); }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 200;
+            font-weight: bold; font-size: 0.8rem; backdrop-filter: blur(10px);
+        }
+
+        .modal {
+            position: absolute; inset: 0;
+            background: rgba(15, 23, 42, 0.9);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 1000; backdrop-filter: blur(10px); text-align: center; padding: 20px;
+            color: white;
+        }
+
+        .btn-large {
+            background: var(--accent); color: white; border: none; padding: 1rem 3rem;
+            border-radius: 50px; font-weight: 900; cursor: pointer; margin-top: 1.5rem;
+            font-size: 1.2rem;
+        }
     </style>
 </head>
 <body>
-    <div class="ui">Score: <span id="score">0</span> | Hits Taken: <span id="hits">0</span>/5</div>
-    <canvas id="game"></canvas>
-    <a href="index.html" class="back">← HUB</a>
+    <div id="game-container">
+        <div id="ui">
+            <div class="stat-card" style="margin-left: 60px;">
+                <span class="stat-label">Score</span>
+                <span id="score-val" class="stat-val">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Health</span>
+                <span id="health-val" class="stat-val">❤️❤️❤️❤️❤️</span>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="mobile-controls">
+            <div class="joystick-container" id="joy-base">
+                <div class="joystick-knob" id="joy-knob"></div>
+            </div>
+            <div class="action-btn" id="btn-throw">THROW</div>
+        </div>
+
+        <a href="index.html" class="back-link">← HUB</a>
+
+        <div id="start-modal" class="modal">
+            <h1 style="font-size: 3rem; font-style: italic; font-weight: 900; color: var(--accent);">SNOWBALL FIGHT</h1>
+            <p style="margin-top: 15px; font-weight: 600; opacity: 0.8; max-width: 400px;">Dodge the incoming snowballs and hit the enemies to score!</p>
+            <button class="btn-large" onclick="game.start()">START BATTLE</button>
+        </div>
+
+        <div id="gameover-modal" class="modal" style="display:none">
+            <h1 style="font-size: 3rem; font-weight: 900; color: var(--danger);">GAME OVER</h1>
+            <p id="final-stats" style="font-size: 1.2rem; margin-top: 10px;"></p>
+            <button class="btn-large" onclick="location.reload()">REPLAY</button>
+        </div>
+    </div>
 
     <script>
-        const canvas = document.getElementById('game');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 800; canvas.height = 600;
-
-        let player = { x: 400, y: 500, vx: 0, vy: 0, snowballs: 1, cooldown: 0 };
-        let ais = [], snowballs = [], particles = [];
-        let score = 0, hits = 0;
-        let keys = {};
-
-        function init() {
-            // Spawn 3 Enemies
-            for(let i=0; i<3; i++) ais.push({ 
-                x: 100 + i*300, y: 100, 
-                vx: 0, vy: 0, 
-                cooldown: 0, 
-                targetX: 100 + i*300, targetY: 100 
-            });
-            loop();
-        }
-
-        function update() {
-            // Player
-            if(keys['ArrowLeft']) player.x -= 4;
-            if(keys['ArrowRight']) player.x += 4;
-            if(keys['ArrowUp']) player.y -= 4;
-            if(keys['ArrowDown']) player.y += 4;
-            player.x = Math.max(20, Math.min(780, player.x));
-            player.y = Math.max(300, Math.min(580, player.y)); // Stay in bottom half
-
-            if(keys[' '] && player.cooldown <= 0) {
-                snowballs.push({ x: player.x, y: player.y, vx: 0, vy: -8, owner: 'p' });
-                player.cooldown = 20;
-            }
-            if(player.cooldown > 0) player.cooldown--;
-
-            // AI
-            ais.forEach(ai => {
-                if(Math.random() < 0.02) {
-                    ai.targetX = Math.random() * 700 + 50;
-                    ai.targetY = Math.random() * 200 + 50;
-                }
-                ai.x += (ai.targetX - ai.x) * 0.05;
-                ai.y += (ai.targetY - ai.y) * 0.05;
-
-                if(ai.cooldown <= 0 && Math.random() < 0.02) {
-                    let dx = player.x - ai.x;
-                    let dy = player.y - ai.y;
-                    let mag = Math.hypot(dx, dy);
-                    snowballs.push({ x: ai.x, y: ai.y, vx: (dx/mag)*6, vy: (dy/mag)*6, owner: 'ai' });
-                    ai.cooldown = 60;
-                }
-                if(ai.cooldown > 0) ai.cooldown--;
-            });
-
-            // Snowballs
-            snowballs.forEach((s, i) => {
-                s.x += s.vx; s.y += s.vy;
+        class SnowballFight {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
                 
-                // Hit Player
-                if(s.owner === 'ai' && Math.hypot(s.x-player.x, s.y-player.y) < 20) {
-                    hits++;
-                    snowballs.splice(i, 1);
-                    document.getElementById('hits').textContent = hits;
-                    if(hits >= 5) { alert("Game Over!"); location.reload(); }
-                }
+                this.width = 800;
+                this.height = 600;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
 
-                // Hit AI
-                if(s.owner === 'p') {
-                    ais.forEach((ai, aiIdx) => {
-                        if(Math.hypot(s.x-ai.x, s.y-ai.y) < 20) {
-                            score++;
-                            snowballs.splice(i, 1);
-                            // Respawn AI
-                            ai.x = Math.random()*800; ai.y = -50;
-                            document.getElementById('score').textContent = score;
-                        }
+                this.player = { x: 400, y: 500, r: 25, speed: 6, cooldown: 0, health: 5 };
+                this.ais = [];
+                this.snowballs = [];
+                this.particles = [];
+                this.backgroundParticles = [];
+                
+                this.score = 0;
+                this.playing = false;
+                this.keys = {};
+                this.joy = { active: false, x: 0, y: 0 };
+
+                this.init();
+            }
+
+            init() {
+                this.resize();
+                for(let i=0; i<100; i++) {
+                    this.backgroundParticles.push({
+                        x: Math.random() * this.width,
+                        y: Math.random() * this.height,
+                        r: Math.random() * 2 + 1,
+                        s: Math.random() * 1 + 0.5
                     });
                 }
-
-                if(s.x < 0 || s.x > 800 || s.y < 0 || s.y > 600) snowballs.splice(i, 1);
-            });
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Scenery
-            ctx.fillStyle = "#fff"; ctx.fillRect(0,0,800,600); // Snow
-            ctx.fillStyle = "#dfe6e9";
-            ctx.beginPath(); ctx.arc(100, 100, 40, 0, Math.PI*2); ctx.fill(); // Decor
-            ctx.beginPath(); ctx.arc(700, 200, 60, 0, Math.PI*2); ctx.fill();
-
-            // Player
-            ctx.fillStyle = "#e74c3c";
-            ctx.beginPath(); ctx.arc(player.x, player.y, 15, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#ffeaa7"; ctx.beginPath(); ctx.arc(player.x, player.y-5, 8, 0, Math.PI*2); ctx.fill(); // Head
-
-            // AI
-            ctx.fillStyle = "#3498db";
-            ais.forEach(ai => {
-                ctx.beginPath(); ctx.arc(ai.x, ai.y, 15, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = "#ffeaa7"; ctx.beginPath(); ctx.arc(ai.x, ai.y-5, 8, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = "#3498db"; // Reset
-            });
-
-            // Snowballs
-            ctx.fillStyle = "#fff"; ctx.strokeStyle = "#bdc3c7"; ctx.lineWidth = 2;
-            snowballs.forEach(s => {
-                ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            });
-        }
-
-        window.onkeyup = e => keys[e.key] = false;
-
-        // Gamepad Adapter
-        const pollGamepad = () => {
-            const pads = navigator.getGamepads();
-            if (pads[0]) {
-                const p = pads[0], ax = p.axes[0], ay = p.axes[1], b = p.buttons;
-                keys['ArrowLeft'] = ax < -0.3 || b[14].pressed;
-                keys['ArrowRight'] = ax > 0.3 || b[15].pressed;
-                keys['ArrowUp'] = ay < -0.3 || b[12].pressed;
-                keys['ArrowDown'] = ay > 0.3 || b[13].pressed;
-                keys[' '] = b[0].pressed || b[7].pressed;
+                
+                this.setupInputs();
+                window.addEventListener('resize', () => this.resize());
+                this.loop();
             }
-            requestAnimationFrame(pollGamepad);
-        };
-        pollGamepad();
 
-        function loop() { update(); draw(); requestAnimationFrame(loop); }
-        init();
+            resize() {
+                const ratio = this.width / this.height;
+                let w = window.innerWidth;
+                let h = window.innerHeight;
+                if (w / h > ratio) w = h * ratio;
+                else h = w / ratio;
+                this.canvas.style.width = w + 'px';
+                this.canvas.style.height = h + 'px';
+            }
+
+            setupInputs() {
+                window.onkeydown = e => this.keys[e.code] = true;
+                window.onkeyup = e => this.keys[e.code] = false;
+
+                const joyBase = document.getElementById('joy-base'), knob = document.getElementById('joy-knob');
+                const handleJoy = (e) => {
+                    if(!this.joy.active) return;
+                    const rect = joyBase.getBoundingClientRect();
+                    const t = e.touches ? e.touches[0] : e;
+                    const dx = t.clientX - (rect.left + rect.width/2);
+                    const dy = t.clientY - (rect.top + rect.height/2);
+                    const dist = Math.min(45, Math.hypot(dx, dy));
+                    const ang = Math.atan2(dy, dx);
+                    this.joy.x = Math.cos(ang) * (dist/45);
+                    this.joy.y = Math.sin(ang) * (dist/45);
+                    knob.style.transform = `translate(${this.joy.x * 35}px, ${this.joy.y * 35}px)`;
+                };
+
+                joyBase.addEventListener('touchstart', e => { this.joy.active = true; handleJoy(e); }, {passive:false});
+                window.addEventListener('touchmove', handleJoy, {passive:false});
+                window.addEventListener('touchend', () => { 
+                    this.joy.active = false; this.joy.x = this.joy.y = 0; 
+                    knob.style.transform = 'translate(0,0)';
+                });
+
+                document.getElementById('btn-throw').addEventListener('touchstart', e => { e.preventDefault(); this.throwSnowball(); });
+                window.addEventListener('keydown', e => { if(e.code === 'Space') this.throwSnowball(); });
+            }
+
+            start() {
+                this.playing = true;
+                this.score = 0;
+                this.player.health = 5;
+                this.ais = [];
+                for(let i=0; i<3; i++) this.spawnAI();
+                document.getElementById('start-modal').style.display = 'none';
+                this.updateUI();
+            }
+
+            spawnAI() {
+                this.ais.push({
+                    x: Math.random() * (this.width - 100) + 50,
+                    y: Math.random() * 150 + 50,
+                    targetX: Math.random() * (this.width - 100) + 50,
+                    targetY: Math.random() * 150 + 50,
+                    r: 25,
+                    cooldown: Math.random() * 60 + 60,
+                    color: '#3b82f6'
+                });
+            }
+
+            throwSnowball() {
+                if(!this.playing || this.player.cooldown > 0) return;
+                this.snowballs.push({ x: this.player.x, y: this.player.y - 20, vx: 0, vy: -10, owner: 'player' });
+                this.player.cooldown = 15;
+            }
+
+            update() {
+                // Background snow
+                this.backgroundParticles.forEach(p => {
+                    p.y += p.s;
+                    p.x += Math.sin(Date.now() * 0.001 + p.y * 0.01) * 0.5;
+                    if(p.y > this.height) { p.y = -10; p.x = Math.random() * this.width; }
+                });
+
+                if(!this.playing) return;
+
+                // Player Movement
+                let dx = 0, dy = 0;
+                if(this.keys['ArrowLeft'] || this.keys['KeyA']) dx = -1;
+                if(this.keys['ArrowRight'] || this.keys['KeyD']) dx = 1;
+                if(this.keys['ArrowUp'] || this.keys['KeyW']) dy = -1;
+                if(this.keys['ArrowDown'] || this.keys['KeyS']) dy = 1;
+                if(this.joy.active) { dx = this.joy.x; dy = this.joy.y; }
+
+                this.player.x += dx * this.player.speed;
+                this.player.y += dy * this.player.speed;
+                this.player.x = Math.max(this.player.r, Math.min(this.width - this.player.r, this.player.x));
+                this.player.y = Math.max(this.height / 2 + this.player.r, Math.min(this.height - this.player.r, this.player.y));
+
+                if(this.player.cooldown > 0) this.player.cooldown--;
+
+                // AI Logic
+                this.ais.forEach(ai => {
+                    if(Math.abs(ai.x - ai.targetX) < 5 && Math.abs(ai.y - ai.targetY) < 5) {
+                        ai.targetX = Math.random() * (this.width - 100) + 50;
+                        ai.targetY = Math.random() * 150 + 50;
+                    }
+                    ai.x += (ai.targetX - ai.x) * 0.03;
+                    ai.y += (ai.targetY - ai.y) * 0.03;
+
+                    if(ai.cooldown > 0) ai.cooldown--;
+                    else {
+                        const dist = Math.hypot(this.player.x - ai.x, this.player.y - ai.y);
+                        const vx = (this.player.x - ai.x) / dist * 7;
+                        const vy = (this.player.y - ai.y) / dist * 7;
+                        this.snowballs.push({ x: ai.x, y: ai.y + 20, vx, vy, owner: 'ai' });
+                        ai.cooldown = Math.random() * 60 + 40;
+                    }
+                });
+
+                // Snowballs
+                for(let i = this.snowballs.length - 1; i >= 0; i--) {
+                    const s = this.snowballs[i];
+                    s.x += s.vx;
+                    s.y += s.vy;
+
+                    if(s.x < 0 || s.x > this.width || s.y < 0 || s.y > this.height) {
+                        this.snowballs.splice(i, 1);
+                        continue;
+                    }
+
+                    if(s.owner === 'player') {
+                        this.ais.forEach((ai, aiIdx) => {
+                            if(Math.hypot(s.x - ai.x, s.y - ai.y) < ai.r + 5) {
+                                this.score += 100;
+                                this.spawnParticles(ai.x, ai.y, '#fff', 15);
+                                this.ais.splice(aiIdx, 1);
+                                this.snowballs.splice(i, 1);
+                                this.updateUI();
+                                setTimeout(() => this.spawnAI(), 1000);
+                            }
+                        });
+                    } else {
+                        if(Math.hypot(s.x - this.player.x, s.y - this.player.y) < this.player.r) {
+                            this.player.health--;
+                            this.spawnParticles(this.player.x, this.player.y, '#ef4444', 10);
+                            this.snowballs.splice(i, 1);
+                            this.updateUI();
+                            if(this.player.health <= 0) this.gameOver();
+                        }
+                    }
+                }
+
+                // Particles
+                for(let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.x += p.vx; p.y += p.vy;
+                    p.vy += 0.2; p.life -= 0.02;
+                    if(p.life <= 0) this.particles.splice(i, 1);
+                }
+            }
+
+            spawnParticles(x, y, color, count) {
+                for(let i=0; i<count; i++) {
+                    this.particles.push({
+                        x, y,
+                        vx: (Math.random() - 0.5) * 10,
+                        vy: (Math.random() - 0.5) * 10,
+                        life: 1,
+                        color
+                    });
+                }
+            }
+
+            updateUI() {
+                document.getElementById('score-val').textContent = this.score;
+                document.getElementById('health-val').textContent = "❤️".repeat(this.player.health);
+            }
+
+            gameOver() {
+                this.playing = false;
+                document.getElementById('gameover-modal').style.display = 'flex';
+                document.getElementById('final-stats').textContent = `FINAL SCORE: ${this.score}`;
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Scenery
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                this.backgroundParticles.forEach(p => {
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+                });
+
+                // Horizon line
+                ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(0, this.height/2); ctx.lineTo(this.width, this.height/2); ctx.stroke();
+
+                // Characters
+                this.drawCharacter(this.player.x, this.player.y, '#ef4444', '🧑‍🚀');
+                this.ais.forEach(ai => this.drawCharacter(ai.x, ai.y, ai.color, '👾'));
+
+                // Snowballs
+                ctx.fillStyle = 'white';
+                ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(255,255,255,0.5)';
+                this.snowballs.forEach(s => {
+                    ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.shadowBlur = 0;
+
+                // Particles
+                this.particles.forEach(p => {
+                    ctx.globalAlpha = p.life;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            drawCharacter(x, y, color, emoji) {
+                const ctx = this.ctx;
+                ctx.save();
+                ctx.translate(x, y);
+                
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                ctx.beginPath(); ctx.ellipse(0, 25, 20, 8, 0, 0, Math.PI*2); ctx.fill();
+
+                // Body
+                ctx.fillStyle = color;
+                ctx.beginPath(); ctx.roundRect(-20, -20, 40, 45, 10); ctx.fill();
+
+                // Emoji Face
+                ctx.font = '30px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(emoji, 0, 0);
+
+                ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        const game = new SnowballFight();
     </script>
 </body>
 </html>
