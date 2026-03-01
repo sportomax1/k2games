@@ -28,7 +28,7 @@
         #game-container {
             position: relative;
             background: var(--bg);
-            padding: 30px;
+            padding: 3vmin;
             border-radius: 20px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             border: 4px solid #475569;
@@ -36,13 +36,17 @@
 
         .grid {
             display: grid;
-            grid-template-columns: repeat(6, 80px);
-            grid-template-rows: repeat(6, 80px);
-            gap: 10px;
+            grid-template-columns: repeat(6, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+            gap: 1vmin;
             background: #0f172a;
-            padding: 10px;
+            padding: 1vmin;
             border-radius: 8px;
             position: relative;
+            width: 80vmin;
+            height: 80vmin;
+            max-width: 500px;
+            max-height: 500px;
         }
 
         .cell {
@@ -64,13 +68,14 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.3), inset 0 0 15px rgba(255,255,255,0.1);
         }
         .vehicle:active { cursor: grabbing; z-index: 10; transform: scale(0.98); }
+        .vehicle.cursor { outline: 6px solid #fbbf24; z-index: 20; transform: scale(1.05); box-shadow: 0 0 20px #fbbf24; }
 
         .exit-marker {
             position: absolute;
             right: -25px;
-            top: 190px; /* 3rd row */
+            top: 33.3%; /* 3rd row */
             width: 20px;
-            height: 80px;
+            height: 16.6%;
             background: var(--accent);
             border-radius: 0 4px 4px 0;
             display: flex;
@@ -83,14 +88,15 @@
         }
 
         .header {
-            width: 540px;
+            width: 90vmin;
+            max-width: 540px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
         }
 
-        .title { font-size: 2.5rem; font-weight: 900; color: #f8fafc; }
+        .title { font-size: 2rem; font-weight: 900; color: #f8fafc; }
         .lvl { font-weight: 800; color: var(--accent); }
 
         .back-link {
@@ -109,6 +115,11 @@
             background: var(--accent); color: white; border: none; padding: 12px 40px;
             border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 20px;
         }
+
+        @media (max-width: 600px) {
+            .title { font-size: 1.5rem; }
+            .header { margin-bottom: 10px; }
+        }
     </style>
 </head>
 <body>
@@ -116,12 +127,11 @@
 
     <div class="header">
         <div class="title">RUSH <span class="lvl">HOUR</span></div>
-        <div>Level <span id="level-val">1</span></div>
+        <div style="font-weight: bold;">Level <span id="level-val">1</span></div>
     </div>
 
     <div id="game-container">
         <div class="grid" id="grid">
-            <!-- Cells for BG -->
             <div class="exit-marker">EXIT</div>
         </div>
         <div id="overlay">
@@ -130,8 +140,8 @@
         </div>
     </div>
 
-    <div style="margin-top: 20px; opacity: 0.5; font-size: 0.9rem;">
-        Drag the vehicles to clear a path for the Red Car
+    <div style="margin-top: 20px; opacity: 0.5; font-size: 0.8rem; text-align: center; max-width: 300px;">
+        Drag vehicles to clear a path for the Red Car. GAMEPAD: Use D-pad to cycle, A + Stick to move.
     </div>
 
     <script>
@@ -160,10 +170,7 @@
             constructor() {
                 this.gridEl = document.getElementById('grid');
                 this.level = 0;
-                this.cellSize = 80;
-                this.gap = 10;
                 this.vehicles = [];
-                
                 this.init();
             }
 
@@ -180,7 +187,6 @@
             }
 
             render() {
-                // Clear and add BG cells
                 this.gridEl.innerHTML = '<div class="exit-marker">EXIT</div>';
                 for(let i=0; i<36; i++) {
                     const cell = document.createElement('div');
@@ -188,16 +194,17 @@
                     this.gridEl.appendChild(cell);
                 }
 
-                this.vehicles.forEach(v => {
+                this.vehicles.forEach((v, i) => {
                     const el = document.createElement('div');
                     el.className = 'vehicle';
+                    el.dataset.idx = i;
                     el.style.backgroundColor = v.color;
-                    el.style.width = (v.d === 'h' ? v.l * this.cellSize + (v.l-1)*this.gap : this.cellSize) + 'px';
-                    el.style.height = (v.d === 'v' ? v.l * this.cellSize + (v.l-1)*this.gap : this.cellSize) + 'px';
-                    el.style.left = (v.x * (this.cellSize + this.gap) + 10) + 'px';
-                    el.style.top = (v.y * (this.cellSize + this.gap) + 10) + 'px';
+                    el.style.width = (v.d === 'h' ? `calc(${v.l} * 100% / 6 - 5px)` : `calc(100% / 6 - 5px)`);
+                    el.style.height = (v.d === 'v' ? `calc(${v.l} * 100% / 6 - 5px)` : `calc(100% / 6 - 5px)`);
+                    el.style.left = `calc(${v.x} * 100% / 6 + 2.5px)`;
+                    el.style.top = `calc(${v.y} * 100% / 6 + 2.5px)`;
                     
-                    if(v.id === 'player') el.style.border = '4px solid gold';
+                    if(v.id === 'player') el.style.border = '3px solid gold';
 
                     this.setupDragging(el, v);
                     this.gridEl.appendChild(el);
@@ -209,23 +216,18 @@
                 let startGrid = 0;
 
                 const onMove = (e) => {
+                    const rect = this.gridEl.getBoundingClientRect();
+                    const size = rect.width / 6;
                     const currentPos = v.d === 'h' ? (e.touches ? e.touches[0].clientX : e.clientX) : (e.touches ? e.touches[0].clientY : e.clientY);
-                    const diff = (currentPos - startPos) / (this.cellSize + this.gap);
+                    const diff = (currentPos - startPos) / size;
                     let newGrid = Math.round(startGrid + diff);
 
-                    // Constraints
-                    const min = 0;
-                    const max = 6 - v.l;
-                    newGrid = Math.max(min, Math.min(max, newGrid));
+                    newGrid = Math.max(0, Math.min(6 - v.l, newGrid));
 
-                    // Collision Check
                     if (this.canMoveTo(v, newGrid)) {
-                        const oldPos = v.d === 'h' ? v.x : v.y;
                         if(v.d === 'h') v.x = newGrid; else v.y = newGrid;
-                        
-                        el.style.left = (v.x * (this.cellSize + this.gap) + 10) + 'px';
-                        el.style.top = (v.y * (this.cellSize + this.gap) + 10) + 'px';
-                        
+                        el.style.left = `calc(${v.x} * 100% / 6 + 2.5px)`;
+                        el.style.top = `calc(${v.y} * 100% / 6 + 2.5px)`;
                         if(v.id === 'player' && v.x === 4) this.showWin();
                     }
                 };
@@ -251,46 +253,23 @@
             }
 
             canMoveTo(v, newPos) {
-                // Check every cell occupied by this vehicle at newPos against other vehicles
-                const oldX = v.x, oldY = v.y;
                 const tempX = v.d === 'h' ? newPos : v.x;
                 const tempY = v.d === 'v' ? newPos : v.y;
 
-                // Simple collision: check if any other vehicle occupies these cells
                 for (let other of this.vehicles) {
                     if (other === v) continue;
-                    
-                    // Occupied cells of other
-                    const otherCells = [];
-                    for(let i=0; i<other.l; i++) {
-                        otherCells.push(other.d === 'h' ? {x: other.x + i, y: other.y} : {x: other.x, y: other.y + i});
-                    }
-
-                    // My cells at newPos
+                    const oCells = [];
+                    for(let i=0; i<other.l; i++) oCells.push(other.d === 'h' ? {x: other.x+i, y: other.y} : {x: other.x, y: other.y+i});
                     for(let i=0; i<v.l; i++) {
-                        const myCell = v.d === 'h' ? {x: tempX + i, y: tempY} : {x: tempX, y: tempY + i};
-                        if (otherCells.some(oc => oc.x === myCell.x && oc.y === myCell.y)) return false;
+                        const myCell = v.d === 'h' ? {x: tempX+i, y: tempY} : {x: tempX, y: tempY+i};
+                        if (oCells.some(oc => oc.x === myCell.x && oc.y === myCell.y)) return false;
                     }
                 }
-
-                // Path blockage check (can't jump over vehicles)
-                const current = v.d === 'h' ? oldX : oldY;
-                const step = newPos > current ? 1 : -1;
-                for(let p = current + step; p !== newPos + step; p += step) {
-                    // This is handled by the loop above if we check every incremental step
-                }
-
                 return true;
             }
 
-            showWin() {
-                document.getElementById('overlay').style.display = 'flex';
-            }
-
-            nextLevel() {
-                this.level++;
-                this.loadLevel(this.level);
-            }
+            showWin() { document.getElementById('overlay').style.display = 'flex'; }
+            nextLevel() { this.level++; this.loadLevel(this.level); }
         }
 
         const game = new RushHour();
@@ -307,13 +286,14 @@
                     vEls.forEach(el => el.classList.remove('cursor'));
                     if (vEls[cursor]) vEls[cursor].classList.add('cursor');
 
-                    if (now - lastP > 200) {
+                    if (now - lastP > 180) {
                         const b = p.buttons; const ax = p.axes[0], ay = p.axes[1];
-                        if (b[14].pressed) cursor = (cursor + vEls.length - 1) % vEls.length;
-                        if (b[15].pressed) cursor = (cursor + 1) % vEls.length;
+                        if (b[14].pressed || ax < -0.5) cursor = (cursor + vEls.length - 1) % vEls.length;
+                        if (b[15].pressed || ax > 0.5) cursor = (cursor + 1) % vEls.length;
                         
-                        const v = game.vehicles[cursor];
-                        if (v) {
+                        const vIdx = parseInt(vEls[cursor].dataset.idx);
+                        const v = game.vehicles[vIdx];
+                        if (v && b[0].pressed) {
                             if (v.d === 'h') {
                                 if (ax < -0.5) if(game.canMoveTo(v, v.x - 1)) v.x--;
                                 if (ax > 0.5) if(game.canMoveTo(v, v.x + 1)) v.x++;
@@ -324,6 +304,7 @@
                             game.render();
                             if(v.id === 'player' && v.x === 4) game.showWin();
                         }
+                        if (b[9].pressed && document.getElementById('overlay').style.display !== 'none') game.nextLevel();
                         lastP = now;
                     }
                 }

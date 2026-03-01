@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Galaxy Glider - K2 games</title>
+    <style>
+        :root {
+            --bg: #020617;
+            --accent: #a855f7;
+            --glass: rgba(15, 23, 42, 0.8);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        #game-container { position: relative; flex: 1; background: #000; }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        .hud { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; pointer-events: none; z-index: 10; }
+        .stat-box { background: var(--glass); padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); text-align: center; min-width: 120px; }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; }
+        .stat-val { font-size: 1.5rem; font-weight: 900; font-family: monospace; color: var(--accent); }
+
+        #overlay { position: absolute; inset: 0; background: rgba(2, 6, 23, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; text-align: center; padding: 20px; }
+        h1 { font-size: 4rem; font-style: italic; font-weight: 900; color: #fff; margin-bottom: 10px; }
+        .btn-large { background: var(--accent); color: white; border: none; padding: 1rem 3rem; border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem; font-size: 1.2rem; box-shadow: 0 10px 25px rgba(168, 85, 247, 0.4); }
+        
+        .controls-hint { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); font-size: 0.8rem; color: #64748b; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div class="hud">
+            <div class="stat-box">
+                <div class="stat-label">Rings</div>
+                <div id="rings-val" class="stat-val">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Velocity</div>
+                <div id="speed-val" class="stat-val">0</div>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="overlay">
+            <h1>GALAXY GLIDER</h1>
+            <p style="opacity: 0.6; max-width: 400px;">Glide through the cosmic rings. Use momentum and physics to navigate the void.</p>
+            <button class="btn-large" id="start-btn">ENGAGE ENGINES</button>
+        </div>
+
+        <div class="controls-hint">STAY INSIDE THE RINGS • MOUSE/TOUCH/GAMEPAD</div>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        class GalaxyGlider {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x020617);
+                this.scene.fog = new THREE.FogExp2(0x020617, 0.002);
+
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
+                this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(window.devicePixelRatio);
+
+                this.glider = null;
+                this.rings = [];
+                this.stars = [];
+                this.score = 0;
+                this.speed = 0.5;
+                this.playing = false;
+                this.input = { x: 0, y: 0 };
+
+                this.init();
+            }
+
+            init() {
+                // Lights
+                const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+                this.scene.add(ambient);
+                const point = new THREE.PointLight(0xa855f7, 2, 1000);
+                point.position.set(0, 100, 100);
+                this.scene.add(point);
+
+                // Glider (Paper Plane style)
+                const shape = new THREE.ConeGeometry(1, 4, 3);
+                const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true });
+                this.glider = new THREE.Mesh(shape, mat);
+                this.glider.rotation.x = Math.PI / 2;
+                this.scene.add(this.glider);
+
+                // Stars
+                const starGeo = new THREE.BufferGeometry();
+                const starPos = [];
+                for(let i=0; i<5000; i++) {
+                    starPos.push((Math.random()-0.5)*2000, (Math.random()-0.5)*2000, (Math.random()-0.5)*2000);
+                }
+                starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+                const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1 });
+                this.scene.add(new THREE.Points(starGeo, starMat));
+
+                this.createRings();
+                this.setupControls();
+                
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                document.getElementById('start-btn').onclick = () => {
+                    this.playing = true;
+                    document.getElementById('overlay').style.display = 'none';
+                };
+
+                this.animate();
+            }
+
+            createRings() {
+                for(let i=0; i<20; i++) {
+                    this.spawnRing(i * -100 - 200);
+                }
+            }
+
+            spawnRing(z) {
+                const geo = new THREE.TorusGeometry(15, 0.5, 16, 100);
+                const mat = new THREE.MeshBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.6 });
+                const ring = new THREE.Mesh(geo, mat);
+                ring.position.set((Math.random()-0.5)*100, (Math.random()-0.5)*100, z);
+                this.scene.add(ring);
+                this.rings.push(ring);
+            }
+
+            setupControls() {
+                window.addEventListener('mousemove', (e) => {
+                    this.input.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    this.input.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                });
+                window.addEventListener('touchstart', (e) => {
+                    const t = e.touches[0];
+                    this.input.x = (t.clientX / window.innerWidth) * 2 - 1;
+                    this.input.y = -(t.clientY / window.innerHeight) * 2 + 1;
+                });
+            }
+
+            checkGamepad() {
+                const pads = navigator.getGamepads();
+                if(pads[0]) {
+                    const p = pads[0];
+                    this.input.x = p.axes[0];
+                    this.input.y = -p.axes[1];
+                    if(p.buttons[0].pressed && !this.playing) document.getElementById('start-btn').click();
+                }
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                this.checkGamepad();
+
+                if(this.playing) {
+                    // Update Glider
+                    this.glider.position.x += (this.input.x * 20 - this.glider.position.x) * 0.05;
+                    this.glider.position.y += (this.input.y * 20 - this.glider.position.y) * 0.05;
+                    this.glider.position.z -= this.speed;
+
+                    this.glider.rotation.z = -this.input.x * 0.8;
+                    this.glider.rotation.y = Math.PI + this.input.x * 0.2;
+
+                    this.speed += 0.001;
+
+                    // Update Camera
+                    this.camera.position.x += (this.glider.position.x - this.camera.position.x) * 0.1;
+                    this.camera.position.y += (this.glider.position.y + 5 - this.camera.position.y) * 0.1;
+                    this.camera.position.z = this.glider.position.z + 15;
+                    this.camera.lookAt(this.glider.position.x, this.glider.position.y, this.glider.position.z - 50);
+
+                    // Rings Collision
+                    this.rings.forEach((ring, i) => {
+                        if(this.glider.position.z < ring.position.z + 5 && this.glider.position.z > ring.position.z - 5) {
+                            const d = Math.hypot(this.glider.position.x - ring.position.x, this.glider.position.y - ring.position.y);
+                            if(d < 15 && !ring.passed) {
+                                ring.passed = true;
+                                ring.material.color.set(0x4ade80);
+                                ring.material.opacity = 1;
+                                this.score++;
+                                document.getElementById('rings-val').textContent = this.score;
+                            }
+                        }
+                        if(this.glider.position.z < ring.position.z - 50) {
+                            this.scene.remove(ring);
+                            this.rings.splice(i, 1);
+                            this.spawnRing(this.glider.position.z - 1000);
+                        }
+                    });
+
+                    document.getElementById('speed-val').textContent = Math.floor(this.speed * 10);
+                } else {
+                    const t = Date.now() * 0.0005;
+                    this.camera.position.set(Math.cos(t)*50, 20, Math.sin(t)*50);
+                    this.camera.lookAt(0,0,0);
+                }
+
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        new GalaxyGlider();
+    </script>
+</body>
+</html>

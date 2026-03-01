@@ -579,6 +579,20 @@
 
             const time = Date.now() * 0.001;
 
+            // Gamepad Polling
+            const pads = navigator.getGamepads();
+            if (pads[0]) {
+                const p = pads[0];
+                if (gameActive) {
+                    keys.left = p.axes[0] < -0.1;
+                    keys.right = p.axes[0] > 0.1;
+                    // Direct velocity injection for better analog feel
+                    skierVelX += p.axes[0] * CONFIG.skierLatAccel * 1.5;
+                } else if (p.buttons[0].pressed || p.buttons[9].pressed) {
+                    startGame();
+                }
+            }
+
             if (gameActive) {
                 // --- Physics ---
                 let steer = 0;
@@ -589,7 +603,6 @@
                 skierVelX += steer * CONFIG.skierLatAccel;
                 
                 // Rope Tension / Centering Force
-                // The further out, the harder it is to go further
                 const pullBack = -(skier.position.x * 0.005);
                 skierVelX += pullBack;
                 
@@ -609,16 +622,10 @@
                 const skierZ = skier.position.z; // Constant +23
                 
                 courseObjects.forEach(obj => {
-                    // Update visual position
                     const worldZ = obj.initialZ + courseProgressZ;
                     obj.mesh.position.z = worldZ;
                     
-                    // Passing Logic
-                    // Check if object just passed the skier
-                    // We use a small window or state check
                     if (!obj.passed) {
-                        // Check if it's "abeam" the skier (crossing Z plane)
-                        // Give a small margin for frame skipping
                         if (worldZ >= skierZ) {
                             obj.passed = true;
                             checkPass(obj);
@@ -642,27 +649,19 @@
                 }
                 
                 // Camera Chase
-                // Camera sits behind skier (+Z) and follows X slightly
                 camera.position.x = THREE.MathUtils.lerp(camera.position.x, skier.position.x * 0.3, 0.1);
                 camera.position.z = skier.position.z + 15;
                 camera.position.y = 6;
                 camera.lookAt(0, 2, skier.position.z - 20); // Look ahead of skier
 
             } else {
-                // Idle Animation
                 const t = Date.now() * 0.0005;
                 camera.position.set(Math.sin(t)*20, 10, 30);
                 camera.lookAt(0,0,0);
             }
 
-            // Water Animation
-            water.material.normalScale.set(1, 1); // If we had normal map... 
-            // Just pulse opacity for "shimmer" since we don't have textures loaded
             water.material.opacity = 0.8 + Math.sin(time * 2) * 0.05;
-
-            // Particle Updates
             updateParticles();
-
             renderer.render(scene, camera);
         }
 

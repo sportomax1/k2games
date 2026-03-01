@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zen Garden - K2 games</title>
+    <style>
+        :root {
+            --sand: #e5e7eb;
+            --sand-dark: #d1d5db;
+            --accent: #64748b;
+            --glass: rgba(255, 255, 255, 0.8);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        body { 
+            background-color: #1e293b; 
+            color: #334155; 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        #garden-container {
+            position: relative;
+            width: 90vmin;
+            height: 90vmin;
+            max-width: 800px;
+            max-height: 800px;
+            background: var(--sand);
+            border: 12px solid #475569;
+            border-radius: 8px;
+            box-shadow: 0 50px 100px -20px rgba(0,0,0,0.5), inset 0 0 50px rgba(0,0,0,0.05);
+            cursor: crosshair;
+            overflow: hidden;
+        }
+
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .btn {
+            background: var(--glass);
+            border: 1px solid rgba(0,0,0,0.1);
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-weight: bold;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn:hover { background: #fff; transform: translateY(-2px); }
+        .btn.active { background: #475569; color: white; }
+
+        .title { position: absolute; top: 40px; font-size: 2rem; font-weight: 200; letter-spacing: 8px; color: #94a3b8; text-transform: uppercase; }
+        .hint { position: absolute; bottom: 80px; font-size: 0.7rem; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; }
+    </style>
+</head>
+<body>
+    <div class="title">Zen Garden</div>
+    
+    <div id="garden-container">
+        <canvas id="sandCanvas"></canvas>
+        <canvas id="topCanvas"></canvas>
+    </div>
+
+    <div class="hint">Click to rake the sand or place stones</div>
+
+    <div class="controls">
+        <button class="btn active" id="mode-rake" onclick="setMode('rake')">RAKE</button>
+        <button class="btn" id="mode-stone" onclick="setMode('stone')">STONE</button>
+        <button class="btn" onclick="clearGarden()">RESET</button>
+        <a href="index.html" class="btn" style="text-decoration: none; color: inherit;">EXIT</a>
+    </div>
+
+    <script>
+        const sandCanvas = document.getElementById('sandCanvas');
+        const sctx = sandCanvas.getContext('2d');
+        const topCanvas = document.getElementById('topCanvas');
+        const tctx = topCanvas.getContext('2d');
+
+        let width, height;
+        let isDrawing = false;
+        let mode = 'rake';
+        let stones = [];
+
+        function resize() {
+            const rect = document.getElementById('garden-container').getBoundingClientRect();
+            width = rect.width;
+            height = rect.height;
+            sandCanvas.width = topCanvas.width = width;
+            sandCanvas.height = topCanvas.height = height;
+            
+            // Initial sand texture
+            clearGarden();
+        }
+
+        function clearGarden() {
+            sctx.fillStyle = '#e5e7eb';
+            sctx.fillRect(0, 0, width, height);
+            
+            // Add fine grain texture
+            for(let i=0; i<20000; i++) {
+                sctx.fillStyle = Math.random() > 0.5 ? '#d1d5db' : '#f3f4f6';
+                sctx.fillRect(Math.random()*width, Math.random()*height, 1, 1);
+            }
+            
+            stones = [];
+            renderStones();
+        }
+
+        function setMode(m) {
+            mode = m;
+            document.getElementById('mode-rake').classList.toggle('active', m === 'rake');
+            document.getElementById('mode-stone').classList.toggle('active', m === 'stone');
+        }
+
+        function handleStart(e) {
+            isDrawing = true;
+            const pos = getPos(e);
+            if (mode === 'stone') {
+                placeStone(pos.x, pos.y);
+            } else {
+                rake(pos.x, pos.y);
+            }
+        }
+
+        function handleMove(e) {
+            if (!isDrawing || mode !== 'rake') return;
+            const pos = getPos(e);
+            rake(pos.x, pos.y);
+        }
+
+        function handleEnd() {
+            isDrawing = false;
+        }
+
+        function getPos(e) {
+            const rect = topCanvas.getBoundingClientRect();
+            const t = e.touches ? e.touches[0] : e;
+            return {
+                x: (t.clientX - rect.left),
+                y: (t.clientY - rect.top)
+            };
+        }
+
+        function rake(x, y) {
+            sctx.strokeStyle = 'rgba(0,0,0,0.05)';
+            sctx.lineWidth = 15;
+            sctx.lineCap = 'round';
+            sctx.lineJoin = 'round';
+            
+            // Draw multiple parallel lines for rake effect
+            for(let i=-6; i<=6; i+=3) {
+                sctx.beginPath();
+                sctx.arc(x + i, y + i, 2, 0, Math.PI*2);
+                sctx.stroke();
+            }
+        }
+
+        function placeStone(x, y) {
+            const r = 20 + Math.random() * 30;
+            stones.push({ x, y, r, color: Math.random() > 0.5 ? '#475569' : '#1e293b', rot: Math.random()*Math.PI });
+            renderStones();
+        }
+
+        function renderStones() {
+            tctx.clearRect(0, 0, width, height);
+            stones.forEach(s => {
+                tctx.save();
+                tctx.translate(s.x, s.y);
+                tctx.rotate(s.rot);
+                
+                // Shadow
+                tctx.shadowBlur = 15;
+                tctx.shadowColor = 'rgba(0,0,0,0.3)';
+                tctx.fillStyle = s.color;
+                
+                tctx.beginPath();
+                tctx.ellipse(0, 0, s.r, s.r*0.7, 0, 0, Math.PI*2);
+                tctx.fill();
+                
+                // Highlight
+                tctx.fillStyle = 'rgba(255,255,255,0.1)';
+                tctx.beginPath();
+                tctx.ellipse(-s.r/3, -s.r/4, s.r/2, s.r/3, 0, 0, Math.PI*2);
+                tctx.fill();
+                
+                tctx.restore();
+            });
+        }
+
+        topCanvas.addEventListener('mousedown', handleStart);
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleEnd);
+        
+        topCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleStart(e); });
+        window.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e); }, {passive: false});
+        window.addEventListener('touchend', handleEnd);
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Gamepad Adapter (Virtual Cursor)
+        (function() {
+            let gpX = width / 2;
+            let gpY = height / 2;
+            let lastP = 0;
+            const cursor = document.createElement('div');
+            cursor.style.cssText = 'position:fixed; width:20px; height:20px; border:3px solid #fbbf24; border-radius:50%; pointer-events:none; z-index:10000; display:none; background:rgba(251,191,36,0.3);';
+            document.body.appendChild(cursor);
+
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    cursor.style.display = 'block';
+                    const p = pads[0]; const now = Date.now();
+                    gpX += p.axes[0] * 15;
+                    gpY += p.axes[1] * 15;
+                    gpX = Math.max(0, Math.min(width, gpX));
+                    gpY = Math.max(0, Math.min(height, gpY));
+                    cursor.style.left = gpX + 'px';
+                    cursor.style.top = gpY + 'px';
+
+                    if (p.buttons[0].pressed) {
+                        if (mode === 'stone') {
+                            if (now - lastP > 500) { placeStone(gpX, gpY); lastP = now; }
+                        } else {
+                            rake(gpX, gpY);
+                        }
+                    }
+                    if (now - lastP > 300) {
+                        if (p.buttons[4].pressed) setMode('rake');
+                        if (p.buttons[5].pressed) setMode('stone');
+                        lastP = now;
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
+    </script>
+</body>
+</html>

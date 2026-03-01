@@ -140,7 +140,8 @@
                 <div class="controls-hint">
                     <b>CONTROLS:</b><br>
                     WASD or ARROWS: Move<br>
-                    Explore the infinite procedurally generated world.
+                    GAMEPAD: Left Stick<br>
+                    Explore the infinite world.
                 </div>
                 <div id="minimap-container">
                     <canvas id="minimap-canvas"></canvas>
@@ -197,7 +198,6 @@
             }
 
             generateWorld() {
-                // Simple pseudo-random terrain using combined sine waves
                 for(let y=0; y<this.worldSize; y++) {
                     this.grid[y] = [];
                     for(let x=0; x<this.worldSize; x++) {
@@ -215,7 +215,6 @@
             }
 
             noise(x, y) {
-                // Procedural generation logic
                 let v = Math.sin(x/15) * Math.cos(y/15);
                 v += Math.sin(x/30 + y/40) * 0.5;
                 v += Math.sin(x/5) * Math.cos(y/8) * 0.2;
@@ -230,7 +229,15 @@
                 if(this.keys['a'] || this.keys['arrowleft']) dx = -speed;
                 if(this.keys['d'] || this.keys['arrowright']) dx = speed;
 
-                if(dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+                // Gamepad
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0];
+                    if (Math.abs(p.axes[0]) > 0.1) dx = p.axes[0] * speed;
+                    if (Math.abs(p.axes[1]) > 0.1) dy = p.axes[1] * speed;
+                }
+
+                if(dx !== 0 && dy !== 0 && !pads[0]) { dx *= 0.707; dy *= 0.707; }
 
                 this.player.x = Math.max(0, Math.min(this.worldSize-1, this.player.x + dx));
                 this.player.y = Math.max(0, Math.min(this.worldSize-1, this.player.y + dy));
@@ -273,7 +280,6 @@
                     }
                 }
 
-                // Player
                 ctx.fillStyle = '#ff4757';
                 ctx.shadowBlur = 15;
                 ctx.shadowColor = 'white';
@@ -288,15 +294,12 @@
             drawMinimap() {
                 this.mCtx.clearRect(0,0,200,200);
                 const scale = 200 / this.worldSize;
-                
-                // Draw a lower-res version or subset
                 for(let y=0; y<this.worldSize; y+=2) {
                     for(let x=0; x<this.worldSize; x+=2) {
                         this.mCtx.fillStyle = TERRAIN[this.grid[y][x]].color;
                         this.mCtx.fillRect(x*scale, y*scale, scale*2, scale*2);
                     }
                 }
-
                 this.mCtx.fillStyle = 'red';
                 this.mCtx.beginPath();
                 this.mCtx.arc(this.player.x * scale, this.player.y * scale, 3, 0, Math.PI*2);

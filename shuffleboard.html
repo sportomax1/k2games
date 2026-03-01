@@ -171,8 +171,8 @@
             <h1 style="font-size: 3rem; font-style: italic; color: #fff;">SHUFFLEBOARD ELITE</h1>
             <p style="opacity: 0.7; margin-top: 10px;">The classic bar game, perfected for digital play.</p>
             <div class="player-select">
-                <div class="p-opt" onclick="game.initMatch(1)">SOLO VS CPU</div>
-                <div class="p-opt" onclick="game.initMatch(2)">PASS & PLAY</div>
+                <div class="p-opt" id="p-opt-1" onclick="game.initMatch(1)">SOLO VS CPU</div>
+                <div class="p-opt" id="p-opt-2" onclick="game.initMatch(2)">PASS & PLAY</div>
             </div>
         </div>
 
@@ -266,6 +266,36 @@
                 this.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrag(e); }, {passive: false});
                 window.addEventListener('touchmove', (e) => { if(this.drag.active) e.preventDefault(); moveDrag(e); }, {passive: false});
                 window.addEventListener('touchend', endDrag);
+
+                // Gamepad Adapter
+                const pollGamepad = () => {
+                    const pads = navigator.getGamepads();
+                    if (pads[0]) {
+                        const p = pads[0]; const now = Date.now();
+                        if (this.playing && this.state === 'aiming') {
+                            if (this.turn === 'red' && this.players === 1) return; 
+                            if (Math.abs(p.axes[0]) > 0.1 || Math.abs(p.axes[1]) > 0.1) {
+                                this.drag.active = true;
+                                this.drag.startX = this.currentPuck.x;
+                                this.drag.startY = this.currentPuck.y;
+                                this.drag.currX = this.currentPuck.x + p.axes[0] * 100;
+                                this.drag.currY = this.currentPuck.y + p.axes[1] * 100;
+                            }
+                            if (p.buttons[0].pressed && this.drag.active && now - (this.lastFire || 0) > 500) {
+                                endDrag();
+                                this.lastFire = now;
+                            }
+                        } else if (!this.playing) {
+                            if (now - (this.lastP || 0) > 200) {
+                                if (p.buttons[14].pressed) document.getElementById('p-opt-1').click();
+                                if (p.buttons[15].pressed) document.getElementById('p-opt-2').click();
+                                this.lastP = now;
+                            }
+                        }
+                    }
+                    requestAnimationFrame(pollGamepad);
+                };
+                pollGamepad();
             }
 
             shoot(vx, vy) {
@@ -407,7 +437,6 @@
                 const ctx = this.ctx;
                 ctx.clearRect(0, 0, this.width, this.height);
 
-                // Board
                 const grad = ctx.createLinearGradient(0, 0, this.width, 0);
                 grad.addColorStop(0, '#3e2723'); grad.addColorStop(0.5, '#5d4037'); grad.addColorStop(1, '#3e2723');
                 ctx.fillStyle = grad;
