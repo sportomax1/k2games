@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trampoline Pro - K2 games</title>
+    <style>
+        :root {
+            --sky-top: #0ea5e9;
+            --sky-bottom: #7dd3fc;
+            --bg: #0f172a;
+            --accent: #fbbf24;
+            --glass: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            height: 100dvh;
+            width: 100%;
+            overflow: hidden;
+            position: fixed;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, var(--sky-top), var(--sky-bottom));
+            overflow: hidden;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        .hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .stat-card {
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+        }
+
+        .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 120px;
+            width: 100%;
+            text-align: center;
+            font-weight: 800;
+            color: rgba(255,255,255,0.6);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            pointer-events: none;
+        }
+
+        #mobile-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 30px;
+            pointer-events: none;
+        }
+
+        .btn-action {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.4);
+            border: 4px solid rgba(255,255,255,0.3);
+            color: white;
+            font-weight: 900;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+            transition: transform 0.1s;
+        }
+        .btn-action:active { transform: scale(0.9); background: var(--accent); color: black; }
+
+        .back-link {
+            position: absolute; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 200;
+            font-weight: bold; font-size: 0.8rem; border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 1000; text-align: center; padding: 30px;
+        }
+
+        .btn-start {
+            background: var(--accent); color: black; border: none; padding: 15px 50px;
+            border-radius: 50px; font-weight: 900; cursor: pointer; font-size: 1.2rem;
+            margin-top: 30px;
+        }
+
+        #trick-display {
+            position: absolute;
+            top: 40%;
+            width: 100%;
+            text-align: center;
+            font-size: 3rem;
+            font-weight: 900;
+            font-style: italic;
+            color: var(--accent);
+            text-shadow: 0 0 20px rgba(0,0,0,0.5);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s, transform 0.3s;
+        }
+        #trick-display.show { opacity: 1; transform: scale(1.1); }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <a href="index.html" class="back-link">← HUB</a>
+        <canvas id="gameCanvas"></canvas>
+
+        <div class="hud">
+            <div class="stat-card">
+                <div class="stat-label">Score</div>
+                <div id="score-val" class="stat-val">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Best</div>
+                <div id="best-val" class="stat-val">0</div>
+            </div>
+        </div>
+
+        <div id="trick-display">BACKFLIP!</div>
+
+        <div class="controls-hint">Hold Left/Right to flip • Jump to build height</div>
+
+        <div id="mobile-controls">
+            <div class="btn-action" id="btn-left">LEFT</div>
+            <div class="btn-action" id="btn-right">RIGHT</div>
+        </div>
+
+        <div id="overlay">
+            <h1 style="font-size: 3.5rem; color: var(--accent); font-style: italic; font-weight: 900;">TRAMPOLINE PRO</h1>
+            <p style="margin-top: 15px; font-weight: 600; opacity: 0.8; max-width: 400px;">Bounce high and perform flips to score points. Don't land on your head!</p>
+            <button class="btn-start" onclick="startGame()">START JUMPING</button>
+        </div>
+    </div>
+
+    <script>
+        class TrampolineGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize();
+
+                this.player = {
+                    x: this.width / 2,
+                    y: this.height - 200,
+                    vy: 0,
+                    rotation: 0,
+                    radius: 30,
+                    state: 'jumping', // jumping, landing, crashed
+                    height: 0,
+                    tuck: 0
+                };
+
+                this.tramp = {
+                    width: 300,
+                    y: this.height - 150,
+                    flex: 0
+                };
+
+                this.score = 0;
+                this.best = localStorage.getItem('trampoline_best') || 0;
+                this.keys = {};
+                this.playing = false;
+                this.gravity = 0.25;
+                this.lastRotation = 0;
+                this.rotationCount = 0;
+
+                document.getElementById('best-val').textContent = this.best;
+
+                this.setupInputs();
+                this.loop();
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                if(this.tramp) this.tramp.y = this.height - 150;
+            }
+
+            setupInputs() {
+                window.onkeydown = e => this.keys[e.code] = true;
+                window.onkeyup = e => this.keys[e.code] = false;
+
+                const left = document.getElementById('btn-left');
+                const right = document.getElementById('btn-right');
+
+                left.addEventListener('touchstart', e => { e.preventDefault(); this.keys['ArrowLeft'] = true; }, {passive: false});
+                left.addEventListener('touchend', () => this.keys['ArrowLeft'] = false);
+                right.addEventListener('touchstart', e => { e.preventDefault(); this.keys['ArrowRight'] = true; }, {passive: false});
+                right.addEventListener('touchend', () => this.keys['ArrowRight'] = false);
+            }
+
+            update() {
+                if(!this.playing) return;
+
+                if(this.player.state === 'crashed') return;
+
+                // Physics
+                this.player.vy += this.gravity;
+                this.player.y += this.player.vy;
+
+                // Rotation
+                let rotationSpeed = 0.08;
+                if(this.keys['ArrowLeft'] || this.keys['KeyA']) {
+                    this.player.rotation -= rotationSpeed;
+                    this.player.tuck = Math.min(1, this.player.tuck + 0.1);
+                } else if(this.keys['ArrowRight'] || this.keys['KeyD']) {
+                    this.player.rotation += rotationSpeed;
+                    this.player.tuck = Math.min(1, this.player.tuck + 0.1);
+                } else {
+                    this.player.tuck = Math.max(0, this.player.tuck - 0.1);
+                }
+
+                // Trampoline Interaction
+                const trampTop = this.tramp.y;
+                if(this.player.y + this.player.radius > trampTop && this.player.vy > 0) {
+                    const normalizedRot = ((this.player.rotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+                    const isUpright = normalizedRot < 0.5 || normalizedRot > (Math.PI * 2 - 0.5);
+
+                    if(isUpright) {
+                        // Successful landing/bounce
+                        this.tramp.flex = Math.min(50, this.player.vy * 2);
+                        this.player.vy = -Math.max(12, this.player.vy * 0.95);
+                        this.player.y = trampTop - this.player.radius;
+                        
+                        // Check for flips
+                        const flips = Math.floor(Math.abs(this.player.rotation - this.lastRotation) / (Math.PI * 1.8));
+                        if(flips > 0) {
+                            this.addScore(flips * 100);
+                            this.showTrick(flips === 1 ? "FLIP!" : (flips === 2 ? "DOUBLE FLIP!!" : "INSANE!!!"));
+                        }
+                        this.lastRotation = this.player.rotation;
+                    } else {
+                        // Crash
+                        this.player.state = 'crashed';
+                        this.endGame();
+                    }
+                }
+
+                this.tramp.flex *= 0.8;
+            }
+
+            addScore(pts) {
+                this.score += pts;
+                document.getElementById('score-val').textContent = this.score;
+                if(this.score > this.best) {
+                    this.best = this.score;
+                    document.getElementById('best-val').textContent = this.best;
+                    localStorage.setItem('trampoline_best', this.best);
+                }
+            }
+
+            showTrick(msg) {
+                const el = document.getElementById('trick-display');
+                el.textContent = msg;
+                el.classList.add('show');
+                setTimeout(() => el.classList.remove('show'), 1000);
+            }
+
+            endGame() {
+                setTimeout(() => {
+                    const overlay = document.getElementById('overlay');
+                    overlay.querySelector('h1').textContent = "CRASHED!";
+                    overlay.querySelector('p').textContent = `Final Score: ${this.score}`;
+                    overlay.querySelector('button').textContent = "TRY AGAIN";
+                    overlay.style.display = 'flex';
+                    this.playing = false;
+                }, 1000);
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Sky already handled by CSS
+
+                // Ground
+                ctx.fillStyle = '#14532d';
+                ctx.fillRect(0, this.height - 100, this.width, 100);
+
+                // Trampoline
+                ctx.save();
+                ctx.translate(this.width/2, this.tramp.y);
+                
+                // Legs
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 8;
+                ctx.strokeRect(-this.tramp.width/2, 0, this.tramp.width, 50);
+                
+                // Mat
+                ctx.beginPath();
+                ctx.moveTo(-this.tramp.width/2, 0);
+                ctx.quadraticCurveTo(0, this.tramp.flex * 2, this.tramp.width/2, 0);
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 10;
+                ctx.stroke();
+                
+                ctx.restore();
+
+                // Player
+                this.drawPlayer();
+            }
+
+            drawPlayer() {
+                const ctx = this.ctx;
+                const p = this.player;
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation);
+
+                // Body parts based on tuck
+                const tuckOffset = p.tuck * 20;
+                
+                ctx.lineWidth = 6;
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = p.state === 'crashed' ? '#ef4444' : '#fff';
+
+                // High-quality character construction
+                
+                // Legs
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(-10, 30 - tuckOffset); // Left
+                ctx.moveTo(0, 0);
+                ctx.lineTo(10, 30 - tuckOffset); // Right
+                ctx.stroke();
+
+                // Torso
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(0, -40);
+                ctx.stroke();
+
+                // Arms
+                ctx.beginPath();
+                ctx.moveTo(0, -30);
+                ctx.lineTo(-20, -10 - tuckOffset); // Left
+                ctx.moveTo(0, -30);
+                ctx.lineTo(20, -10 - tuckOffset); // Right
+                ctx.stroke();
+
+                // Head
+                ctx.fillStyle = '#ffccaa';
+                ctx.beginPath();
+                ctx.arc(0, -55, 15, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Eyes
+                ctx.fillStyle = '#000';
+                if(p.state === 'crashed') {
+                    ctx.font = '12px Arial';
+                    ctx.fillText('X', -8, -52);
+                    ctx.fillText('X', 2, -52);
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(-5, -55, 2, 0, Math.PI * 2);
+                    ctx.arc(5, -55, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        let game = new TrampolineGame();
+        function startGame() {
+            document.getElementById('overlay').style.display = 'none';
+            game.score = 0;
+            document.getElementById('score-val').textContent = "0";
+            game.player.y = game.height - 300;
+            game.player.vy = 0;
+            game.player.rotation = 0;
+            game.player.state = 'jumping';
+            game.playing = true;
+        }
+    </script>
+</body>
+</html>
