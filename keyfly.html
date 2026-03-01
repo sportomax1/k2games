@@ -419,7 +419,46 @@
             }
         }
 
-        window.game = new Game();
+        const game = new Game();
+
+        // Gamepad Adapter (Virtual Cursor)
+        (function() {
+            let gpX = window.innerWidth / 2;
+            let gpY = window.innerHeight / 2;
+            let lastP = 0;
+            const cursor = document.createElement('div');
+            cursor.style.cssText = 'position:fixed; width:20px; height:20px; border:3px solid #fbbf24; border-radius:50%; pointer-events:none; z-index:10000; display:none;';
+            document.body.appendChild(cursor);
+
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    cursor.style.display = 'block';
+                    const p = pads[0]; const now = Date.now();
+                    gpX += p.axes[0] * 15;
+                    gpY += p.axes[1] * 15;
+                    gpX = Math.max(0, Math.min(window.innerWidth, gpX));
+                    gpY = Math.max(0, Math.min(window.innerHeight, gpY));
+                    cursor.style.left = gpX + 'px';
+                    cursor.style.top = gpY + 'px';
+
+                    if (p.buttons[0].pressed && now - lastP > 150) {
+                        const el = document.elementFromPoint(gpX, gpY);
+                        if (el && el.classList.contains('key-box')) {
+                            // Find the key name from innerHTML or data attribute if existed, 
+                            // here we'll just simulate the keydown
+                            const keyName = el.innerText.split('\n')[1] || el.innerText;
+                            window.dispatchEvent(new KeyboardEvent('keydown', { key: keyName === 'SPACE' ? ' ' : keyName }));
+                            setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { key: keyName === 'SPACE' ? ' ' : keyName })), 100);
+                        }
+                        if (!game.isPlaying) game.start();
+                        lastP = now;
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
     </script>
 </body>
 </html>

@@ -25,7 +25,15 @@
             font-family: 'Segoe UI', system-ui, sans-serif;
             height: 100vh;
             display: flex;
+            flex-direction: row;
             overflow: hidden;
+        }
+
+        @media (max-width: 900px) {
+            body { flex-direction: column; overflow: auto; }
+            #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--glass-border); padding: 1rem; }
+            #main-view { height: 60vh; flex: none; padding: 1rem; }
+            canvas { width: 100%; height: 100%; border-radius: 12px; }
         }
 
         /* Sidebar UI */
@@ -254,6 +262,27 @@
                 this.setupVisitors();
                 this.renderSidebar();
                 
+                // Gamepad Adapter
+                const pollGamepad = () => {
+                    const pads = navigator.getGamepads();
+                    if (pads[0]) {
+                        const p = pads[0]; const now = Date.now();
+                        const active = this.entities[this.activeIdx];
+                        if (active) {
+                            if (Math.abs(p.axes[0]) > 0.1) active.x += p.axes[0] * 4;
+                            if (Math.abs(p.axes[1]) > 0.1) active.y += p.axes[1] * 4;
+                        }
+                        if (now - (this.lastP || 0) > 200) {
+                            if (p.buttons[4].pressed) this.setActive((this.activeIdx + ANIMALS.length - 1) % ANIMALS.length);
+                            if (p.buttons[5].pressed) this.setActive((this.activeIdx + 1) % ANIMALS.length);
+                            if (p.buttons[0].pressed) this.playSound();
+                            this.lastP = now;
+                        }
+                    }
+                    requestAnimationFrame(pollGamepad);
+                };
+                pollGamepad();
+
                 window.onkeydown = (e) => {
                     this.keys[e.code] = true;
                     // Hotkey switching

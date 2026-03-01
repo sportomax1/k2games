@@ -316,10 +316,15 @@
         function handleDrop(e) {
             if (gameOver || chips <= 0) return;
             
-            const rect = canvas.getBoundingClientRect();
-            const scale = canvas.width / rect.width;
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const dropX = (clientX - rect.left) * scale;
+            let dropX;
+            if (e.dummy) {
+                dropX = mouseX;
+            } else {
+                const rect = canvas.getBoundingClientRect();
+                const scale = canvas.width / rect.width;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                dropX = (clientX - rect.left) * scale;
+            }
 
             if (dropX >= 0 && dropX <= canvas.width) {
                 chips--;
@@ -333,6 +338,28 @@
         boardContainer.addEventListener('touchstart', (e) => { handleMove(e); e.preventDefault(); }, {passive: false});
         boardContainer.addEventListener('mousedown', handleDrop);
         boardContainer.addEventListener('touchend', (e) => { handleDrop(e); e.preventDefault(); }, {passive: false});
+
+        // Gamepad Adapter
+        (function() {
+            let lastP = 0;
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0]; const now = Date.now();
+                    if (Math.abs(p.axes[0]) > 0.1) {
+                        if (mouseX < 0) mouseX = canvas.width / 2;
+                        mouseX += p.axes[0] * 10;
+                        mouseX = Math.max(0, Math.min(canvas.width, mouseX));
+                    }
+                    if (p.buttons[0].pressed && now - lastP > 500) {
+                        handleDrop({ clientX: 0, dummy: true }); // Manual drop call
+                        lastP = now;
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
 
         init();
     </script>

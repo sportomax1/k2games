@@ -143,6 +143,7 @@
             flex: 1.5;
             font-size: 0.9rem;
         }
+        .key.cursor { outline: 4px solid var(--correct); z-index: 10; transform: scale(1.1); background: #fff; color: #000; }
 
         .key:active {
             opacity: 0.8;
@@ -440,6 +441,41 @@
 
     init();
 
+    // Gamepad Keyboard Adapter
+    (function() {
+        let r=0, c=0;
+        let lastP = 0;
+        const layout = [
+            ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
+            ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
+            ["ENTER", "Z", "X", "C", "V", "B", "N", "M", "⌫"]
+        ];
+        function poll() {
+            const pads = navigator.getGamepads();
+            if (pads[0]) {
+                const p = pads[0]; const now = Date.now();
+                document.querySelectorAll('.key').forEach(k => k.classList.remove('cursor'));
+                const char = layout[r][c];
+                const keyEl = document.getElementById(`key-${char}`);
+                if(keyEl) keyEl.classList.add('cursor');
+
+                if (now - lastP > 180) {
+                    const b = p.buttons;
+                    if (p.axes[1] < -0.5 || b[12].pressed) { r = Math.max(0, r-1); c = Math.min(c, layout[r].length-1); }
+                    if (p.axes[1] > 0.5 || b[13].pressed) { r = Math.min(2, r+1); c = Math.min(c, layout[r].length-1); }
+                    if (p.axes[0] < -0.5 || b[14].pressed) c = Math.max(0, c-1);
+                    if (p.axes[0] > 0.5 || b[15].pressed) c = Math.min(c, layout[r].length-1);
+                    
+                    if (b[0].pressed) handleInput(char);
+                    if (b[1].pressed) handleInput('⌫');
+                    if (b[9].pressed) resetGame();
+                    lastP = now;
+                }
+            }
+            requestAnimationFrame(poll);
+        }
+        poll();
+    })();
 </script>
 </body>
 </html>

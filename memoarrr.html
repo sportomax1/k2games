@@ -292,10 +292,38 @@
                 this.updateGridVisuals();
                 document.getElementById('round-overlay').style.display = 'none';
                 this.playing = true;
-            }
 
-            handleFlip(idx) {
-                if (!this.playing || this.cards[idx].flipped) return;
+                // Gamepad Adapter
+                (function() {
+                    let cursor = 0;
+                    let lastP = 0;
+                    function poll() {
+                        const pads = navigator.getGamepads();
+                        if (pads[0] && this.playing) {
+                            const p = pads[0]; const now = Date.now();
+                            const cards = document.querySelectorAll('.card');
+                            cards.forEach(c => c.style.boxShadow = '');
+                            if (cards[cursor]) cards[cursor].style.boxShadow = '0 0 20px #fbbf24';
+
+                            if (now - lastP > 200) {
+                                const b = p.buttons;
+                                if (b[12].pressed || p.axes[1] < -0.5) cursor = Math.max(0, cursor - 5);
+                                if (b[13].pressed || p.axes[1] > 0.5) cursor = Math.min(cards.length - 1, cursor + 5);
+                                if (b[14].pressed || p.axes[0] < -0.5) cursor = Math.max(0, cursor - 1);
+                                if (b[15].pressed || p.axes[0] > 0.5) cursor = Math.min(cards.length - 1, cursor + 1);
+                                if (cursor === 12) { /* Skip center treasure */ }
+
+                                if (b[0].pressed) cards[cursor].click();
+                                lastP = now;
+                            }
+                        }
+                        requestAnimationFrame(poll.bind(this));
+                    }
+                    poll.call(this);
+                }).call(this);
+                }
+
+                handleFlip(idx) {                if (!this.playing || this.cards[idx].flipped) return;
 
                 const card = this.cards[idx];
                 const p = this.players[this.turn];

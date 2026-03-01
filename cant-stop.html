@@ -21,6 +21,13 @@
             overflow: hidden;
             height: 100vh;
             display: flex;
+            flex-direction: row;
+        }
+
+        @media (max-width: 900px) {
+            body { flex-direction: column; overflow: auto; }
+            #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.1); }
+            #main-board { height: 60vh; flex: none; }
         }
 
         /* Sidebar Controls */
@@ -382,9 +389,41 @@
             }
         }
 
-        function initGame(n) {
+        initGame(n) {
             document.getElementById('setup-modal').style.display = 'none';
-            new CantStop(n);
+            const game = new CantStop(n);
+            
+            // Gamepad Adapter
+            (function() {
+                let lastP = 0;
+                let dieCursor = 0;
+                function poll() {
+                    const pads = navigator.getGamepads();
+                    if (pads[0]) {
+                        const p = pads[0]; const now = Date.now();
+                        if (now - lastP > 200) {
+                            const b = p.buttons;
+                            if (b[0].pressed) { // A
+                                if (!game.hasRolled) document.getElementById('roll-btn').click();
+                                else game.toggleDie(dieCursor);
+                            }
+                            if (b[1].pressed) document.getElementById('stop-btn').click(); // B
+                            if (b[3].pressed && !game.hasRolled) document.getElementById('roll-btn').click(); // Y
+                            
+                            if (b[14].pressed || p.axes[0] < -0.5) dieCursor = (dieCursor + 3) % 4;
+                            if (b[15].pressed || p.axes[0] > 0.5) dieCursor = (dieCursor + 1) % 4;
+                            
+                            document.querySelectorAll('.die').forEach((d, i) => {
+                                d.style.outline = (i === dieCursor) ? '4px solid #fbbf24' : 'none';
+                            });
+                            
+                            lastP = now;
+                        }
+                    }
+                    requestAnimationFrame(poll);
+                }
+                poll();
+            })();
         }
     </script>
 </body>

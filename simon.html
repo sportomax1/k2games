@@ -5,7 +5,8 @@
     <title>Simon Says</title>
     <style>
         body { font-family: sans-serif; background: #1e293b; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 300px; height: 300px; margin-top: 20px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4vmin; width: 80vmin; height: 80vmin; max-width: 300px; max-height: 300px; margin-top: 20px; }
+        .pad.cursor { opacity: 1; transform: scale(1.05); outline: 6px solid #fbbf24; z-index: 10; }
         .pad { border-radius: 20px; cursor: pointer; transition: 0.1s; opacity: 0.6; border: 4px solid rgba(0,0,0,0.2); }
         .pad:active, .pad.active { opacity: 1; transform: scale(0.95); box-shadow: 0 0 30px currentColor; }
         .red { background: #ef4444; color: #ef4444; }
@@ -40,6 +41,35 @@
 
         async function startGame() {
             sequence = [];
+            
+            // Gamepad Adapter
+            (function() {
+                let cursor = 0;
+                let lastP = 0;
+                function poll() {
+                    const pads = navigator.getGamepads();
+                    if (pads[0]) {
+                        const p = pads[0]; const now = Date.now();
+                        document.querySelectorAll('.pad').forEach(p => p.classList.remove('cursor'));
+                        const curPad = document.getElementById(cursor.toString());
+                        if (curPad) curPad.classList.add('cursor');
+
+                        if (now - lastP > 200) {
+                            const b = p.buttons;
+                            if (b[12].pressed || p.axes[1] < -0.5) cursor = Math.max(0, cursor - 2);
+                            if (b[13].pressed || p.axes[1] > 0.5) cursor = Math.min(3, cursor + 2);
+                            if (b[14].pressed || p.axes[0] < -0.5) cursor = (cursor % 2 === 0) ? cursor : cursor - 1;
+                            if (b[15].pressed || p.axes[0] > 0.5) cursor = (cursor % 2 !== 0) ? cursor : cursor + 1;
+                            
+                            if (b[0].pressed) handleInput(cursor);
+                            lastP = now;
+                        }
+                    }
+                    requestAnimationFrame(poll);
+                }
+                poll();
+            })();
+
             nextRound();
             document.getElementById('startBtn').style.display = 'none';
         }

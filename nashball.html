@@ -83,6 +83,12 @@
             align-items: flex-start;
         }
 
+        @media (max-width: 1100px) {
+            #game-layout { flex-direction: column; align-items: center; }
+            #stats-panel { width: 100%; max-width: 600px; }
+            canvas { width: 90vmin; height: 67.5vmin; }
+        }
+
         #stats-panel {
             width: 320px;
             background: var(--panel);
@@ -237,6 +243,34 @@
                         this.shoot();
                     }
                 };
+
+                // Gamepad Adapter
+                const pollGamepad = () => {
+                    const pads = navigator.getGamepads();
+                    if (pads[0]) {
+                        const p = pads[0]; const now = Date.now();
+                        if (this.gameState === 'menu') {
+                            const cards = document.querySelectorAll('.player-card');
+                            cards.forEach(c => c.style.borderColor = '');
+                            if (!this.selIdx) this.selIdx = 0;
+                            if (now - (this.lastP || 0) > 200) {
+                                if (p.buttons[14].pressed || p.axes[0] < -0.5) this.selIdx = Math.max(0, this.selIdx - 1);
+                                if (p.buttons[15].pressed || p.axes[0] > 0.5) this.selIdx = Math.min(cards.length-1, this.selIdx + 1);
+                                if (p.buttons[0].pressed) cards[this.selIdx].click();
+                                this.lastP = now;
+                            }
+                            if (cards[this.selIdx]) cards[this.selIdx].style.borderColor = 'var(--accent)';
+                        } else if (this.gameState === 'playing') {
+                            if (p.buttons[0].pressed || p.buttons[7].pressed) {
+                                if (!this.ball.active) this.meter.charging = true;
+                            } else if (this.meter.charging) {
+                                this.shoot();
+                            }
+                        }
+                    }
+                    requestAnimationFrame(pollGamepad);
+                };
+                pollGamepad();
 
                 this.loop();
             }

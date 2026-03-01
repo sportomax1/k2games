@@ -8,6 +8,7 @@
         .hand { display: flex; gap: 10px; margin: 20px; flex-wrap: wrap; justify-content: center; }
         .card { width: 70px; height: 105px; border-radius: 10px; border: 3px solid white; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; color: white; font-size: 1.4rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.2s; }
         .card:hover { transform: translateY(-10px); }
+        .card.cursor { outline: 6px solid #fbbf24; transform: translateY(-20px); z-index: 10; box-shadow: 0 0 20px #fbbf24; }
         .red { background: #ef4444; } .blue { background: #3b82f6; } .green { background: #10b981; } .yellow { background: #eab308; } .wild { background: #111; }
         .center { display: flex; gap: 40px; align-items: center; margin: 30px 0; }
         .deck { width: 70px; height: 105px; background: #064e3b; border: 3px dashed white; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 2rem; }
@@ -111,6 +112,34 @@
             document.getElementById('status').textContent = `CPU has ${cpu} cards | ${turn==='p'?'Your Turn':"CPU Thinking..."}`;
         }
         init();
+
+        // Gamepad Adapter
+        (function() {
+            let cursor = 0;
+            let lastP = 0;
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0]; const now = Date.now();
+                    const cards = document.querySelectorAll('.hand .card');
+                    cards.forEach(c => c.classList.remove('cursor'));
+                    if (cards[cursor]) cards[cursor].classList.add('cursor');
+
+                    if (now - lastP > 180) {
+                        const b = p.buttons;
+                        if (b[14].pressed || p.axes[0] < -0.5) cursor = Math.max(0, cursor - 1);
+                        if (b[15].pressed || p.axes[0] > 0.5) cursor = Math.min(hand.length - 1, cursor + 1);
+                        
+                        if (b[0].pressed && cards[cursor]) cards[cursor].click();
+                        if (b[3].pressed) draw(); // Y to draw
+                        
+                        lastP = now;
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
     </script>
 </body>
 </html>

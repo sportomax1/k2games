@@ -48,8 +48,10 @@
             border-radius: 24px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            max-width: 95vw;
-            max-height: 85vh;
+            width: 90vmin;
+            height: 63vmin; /* 1000:700 ratio */
+            max-width: 1000px;
+            max-height: 700px;
             cursor: pointer;
         }
 
@@ -280,9 +282,14 @@
             handleClick(e) {
                 if(this.gameState !== 'playing' || this.players[this.currentPlayer].type !== 'human') return;
 
-                const rect = this.canvas.getBoundingClientRect();
-                const x = (e.clientX - rect.left) * (this.width / rect.width);
-                const y = (e.clientY - rect.top) * (this.height / rect.height);
+                let x, y;
+                if (e.dummy) {
+                    x = e.dx; y = e.dy;
+                } else {
+                    const rect = this.canvas.getBoundingClientRect();
+                    x = (e.clientX - rect.left) * (this.width / rect.width);
+                    y = (e.clientY - rect.top) * (this.height / rect.height);
+                }
 
                 // Draw from Deck
                 if(!this.drawnCard && Math.hypot(x - 400, y - 150) < 60) {
@@ -519,6 +526,37 @@
         }
 
         const game = new Racko();
+
+        // Gamepad Adapter (Virtual Cursor)
+        (function() {
+            let gpX = game.width / 2;
+            let gpY = game.height / 2;
+            let lastP = 0;
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0]; const now = Date.now();
+                    gpX += p.axes[0] * 12;
+                    gpY += p.axes[1] * 12;
+                    gpX = Math.max(0, Math.min(game.width, gpX));
+                    gpY = Math.max(0, Math.min(game.height, gpY));
+
+                    if (p.buttons[0].pressed && now - lastP > 250) {
+                        game.handleClick({ clientX: 0, clientY: 0, dummy: true, dx: gpX, dy: gpY });
+                        lastP = now;
+                    }
+
+                    // Draw cursor
+                    const ctx = game.ctx;
+                    ctx.save();
+                    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.arc(gpX, gpY, 15, 0, Math.PI*2); ctx.stroke();
+                    ctx.restore();
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
     </script>
 </body>
 </html>

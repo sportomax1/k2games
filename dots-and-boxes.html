@@ -10,7 +10,7 @@
         .scores { display: flex; gap: 40px; margin-bottom: 20px; font-size: 1.5rem; font-weight: bold; }
         .p1 { color: #e74c3c; } .p2 { color: #3498db; }
         .active { text-decoration: underline; text-underline-offset: 5px; }
-        canvas { background: #f7fafc; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        canvas { background: #f7fafc; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 90vmin; height: 90vmin; max-width: 400px; max-height: 400px; }
         .btn { margin-top: 20px; padding: 10px 20px; font-size: 1rem; border: none; border-radius: 5px; background: #48bb78; color: white; cursor: pointer; }
         .back { position: absolute; bottom: 20px; left: 20px; color: white; text-decoration: none; opacity: 0.7; }
     </style>
@@ -223,6 +223,41 @@
         }
 
         const game = new DotsGame();
+
+        // Gamepad Adapter (Virtual Cursor)
+        (function() {
+            let lastP = 0;
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0]; const now = Date.now();
+                    const rect = game.canvas.getBoundingClientRect();
+                    const scale = game.width / rect.width;
+                    
+                    if (!game.gpCursor) game.gpCursor = { x: game.width/2, y: game.height/2 };
+                    game.gpCursor.x += p.axes[0] * 10;
+                    game.gpCursor.y += p.axes[1] * 10;
+                    game.gpCursor.x = Math.max(0, Math.min(game.width, game.gpCursor.x));
+                    game.gpCursor.y = Math.max(0, Math.min(game.height, game.gpCursor.y));
+
+                    game.hoverLine = game.getLine(game.gpCursor.x, game.gpCursor.y);
+                    game.render();
+
+                    // Draw virtual cursor
+                    game.ctx.save();
+                    game.ctx.strokeStyle = '#fbbf24'; game.ctx.lineWidth = 3;
+                    game.ctx.beginPath(); game.ctx.arc(game.gpCursor.x, game.gpCursor.y, 10, 0, Math.PI*2); game.ctx.stroke();
+                    game.ctx.restore();
+
+                    if (p.buttons[0].pressed && now - lastP > 250) {
+                        game.handleClick();
+                        lastP = now;
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
     </script>
 </body>
 </html>

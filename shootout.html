@@ -256,6 +256,32 @@
                 this.canvas.addEventListener('mousedown', startDrag);
                 window.addEventListener('mousemove', moveDrag);
                 window.addEventListener('mouseup', endDrag);
+                
+                // Gamepad Adapter
+                const pollGamepad = () => {
+                    const pads = navigator.getGamepads();
+                    if (pads[0] && this.playing && !this.ball.active) {
+                        const p = pads[0]; const now = Date.now();
+                        if (Math.abs(p.axes[0]) > 0.1 || Math.abs(p.axes[1]) > 0.1) {
+                            this.drag.active = true;
+                            this.drag.startX = this.ball.x;
+                            this.drag.startY = this.ball.y;
+                            this.drag.currX = this.ball.x + p.axes[0] * 100;
+                            this.drag.currY = this.ball.y + p.axes[1] * 100;
+                        }
+                        if (p.buttons[0].pressed && this.drag.active && now - (this.lastFire || 0) > 500) {
+                            const dx = this.drag.currX - this.drag.startX;
+                            const dy = this.drag.currY - this.drag.startY;
+                            const dist = Math.hypot(dx, dy);
+                            if (dy < 0) this.fire((dx / dist) * 20, (dy / dist) * 20, Math.abs(dy) / 10);
+                            this.drag.active = false;
+                            this.lastFire = now;
+                        }
+                    }
+                    requestAnimationFrame(pollGamepad);
+                };
+                pollGamepad();
+
                 this.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrag(e); }, {passive: false});
                 window.addEventListener('touchmove', (e) => { if(this.drag.active) e.preventDefault(); moveDrag(e); }, {passive: false});
                 window.addEventListener('touchend', endDrag);

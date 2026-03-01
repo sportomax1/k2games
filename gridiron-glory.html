@@ -21,8 +21,17 @@
             background-color: var(--bg);
             color: white;
             display: flex;
+            flex-direction: row;
             height: 100vh;
             overflow: hidden;
+        }
+
+        @media (max-width: 900px) {
+            body { flex-direction: column; overflow: auto; }
+            #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 4px solid var(--offense); padding: 1rem; }
+            #main-view { height: 60vh; flex: none; }
+            .playbook { flex-direction: row; overflow-x: auto; }
+            .play-btn { min-width: 140px; }
         }
 
         /* Sidebar UI */
@@ -293,6 +302,34 @@
         }
 
         let game = new FootballGame();
+        
+        // Gamepad Adapter
+        (function() {
+            let cursor = 0;
+            let lastP = 0;
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0]; const now = Date.now();
+                    const btns = document.querySelectorAll('.play-btn');
+                    btns.forEach(b => b.style.outline = 'none');
+                    if (btns[cursor]) btns[cursor].style.outline = '4px solid var(--gold)';
+
+                    if (now - lastP > 200) {
+                        const b = p.buttons;
+                        if (b[12].pressed || p.axes[1] < -0.5) cursor = Math.max(0, cursor - 1);
+                        if (b[13].pressed || p.axes[1] > 0.5) cursor = Math.min(btns.length - 1, cursor + 1);
+                        
+                        if (b[0].pressed) btns[cursor].click();
+                        if (b[9].pressed || b[7].pressed) game.snap();
+                        lastP = now;
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
+
         function selectPlay(idx, el) {
             document.querySelectorAll('.play-btn').forEach(b => b.classList.remove('selected'));
             el.classList.add('selected');

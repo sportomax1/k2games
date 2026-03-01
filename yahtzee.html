@@ -159,6 +159,43 @@
             document.getElementById('status').textContent = `Round ${round}/13`;
         }
         render();
+
+        // Gamepad Adapter
+        (function() {
+            let cursor = 0; // 0-4 for dice, 5-17 for categories
+            let lastP = 0;
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0]; const now = Date.now();
+                    document.querySelectorAll('.die, .score-row').forEach(el => el.style.outline = '');
+                    
+                    const diceEls = document.querySelectorAll('.die');
+                    const scoreEls = document.querySelectorAll('#playerScores .score-row');
+                    
+                    if (cursor < 5) {
+                        if (diceEls[cursor]) diceEls[cursor].style.outline = '4px solid #fbbf24';
+                    } else {
+                        if (scoreEls[cursor - 5]) scoreEls[cursor - 5].style.outline = '4px solid #fbbf24';
+                    }
+
+                    if (now - lastP > 180) {
+                        const b = p.buttons;
+                        if (b[12].pressed || p.axes[1] < -0.5) cursor = Math.max(0, cursor - 1);
+                        if (b[13].pressed || p.axes[1] > 0.5) cursor = Math.min(17, cursor + 1);
+                        
+                        if (b[0].pressed) {
+                            if (cursor < 5) toggleHold(cursor);
+                            else if (scoreEls[cursor-5]) scoreEls[cursor-5].click();
+                        }
+                        if (b[3].pressed || b[7].pressed) roll(); // Y or R2 to roll
+                        lastP = now;
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
     </script>
 </body>
 </html>

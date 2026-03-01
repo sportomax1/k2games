@@ -400,6 +400,47 @@
         }
 
         const game = new Battleship();
+
+        // Gamepad Adapter (Virtual Cursor)
+        (function() {
+            let cursorIdx = 45;
+            let lastP = 0;
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0]; const now = Date.now();
+                    document.querySelectorAll('.cell').forEach(c => c.style.outline = '');
+                    
+                    const targetGrid = game.state === 'setup' ? '#pGrid' : '#cpuGrid';
+                    const targetCell = document.querySelector(`${targetGrid} [data-idx="${cursorIdx}"]`);
+                    if (targetCell) targetCell.style.outline = '4px solid #fbbf24';
+
+                    if (now - lastP > 180) {
+                        const b = p.buttons;
+                        if (b[12].pressed || p.axes[1] < -0.5) cursorIdx = Math.max(0, cursorIdx - 10);
+                        if (b[13].pressed || p.axes[1] > 0.5) cursorIdx = Math.min(99, cursorIdx + 10);
+                        if (b[14].pressed || p.axes[0] < -0.5) if(cursorIdx % 10 !== 0) cursorIdx--;
+                        if (b[15].pressed || p.axes[0] > 0.5) if(cursorIdx % 10 !== 9) cursorIdx++;
+                        
+                        if (b[0].pressed) {
+                            if (game.state === 'setup') {
+                                const cell = document.querySelector(`#pGrid [data-idx="${cursorIdx}"]`);
+                                if(cell) cell.click();
+                            } else if (game.state === 'battle') {
+                                game.attack(cursorIdx);
+                            }
+                        }
+                        if (b[2].pressed && game.state === 'setup') document.getElementById('rotate-btn').click();
+                        if (b[3].pressed && game.state === 'setup') game.randomizePlayer();
+                        if (b[9].pressed && game.state === 'setup') game.startGame();
+                        
+                        lastP = now;
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
     </script>
 </body>
 </html>

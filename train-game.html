@@ -22,7 +22,15 @@
             font-family: 'Segoe UI', system-ui, sans-serif;
             height: 100vh;
             display: flex;
+            flex-direction: row;
             overflow: hidden;
+        }
+
+        @media (max-width: 1100px) {
+            body { flex-direction: column; overflow: auto; }
+            #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 2px solid #e2e8f0; padding: 1rem; }
+            #main-view { height: 70vh; flex: none; padding: 1rem; }
+            #face-up-area { overflow-x: auto; flex-shrink: 0; }
         }
 
         /* Sidebar UI */
@@ -319,9 +327,16 @@
             }
 
             handleClick(e) {
-                const rect = this.canvas.getBoundingClientRect();
-                const x = (e.clientX - rect.left) * (900 / rect.width);
-                const y = (e.clientY - rect.top) * (600 / rect.height);
+                if(this.actionsLeft <= 0) return;
+
+                let x, y;
+                if (e.dummy) {
+                    x = e.dx; y = e.dy;
+                } else {
+                    const rect = this.canvas.getBoundingClientRect();
+                    x = (e.clientX - rect.left) * (900 / rect.width);
+                    y = (e.clientY - rect.top) * (600 / rect.height);
+                }
                 
                 // Find clicked route (Simplified hit detection)
                 let clicked = null;
@@ -452,6 +467,41 @@
         }
 
         window.game = new TrainGame();
+
+        // Gamepad Adapter (Virtual Cursor)
+        (function() {
+            let gpX = 450, gpY = 300;
+            let lastP = 0;
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0]; const now = Date.now();
+                    gpX += p.axes[0] * 12;
+                    gpY += p.axes[1] * 12;
+                    gpX = Math.max(0, Math.min(900, gpX));
+                    gpY = Math.max(0, Math.min(600, gpY));
+
+                    if (p.buttons[0].pressed && now - lastP > 250) {
+                        game.handleClick({ clientX: 0, clientY: 0, dummy: true, dx: gpX, dy: gpY });
+                        lastP = now;
+                    }
+                    if (p.buttons[4].pressed && now - lastP > 250) { game.drawBlindCard(); lastP = now; }
+                    if (p.buttons[7].pressed) game.claimRoute();
+
+                    // Draw cursor
+                    const ctx = game.ctx;
+                    const scaleX = game.canvas.width / 900;
+                    const scaleY = game.canvas.height / 600;
+                    ctx.save();
+                    ctx.scale(scaleX, scaleY);
+                    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.arc(gpX, gpY, 15, 0, Math.PI*2); ctx.stroke();
+                    ctx.restore();
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
     </script>
 </body>
 </html>

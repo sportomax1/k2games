@@ -5,8 +5,9 @@
     <title>Candy Match</title>
     <style>
         body { font-family: sans-serif; background: #fdf2f8; color: #86198f; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .grid { display: grid; grid-template-columns: repeat(8, 50px); grid-template-rows: repeat(8, 50px); gap: 4px; background: #f5d0fe; padding: 10px; border-radius: 12px; border: 4px solid #d946ef; }
-        .candy { width: 50px; height: 50px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 2rem; transition: transform 0.2s, background 0.2s; user-select: none; }
+        .grid { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); gap: 4px; background: #f5d0fe; padding: 10px; border-radius: 12px; border: 4px solid #d946ef; width: 90vmin; height: 90vmin; max-width: 500px; max-height: 500px; }
+        .candy { width: 100%; height: 100%; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 5vmin; transition: transform 0.2s, background 0.2s; user-select: none; }
+        .candy.cursor { outline: 4px solid #fbbf24; z-index: 20; transform: scale(1.1); }
         .candy:hover { transform: scale(1.1); }
         .selected { outline: 4px solid white; outline-offset: -4px; transform: scale(1.1); z-index: 10; }
         .ui { margin-bottom: 20px; text-align: center; }
@@ -150,6 +151,34 @@
         }
 
         init();
+
+        // Gamepad Adapter
+        (function() {
+            let cursor = 0;
+            let lastP = 0;
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0]; const now = Date.now();
+                    document.querySelectorAll('.candy').forEach(c => c.classList.remove('cursor'));
+                    const curEl = document.getElementById(cursor);
+                    if(curEl) curEl.classList.add('cursor');
+
+                    if (now - lastP > 180) {
+                        const b = p.buttons; const axes = p.axes;
+                        if (axes[1] < -0.5 || b[12].pressed) if(cursor >= width) cursor -= width;
+                        if (axes[1] > 0.5 || b[13].pressed) if(cursor < width*(width-1)) cursor += width;
+                        if (axes[0] < -0.5 || b[14].pressed) if(cursor % width !== 0) cursor--;
+                        if (axes[0] > 0.5 || b[15].pressed) if(cursor % width !== width-1) cursor++;
+                        
+                        if (b[0].pressed || b[7].pressed) handleSelect(cursor);
+                        lastP = now;
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
     </script>
 </body>
 </html>

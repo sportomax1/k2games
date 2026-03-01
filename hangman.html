@@ -12,6 +12,7 @@
         .key { padding: 12px; border: 1px solid #d97706; background: white; cursor: pointer; border-radius: 4px; min-width: 40px; font-weight: bold; transition: background 0.2s; }
         .key:hover { background: #fef3c7; }
         .key.used { opacity: 0.3; cursor: default; background: #e5e7eb; }
+        .key.cursor { outline: 4px solid #d97706; transform: scale(1.1); z-index: 10; background: #fff; }
         .back { margin-top: 30px; text-decoration: none; color: #d97706; font-weight: bold; }
         .loading { font-style: italic; color: #b45309; }
     </style>
@@ -106,6 +107,44 @@
         }
 
         init();
+
+        // Gamepad Adapter
+        (function() {
+            let r=0, c=0;
+            let lastP = 0;
+            const layout = [
+                ["A", "B", "C", "D", "E", "F", "G"],
+                ["H", "I", "J", "K", "L", "M", "N"],
+                ["O", "P", "Q", "R", "S", "T", "U"],
+                ["V", "W", "X", "Y", "Z"]
+            ];
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0]; const now = Date.now();
+                    const keys = document.querySelectorAll('.key');
+                    keys.forEach(k => k.classList.remove('cursor'));
+                    const char = layout[r][c];
+                    // Find key element by text
+                    const keyEl = Array.from(keys).find(k => k.textContent === char);
+                    if(keyEl) keyEl.classList.add('cursor');
+
+                    if (now - lastP > 180) {
+                        const b = p.buttons;
+                        if (b[12].pressed || p.axes[1] < -0.5) r = Math.max(0, r-1);
+                        if (b[13].pressed || p.axes[1] > 0.5) { r = Math.min(3, r+1); c = Math.min(c, layout[r].length-1); }
+                        if (b[14].pressed || p.axes[0] < -0.5) c = Math.max(0, c-1);
+                        if (b[15].pressed || p.axes[0] > 0.5) c = Math.min(layout[r].length-1, c+1);
+                        
+                        if (b[0].pressed && keyEl) keyEl.click();
+                        if (b[9].pressed) location.reload();
+                        lastP = now;
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
     </script>
 </body>
 </html>

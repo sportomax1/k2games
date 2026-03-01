@@ -21,8 +21,15 @@
             color: var(--text);
             font-family: 'Segoe UI', system-ui, sans-serif;
             display: flex;
+            flex-direction: row;
             height: 100vh;
             overflow: hidden;
+        }
+
+        @media (max-width: 900px) {
+            body { flex-direction: column; overflow: auto; }
+            #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid #e2e8f0; }
+            #main-content { height: 70vh; flex: none; }
         }
 
         /* Sidebar */
@@ -1101,6 +1108,35 @@
         }
 
         window.app = new EmojiApp();
+
+        // Gamepad Adapter
+        (function() {
+            let cursor = 0;
+            let lastP = 0;
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0]; const now = Date.now();
+                    const cards = document.querySelectorAll('.emoji-card');
+                    cards.forEach(c => c.style.outline = 'none');
+                    if (cards[cursor]) cards[cursor].style.outline = '4px solid var(--primary)';
+
+                    if (now - lastP > 150) {
+                        const b = p.buttons;
+                        const cols = Math.floor(document.getElementById('emoji-grid').offsetWidth / 160);
+                        if (b[12].pressed || p.axes[1] < -0.5) cursor = Math.max(0, cursor - cols);
+                        if (b[13].pressed || p.axes[1] > 0.5) cursor = Math.min(cards.length-1, cursor + cols);
+                        if (b[14].pressed || p.axes[0] < -0.5) cursor = Math.max(0, cursor - 1);
+                        if (b[15].pressed || p.axes[0] > 0.5) cursor = Math.min(cards.length-1, cursor + 1);
+                        
+                        if (b[0].pressed && cards[cursor]) cards[cursor].click();
+                        lastP = now;
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
     </script>
 </body>
 </html>

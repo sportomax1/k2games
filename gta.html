@@ -148,6 +148,34 @@
         spawnVehicles(40);
         spawnPeds(60);
         setNextMission();
+        
+        // Gamepad Adapter
+        const pollGamepad = () => {
+            const pads = navigator.getGamepads();
+            if (pads[0]) {
+                const p = pads[0], ax = p.axes[0], ay = p.axes[1], b = p.buttons;
+                if (player.inVehicle) {
+                    const v = player.inVehicle;
+                    if (Math.abs(ax) > 0.1) v.angle += ax * v.turn * (v.speed / 5 + 0.5);
+                    if (b[7].pressed || b[0].pressed) v.speed = Math.min(v.maxSpeed, v.speed + v.accel);
+                    if (b[6].pressed || b[1].pressed) v.speed = Math.max(-2, v.speed - v.accel);
+                } else {
+                    if (Math.abs(ax) > 0.1 || Math.abs(ay) > 0.1) {
+                        const angle = Math.atan2(ay, ax);
+                        player.angle = angle;
+                        player.x += Math.cos(angle) * 5;
+                        player.y += Math.sin(angle) * 5;
+                    }
+                }
+                
+                const now = Date.now();
+                if (b[3].pressed && now - (this.lastF || 0) > 500) { toggleVehicle(); this.lastF = now; } // Y or Triangle
+                if (b[2].pressed && now - (this.lastFire || 0) > 200) { fireWeapon(); this.lastFire = now; } // X or Square
+            }
+            requestAnimationFrame(pollGamepad);
+        };
+        pollGamepad();
+
         requestAnimationFrame(loop);
         
         // Mobile Controls

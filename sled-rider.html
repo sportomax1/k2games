@@ -398,6 +398,54 @@
             loop() { this.update(); this.draw(); requestAnimationFrame(() => this.loop()); }
         }
         const game = new SledMaster();
+
+        // Gamepad Adapter
+        (function() {
+            let gpX = window.innerWidth / 2;
+            let gpY = window.innerHeight / 2;
+            let lastP = 0;
+            const cursor = document.createElement('div');
+            cursor.style.cssText = 'position:fixed; width:20px; height:20px; border:3px solid #fbbf24; border-radius:50%; pointer-events:none; z-index:10000; display:none; background:rgba(251,191,36,0.3);';
+            document.body.appendChild(cursor);
+
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    cursor.style.display = 'block';
+                    const p = pads[0]; const now = Date.now();
+                    gpX += p.axes[0] * 15;
+                    gpY += p.axes[1] * 15;
+                    gpX = Math.max(0, Math.min(window.innerWidth, gpX));
+                    gpY = Math.max(0, Math.min(window.innerHeight, gpY));
+                    cursor.style.left = gpX + 'px';
+                    cursor.style.top = gpY + 'px';
+
+                    if (p.buttons[0].pressed) {
+                        if (!game.mouse.down) {
+                            const pnt = { x: gpX / game.camera.zoom + game.camera.x, y: gpY / game.camera.zoom + game.camera.y };
+                            game.mouse.down = true;
+                            if(game.state === 'drawing') game.currentLine = [pnt];
+                        } else if (game.state === 'drawing') {
+                            const pnt = { x: gpX / game.camera.zoom + game.camera.x, y: gpY / game.camera.zoom + game.camera.y };
+                            const last = game.currentLine[game.currentLine.length-1];
+                            const d = Math.hypot(pnt.x - last.x, pnt.y - last.y);
+                            if(d > 6) { game.currentLine.push(pnt); game.inkUsed += d; game.updateUI(); }
+                        }
+                    } else if (game.mouse.down) {
+                        game.mouse.down = false;
+                        if(game.currentLine.length > 1) game.lines.push([...game.currentLine]);
+                        game.currentLine = [];
+                    }
+
+                    if (p.buttons[9].pressed && now - lastP > 500) {
+                        game.togglePlay();
+                        lastP = now;
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
     </script>
 </body>
 </html>

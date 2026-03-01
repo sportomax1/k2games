@@ -23,8 +23,16 @@
             background: var(--bg);
             color: var(--secondary);
             display: flex;
+            flex-direction: row;
             height: 100vh;
             overflow: hidden;
+        }
+
+        @media (max-width: 900px) {
+            body { flex-direction: column; overflow: auto; }
+            #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid rgba(0,0,0,0.1); padding: 1rem; }
+            #main-content { height: 70vh; flex: none; }
+            .palette { grid-template-columns: repeat(3, 1fr); }
         }
 
         /* Sidebar UI */
@@ -358,6 +366,58 @@
         }
 
         let builder = new CityBuilder();
+        
+        // Gamepad Adapter (Virtual Mouse)
+        (function() {
+            let gpX = builder.canvas.width / 2;
+            let gpY = builder.canvas.height / 2;
+            let lastP = 0;
+            let toolIdx = 0;
+            const tools = ['road', 'house', 'office', 'park', 'shop', 'eraser'];
+
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0];
+                    gpX += p.axes[0] * 10;
+                    gpY += p.axes[1] * 10;
+                    gpX = Math.max(0, Math.min(builder.canvas.width, gpX));
+                    gpY = Math.max(0, Math.min(builder.canvas.height, gpY));
+
+                    const rect = builder.canvas.getBoundingClientRect();
+                    const screenX = rect.left + (gpX * (rect.width / builder.canvas.width));
+                    const screenY = rect.top + (gpY * (rect.height / builder.canvas.height));
+
+                    if (p.buttons[0].pressed) { // A to start drag
+                        if (!builder.isDrawing) {
+                            builder.isDrawing = true;
+                            builder.dragStart = { x: Math.floor(gpX / builder.gridSize), y: Math.floor(gpY / builder.gridSize) };
+                        }
+                        builder.dragEnd = { x: Math.floor(gpX / builder.gridSize), y: Math.floor(gpY / builder.gridSize) };
+                    } else if (builder.isDrawing) {
+                        builder.applyDrag();
+                        builder.isDrawing = false;
+                    }
+
+                    if (Date.now() - lastP > 200) {
+                        if (p.buttons[4].pressed) toolIdx = (toolIdx + tools.length - 1) % tools.length; // LB
+                        if (p.buttons[5].pressed) toolIdx = (toolIdx + 1) % tools.length; // RB
+                        document.querySelectorAll('.tool')[toolIdx].click();
+                        lastP = Date.now();
+                    }
+
+                    // Draw virtual cursor
+                    const ctx = builder.ctx;
+                    ctx.save();
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.arc(gpX, gpY, 10, 0, Math.PI*2); ctx.stroke();
+                    ctx.restore();
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
+
         function clearCity() {
             builder.grid = Array.from({length: builder.rows}, () => Array(builder.cols).fill(null));
             builder.updateStats();

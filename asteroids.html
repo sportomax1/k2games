@@ -226,8 +226,36 @@
             }
         }
 
+        function checkGamepad() {
+            const pads = navigator.getGamepads();
+            const pad = pads[0];
+            if (!pad) return;
+
+            const axesX = pad.axes[0];
+            const axesY = pad.axes[1];
+            const btnShoot = pad.buttons[0]?.pressed || pad.buttons[7]?.pressed;
+            const btnHyperspace = pad.buttons[1]?.pressed || pad.buttons[2]?.pressed;
+
+            if (Math.abs(axesX) > 0.1) ship.a += axesX * 0.08;
+            ship.thrust = axesY < -0.5 || pad.buttons[6]?.pressed || pad.buttons[7]?.pressed;
+
+            const now = Date.now();
+            if (!this.lastShootTime) this.lastShootTime = 0;
+            if (btnShoot && now - this.lastShootTime > 250 && !ship.dead) {
+                bullets.push({x:ship.x, y:ship.y, v:{x:ship.v.x + Math.cos(ship.a)*8, y:ship.v.y + Math.sin(ship.a)*8}, life: 50, owner: 'ship'});
+                this.lastShootTime = now;
+            }
+
+            if (btnHyperspace && !ship.dead && (!this.lastHyperTime || now - this.lastHyperTime > 1000)) {
+                ship.x = Math.random()*800; ship.y = Math.random()*600;
+                explode(ship.x, ship.y, 'cyan', 5);
+                this.lastHyperTime = now;
+            }
+        }
+
         function loop() {
             if(!gameActive) return;
+            checkGamepad();
             update();
             draw();
             requestAnimationFrame(loop);

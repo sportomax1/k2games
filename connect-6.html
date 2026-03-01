@@ -19,8 +19,15 @@
             background-color: var(--bg);
             color: #333;
             display: flex;
+            flex-direction: row;
             height: 100vh;
             overflow: hidden;
+        }
+
+        @media (max-width: 900px) {
+            body { flex-direction: column; overflow: auto; }
+            #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 4px solid var(--board); }
+            #main-view { height: 70vh; flex: none; }
         }
 
         /* Sidebar Info */
@@ -323,6 +330,36 @@
         }
 
         const game = new Connect6();
+
+        // Gamepad Adapter (Virtual Cursor)
+        (function() {
+            let r = 9, c = 9;
+            let lastP = 0;
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0]; const now = Date.now();
+                    if (now - lastP > 180) {
+                        const b = p.buttons; const axes = p.axes;
+                        if (axes[1] < -0.5 || b[12].pressed) r = Math.max(0, r-1);
+                        if (axes[1] > 0.5 || b[13].pressed) r = Math.min(game.size-1, r+1);
+                        if (axes[0] < -0.5 || b[14].pressed) c = Math.max(0, c-1);
+                        if (axes[0] > 0.5 || b[15].pressed) c = Math.min(game.size-1, c+1);
+                        
+                        if (b[0].pressed) game.placeStone(r, c);
+                        lastP = now;
+                    }
+                    // Draw highlight
+                    const ctx = game.ctx;
+                    const px = game.padding + c * game.cellSize;
+                    const py = game.padding + r * game.cellSize;
+                    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.arc(px, py, 18, 0, Math.PI*2); ctx.stroke();
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
     </script>
 </body>
 </html>

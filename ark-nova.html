@@ -19,7 +19,14 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg); color: #333; overflow-x: hidden; }
 
-        #app-container { display: flex; min-height: 100vh; }
+        #app-container { display: flex; min-height: 100vh; flex-direction: row; }
+
+        @media (max-width: 1100px) {
+            #app-container { flex-direction: column; }
+            #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 2px solid var(--accent); padding: 1rem; }
+            #main-view { padding: 1rem; }
+            #market { grid-template-columns: repeat(2, 1fr); }
+        }
 
         /* Sidebar Stats */
         #sidebar {
@@ -369,7 +376,41 @@
             }
         }
 
-        window.onload = () => new Game();
+        window.onload = () => {
+            const game = new Game();
+            
+            // Gamepad Adapter (Virtual Cursor)
+            (function() {
+                let gpX = window.innerWidth / 2;
+                let gpY = window.innerHeight / 2;
+                let lastP = 0;
+                const cursor = document.createElement('div');
+                cursor.style.cssText = 'position:fixed; width:20px; height:20px; border:3px solid var(--accent); border-radius:50%; pointer-events:none; z-index:10000; display:none; background:rgba(251,191,36,0.3);';
+                document.body.appendChild(cursor);
+
+                function poll() {
+                    const pads = navigator.getGamepads();
+                    if (pads[0]) {
+                        cursor.style.display = 'block';
+                        const p = pads[0]; const now = Date.now();
+                        gpX += p.axes[0] * 15;
+                        gpY += p.axes[1] * 15;
+                        gpX = Math.max(0, Math.min(window.innerWidth, gpX));
+                        gpY = Math.max(0, Math.min(window.innerHeight, gpY));
+                        cursor.style.left = gpX + 'px';
+                        cursor.style.top = gpY + 'px';
+
+                        if (p.buttons[0].pressed && now - lastP > 250) {
+                            const el = document.elementFromPoint(gpX, gpY);
+                            if (el) el.click();
+                            lastP = now;
+                        }
+                    }
+                    requestAnimationFrame(poll);
+                }
+                poll();
+            })();
+        };
     </script>
 </body>
 </html>

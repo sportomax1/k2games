@@ -229,6 +229,37 @@
                 this.resize();
                 window.addEventListener('resize', () => this.resize());
                 this.canvas.onclick = (e) => this.handleClick(e);
+
+                // Gamepad Adapter
+                const pollGamepad = () => {
+                    const pads = navigator.getGamepads();
+                    if (pads[0] && this.turn === 'p1' && this.playing) {
+                        const p = pads[0]; const now = Date.now();
+                        if (!this.gpCursor) this.gpCursor = { x: 500, y: 500 };
+                        this.gpCursor.x += p.axes[0] * 12;
+                        this.gpCursor.y += p.axes[1] * 12;
+                        this.gpCursor.x = Math.max(0, Math.min(this.width, this.gpCursor.x));
+                        this.gpCursor.y = Math.max(0, Math.min(this.height, this.gpCursor.y));
+
+                        if (p.buttons[0].pressed && now - (this.lastGP || 0) > 250) {
+                            const target = this.tiles.find(t => t.available && Math.hypot(this.gpCursor.x - t.x, this.gpCursor.y - t.y) < 40);
+                            if (target && target.idx > this.players.p1.pos) {
+                                if (this.players.p2.pos !== target.idx) this.movePlayer('p1', target.idx);
+                            }
+                            this.lastGP = now;
+                        }
+                        
+                        // Draw cursor
+                        this.render();
+                        const ctx = this.ctx;
+                        ctx.save();
+                        ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 4;
+                        ctx.beginPath(); ctx.arc(this.gpCursor.x, this.gpCursor.y, 20, 0, Math.PI*2); ctx.stroke();
+                        ctx.restore();
+                    }
+                    requestAnimationFrame(pollGamepad);
+                };
+                pollGamepad();
             }
 
             resize() {

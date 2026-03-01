@@ -13,7 +13,11 @@
         .dice-row { display: flex; justify-content: center; gap: 10px; margin: 15px 0; }
         .die-btn { width: 70px; height: 70px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
         .die-btn:hover { transform: scale(1.1); }
-        .die-btn.selected { outline: 4px solid #FFD700; transform: scale(1.1); }
+        @media (max-width: 600px) {
+            .selection-grid { grid-template-columns: 1fr; }
+            h1 { font-size: 1.5rem; }
+        }
+        .die-btn.cursor { outline: 6px solid #fbbf24; z-index: 10; transform: scale(1.1); box-shadow: 0 0 20px #fbbf24; }
         .die-btn.red { background: #ef4444; color: white; }
         .die-btn.yellow { background: #f1c40f; color: black; }
         .die-btn.green { background: #2ecc71; color: white; }
@@ -164,6 +168,46 @@
         }
 
         updateUI();
+
+        // Gamepad Adapter
+        (function() {
+            let cursor = 0;
+            let lastP = 0;
+            const buttons = [
+                { who: 'p', type: 'pow', color: 'red' }, { who: 'p', type: 'pow', color: 'yellow' }, { who: 'p', type: 'pow', color: 'green' },
+                { who: 'p', type: 'loc', color: 'white' },
+                { who: 'b', type: 'pow', color: 'red' }, { who: 'b', type: 'pow', color: 'yellow' }, { who: 'b', type: 'pow', color: 'green' },
+                { who: 'b', type: 'loc', color: 'black' }
+            ];
+
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0]; const now = Date.now();
+                    const btnEls = document.querySelectorAll('.die-btn');
+                    btnEls.forEach(b => b.classList.remove('cursor'));
+                    if (btnEls[cursor]) btnEls[cursor].classList.add('cursor');
+
+                    if (now - lastP > 200) {
+                        const b = p.buttons;
+                        if (b[12].pressed || p.axes[1] < -0.5) cursor = Math.max(0, cursor - 4);
+                        if (b[13].pressed || p.axes[1] > 0.5) cursor = Math.min(buttons.length - 1, cursor + 4);
+                        if (b[14].pressed || p.axes[0] < -0.5) cursor = Math.max(0, cursor - 1);
+                        if (b[15].pressed || p.axes[0] > 0.5) cursor = Math.min(buttons.length - 1, cursor + 1);
+                        
+                        if (b[0].pressed) {
+                            const btn = buttons[cursor];
+                            pick(btn.who, btn.type, btn.color);
+                        }
+                        if (b[9].pressed || b[7].pressed) document.getElementById('actionBtn').click();
+                        
+                        lastP = now;
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
     </script>
 </body>
 </html>

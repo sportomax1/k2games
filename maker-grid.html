@@ -21,7 +21,16 @@
             font-family: 'Segoe UI', system-ui, sans-serif;
             height: 100vh;
             display: flex;
+            flex-direction: row;
             overflow: hidden;
+        }
+
+        @media (max-width: 900px) {
+            body { flex-direction: column; overflow: auto; }
+            #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.1); padding: 1rem; }
+            #main-view { height: 70vh; flex: none; }
+            #level-grid { grid-template-columns: repeat(24, 30px); grid-template-rows: repeat(14, 30px); }
+            .cell { width: 30px; height: 30px; }
         }
 
         /* Sidebar Palette */
@@ -210,6 +219,40 @@
                 window.onkeydown = (e) => {
                     if (this.isPlaying) this.handleInput(e);
                 };
+
+                // Gamepad Adapter
+                (function() {
+                    let gpX = 0, gpY = 0;
+                    let lastP = 0;
+                    function poll() {
+                        const pads = navigator.getGamepads();
+                        if (pads[0]) {
+                            const p = pads[0], ax = p.axes[0], ay = p.axes[1], b = p.buttons;
+                            if (this.isPlaying) {
+                                if (ax < -0.3 || b[14].pressed) this.movePlayer(0, -1);
+                                if (ax > 0.3 || b[15].pressed) this.movePlayer(0, 1);
+                                if ((ay < -0.5 || b[0].pressed || b[12].pressed) && this.player.grounded) {
+                                    this.player.vr = -0.6; this.player.grounded = false;
+                                }
+                            } else {
+                                // Editor Virtual Cursor
+                                if (Math.abs(ax) > 0.1) gpX += ax * 10;
+                                if (Math.abs(ay) > 0.1) gpY += ay * 10;
+                                // Keep in grid container bounds
+                                // Visual highlight cell under cursor
+                                const rect = this.gridEl.getBoundingClientRect();
+                                const r = Math.floor((gpY) / 40);
+                                const c = Math.floor((gpX) / 40);
+                                if (r >= 0 && r < this.rows && c >= 0 && c < this.cols) {
+                                    if (b[0].pressed) this.paint(r, c);
+                                }
+                            }
+                            if (b[9].pressed && Date.now() - lastP > 500) { this.togglePlay(); lastP = Date.now(); }
+                        }
+                        requestAnimationFrame(poll.bind(this));
+                    }
+                    poll.call(this);
+                }).call(this);
             }
 
             renderPalette() {

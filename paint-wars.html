@@ -30,7 +30,8 @@
             position: relative;
             width: 100%;
             max-width: 1000px;
-            height: 800px;
+            height: 90vmin;
+            max-height: 800px;
             background: var(--panel);
             border-radius: 32px;
             border: 1px solid rgba(255,255,255,0.1);
@@ -39,6 +40,15 @@
             display: flex;
             flex-direction: column;
         }
+
+        @media (max-width: 900px) {
+            #header { padding: 10px 20px; flex-wrap: wrap; gap: 10px; }
+            .score-bar-wrapper { order: 10; width: 100%; margin: 10px 0; }
+            .stat-value { font-size: 1.2rem; }
+            canvas { width: 90vmin; height: 60vmin; }
+        }
+
+        .color-opt.cursor { outline: 6px solid #fbbf24; transform: scale(1.2); }
 
         #header {
             padding: 25px 40px;
@@ -371,7 +381,41 @@
             }
         }
 
-        let game = new PaintWar();
+        const game = new PaintWar();
+        
+        // Gamepad Adapter
+        (function() {
+            let lastP = 0;
+            let colCursor = 0;
+            function poll() {
+                const pads = navigator.getGamepads();
+                if (pads[0]) {
+                    const p = pads[0], ax = p.axes[0], ay = p.axes[1], b = p.buttons;
+                    if (game.isPlaying) {
+                        game.keys['ArrowUp'] = ay < -0.3 || b[12].pressed;
+                        game.keys['ArrowDown'] = ay > 0.3 || b[13].pressed;
+                        game.keys['ArrowLeft'] = ax < -0.3 || b[14].pressed;
+                        game.keys['ArrowRight'] = ax > 0.3 || b[15].pressed;
+                        game.keys['ShiftLeft'] = b[7].pressed; // R2
+                    } else if (document.getElementById('overlay').style.display !== 'none') {
+                        const opts = document.querySelectorAll('.color-opt');
+                        opts.forEach(o => o.classList.remove('cursor'));
+                        if (opts[colCursor]) opts[colCursor].classList.add('cursor');
+
+                        if (Date.now() - lastP > 200) {
+                            if (b[14].pressed || ax < -0.5) colCursor = Math.max(0, colCursor - 1);
+                            if (b[15].pressed || ax > 0.5) colCursor = Math.min(opts.length-1, colCursor + 1);
+                            if (b[0].pressed) opts[colCursor].click();
+                            if (b[9].pressed) startGame();
+                            lastP = Date.now();
+                        }
+                    }
+                }
+                requestAnimationFrame(poll);
+            }
+            poll();
+        })();
+
         function startGame() { game.start(); }
     </script>
 </body>

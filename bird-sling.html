@@ -37,9 +37,9 @@
 
         #game-container {
             position: relative;
-            width: 100%;
+            width: 90vmin;
+            height: 50.625vmin; /* 16:9 ratio approx */
             max-width: 1000px;
-            aspect-ratio: 16/9;
             background: linear-gradient(to bottom, var(--sky-top), var(--sky-bottom));
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             overflow: hidden;
@@ -273,6 +273,30 @@
                 this.canvas.ontouchstart = (e) => { e.preventDefault(); down(e); };
                 window.ontouchmove = move;
                 window.ontouchend = up;
+
+                // Gamepad Adapter
+                const pollGamepad = () => {
+                    const pads = navigator.getGamepads();
+                    if (pads[0] && !this.isGameOver) {
+                        const p = pads[0]; const now = Date.now();
+                        if (this.bird.active && !this.bird.powerUsed) {
+                            if(p.buttons[0].pressed && !this.lastB0) { this.usePower(); this.lastB0 = true; }
+                            else if(!p.buttons[0].pressed) this.lastB0 = false;
+                        } else if (!this.bird.active) {
+                            if (Math.abs(p.axes[0]) > 0.1 || Math.abs(p.axes[1]) > 0.1) {
+                                this.bird.dragging = true;
+                                this.bird.x = this.bird.anchorX + p.axes[0] * 100;
+                                this.bird.y = this.bird.anchorY + p.axes[1] * 100;
+                            }
+                            if (p.buttons[0].pressed && this.bird.dragging) {
+                                up();
+                            }
+                        }
+                        if (p.buttons[9].pressed && this.isGameOver) this.handleAction();
+                    }
+                    requestAnimationFrame(pollGamepad);
+                };
+                pollGamepad();
             }
 
             usePower() {
