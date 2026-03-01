@@ -44,6 +44,7 @@
             display: flex;
             flex-direction: column;
             gap: 20px;
+            position: relative;
         }
 
         .tiles-container {
@@ -167,23 +168,46 @@
             font-weight: bold; font-size: 0.8rem;
         }
 
-        #overlay {
+        .modal {
             position: absolute; inset: 0; background: rgba(0,0,0,0.9);
             display: none; flex-direction: column; align-items: center; justify-content: center;
             z-index: 1000; text-align: center; padding: 30px;
+            border-radius: 12px;
         }
 
         .winner-text { font-size: 3rem; font-weight: 900; font-style: italic; color: var(--accent); margin-bottom: 10px; }
+        
+        .btn-mode {
+            background: var(--glass);
+            border: 2px solid var(--accent);
+            color: var(--accent);
+            margin: 10px;
+            padding: 20px;
+            border-radius: 15px;
+            width: 200px;
+            font-weight: 900;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .btn-mode:hover { background: var(--accent); color: var(--wood-dark); }
     </style>
 </head>
 <body>
     <a href="index.html" class="back-link">← HUB</a>
 
     <div id="game-container">
+        <!-- Start Modal -->
+        <div id="start-modal" class="modal" style="display: flex;">
+            <h1 style="font-size: 2.5rem; margin-bottom: 20px; color: var(--accent);">SHUT THE BOX</h1>
+            <p style="margin-bottom: 30px; opacity: 0.7;">Select your game mode</p>
+            <button class="btn-mode" onclick="game.startMode(1)">1 PLAYER</button>
+            <button class="btn-mode" onclick="game.startMode(2)">2 PLAYERS</button>
+        </div>
+
         <div class="hud">
             <span>Left: <span id="score">45</span></span>
             <span id="p1-total" style="color: var(--p1)">P1: 0</span>
-            <span id="p2-total" style="color: var(--p2)">P2: 0</span>
+            <span id="p2-total" style="color: var(--p2); display: none;">P2: 0</span>
         </div>
 
         <div id="turn-display" class="player-indicator p1">PLAYER 1'S TURN</div>
@@ -209,12 +233,13 @@
             <button class="btn btn-roll" id="roll-btn">Roll Dice</button>
             <button class="btn btn-confirm" id="confirm-btn" disabled>Confirm Tiles</button>
         </div>
-    </div>
 
-    <div id="overlay">
-        <div class="winner-text" id="overlay-title">GAME OVER</div>
-        <p id="overlay-msg" style="margin-bottom: 30px; font-size: 1.2rem;">Remaining Sum: 12</p>
-        <button class="btn btn-roll" style="width: 200px;" onclick="location.reload()">New Game</button>
+        <!-- Result Modal -->
+        <div id="overlay" class="modal">
+            <div class="winner-text" id="overlay-title">GAME OVER</div>
+            <p id="overlay-msg" style="margin-bottom: 30px; font-size: 1.2rem;">Remaining Sum: 12</p>
+            <button class="btn btn-roll" style="width: 200px;" onclick="location.reload()">New Game</button>
+        </div>
     </div>
 
     <script>
@@ -237,10 +262,10 @@
                 this.rollSum = 0;
                 this.canRoll = true;
                 
+                this.numPlayers = 1;
                 this.currentPlayer = 1;
                 this.p1Score = 0;
                 this.p2Score = 0;
-                this.isP2Turn = false;
 
                 this.init();
             }
@@ -266,6 +291,17 @@
                         else if (!document.getElementById('confirm-btn').disabled) this.confirm();
                     }
                 };
+            }
+
+            startMode(mode) {
+                this.numPlayers = mode;
+                document.getElementById('start-modal').style.display = 'none';
+                if (mode === 2) {
+                    document.getElementById('p2-total').style.display = 'inline';
+                    document.getElementById('turn-display').style.display = 'block';
+                } else {
+                    document.getElementById('turn-display').style.display = 'none';
+                }
             }
 
             toggleTile(num) {
@@ -365,6 +401,12 @@
                 let finalScore = 0;
                 this.tiles.forEach((shut, i) => { if (!shut) finalScore += (i+1); });
 
+                if (this.numPlayers === 1) {
+                    this.p1Score = finalScore;
+                    this.endGame();
+                    return;
+                }
+
                 if (this.currentPlayer === 1) {
                     this.p1Score = finalScore;
                     document.getElementById('p1-total').textContent = `P1: ${this.p1Score}`;
@@ -395,6 +437,17 @@
                 const title = document.getElementById('overlay-title');
                 const msg = document.getElementById('overlay-msg');
                 overlay.style.display = 'flex';
+
+                if (this.numPlayers === 1) {
+                    if (this.p1Score === 0) {
+                        title.textContent = "SHUT THE BOX!";
+                        msg.textContent = "Perfect score! You win!";
+                    } else {
+                        title.textContent = "GAME OVER";
+                        msg.textContent = `Remaining Sum: ${this.p1Score}`;
+                    }
+                    return;
+                }
 
                 if (this.p1Score < this.p2Score) {
                     title.textContent = "PLAYER 1 WINS!";
