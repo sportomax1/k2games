@@ -4,28 +4,50 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hangman</title>
     <style>
-        body { font-family: sans-serif; background: #fffbeb; color: #92400e; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .canvas-area { background: white; border: 4px solid #d97706; border-radius: 10px; margin-bottom: 20px; }
-        .word { font-size: 2rem; letter-spacing: 10px; margin-bottom: 20px; font-weight: bold; }
+        body { font-family: sans-serif; background: #fffbeb; color: #92400e; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        h1 { margin-top: 0; }
+        .canvas-area { background: white; border: 4px solid #d97706; border-radius: 10px; margin-bottom: 20px; max-width: 100%; height: auto; }
+        .word { font-size: 2rem; letter-spacing: 10px; margin-bottom: 20px; font-weight: bold; text-align: center; word-break: break-all; }
         .keyboard { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; max-width: 500px; }
-        .key { padding: 10px; border: 1px solid #d97706; background: white; cursor: pointer; border-radius: 4px; min-width: 35px; }
-        .key.used { opacity: 0.3; cursor: default; }
+        .key { padding: 12px; border: 1px solid #d97706; background: white; cursor: pointer; border-radius: 4px; min-width: 40px; font-weight: bold; transition: background 0.2s; }
+        .key:hover { background: #fef3c7; }
+        .key.used { opacity: 0.3; cursor: default; background: #e5e7eb; }
         .back { margin-top: 30px; text-decoration: none; color: #d97706; font-weight: bold; }
+        .loading { font-style: italic; color: #b45309; }
     </style>
 </head>
 <body>
     <h1>Hangman</h1>
     <canvas id="gallows" width="200" height="250" class="canvas-area"></canvas>
-    <div class="word" id="word"></div>
+    <div class="word" id="word"><span class="loading">Loading word...</span></div>
     <div class="keyboard" id="keyboard"></div>
     <a href="index.html" class="back">← HUB</a>
 
     <script>
-        const words = ["JAVASCRIPT", "PYTHON", "PROGRAMMING", "BROWSER", "ENGINEER", "COMPUTER", "ARCADE", "GAMES"];
-        let selected = words[Math.floor(Math.random() * words.length)];
+        const fallbackWords = [
+            "ABANDON", "ABILITY", "ABSENCE", "ACADEMY", "ACCOUNT", "ACCUSED", "ACHIEVE", "ACQUIRE", "ADDRESS", "ADOPTED", "ADVERSE", "ADVISED", "ADVISOR", "AGAINST", "AIRPORT", "ALREADY", "AMAZING", "ANALYZE", "ANCIENT", "ANOTHER", "ANXIETY", "ANYBODY", "APPOINT", "APPROVE", "ARCHIVE", "ARRIVAL", "ARTICLE", "ASSAULT", "ASSUMED", "ATTEMPT", "ATTRACT", "AUDIENCE", "AVERAGE", "BAGGAGE", "BALANCE", "BARRIER", "BATTERY", "BEARING", "BECAUSE", "BEDROOM", "BELIEVE", "BENEATH", "BENEFIT", "BESIDES", "BETWEEN", "BILLION", "BINDING", "BIOLOGY", "BLANKET", "BLOCKER", "BOARDED", "BOOTING", "BOROUGH", "BOTTLED", "BOTTOMS", "BRAVERY", "BREATHS", "BRITISH", "BROUGHT", "BUILDER", "BURNING", "BUSINESS", "CABINET", "CALIBER", "CALLING", "CAMPAIGN", "CAPABLE", "CAPITAL", "CAPTAIN", "CAPTION", "CAPTURE", "CAREFUL", "CARRIER", "CAUTION", "CEILING", "CENTRAL", "CENTURY", "CERTAIN", "CHAMBER", "CHANNEL", "CHAPTER", "CHARITY", "CHARTER", "CHECKED", "CHICKEN", "CHRONIC", "CIRCUIT", "CLASSES", "CLASSIC", "CLEANER", "CLEARLY", "CLIMATE", "CLOSING", "CLOSURE", "COLLECT", "COLLEGE", "COLONEL", "COMBINE", "COMFORT", "COMMAND", "COMMENT", "COMPACT", "COMPANY", "COMPARE", "COMPETE", "COMPLEX", "CONCEPT", "CONCERN", "CONCERT", "CONDUCT", "CONFIRM", "CONNECT", "CONSENT", "CONSIST", "CONTACT", "CONTAIN", "CONTENT", "CONTEST", "CONTEXT", "CONTROL", "CONVERT", "CORRECT", "COUNCIL", "COUNSEL", "COUNTER", "COUNTRY", "COUPLED", "COURAGE", "COURSES", "COVERED", "CREATED", "CRESSET", "CRIMSON", "CRITICAL", "CRYSTAL", "CULTURE", "CURRENT", "CUTTING", "DANCING", "DANGEROUS", "DAWNING", "DEALERS", "DEBATED", "DECIDED", "DECLINE", "DEFAULT", "DEFENSE", "DEFICIT", "DELIVER", "DENSITY", "DEPOSIT", "DESERVE", "DESKTOP", "DESPITE", "DESTROY", "DETAILS", "DEVELOP", "DIAMOND", "DIGITAL", "DIGNITY", "DINNERS", "DIOCESE", "DIRECTS", "DISCUSS", "DISEASE", "DISPLAY", "DISPOSE", "DIVIDED", "DIVORCE", "DOCTORS", "DOLLARO", "DOMESTIC", "DONATED", "DOUBLED", "DOUBTED", "DRAFTED", "DRIVING", "DYNAMIC", "EARLIER", "EARNING", "EASTERN", "ECONOMY", "EDITION", "EFFECTS", "EFFORTS", "EIGHTHS", "EIGHTIE", "ELDERLY", "ELEMENT", "EMERGED", "EMOTION", "EMPIRES", "EMPLOYE", "EMPOWER", "ENABLED", "ENFORCE", "ENGAGED", "ENGINES", "ENHANCE", "ENJOYED", "ENORMOUS", "ENQUIRE", "ENTERED", "ENTITRE", "EPISODE", "EQUALLY", "EQUATOR", "EQUIPPED", "ERRANDS", "ESCAPED", "ESSENCE", "ESTABLISH", "ESTATE", "ETERNAL", "EVENING", "EVERYDAY", "EVERYONE", "EVIDENT", "EXACTLY", "EXAMINE", "EXAMPLE", "EXCITED", "EXCLUDE", "EXHIBIT", "EXISTED", "EXHAUST", "EXPANDED", "EXPECTS", "EXPENSE", "EXPLAIN", "EXPLORE", "EXPRESS", "EXTREME", "FACTORY", "FACULTY", "FAILING", "FAILURE", "FAIRWAY", "FAITHLY", "FALLING", "FANTASY", "FARMING", "FASHION", "FASTEST", "FATIGUE", "FEATURE", "FEDERAL", "FEELING", "FICTION", "FIFTEEN", "FIGHTER", "FINALLY", "FINANCE", "FINDING", "FINGERS", "FIREMAN", "FIRMING", "FISHING", "FITNESS", "FIXTURE", "FLASHES", "FLAVORS", "FLEEING", "FLIGHTS", "FLOATED", "FLOWERS", "FOLDERS", "FOLLOWS", "FORCING", "FOREIGN", "FOREVER", "FORMULA", "FORTUNE", "FORWARD", "FOUNDED", "FREEDOM", "FREEZES", "FRIENDS", "FRIGHTS", "FRONTS", "FUELING", "FUNDING", "FUNERAL", "GALLERY", "GARMENT", "GATEWAY", "GATHERED", "GENTLY", "GERMANY", "GETTING", "GHOSTLY", "GIGANTIC", "GIVENUP", "GLOVES", "GOLDEN", "GOVERNOR", "GRABBED", "GRADUAL", "GRAMMAR", "GRANITE", "GRAPHIC", "GRASSES", "GRAVITY", "GREATER", "GREETED", "GROCERY", "GROUNDS", "GROUPED", "GROWING", "GROWNUP", "GUARDED", "GUESSED", "GUESTLY", "GUIDING", "GUILTY", "HABITAT", "HALFWAY", "HAMMERS", "HANDFUL", "HANDING", "HANGING", "HAPPILY", "HARBOR", "HARDEST", "HAZARDS", "HEALING", "HEALTHY", "HEARING", "HEAVILY", "HEIGHTS", "HELPING", "HERITAGE", "HEROIC", "HIGHWAY", "HINTING", "HISTORY", "HOLDING", "HOLIDAY", "HONESTY", "HOPEFUL", "HORIZON", "HOSPITAL", "HOSTAGE", "HOUSING", "HOWEVER", "HUBRIS", "HUNDRED", "HUSBAND", "HYGIENE", "ICEBERG", "IDEALLY", "IDENTITY", "IGNORANT", "ILLNESS", "IMAGINE", "IMAGING", "IMPROVE", "INBOUND", "INCLUDE", "INDICES", "INITIAL", "INJURED", "INQUIRY", "INSIGHT", "INSTALL", "INSTANT", "INSTEAD", "INSULIN", "INTEGER", "INTENSE", "INTERIM", "INVALID", "INVOLVE", "ISLANDS", "ISSUING", "ITSELF", "JACKETS", "JOURNEY", "JOYRIDE", "JUDGING", "JUSTICE", "KEEPING", "KINGDOM", "KITCHEN", "KNOCKER", "KNOWING", "LABELED", "LANDING", "LANTERN", "LARGELY", "LASTING", "LATERAL", "LAUGHED", "LAUNCH", "LAUNDRY", "LAYERING", "LEARNED", "LEAVING", "LECTURE", "LEGALLY", "LEGENDS", "LEISURE", "LENDING", "LESSONS", "LETTERS", "LEVELING", "LIBRARY", "LICENSE", "LIFTING", "LIGHTLY", "LIMITED", "LISTING", "LITERAL", "LOADING", "LOCATED", "LOGICAL", "LOOKING", "LOYALTY", "LUCKILY", "MACHINE", "MADNESS", "MAGAZIN", "MAGICAL", "MAGNETS", "MAILING", "MAINLY", "MAJESTY", "MAKEUP", "MANAGE", "MANDATE", "MARKING", "MARRIED", "MASTERY", "MAXIMUM", "MEANING", "MEASURE", "MEDICAL", "MEETING", "MELTING", "MENTION", "MESSAGES", "METHODS", "MIGHTLY", "MILITARY", "MILLION", "MINERAL", "MINIMAL", "MINUTES", "MIRACLE", "MISSING", "MISSION", "MISTAKE", "MIXTURE", "MOBILE", "MODERNS", "MODESTY", "MOMENTS", "MONITOR", "MONSTER", "MONTHLY", "MORNING", "MOUNTAIN", "MOUNTED", "MOVING", "MUSICAL", "MYSTERY", "NAMING", "NARRATE", "NATURAL", "NEARBY", "NEAREST", "NEGLECT", "NEITHER", "NERVOUS", "NETWORK", "NEUTRAL", "NEWNESS", "NEXTDAY", "NIGHTLY", "NOTHING", "NOTICED", "NOTIONS", "NOVELTY", "NUMBERS", "NURSING", "OBJECTS", "OBSERVE", "OBTAINED", "OBVIOUS", "OFFENSE", "OFFICER", "OFFICIAL", "OPENING", "OPERATE", "OPINION", "OPTICAL", "OPTIONS", "ORDERED", "ORGANIC", "OUTCOME", "OUTDOOR", "OUTLOOK", "OUTSIDE", "OVERALL", "OWNERSHIP", "PACKAGE", "PAINFUL", "PAINTER", "PANELING", "PARKING", "PARTIAL", "PASSAGE", "PASSIVE", "PATIENT", "PATTERN", "PAYMENT", "PENALTY", "PENDING", "PENSION", "PEOPLE", "PERCENT", "PERFECT", "PERFORM", "PERIODS", "PERSIST", "PHANTOM", "PHRASES", "PHYSICS", "PICTURE", "PILGRIM", "PITCHER", "PLACING", "PLANETS", "PLASTIC", "PLAYING", "PLEASED", "POCKETS", "POINTER", "POLITIC", "POPULAR", "PORTION", "POVERTY", "POWERED", "PRACTIC", "PRAYERS", "PRECISE", "PREDICT", "PREMIUM", "PREPARE", "PRESENT", "PREVENT", "PRIMARY", "PRINTER", "PRIVACY", "PRIVATE", "PROBLEM", "PROCEED", "PROCESS", "PRODUCE", "PRODUCT", "PROFILE", "PROGRAM", "PROJECT", "PROMISE", "PROMOTE", "PROUDLY", "PROVIDE", "PUBLISH", "PULLING", "PURPOSE", "PUSHING", "QUALITY", "QUARTER", "QUEERLY", "QUICKLY", "QUIETLY", "QUITTED", "RADICAL", "RAILWAY", "RAISING", "RANGING", "RAPIDLY", "READING", "REALITY", "REALIZE", "REASONS", "REBUILT", "RECEIPT", "RECEIVE", "RECORDS", "RECOVER", "RECRUIT", "RECYCLE", "REDUCED", "REFLECT", "REFORMS", "REFUSAL", "REGARDS", "REGULAR", "RELATED", "RELEASE", "RELEVANT", "RELIEFS", "REMAINS", "REMARKS", "REMEDY", "REMOVAL", "REMOVED", "RENDERS", "RENEWED", "RENTING", "REPAIRS", "REPLACE", "REPORTS", "REQUEST", "REQUIRE", "RESERVE", "RESOLVE", "RESPECT", "RESPOND", "RESTORE", "RESULTS", "REVENUE", "REVERSE", "REVIEWS", "REVISED", "REWARDS", "RHYTHMS", "RIDICUL", "RIVALRY", "ROASTED", "ROBOTIC", "ROCKETS", "ROUGHLY", "ROUTINE", "RUNNING", "SAILING", "SAMPLES", "SANDWICH", "SATISFY", "SAVINGS", "SCENERY", "SCEPTIC", "SCHOOLS", "SCIENCE", "SCOOTER", "SCRIPTS", "SEALING", "SEARCHED", "SEASONAL", "SECRETS", "SECTION", "SEEKING", "SEGMENT", "SELECTS", "SELLING", "SENDING", "SENSORY", "SERIOUS", "SERVANT", "SERVICE", "SESSION", "SETTING", "SEVENTH", "SEVERAL", "SHADOWS", "SHAKING", "SHARING", "SHAVING", "SHELTER", "SHERIFF", "SHINING", "SHIPPED", "SHOCKER", "SHOPPER", "SHORTLY", "SHOWING", "SHUFFLE", "SIGHTED", "SIGNALS", "SILENCE", "SIMILAR", "SIMPLE", "SINGING", "SISTERS", "SKETCH", "SKILLED", "SLIDING", "SLIGHTLY", "SLOPING", "SLOWEST", "SMILING", "SMOKING", "SOCIALS", "SOCIETY", "SOLDIER", "SOLVING", "SOMEONE", "SONNETS", "SOURCES", "SPANISH", "SPECIAL", "SPECIES", "SPEECH", "SPEEDS", "SPELLS", "SPENDING", "SPIRITS", "SPOKEN", "SPONSOR", "SPORTS", "STADIUM", "STAGING", "STAINED", "STALKER", "STAMINA", "STANDS", "STARTED", "STATION", "STATUTE", "STAYING", "STEADY", "STEPPED", "STICKER", "STIRRED", "STOMACH", "STORIES", "STORMED", "STRANGE", "STREAMS", "STREETS", "STRETCH", "STUDENT", "STUDIED", "SUBJECT", "SUBMIT", "SUCCEED", "SUCCESS", "SUDDENLY", "SUGGEST", "SUNDAY", "SUNRISE", "SUPPORT", "SURFACE", "SURGERY", "SURVIVE", "SUSPECT", "SWIMMER", "SYMBOLS", "SYMPTOM", "SYSTEMS", "TABLETS", "TACKLED", "TALKING", "TAPPING", "TARGETS", "TEACHER", "TELLING", "TENSION", "TERMINAL", "TERRIBLE", "TESTING", "TEXTURE", "THANKED", "THEATER", "THERAPY", "THEREBY", "THOUGHT", "THREATS", "THROUGH", "TIGHTLY", "TILLAGE", "TIMELINE", "TITULAR", "TOGETHER", "TONIGHT", "TOPICAL", "TORRENT", "TOTALLY", "TOUCHED", "TOWARDS", "TRADING", "TRAFFIC", "TRAGEDY", "TRAINED", "TRANSIT", "TREATED", "TRIBUTE", "TRIGGER", "TRIUMPH", "TROUBLE", "TRUSTED", "TRYING", "TUNNELS", "TURNING", "TWELFTH", "TWENTY", "TYPICAL", "UNIFORM", "UNKNOWN", "UNUSUAL", "UPGRADE", "UPWARDS", "URGENTLY", "USEFUL", "UTILITY", "VACANCY", "VACCINE", "VAGUELY", "VALIDLY", "VALUING", "VANILLA", "VARIOUS", "VENEERS", "VENTURE", "VERDICT", "VERSION", "VETERAN", "VICTORY", "VIEWING", "VILLAGE", "VIOLENT", "VIRTUAL", "VISITED", "VISITOR", "VISUALS", "VITAMIN", "VOCALLY", "VOLTAGE", "VOLUMES", "VOUCHER", "WAITING", "WALKING", "WARNING", "WARRANT", "WASHING", "WATCHER", "WEATHER", "WEBSITE", "WEDDING", "WEEKEND", "WEIGHTY", "WELCOME", "WELFARE", "WESTERN", "WHEREAS", "WHETHER", "WHISPER", "WHOEVER", "WIDELY", "WILLING", "WINNERS", "WINTERS", "WITHOUT", "WITNESS", "WORKING", "WORKOUT", "WRITING", "WRITTEN", "YARDAGE", "YEARNED", "YIELDED", "YOUNGER", "ZODIAC"
+        ];
+        
+        let selected = "";
         let guessed = [], mistakes = 0;
+        const ctx = document.getElementById('gallows').getContext('2d');
+        ctx.lineWidth = 4; ctx.strokeStyle = "#92400e";
 
-        function init() {
+        async function init() {
+            try {
+                // Try fetching a random word from an API
+                const response = await fetch('https://random-word-api.herokuapp.com/word?number=1');
+                const data = await response.json();
+                selected = data[0].toUpperCase();
+                // Ensure the word only contains letters (the API sometimes has hyphens)
+                if (!/^[A-Z]+$/.test(selected)) {
+                    throw new Error("Invalid characters in word");
+                }
+            } catch (e) {
+                console.log("API failed or invalid word, using fallback", e);
+                selected = fallbackWords[Math.floor(Math.random() * fallbackWords.length)].toUpperCase();
+            }
+            
             renderWord();
             renderKeyboard();
             drawBase();
@@ -34,11 +56,17 @@
         function renderWord() {
             const el = document.getElementById('word');
             el.textContent = selected.split('').map(l => guessed.includes(l) ? l : '_').join('');
-            if(!el.textContent.includes('_')) { alert("You Saved Him!"); location.reload(); }
+            if(!el.textContent.includes('_')) { 
+                setTimeout(() => {
+                    alert("You Saved Him! The word was: " + selected); 
+                    location.reload(); 
+                }, 100);
+            }
         }
 
         function renderKeyboard() {
             const kb = document.getElementById('keyboard');
+            kb.innerHTML = '';
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('').forEach(l => {
                 const btn = document.createElement('button');
                 btn.className = 'key'; btn.textContent = l;
@@ -51,13 +79,20 @@
             if(guessed.includes(l) || mistakes >= 6) return;
             guessed.push(l); btn.classList.add('used');
             if(selected.includes(l)) renderWord();
-            else { mistakes++; drawNext(); if(mistakes >= 6) { alert("Game Over! Word was: " + selected); location.reload(); } }
+            else { 
+                mistakes++; 
+                drawNext(); 
+                if(mistakes >= 6) { 
+                    setTimeout(() => {
+                        alert("Game Over! Word was: " + selected); 
+                        location.reload(); 
+                    }, 100);
+                } 
+            }
         }
 
-        const ctx = document.getElementById('gallows').getContext('2d');
-        ctx.lineWidth = 4; ctx.strokeStyle = "#92400e";
-
         function drawBase() {
+            ctx.clearRect(0, 0, 200, 250);
             ctx.beginPath(); ctx.moveTo(20, 230); ctx.lineTo(180, 230); ctx.moveTo(50, 230); ctx.lineTo(50, 20); ctx.lineTo(130, 20); ctx.lineTo(130, 50); ctx.stroke();
         }
 

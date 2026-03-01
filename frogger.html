@@ -2,190 +2,358 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Frogger Ultra</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Frogger Ultra - K2 games</title>
     <style>
-        body { margin: 0; background: #1a1a1a; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        canvas { background: #000; border: 6px solid #333; border-radius: 8px; box-shadow: 0 0 40px rgba(0,0,0,0.8); }
-        .ui { position: absolute; top: 20px; display: flex; gap: 40px; font-size: 1.5rem; font-weight: 800; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
-        .lives { color: #ff4757; } .score { color: #2ecc71; }
-        .controls { position: absolute; bottom: 40px; color: #666; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 2px; }
-        .back { position: absolute; bottom: 20px; left: 20px; color: #2ecc71; text-decoration: none; background: rgba(255,255,255,0.05); padding: 10px 20px; border-radius: 5px; font-weight: bold; border: 1px solid rgba(46, 204, 113, 0.3); }
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --accent: #2ecc71;
+            --danger: #ef4444;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+        }
+
+        nav {
+            height: 50px;
+            padding: 0 1rem;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .logo { font-weight: 900; font-size: 1rem; color: var(--accent); letter-spacing: -0.5px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-size: 0.75rem; font-weight: bold; }
+
+        #game-container {
+            position: relative;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            overflow: hidden;
+        }
+
+        canvas { 
+            background: #000; 
+            border: 4px solid #334155; 
+            border-radius: 8px; 
+            max-width: 100%; 
+            max-height: 100%; 
+            object-fit: contain;
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+        }
+
+        .ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .stat-box {
+            background: rgba(15, 23, 42, 0.8);
+            padding: 8px 15px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(5px);
+        }
+
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.6; display: block; }
+        .stat-val { font-size: 1.2rem; font-weight: 900; font-family: monospace; color: var(--accent); }
+
+        /* D-PAD for touch */
+        #controls-dpad {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: grid;
+            grid-template-areas: 
+                ". up ."
+                "left . right"
+                ". down .";
+            gap: 10px;
+            z-index: 150;
+        }
+
+        .dpad-btn {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            transition: 0.1s;
+        }
+
+        .dpad-btn:active { background: var(--accent); transform: scale(0.9); }
+        .up { grid-area: up; }
+        .down { grid-area: down; }
+        .left { grid-area: left; }
+        .right { grid-area: right; }
+
+        @media (min-width: 900px) {
+            #controls-dpad { display: none; }
+        }
+
+        #start-screen {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--accent); color: #000; border: none; padding: 1rem 3rem;
+            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
+            font-size: 1.2rem; box-shadow: 0 10px 25px rgba(46, 204, 113, 0.3);
+        }
     </style>
 </head>
 <body>
-    <div class="ui">
-        <div class="score">SCORE: <span id="score">0000</span></div>
-        <div class="lives">LIVES: <span id="lives">❤❤❤</span></div>
+    <nav>
+        <div class="logo">K2 FROGGER</div>
+        <a href="index.html" class="back-link">← HUB</a>
+    </nav>
+
+    <div id="game-container">
+        <canvas id="frogger"></canvas>
+        
+        <div class="ui-overlay">
+            <div class="stat-box">
+                <span class="stat-label">SCORE</span>
+                <div id="score" class="stat-val">0000</div>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">LIVES</span>
+                <div id="lives" class="stat-val">❤❤❤</div>
+            </div>
+        </div>
+
+        <div id="controls-dpad">
+            <button class="dpad-btn up" onpointerdown="game.move('up')">▲</button>
+            <button class="dpad-btn left" onpointerdown="game.move('left')">◀</button>
+            <button class="dpad-btn right" onpointerdown="game.move('right')">▶</button>
+            <button class="dpad-btn down" onpointerdown="game.move('down')">▼</button>
+        </div>
+
+        <div id="start-screen">
+            <h1 style="font-size: 3.5rem; font-weight: 900; color: var(--accent);">FROGGER</h1>
+            <p style="opacity: 0.7; margin-top: 10px;">Reach the lily pads! Avoid the traffic!</p>
+            <div style="margin-top: 20px; font-size: 0.8rem; opacity: 0.6;">ARROWS OR D-PAD TO MOVE</div>
+            <button class="btn-large" onclick="game.start()">START GAME</button>
+        </div>
     </div>
-    <canvas id="frogger"></canvas>
-    <div class="controls">ARROWS TO MOVE • CROSS THE WATER • STAY ON LOGS</div>
-    <a href="index.html" class="back">← HUB</a>
 
     <script>
-        const canvas = document.getElementById('frogger');
-        const ctx = canvas.getContext('2d');
         const GRID = 48;
-        canvas.width = 11 * GRID; // 528
-        canvas.height = 13 * GRID; // 624
-
-        let frog = { x: 5 * GRID, y: 12 * GRID, w: 32, h: 32, dir: 'up' };
-        let score = 0, lives = 3, gameFrame = 0;
-        
         const COLORS = {
-            grass: '#2d5a27', road: '#1e1e1e', water: '#1a4d8c', 
-            safe: '#444', goal: '#163312', car1: '#e74c3c', 
-            car2: '#f1c40f', truck: '#95a5a6', log: '#5d4037'
+            grass: '#1e3a1e', road: '#1e293b', water: '#0c4a6e', 
+            safe: '#334155', goal: '#064e3b', car1: '#ef4444', 
+            car2: '#fbbf24', truck: '#94a3b8', log: '#78350f'
         };
 
-        const rows = [
-            { y: 12*GRID, type: 'safe', color: COLORS.grass }, // Start
-            { y: 11*GRID, type: 'road', speed: -2.5, color: COLORS.road, items: [{x:0, w:40, c:COLORS.car1}, {x:200, w:40, c:COLORS.car1}, {x:400, w:40, c:COLORS.car1}] },
-            { y: 10*GRID, type: 'road', speed: 1.8, color: COLORS.road, items: [{x:50, w:80, c:COLORS.truck}, {x:300, w:80, c:COLORS.truck}] },
-            { y: 9*GRID, type: 'road', speed: -3.2, color: COLORS.road, items: [{x:10, w:40, c:COLORS.car2}, {x:180, w:40, c:COLORS.car2}, {x:350, w:40, c:COLORS.car2}] },
-            { y: 8*GRID, type: 'road', speed: 2.2, color: COLORS.road, items: [{x:0, w:40, c:COLORS.car1}, {x:250, w:40, c:COLORS.car1}] },
-            { y: 7*GRID, type: 'road', speed: -1.5, color: COLORS.road, items: [{x:100, w:120, c:COLORS.truck}, {x:400, w:120, c:COLORS.truck}] },
-            { y: 6*GRID, type: 'safe', color: COLORS.grass }, // Middle
-            { y: 5*GRID, type: 'water', speed: -1.8, color: COLORS.water, items: [{x:0, w:150}, {x:300, w:150}] },
-            { y: 4*GRID, type: 'water', speed: 2.5, color: COLORS.water, items: [{x:40, w:100}, {x:220, w:100}, {x:400, w:100}] },
-            { y: 3*GRID, type: 'water', speed: -2.8, color: COLORS.water, items: [{x:0, w:180}, {x:350, w:180}] },
-            { y: 2*GRID, type: 'water', speed: 1.2, color: COLORS.water, items: [{x:60, w:120}, {x:280, w:120}] },
-            { y: 1*GRID, type: 'water', speed: -2.0, color: COLORS.water, items: [{x:20, w:140}, {x:260, w:140}] },
-            { y: 0*GRID, type: 'goal', color: COLORS.goal }
-        ];
+        class Frogger {
+            constructor() {
+                this.canvas = document.getElementById('frogger');
+                this.ctx = this.canvas.getContext('2d');
+                this.canvas.width = 11 * GRID;
+                this.canvas.height = 13 * GRID;
 
-        function draw() {
-            gameFrame++;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            let onLog = false;
-            let logSpeed = 0;
+                this.frog = { x: 5 * GRID, y: 12 * GRID, w: 32, h: 32 };
+                this.score = 0;
+                this.lives = 3;
+                this.gameFrame = 0;
+                this.active = false;
 
-            rows.forEach((r, idx) => {
-                // Draw Background Row
-                ctx.fillStyle = r.color;
-                ctx.fillRect(0, r.y, canvas.width, GRID);
+                this.rows = [
+                    { y: 12*GRID, type: 'safe', color: COLORS.grass },
+                    { y: 11*GRID, type: 'road', speed: -2.5, color: COLORS.road, items: [{x:0, w:40, c:COLORS.car1}, {x:200, w:40, c:COLORS.car1}, {x:400, w:40, c:COLORS.car1}] },
+                    { y: 10*GRID, type: 'road', speed: 1.8, color: COLORS.road, items: [{x:50, w:80, c:COLORS.truck}, {x:300, w:80, c:COLORS.truck}] },
+                    { y: 9*GRID, type: 'road', speed: -3.2, color: COLORS.road, items: [{x:10, w:40, c:COLORS.car2}, {x:180, w:40, c:COLORS.car2}, {x:350, w:40, c:COLORS.car2}] },
+                    { y: 8*GRID, type: 'road', speed: 2.2, color: COLORS.road, items: [{x:0, w:40, c:COLORS.car1}, {x:250, w:40, c:COLORS.car1}] },
+                    { y: 7*GRID, type: 'road', speed: -1.5, color: COLORS.road, items: [{x:100, w:120, c:COLORS.truck}, {x:400, w:120, c:COLORS.truck}] },
+                    { y: 6*GRID, type: 'safe', color: COLORS.grass },
+                    { y: 5*GRID, type: 'water', speed: -1.8, color: COLORS.water, items: [{x:0, w:150}, {x:300, w:150}] },
+                    { y: 4*GRID, type: 'water', speed: 2.5, color: COLORS.water, items: [{x:40, w:100}, {x:220, w:100}, {x:400, w:100}] },
+                    { y: 3*GRID, type: 'water', speed: -2.8, color: COLORS.water, items: [{x:0, w:180}, {x:350, w:180}] },
+                    { y: 2*GRID, type: 'water', speed: 1.2, color: COLORS.water, items: [{x:60, w:120}, {x:280, w:120}] },
+                    { y: 1*GRID, type: 'water', speed: -2.0, color: COLORS.water, items: [{x:20, w:140}, {x:260, w:140}] },
+                    { y: 0*GRID, type: 'goal', color: COLORS.goal }
+                ];
 
-                // Add Details (Road lines, Water ripples)
-                if(r.type === 'road') {
-                    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-                    ctx.setLineDash([20, 20]);
-                    ctx.beginPath(); ctx.moveTo(0, r.y); ctx.lineTo(canvas.width, r.y); ctx.stroke();
+                window.onkeydown = (e) => this.handleKey(e.key);
+                this.loop = this.loop.bind(this);
+            }
+
+            start() {
+                this.active = true;
+                document.getElementById('start-screen').style.display = 'none';
+                this.loop();
+            }
+
+            handleKey(key) {
+                if (!this.active) return;
+                if(key === 'ArrowUp') this.move('up');
+                if(key === 'ArrowDown') this.move('down');
+                if(key === 'ArrowLeft') this.move('left');
+                if(key === 'ArrowRight') this.move('right');
+            }
+
+            move(dir) {
+                if (!this.active) return;
+                if(dir === 'up' && this.frog.y > 0) this.frog.y -= GRID;
+                if(dir === 'down' && this.frog.y < 12*GRID) this.frog.y += GRID;
+                if(dir === 'left' && this.frog.x > 0) this.frog.x -= GRID;
+                if(dir === 'right' && this.frog.x < this.canvas.width - GRID) this.frog.x += GRID;
+            }
+
+            rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) {
+                return x2 < x1 + w1 && x2 + w2 > x1 && y2 < y1 + h1 && y2 + h2 > y1;
+            }
+
+            die() {
+                this.lives--;
+                if(this.lives <= 0) {
+                    alert("GAME OVER! Score: " + this.score);
+                    this.score = 0; this.lives = 3;
                 }
-                if(r.type === 'water') {
-                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-                    let rippleX = (gameFrame * r.speed * 0.5) % 100;
-                    for(let i=-100; i<canvas.width+100; i+=100) {
-                        ctx.fillRect(i + rippleX, r.y + 20, 40, 2);
-                    }
-                }
+                this.frog.x = 5 * GRID;
+                this.frog.y = 12 * GRID;
+            }
 
-                // Draw Items (Cars/Logs)
-                if(r.items) {
-                    r.items.forEach(item => {
-                        item.x += r.speed;
-                        if(item.x > canvas.width + 100) item.x = -150;
-                        if(item.x < -150) item.x = canvas.width + 100;
+            update() {
+                this.gameFrame++;
+                let onLog = false;
+                let logSpeed = 0;
 
-                        if(r.type === 'road') {
-                            // Draw Car/Truck
-                            ctx.fillStyle = item.c;
-                            ctx.fillRect(item.x, r.y + 6, item.w, GRID - 12);
-                            // Windows
-                            ctx.fillStyle = '#222';
-                            ctx.fillRect(r.speed > 0 ? item.x + item.w - 20 : item.x + 5, r.y + 10, 15, GRID - 20);
-                            
-                            // Collision
-                            if(rectIntersect(frog.x+4, frog.y+4, frog.w-8, frog.h-8, item.x, r.y+6, item.w, GRID-12)) {
-                                die();
-                            }
-                        } else if (r.type === 'water') {
-                            // Draw Log
-                            ctx.fillStyle = COLORS.log;
-                            ctx.fillRect(item.x, r.y + 4, item.w, GRID - 8);
-                            // Bark detail
-                            ctx.fillStyle = 'rgba(0,0,0,0.2)';
-                            ctx.fillRect(item.x + 10, r.y + 10, item.w - 20, 2);
-                            ctx.fillRect(item.x + 15, r.y + 20, item.w - 30, 2);
+                this.rows.forEach(r => {
+                    if(r.items) {
+                        r.items.forEach(item => {
+                            item.x += r.speed;
+                            if(item.x > this.canvas.width + 100) item.x = -150;
+                            if(item.x < -150) item.x = this.canvas.width + 100;
 
-                            // Check if frog is on this log (Aligning grid rows)
-                            if(frog.y === r.y) {
-                                if(frog.x + frog.w/2 > item.x && frog.x + frog.w/2 < item.x + item.w) {
-                                    onLog = true;
-                                    logSpeed = r.speed;
+                            if(r.type === 'road') {
+                                if(this.rectIntersect(this.frog.x+10, this.frog.y+10, 28, 28, item.x, r.y+6, item.w, GRID-12)) {
+                                    this.die();
+                                }
+                            } else if (r.type === 'water') {
+                                if(this.frog.y === r.y) {
+                                    if(this.frog.x + 24 > item.x && this.frog.x + 24 < item.x + item.w) {
+                                        onLog = true;
+                                        logSpeed = r.speed;
+                                    }
                                 }
                             }
-                        }
-                    });
+                        });
+                    }
+                });
+
+                const currentRow = this.rows.find(r => this.frog.y === r.y);
+                if(currentRow && currentRow.type === 'water') {
+                    if(!onLog) this.die();
+                    else this.frog.x += logSpeed;
                 }
-            });
 
-            // Water Lethality Logic (Check if frog is in a water row)
-            const currentRow = rows.find(r => frog.y === r.y);
-            if(currentRow && currentRow.type === 'water') {
-                if(!onLog) {
-                    die();
-                } else {
-                    // Stick to log movement
-                    frog.x += logSpeed;
+                if(this.frog.x < -GRID/2 || this.frog.x > this.canvas.width - GRID/2) this.die();
+                if(this.frog.y < GRID / 2) {
+                    this.score += 500;
+                    this.frog.x = 5 * GRID;
+                    this.frog.y = 12 * GRID;
                 }
+
+                this.updateUI();
             }
 
-            // Draw Frog
-            ctx.save();
-            ctx.translate(frog.x + frog.w/2, frog.y + GRID/2);
-            // Jump animation squeeze
-            if(gameFrame % 10 < 5) ctx.scale(1.1, 0.9);
-            
-            ctx.font = '32px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('🐸', 0, 0);
-            ctx.restore();
-
-            // Bounds / Win
-            if(frog.x < -frog.w || frog.x > canvas.width) die();
-            if(frog.y < GRID / 2) {
-                score += 500;
-                resetFrog(true);
+            updateUI() {
+                document.getElementById('score').textContent = this.score.toString().padStart(4, '0');
+                document.getElementById('lives').textContent = "❤".repeat(this.lives);
             }
 
-            updateUI();
-            requestAnimationFrame(draw);
-        }
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                this.rows.forEach(r => {
+                    ctx.fillStyle = r.color;
+                    ctx.fillRect(0, r.y, this.canvas.width, GRID);
 
-        function rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) {
-            return x2 < x1 + w1 && x2 + w2 > x1 && y2 < y1 + h1 && y2 + h2 > y1;
-        }
+                    if(r.type === 'road') {
+                        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                        ctx.setLineDash([20, 20]);
+                        ctx.beginPath(); ctx.moveTo(0, r.y); ctx.lineTo(this.canvas.width, r.y); ctx.stroke();
+                    }
+                    if(r.type === 'water') {
+                        ctx.fillStyle = 'rgba(255,255,255,0.03)';
+                        let rippleX = (this.gameFrame * r.speed * 0.5) % 100;
+                        for(let i=-100; i<this.canvas.width+100; i+=100) ctx.fillRect(i + rippleX, r.y + 20, 40, 2);
+                    }
 
-        function die() {
-            lives--;
-            if(lives <= 0) {
-                alert("GAME OVER! Final Score: " + score);
-                score = 0; lives = 3;
+                    if(r.items) {
+                        r.items.forEach(item => {
+                            if(r.type === 'road') {
+                                ctx.fillStyle = item.c;
+                                ctx.fillRect(item.x, r.y + 6, item.w, GRID - 12);
+                                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                                ctx.fillRect(r.speed > 0 ? item.x + item.w - 15 : item.x + 5, r.y + 10, 10, GRID - 20);
+                            } else {
+                                ctx.fillStyle = item.c || COLORS.log;
+                                ctx.fillRect(item.x, r.y + 4, item.w, GRID - 8);
+                            }
+                        });
+                    }
+                });
+
+                // Draw Frog
+                ctx.save();
+                ctx.translate(this.frog.x + GRID/2, this.frog.y + GRID/2);
+                ctx.font = '32px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🐸', 0, 0);
+                ctx.restore();
             }
-            resetFrog();
+
+            loop() {
+                if (!this.active) return;
+                this.update();
+                this.draw();
+                requestAnimationFrame(this.loop);
+            }
         }
 
-        function resetFrog(win = false) {
-            frog.x = 5 * GRID;
-            frog.y = 12 * GRID;
-            if(!win) { /* Add splat effect? */ }
-        }
-
-        function updateUI() {
-            document.getElementById('score').textContent = score.toString().padStart(4, '0');
-            document.getElementById('lives').textContent = "❤".repeat(lives);
-        }
-
-        window.onkeydown = (e) => {
-            if(e.key === 'ArrowUp' && frog.y > 0) frog.y -= GRID;
-            if(e.key === 'ArrowDown' && frog.y < 12*GRID) frog.y += GRID;
-            if(e.key === 'ArrowLeft') frog.x -= GRID;
-            if(e.key === 'ArrowRight') frog.x += GRID;
-        };
-
-        draw();
+        const game = new Frogger();
     </script>
 </body>
 </html>

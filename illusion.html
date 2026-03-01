@@ -56,7 +56,6 @@
             overflow: hidden;
         }
 
-        /* Player HUD */
         #players-hud {
             display: flex;
             gap: 10px;
@@ -73,14 +72,15 @@
             transition: 0.3s;
             font-weight: bold;
             font-size: 0.8rem;
+            text-align: center;
         }
         .player-chip.active { opacity: 1; transform: scale(1.1); border-color: #fff; }
         .player-chip.p1.active { border-color: var(--p1); }
         .player-chip.p2.active { border-color: var(--p2); }
         .player-chip.p3.active { border-color: var(--p3); }
         .player-chip.p4.active { border-color: var(--p4); }
+        .cpu-tag { font-size: 0.6rem; color: var(--gold); display: block; }
 
-        /* Target Color Indicator */
         #round-info {
             background: var(--panel);
             padding: 10px 25px;
@@ -93,7 +93,6 @@
         }
         .color-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff; }
 
-        /* The Card Line */
         #sequence-container {
             width: 100%;
             flex: 1;
@@ -128,18 +127,18 @@
         .percentage-reveal {
             position: absolute;
             bottom: 0; left: 0; right: 0;
-            background: rgba(0,0,0,0.85);
+            background: rgba(0,0,0,0.9);
             color: #fff;
-            font-size: 0.85rem;
+            font-size: 1.2rem;
             font-weight: 900;
             text-align: center;
-            padding: 6px;
+            padding: 10px;
             transform: translateY(100%);
             transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-top: 2px solid var(--gold);
         }
         .revealed .percentage-reveal { transform: translateY(0); }
 
-        /* Insertion Slots */
         .drop-zone {
             width: 40px;
             height: 150px;
@@ -159,20 +158,6 @@
         .drop-zone:hover { background: rgba(59, 130, 246, 0.2); color: #fff; border-color: var(--blue); }
         .drop-zone.disabled { pointer-events: none; opacity: 0; }
 
-        /* Explanation Box */
-        #game-explanation {
-            background: rgba(0,0,0,0.4);
-            padding: 15px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            max-width: 600px;
-            text-align: center;
-            line-height: 1.4;
-            opacity: 0.7;
-            margin-top: 10px;
-        }
-
-        /* Current Player Area */
         #action-area {
             display: flex;
             flex-direction: column;
@@ -200,7 +185,6 @@
         }
         .btn-check:disabled { opacity: 0.3; cursor: not-allowed; }
 
-        /* Overlays */
         .screen-overlay {
             position: absolute; inset: 0;
             background: rgba(2, 6, 23, 0.95);
@@ -229,12 +213,12 @@
         }
         #msg-popup.show { opacity: 1; transform: translateY(-20px); }
 
+        .loading-bar { width: 100px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-top: 10px; display: none; }
+        .loading-progress { width: 0%; height: 100%; background: var(--gold); transition: 0.1s linear; }
+
         @media (max-width: 600px) {
             .card { min-width: 100px; height: 140px; }
             .drop-zone { width: 35px; }
-            #sequence-container { padding: 10px; }
-            #action-area { padding: 10px; }
-            #game-explanation { font-size: 0.65rem; }
         }
     </style>
 </head>
@@ -247,7 +231,7 @@
     <div id="game-layout">
         <div id="players-hud">
             <div id="p1-chip" class="player-chip p1 active">P1: <span id="p1-score">0</span></div>
-            <div id="p2-chip" class="player-chip p2">P2: <span id="p2-score">0</span></div>
+            <div id="p2-chip" class="player-chip p2">P2: <span id="p2-score">0</span> <span class="cpu-tag">CPU</span></div>
             <div id="p3-chip" class="player-chip p3" style="display:none">P3: 0</div>
             <div id="p4-chip" class="player-chip p4" style="display:none">P4: 0</div>
         </div>
@@ -260,16 +244,12 @@
 
         <div id="msg-popup">Correct Sequence!</div>
 
-        <div id="sequence-container">
-            <!-- Cards and Dropzones -->
-        </div>
-
-        <div id="game-explanation">
-            <b>HOW TO PLAY:</b> On your turn, place the <b>Current Card</b> into the sequence by tapping a <b>+ zone</b>. You must ensure cards are in <b>increasing order</b> of the target color's percentage. If you think the previous player messed up, click <b>"I DOUBT THE ORDER!"</b> to reveal and score!
-        </div>
+        <div id="sequence-container"></div>
 
         <div id="action-area">
-            <div style="font-size: 0.6rem; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px;">Current Card</div>
+            <div id="cpu-status" style="font-size: 0.8rem; color: var(--gold); margin-bottom: 5px; height: 1.2rem;"></div>
+            <div class="loading-bar" id="cpu-timer"><div class="loading-progress" id="cpu-progress"></div></div>
+            
             <div id="next-card-container"></div>
             
             <div style="display:flex; gap:10px; margin-top: 5px;">
@@ -280,21 +260,21 @@
 
         <div id="start-screen" class="screen-overlay">
             <h1 style="font-size: 3.5rem; font-style: italic; font-weight: 900; color: var(--gold);">ILLUSION</h1>
-            <p style="opacity: 0.7; margin-top: 10px; max-width: 400px;">A game of visual estimation. Place cards in ascending order or doubt the player before you!</p>
-            <div style="display:flex; gap:10px; margin-top: 20px;">
-                <button class="btn-large" onclick="game.init(2)" style="margin-top:0">2 PLAYERS</button>
-                <button class="btn-large" onclick="game.init(3)" style="margin-top:0; background: #8b5cf6;">3 PLAYERS</button>
-                <button class="btn-large" onclick="game.init(4)" style="margin-top:0; background: var(--green);">4 PLAYERS</button>
+            <p style="opacity: 0.7; margin-top: 10px; max-width: 400px;">Sort cards by the percentage of the target color. Doubt the player before you if you think they're wrong!</p>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-top: 20px;">
+                <button class="btn-large" onclick="game.init(1, 1)" style="margin-top:0">1 PLAYER VS CPU</button>
+                <button class="btn-large" onclick="game.init(2, 0)" style="margin-top:0; background: var(--blue);">2 PLAYERS (LOCAL)</button>
+                <button class="btn-large" onclick="game.init(1, 3)" style="margin-top:0; background: #8b5cf6;">1 PLAYER VS 3 CPUS</button>
             </div>
         </div>
     </div>
 
     <script>
         const COLORS = {
-            red: '#ef4444',
-            blue: '#3b82f6',
-            yellow: '#eab308',
-            green: '#22c55e'
+            red: { hex: '#ef4444', rgb: [239, 68, 68] },
+            blue: { hex: '#3b82f6', rgb: [59, 130, 246] },
+            yellow: { hex: '#eab308', rgb: [234, 179, 8] },
+            green: { hex: '#22c55e', rgb: [34, 197, 94] }
         };
 
         class CardGenerator {
@@ -304,24 +284,22 @@
                 canvas.height = 200;
                 const ctx = canvas.getContext('2d');
                 
-                // Clear / Base
                 const colors = Object.keys(COLORS);
-                const baseColor = colors[Math.floor(Math.random() * colors.length)];
-                ctx.fillStyle = COLORS[baseColor];
+                // Background
+                ctx.fillStyle = COLORS[colors[Math.floor(Math.random() * colors.length)]].hex;
                 ctx.fillRect(0, 0, 140, 200);
 
                 // Random Shapes
-                for(let i = 0; i < 25; i++) {
-                    ctx.fillStyle = COLORS[colors[Math.floor(Math.random() * colors.length)]];
+                for(let i = 0; i < 40; i++) {
+                    ctx.fillStyle = COLORS[colors[Math.floor(Math.random() * colors.length)]].hex;
                     const type = Math.random();
                     if(type < 0.4) {
-                        ctx.fillRect(Math.random() * 140, Math.random() * 200, Math.random() * 80, Math.random() * 80);
+                        ctx.fillRect(Math.random() * 140, Math.random() * 200, Math.random() * 60 + 20, Math.random() * 60 + 20);
                     } else if (type < 0.7) {
                         ctx.beginPath();
-                        ctx.arc(Math.random() * 140, Math.random() * 200, Math.random() * 50, 0, Math.PI * 2);
+                        ctx.arc(Math.random() * 140, Math.random() * 200, Math.random() * 40 + 10, 0, Math.PI * 2);
                         ctx.fill();
                     } else {
-                        // Fixed Triangle logic
                         ctx.beginPath();
                         ctx.moveTo(Math.random() * 140, Math.random() * 200);
                         ctx.lineTo(Math.random() * 140, Math.random() * 200);
@@ -330,18 +308,27 @@
                     }
                 }
 
-                // Calculate Percentages (Pixel counting)
+                // Accurate Percentages using closest color matching
                 const imgData = ctx.getImageData(0, 0, 140, 200).data;
                 const counts = { red: 0, blue: 0, yellow: 0, green: 0 };
                 const totalPixels = 140 * 200;
 
                 for(let i = 0; i < imgData.length; i += 4) {
                     const r = imgData[i], g = imgData[i+1], b = imgData[i+2];
-                    // Detect colors based on simple thresholds
-                    if(r > 200 && g < 150 && b < 150) counts.red++;
-                    else if(b > 200 && r < 150 && g < 150) counts.blue++;
-                    else if(r > 200 && g > 180 && b < 150) counts.yellow++;
-                    else if(g > 180 && r < 150 && b < 150) counts.green++;
+                    let closest = 'red';
+                    let minDist = Infinity;
+                    
+                    for(const [name, data] of Object.entries(COLORS)) {
+                        const dr = r - data.rgb[0];
+                        const dg = g - data.rgb[1];
+                        const db = b - data.rgb[2];
+                        const dist = dr*dr + dg*dg + db*db;
+                        if(dist < minDist) {
+                            minDist = dist;
+                            closest = name;
+                        }
+                    }
+                    counts[closest]++;
                 }
 
                 const percentages = {};
@@ -363,13 +350,25 @@
                 this.turn = 0;
                 this.container = document.getElementById('sequence-container');
                 this.nextContainer = document.getElementById('next-card-container');
+                this.cpuThinking = false;
             }
 
-            init(count) {
-                this.players = Array(count).fill(0).map((_, i) => ({ id: i, score: 0 }));
+            init(humanCount, cpuCount) {
+                this.players = [];
+                for(let i=0; i<humanCount; i++) this.players.push({ id: i, isCPU: false, score: 0 });
+                for(let i=0; i<cpuCount; i++) this.players.push({ id: humanCount + i, isCPU: true, score: 0 });
+                
                 for(let i = 1; i <= 4; i++) {
                     const el = document.getElementById(`p${i}-chip`);
-                    if (el) el.style.display = i <= count ? 'block' : 'none';
+                    if (el) {
+                        const p = this.players[i-1];
+                        if (p) {
+                            el.style.display = 'block';
+                            el.innerHTML = `P${i}: <span id="p${i}-score">0</span>${p.isCPU ? '<span class="cpu-tag">CPU</span>' : ''}`;
+                        } else {
+                            el.style.display = 'none';
+                        }
+                    }
                 }
                 document.getElementById('start-screen').style.display = 'none';
                 this.nextRound();
@@ -382,22 +381,21 @@
                 
                 const dot = document.getElementById('target-dot');
                 const name = document.getElementById('target-name');
-                dot.style.backgroundColor = COLORS[this.targetColor];
+                dot.style.backgroundColor = COLORS[this.targetColor].hex;
                 name.textContent = this.targetColor.toUpperCase();
-                name.style.color = COLORS[this.targetColor];
+                name.style.color = COLORS[this.targetColor].hex;
 
-                const popup = document.getElementById('msg-popup');
-                popup.classList.remove('show');
-
+                document.getElementById('msg-popup').classList.remove('show');
                 document.getElementById('check-btn').style.display = 'block';
                 document.getElementById('check-btn').disabled = true;
                 document.getElementById('next-round-btn').style.display = 'none';
+                document.getElementById('cpu-status').textContent = '';
 
-                // Initial card
                 this.sequence.push(CardGenerator.generate());
                 this.drawNextCard();
                 this.renderSequence();
                 this.updateUI();
+                this.checkCPUTurn();
             }
 
             drawNextCard() {
@@ -438,28 +436,21 @@
             }
 
             placeCardAt(idx) {
-                if (this.revealed || !this.nextCard) return;
+                if (this.revealed || !this.nextCard || this.cpuThinking) return;
                 
-                // Add current card to sequence
                 this.sequence.splice(idx, 0, this.nextCard);
-                
-                // Move turn
                 this.turn = (this.turn + 1) % this.players.length;
-                
-                // Prepare next card
                 this.drawNextCard();
-                
-                // Update display
                 this.renderSequence();
                 this.updateUI();
                 
                 document.getElementById('check-btn').disabled = false;
-                
-                // Auto scroll to the newly placed card area
                 setTimeout(() => {
                     const cards = this.container.querySelectorAll('.card');
-                    if (cards[idx]) cards[idx].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                    if (cards[idx]) cards[idx].scrollIntoView({ behavior: 'smooth', inline: 'center' });
                 }, 50);
+                
+                this.checkCPUTurn();
             }
 
             updateUI() {
@@ -467,10 +458,88 @@
                     const chip = document.getElementById(`p${i+1}-chip`);
                     if (chip) {
                         chip.classList.toggle('active', this.turn === i);
-                        const scoreEl = chip.querySelector('span');
+                        const scoreEl = document.getElementById(`p${i+1}-score`);
                         if (scoreEl) scoreEl.textContent = p.score;
                     }
                 });
+            }
+
+            checkCPUTurn() {
+                const player = this.players[this.turn];
+                if (player && player.isCPU && !this.revealed) {
+                    this.cpuThinking = true;
+                    document.getElementById('check-btn').disabled = true;
+                    this.runCPUAI();
+                }
+            }
+
+            async runCPUAI() {
+                const status = document.getElementById('cpu-status');
+                const timer = document.getElementById('cpu-timer');
+                const progress = document.getElementById('cpu-progress');
+                
+                status.textContent = `CPU ${this.turn + 1} is analyzing...`;
+                timer.style.display = 'block';
+                
+                let p = 0;
+                while(p < 100) {
+                    p += 5;
+                    progress.style.width = p + '%';
+                    await new Promise(r => setTimeout(r, 100));
+                }
+                
+                timer.style.display = 'none';
+                
+                // CPU Logic:
+                // 1. Check if the sequence is already broken. If so, high chance to doubt.
+                // 2. If not broken, place card in a plausible position.
+                
+                let brokenAt = -1;
+                for(let i=0; i<this.sequence.length-1; i++) {
+                    if (this.sequence[i].percentages[this.targetColor] > this.sequence[i+1].percentages[this.targetColor]) {
+                        brokenAt = i; break;
+                    }
+                }
+
+                const myTarget = this.nextCard.percentages[this.targetColor];
+                
+                // CPU Bluff-calling
+                // If sequence is broken, CPU will likely doubt (85% chance if broken)
+                if (brokenAt !== -1 && Math.random() < 0.85) {
+                    status.textContent = `CPU ${this.turn + 1}: "I DOUBT THE ORDER!"`;
+                    await new Promise(r => setTimeout(r, 1000));
+                    this.cpuThinking = false;
+                    this.checkSequence();
+                    return;
+                }
+
+                // If sequence is long, CPU might doubt even if not broken (small chance of paranoia)
+                if (this.sequence.length > 5 && Math.random() < 0.1) {
+                    status.textContent = `CPU ${this.turn + 1}: "Something feels off... I DOUBT!"`;
+                    await new Promise(r => setTimeout(r, 1000));
+                    this.cpuThinking = false;
+                    this.checkSequence();
+                    return;
+                }
+
+                // Placing the card
+                // Find best spot based on actual values (CPU is good but not perfect)
+                let bestIdx = 0;
+                for (let i = 0; i < this.sequence.length; i++) {
+                    if (myTarget >= this.sequence[i].percentages[this.targetColor]) {
+                        bestIdx = i + 1;
+                    }
+                }
+                
+                // Add some "human error" to CPU placement occasionally
+                if (Math.random() < 0.15) {
+                    bestIdx = Math.floor(Math.random() * (this.sequence.length + 1));
+                }
+
+                status.textContent = `CPU ${this.turn + 1} placed a card.`;
+                await new Promise(r => setTimeout(r, 500));
+                this.cpuThinking = false;
+                this.placeCardAt(bestIdx);
             }
 
             checkSequence() {
@@ -489,16 +558,13 @@
                 const previousPlayer = (this.turn - 1 + this.players.length) % this.players.length;
                 const currentPlayer = this.turn;
 
-                // Mark visuals
                 const cardEls = this.container.querySelectorAll('.card');
                 if (!correct) {
                     cardEls[brokenAt].classList.add('wrong');
                     cardEls[brokenAt+1].classList.add('wrong');
-                    // Current player was right to doubt
                     this.players[currentPlayer].score++;
                 } else {
                     cardEls.forEach(el => el.classList.add('right'));
-                    // Previous player was right, current player was wrong to doubt
                     this.players[previousPlayer].score++;
                 }
 
@@ -509,6 +575,7 @@
                 
                 document.getElementById('check-btn').style.display = 'none';
                 document.getElementById('next-round-btn').style.display = 'block';
+                document.getElementById('cpu-status').textContent = '';
                 this.updateUI();
             }
         }
