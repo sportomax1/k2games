@@ -1,24 +1,125 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asteroids Pro</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Asteroids Pro - K2 games</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-        canvas { border: 2px solid #00f2ff; box-shadow: 0 0 20px #00f2ff; width: 90vmin; height: 67.5vmin; max-width: 800px; max-height: 600px; }
-        .hud { position: absolute; top: 20px; left: 20px; color: #00f2ff; font-family: 'Courier New', Courier, monospace; font-size: 1.5rem; text-shadow: 0 0 10px #00f2ff; }
+        :root {
+            --accent: #00f2ff;
+            --bg: #000000;
+            --ui-bg: rgba(255, 255, 255, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            touch-action: none;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--accent);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+            height: 100dvh;
+            width: 100%;
+            position: fixed;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+
+        .hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1.5rem;
+            text-shadow: 0 0 10px var(--accent);
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        /* Mobile Controls */
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            right: 0;
+            display: none;
+            justify-content: space-between;
+            padding: 0 30px;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        @media (max-width: 1024px) { #controls { display: flex; } }
+
+        .btn-group { display: flex; gap: 15px; pointer-events: none; }
+
+        .ctrl-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid var(--accent);
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 1.2rem;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+            transition: background 0.1s;
+        }
+
+        .ctrl-btn:active { background: var(--accent); color: black; }
+
+        .fire-btn { width: 90px; height: 90px; font-size: 1.5rem; background: rgba(0, 242, 255, 0.2); }
+
+        .back-link {
+            position: absolute; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 200;
+            font-weight: bold; font-size: 0.8rem; border: 1px solid rgba(255,255,255,0.1);
+        }
     </style>
 </head>
 <body>
+    <a href="index.html" class="back-link">← HUB</a>
     <div class="hud">SCORE: <span id="score">0</span></div>
+    
     <canvas id="game"></canvas>
+
+    <div id="controls">
+        <div class="btn-group">
+            <div class="ctrl-btn" id="btn-left">◀</div>
+            <div class="ctrl-btn" id="btn-right">▶</div>
+        </div>
+        <div class="btn-group">
+            <div class="ctrl-btn" id="btn-thrust">▲</div>
+            <div class="ctrl-btn fire-btn" id="btn-fire">●</div>
+        </div>
+    </div>
+
     <script>
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
-        canvas.width = 800; canvas.height = 600;
+        canvas.width = 1000; canvas.height = 750;
 
         let score = 0;
-        let ship = { x: 400, y: 300, a: 0, v: {x:0, y:0}, thrust: false, dead: false };
+        let ship = { x: 500, y: 375, a: -Math.PI/2, v: {x:0, y:0}, thrust: false, dead: false };
         let asteroids = [];
         let bullets = [];
         let particles = [];
@@ -26,86 +127,106 @@
 
         function spawnAsteroid(x, y, r) {
             asteroids.push({
-                x: x || Math.random()*800,
-                y: y || Math.random()*600,
-                r: r || 40,
-                v: {x: (Math.random()-0.5)*4, y: (Math.random()-0.5)*4},
-                verts: Math.floor(Math.random()*5)+7
+                x: x || Math.random()*canvas.width,
+                y: y || Math.random()*canvas.height,
+                r: r || 50,
+                v: {x: (Math.random()-0.5)*3, y: (Math.random()-0.5)*3},
+                verts: Math.floor(Math.random()*5)+8,
+                offsets: Array.from({length: 12}, () => 0.8 + Math.random()*0.4)
             });
         }
 
-        for(let i=0; i<5; i++) spawnAsteroid();
+        function init() {
+            for(let i=0; i<6; i++) spawnAsteroid();
+            setupControls();
+            loop();
+        }
 
-        function checkGamepad() {
-            const pads = navigator.getGamepads();
-            if (pads[0]) {
-                const p = pads[0]; const b = p.buttons;
-                if (Math.abs(p.axes[0]) > 0.1) ship.a += p.axes[0] * 0.08;
-                ship.thrust = b[0].pressed || b[7].pressed || p.axes[1] < -0.5;
-                
-                const now = Date.now();
-                if ((b[2].pressed || b[5].pressed) && (!this.lastFire || now - this.lastFire > 250)) {
-                    shoot();
-                    this.lastFire = now;
-                }
-            }
+        function setupControls() {
+            const bind = (id, key) => {
+                const el = document.getElementById(id);
+                el.ontouchstart = (e) => { e.preventDefault(); keys[key] = true; if(key === ' ') shoot(); };
+                el.ontouchend = () => keys[key] = false;
+            };
+            bind('btn-left', 'ArrowLeft');
+            bind('btn-right', 'ArrowRight');
+            bind('btn-thrust', 'ArrowUp');
+            bind('btn-fire', ' ');
+
+            window.onkeydown = e => { keys[e.key] = true; if(e.key === ' ') shoot(); };
+            window.onkeyup = e => keys[e.key] = false;
         }
 
         function shoot() {
             if(ship.dead) return;
-            bullets.push({x:ship.x, y:ship.y, v:{x:ship.v.x + Math.cos(ship.a)*8, y:ship.v.y + Math.sin(ship.a)*8}, life: 50});
+            bullets.push({
+                x: ship.x + Math.cos(ship.a)*20, 
+                y: ship.y + Math.sin(ship.a)*20, 
+                v: { x: ship.v.x + Math.cos(ship.a)*10, y: ship.v.y + Math.sin(ship.a)*10 }, 
+                life: 60
+            });
         }
 
         function explode(x, y, color, count) {
             for(let i=0; i<count; i++) {
-                particles.push({x, y, v:{x:(Math.random()-0.5)*10, y:(Math.random()-0.5)*10}, life: 30, color});
+                particles.push({x, y, v:{x:(Math.random()-0.5)*8, y:(Math.random()-0.5)*8}, life: 40, color});
             }
         }
 
         function update() {
-            checkGamepad();
+            // Gamepad polling
+            const pads = navigator.getGamepads();
+            if (pads[0]) {
+                const p = pads[0];
+                if (Math.abs(p.axes[0]) > 0.1) ship.a += p.axes[0] * 0.07;
+                keys['ArrowUp'] = p.buttons[0].pressed || p.buttons[7].pressed;
+                if (p.buttons[2].pressed && !this.lastB2) { shoot(); this.lastB2 = true; } else if(!p.buttons[2].pressed) this.lastB2 = false;
+            }
+
             if(!ship.dead) {
-                if(keys['ArrowLeft'] || keys['a']) ship.a -= 0.08;
-                if(keys['ArrowRight'] || keys['d']) ship.a += 0.08;
-                if(keys['ArrowUp'] || keys['w'] || ship.thrust) {
-                    ship.v.x += Math.cos(ship.a) * 0.2;
-                    ship.v.y += Math.sin(ship.a) * 0.2;
+                if(keys['ArrowLeft'] || keys['a']) ship.a -= 0.07;
+                if(keys['ArrowRight'] || keys['d']) ship.a += 0.07;
+                if(keys['ArrowUp'] || keys['w']) {
+                    ship.v.x += Math.cos(ship.a) * 0.25;
+                    ship.v.y += Math.sin(ship.a) * 0.25;
                 }
                 ship.x += ship.v.x; ship.y += ship.v.y;
-                ship.v.x *= 0.99; ship.v.y *= 0.99;
-                if(ship.x < 0) ship.x = 800; if(ship.x > 800) ship.x = 0;
-                if(ship.y < 0) ship.y = 600; if(ship.y > 600) ship.y = 0;
+                ship.v.x *= 0.985; ship.v.y *= 0.985;
+                
+                if(ship.x < 0) ship.x = canvas.width; if(ship.x > canvas.width) ship.x = 0;
+                if(ship.y < 0) ship.y = canvas.height; if(ship.y > canvas.height) ship.y = 0;
             }
 
             bullets.forEach((b, i) => {
                 b.x += b.v.x; b.y += b.v.y; b.life--;
                 if(b.life <= 0) bullets.splice(i, 1);
-                if(b.x < 0) b.x = 800; if(b.x > 800) b.x = 0;
-                if(b.y < 0) b.y = 600; if(b.y > 600) b.y = 0;
+                if(b.x < 0) b.x = canvas.width; if(b.x > canvas.width) b.x = 0;
+                if(b.y < 0) b.y = canvas.height; if(b.y > canvas.height) b.y = 0;
             });
 
             asteroids.forEach((a, ai) => {
                 a.x += a.v.x; a.y += a.v.y;
-                if(a.x < -a.r) a.x = 800+a.r; if(a.x > 800+a.r) a.x = -a.r;
-                if(a.y < -a.r) a.y = 600+a.r; if(a.y > 600+a.r) a.y = -a.r;
+                if(a.x < -a.r) a.x = canvas.width+a.r; if(a.x > canvas.width+a.r) a.x = -a.r;
+                if(a.y < -a.r) a.y = canvas.height+a.r; if(a.y > canvas.height+a.r) a.y = -a.r;
 
-                if(!ship.dead && Math.hypot(ship.x - a.x, ship.y - a.y) < a.r) {
+                if(!ship.dead && Math.hypot(ship.x - a.x, ship.y - a.y) < a.r + 5) {
                     ship.dead = true;
-                    explode(ship.x, ship.y, 'cyan', 20);
+                    explode(ship.x, ship.y, '#00f2ff', 30);
                     setTimeout(() => location.reload(), 2000);
                 }
 
                 bullets.forEach((b, bi) => {
                     if(Math.hypot(b.x - a.x, b.y - a.y) < a.r) {
                         bullets.splice(bi, 1);
-                        explode(a.x, a.y, '#00f2ff', 10);
-                        if(a.r > 15) {
+                        explode(a.x, a.y, '#00f2ff', 15);
+                        if(a.r > 20) {
                             spawnAsteroid(a.x, a.y, a.r/2);
                             spawnAsteroid(a.x, a.y, a.r/2);
                         }
                         asteroids.splice(ai, 1);
                         score += 100;
                         document.getElementById('score').innerText = score;
+                        if(asteroids.length < 4) spawnAsteroid();
                     }
                 });
             });
@@ -117,49 +238,61 @@
         }
 
         function draw() {
-            ctx.fillStyle = 'black'; ctx.fillRect(0, 0, 800, 600);
+            ctx.fillStyle = 'black'; ctx.fillRect(0, 0, canvas.width, canvas.height);
             
+            // Draw Stars
+            ctx.fillStyle = 'white';
+            for(let i=0; i<50; i++) {
+                const x = (Math.sin(i*123)*0.5+0.5)*canvas.width;
+                const y = (Math.cos(i*456)*0.5+0.5)*canvas.height;
+                ctx.globalAlpha = 0.2 + Math.random()*0.3;
+                ctx.fillRect(x, y, 2, 2);
+            }
+            ctx.globalAlpha = 1;
+
             if(!ship.dead) {
-                ctx.strokeStyle = 'cyan'; ctx.lineWidth = 2;
+                ctx.strokeStyle = '#00f2ff'; ctx.lineWidth = 3;
+                ctx.shadowBlur = 10; ctx.shadowColor = '#00f2ff';
                 ctx.beginPath();
-                ctx.moveTo(ship.x + Math.cos(ship.a)*15, ship.y + Math.sin(ship.a)*15);
-                ctx.lineTo(ship.x + Math.cos(ship.a+2.5)*10, ship.y + Math.sin(ship.a+2.5)*10);
-                ctx.lineTo(ship.x + Math.cos(ship.a-2.5)*10, ship.y + Math.sin(ship.a-2.5)*10);
+                ctx.moveTo(ship.x + Math.cos(ship.a)*20, ship.y + Math.sin(ship.a)*20);
+                ctx.lineTo(ship.x + Math.cos(ship.a+2.6)*15, ship.y + Math.sin(ship.a+2.6)*15);
+                ctx.lineTo(ship.x + Math.cos(ship.a-2.6)*15, ship.y + Math.sin(ship.a-2.6)*15);
                 ctx.closePath(); ctx.stroke();
-                if(keys['ArrowUp'] || ship.thrust) {
+                
+                if(keys['ArrowUp'] || keys['w']) {
+                    ctx.strokeStyle = '#ff4757'; ctx.shadowColor = '#ff4757';
                     ctx.beginPath();
-                    ctx.moveTo(ship.x + Math.cos(ship.a+Math.PI)*10, ship.y + Math.sin(ship.a+Math.PI)*10);
-                    ctx.lineTo(ship.x + Math.cos(ship.a+Math.PI+0.5)*5, ship.y + Math.sin(ship.a+Math.PI+0.5)*5);
-                    ctx.lineTo(ship.x + Math.cos(ship.a+Math.PI-0.5)*5, ship.y + Math.sin(ship.a+Math.PI-0.5)*5);
+                    ctx.moveTo(ship.x + Math.cos(ship.a+Math.PI)*12, ship.y + Math.sin(ship.a+Math.PI)*12);
+                    ctx.lineTo(ship.x + Math.cos(ship.a+Math.PI+0.5)*20, ship.y + Math.sin(ship.a+Math.PI+0.5)*20);
+                    ctx.lineTo(ship.x + Math.cos(ship.a+Math.PI-0.5)*20, ship.y + Math.sin(ship.a+Math.PI-0.5)*20);
                     ctx.stroke();
                 }
+                ctx.shadowBlur = 0;
             }
 
-            ctx.strokeStyle = '#00f2ff';
+            ctx.strokeStyle = '#00f2ff'; ctx.lineWidth = 2;
             asteroids.forEach(a => {
                 ctx.beginPath();
                 for(let i=0; i<a.verts; i++) {
                     const ang = (i/a.verts)*Math.PI*2;
-                    const r = a.r * (0.8 + Math.random()*0.2);
+                    const r = a.r * a.offsets[i % 12];
                     ctx[i===0?'moveTo':'lineTo'](a.x + Math.cos(ang)*r, a.y + Math.sin(ang)*r);
                 }
                 ctx.closePath(); ctx.stroke();
             });
 
             ctx.fillStyle = 'white';
-            bullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, 2, 0, Math.PI*2); ctx.fill(); });
+            bullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI*2); ctx.fill(); });
 
             particles.forEach(p => {
-                ctx.fillStyle = p.color; ctx.globalAlpha = p.life/30;
+                ctx.fillStyle = p.color; ctx.globalAlpha = p.life/40;
                 ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill();
             });
             ctx.globalAlpha = 1;
         }
 
         function loop() { update(); draw(); requestAnimationFrame(loop); }
-        window.onkeydown = e => { keys[e.key] = true; if(e.key === ' ') shoot(); };
-        window.onkeyup = e => keys[e.key] = false;
-        loop();
+        init();
     </script>
 </body>
 </html>
