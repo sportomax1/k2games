@@ -278,26 +278,43 @@
                 const trampTop = this.tramp.y;
                 if(this.player.y + this.player.radius > trampTop && this.player.vy > 0) {
                     const normalizedRot = ((this.player.rotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-                    const isUpright = normalizedRot < 0.6 || normalizedRot > (Math.PI * 2 - 0.6);
-
-                    if(isUpright) {
-                        // Successful landing/bounce
-                        const landingQuality = 1.0 - (Math.abs(normalizedRot > Math.PI ? normalizedRot - Math.PI*2 : normalizedRot) / 0.6);
+                    const diff = Math.abs(normalizedRot > Math.PI ? normalizedRot - Math.PI*2 : normalizedRot);
+                    
+                    // Windows: Perfect < 0.3, Good < 0.7, Wobble < 1.2, Crash > 1.2
+                    if(diff < 1.2) {
+                        let powerMult = 1.0;
+                        let landingMsg = "";
                         
+                        if (diff < 0.3) {
+                            landingMsg = "PERFECT!!";
+                            this.player.emoji = '🤩';
+                            powerMult = 1.1; // Slight boost
+                            this.addScore(200);
+                        } else if (diff < 0.7) {
+                            landingMsg = "GOOD";
+                            this.player.emoji = '😊';
+                            powerMult = 0.95;
+                            this.addScore(50);
+                        } else {
+                            landingMsg = "WOBBLE... SAFE!";
+                            this.player.emoji = '😰';
+                            powerMult = 0.6; // Heavy penalty but alive
+                            this.addScore(10);
+                        }
+
+                        if (landingMsg) this.showTrick(landingMsg);
+
+                        // Successful landing/bounce physics
                         this.tramp.flex = Math.min(60, this.player.vy * 2.5);
-                        this.player.vy = -Math.max(14, this.player.vy * 0.98);
+                        this.player.vy = -Math.max(12, this.player.vy * 0.98 * powerMult);
                         this.player.y = trampTop - this.player.radius;
-                        this.player.rotation = 0; // Snap to upright on good bounce
+                        this.player.rotation = 0; // Snap to upright
                         
                         // Check for flips
                         const flips = Math.floor(Math.abs(this.player.rotation - this.lastRotation) / (Math.PI * 1.8));
                         if(flips > 0) {
-                            const pts = flips * 150 + Math.floor(landingQuality * 50);
-                            this.addScore(pts);
+                            this.addScore(flips * 200);
                             this.showTrick(flips === 1 ? "FLIP!" : (flips === 2 ? "DOUBLE FLIP!!" : "INSANE!!!"));
-                        } else {
-                            // Points for height alone
-                            this.addScore(Math.floor(this.maxHeightRecord / 2));
                         }
                         this.lastRotation = 0;
                     } else {
