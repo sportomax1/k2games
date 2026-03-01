@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shut the Box - K2 games</title>
+    <style>
+        :root {
+            --wood-dark: #451a03;
+            --wood-light: #78350f;
+            --felt: #065f46;
+            --accent: #fbbf24;
+            --text: #fef3c7;
+            --glass: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: #1a1a1a;
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            height: 100dvh;
+            width: 100%;
+            overflow: hidden;
+            position: fixed;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-image: radial-gradient(circle at center, #262626 0%, #000 100%);
+        }
+
+        #game-container {
+            width: 95%;
+            max-width: 600px;
+            background: var(--wood-dark);
+            border: 8px solid #271001;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), inset 0 0 40px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .tiles-container {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 8px;
+            background: #1a0d02;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        .tile {
+            aspect-ratio: 2/5;
+            background: var(--wood-light);
+            border: 2px solid #451a03;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: var(--accent);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            transform-origin: bottom;
+            box-shadow: 0 4px 0 #271001;
+        }
+
+        .tile.selected {
+            background: var(--accent);
+            color: var(--wood-dark);
+            transform: translateY(-5px);
+            box-shadow: 0 9px 0 #b45309;
+        }
+
+        .tile.shut {
+            transform: rotateX(-90deg);
+            opacity: 0.3;
+            pointer-events: none;
+        }
+
+        .felt-area {
+            height: 200px;
+            background: var(--felt);
+            border-radius: 12px;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+            position: relative;
+            border: 4px solid #044e3a;
+        }
+
+        .dice {
+            width: 60px;
+            height: 60px;
+            background: white;
+            border-radius: 12px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            padding: 8px;
+            gap: 4px;
+            box-shadow: 0 6px 0 #d1d5db, 0 10px 20px rgba(0,0,0,0.3);
+            transition: transform 0.5s;
+        }
+
+        .dot { background: #111; border-radius: 50%; width: 100%; height: 100%; visibility: hidden; }
+        .dot.active { visibility: visible; }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 900;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 6px 0 rgba(0,0,0,0.2);
+        }
+
+        .btn-roll { background: var(--accent); color: var(--wood-dark); }
+        .btn-confirm { background: #10b981; color: white; }
+        .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,0.2); }
+        .btn:disabled { opacity: 0.5; filter: grayscale(1); pointer-events: none; }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 800;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.8;
+        }
+
+        .back-link {
+            position: absolute; top: 20px; left: 20px; color: #64748b; text-decoration: none;
+            font-weight: bold; font-size: 0.8rem;
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.9);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1000; text-align: center; padding: 30px;
+        }
+
+        .winner-text { font-size: 3rem; font-weight: 900; font-style: italic; color: var(--accent); margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="game-container">
+        <div class="hud">
+            <span>Score: <span id="score">45</span></span>
+            <span>Best: <span id="best">--</span></span>
+        </div>
+
+        <div class="tiles-container" id="tiles">
+            <!-- Tiles 1-9 -->
+        </div>
+
+        <div class="felt-area">
+            <div class="dice" id="die1">
+                <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+            </div>
+            <div class="dice" id="die2">
+                <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-roll" id="roll-btn">Roll Dice</button>
+            <button class="btn btn-confirm" id="confirm-btn" disabled>Confirm Tiles</button>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <div class="winner-text" id="overlay-title">GAME OVER</div>
+        <p id="overlay-msg" style="margin-bottom: 30px;">Remaining Sum: 12</p>
+        <button class="btn btn-roll" style="width: 200px;" onclick="location.reload()">New Game</button>
+    </div>
+
+    <script>
+        const dicePatterns = [
+            [],
+            [4], // 1
+            [0, 8], // 2
+            [0, 4, 8], // 3
+            [0, 2, 6, 8], // 4
+            [0, 2, 4, 6, 8], // 5
+            [0, 2, 3, 5, 6, 8] // 6
+        ];
+
+        class ShutTheBox {
+            constructor() {
+                this.tiles = Array(9).fill(false); // false = open, true = shut
+                this.selected = new Set();
+                this.die1 = 0;
+                this.die2 = 0;
+                this.rollSum = 0;
+                this.canRoll = true;
+                this.best = localStorage.getItem('shutthebox_best') || 45;
+
+                document.getElementById('best').textContent = this.best;
+                this.init();
+            }
+
+            init() {
+                const container = document.getElementById('tiles');
+                for (let i = 1; i <= 9; i++) {
+                    const tile = document.createElement('div');
+                    tile.className = 'tile';
+                    tile.textContent = i;
+                    tile.onclick = () => this.toggleTile(i);
+                    container.appendChild(tile);
+                }
+
+                document.getElementById('roll-btn').onclick = () => this.roll();
+                document.getElementById('confirm-btn').onclick = () => this.confirm();
+                
+                // Keyboard support
+                window.onkeydown = (e) => {
+                    if (e.code >= 'Digit1' && e.code <= 'Digit9') this.toggleTile(parseInt(e.key));
+                    if (e.code === 'Space' || e.code === 'Enter') {
+                        if (this.canRoll) this.roll();
+                        else if (!document.getElementById('confirm-btn').disabled) this.confirm();
+                    }
+                };
+            }
+
+            toggleTile(num) {
+                if (this.canRoll || this.tiles[num-1]) return;
+                
+                const tileEl = document.getElementById('tiles').children[num-1];
+                if (this.selected.has(num)) {
+                    this.selected.delete(num);
+                    tileEl.classList.remove('selected');
+                } else {
+                    this.selected.add(num);
+                    tileEl.classList.add('selected');
+                }
+
+                this.checkSelection();
+            }
+
+            checkSelection() {
+                const sum = Array.from(this.selected).reduce((a, b) => a + b, 0);
+                const btn = document.getElementById('confirm-btn');
+                btn.disabled = (sum !== this.rollSum);
+            }
+
+            roll() {
+                if (!this.canRoll) return;
+                
+                this.die1 = Math.floor(Math.random() * 6) + 1;
+                this.die2 = Math.floor(Math.random() * 6) + 1;
+                
+                // If sum of open tiles 7,8,9 is shut, can roll only 1 die (optional rule, but we'll stick to 2 for simplicity unless 1-6 only open)
+                const highTilesOpen = !this.tiles[6] || !this.tiles[7] || !this.tiles[8];
+                // In some versions if 7,8,9 are shut, you can choose to roll 1 die. 
+                // We'll auto-roll 2 for now as it's more common in basic versions.
+
+                this.rollSum = this.die1 + this.die2;
+                this.canRoll = false;
+                document.getElementById('roll-btn').disabled = true;
+
+                this.animateDice();
+                
+                setTimeout(() => {
+                    if (!this.hasPossibleMove()) {
+                        this.endGame();
+                    }
+                }, 600);
+            }
+
+            animateDice() {
+                const d1 = document.getElementById('die1');
+                const d2 = document.getElementById('die2');
+                
+                d1.style.transform = `rotate(${Math.random()*360}deg) scale(1.1)`;
+                d2.style.transform = `rotate(${Math.random()*360}deg) scale(1.1)`;
+                
+                setTimeout(() => {
+                    d1.style.transform = `rotate(0deg) scale(1)`;
+                    d2.style.transform = `rotate(0deg) scale(1)`;
+                    this.updateDiceUI(d1, this.die1);
+                    this.updateDiceUI(d2, this.die2);
+                }, 300);
+            }
+
+            updateDiceUI(el, val) {
+                const dots = el.querySelectorAll('.dot');
+                dots.forEach(d => d.classList.remove('active'));
+                dicePatterns[val].forEach(idx => dots[idx].classList.add('active'));
+            }
+
+            confirm() {
+                Array.from(this.selected).forEach(num => {
+                    this.tiles[num-1] = true;
+                    document.getElementById('tiles').children[num-1].classList.add('shut');
+                });
+                this.selected.clear();
+                this.canRoll = true;
+                document.getElementById('roll-btn').disabled = false;
+                document.getElementById('confirm-btn').disabled = true;
+                this.updateScore();
+
+                if (this.tiles.every(t => t)) {
+                    this.endGame(true);
+                }
+            }
+
+            updateScore() {
+                let sum = 0;
+                this.tiles.forEach((shut, i) => { if (!shut) sum += (i+1); });
+                document.getElementById('score').textContent = sum;
+            }
+
+            hasPossibleMove() {
+                const openTiles = [];
+                this.tiles.forEach((shut, i) => { if (!shut) openTiles.push(i + 1); });
+                return this.canMakeSum(openTiles, this.rollSum);
+            }
+
+            canMakeSum(nums, target) {
+                if (target === 0) return true;
+                if (target < 0 || nums.length === 0) return false;
+                const [first, ...rest] = nums;
+                return this.canMakeSum(rest, target - first) || this.canMakeSum(rest, target);
+            }
+
+            endGame(win = false) {
+                const overlay = document.getElementById('overlay');
+                const title = document.getElementById('overlay-title');
+                const msg = document.getElementById('overlay-msg');
+                
+                let score = 0;
+                this.tiles.forEach((shut, i) => { if (!shut) score += (i+1); });
+
+                if (score < this.best) {
+                    this.best = score;
+                    localStorage.setItem('shutthebox_best', score);
+                }
+
+                overlay.style.display = 'flex';
+                if (win || score === 0) {
+                    title.textContent = "SHUT THE BOX!";
+                    title.style.color = "var(--accent)";
+                    msg.textContent = "Perfect game! You are a master.";
+                } else {
+                    title.textContent = "GAME OVER";
+                    title.style.color = "#ef4444";
+                    msg.textContent = `Remaining Sum: ${score}`;
+                }
+            }
+        }
+
+        const game = new ShutTheBox();
+    </script>
+</body>
+</html>
