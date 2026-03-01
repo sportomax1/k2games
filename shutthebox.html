@@ -12,6 +12,8 @@
             --accent: #fbbf24;
             --text: #fef3c7;
             --glass: rgba(255, 255, 255, 0.1);
+            --p1: #3b82f6;
+            --p2: #ef4444;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
@@ -148,6 +150,18 @@
             opacity: 0.8;
         }
 
+        .player-indicator {
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 900;
+            padding: 10px;
+            border-radius: 10px;
+            transition: 0.3s;
+            background: rgba(0,0,0,0.3);
+        }
+        .player-indicator.p1 { color: var(--p1); border: 2px solid var(--p1); }
+        .player-indicator.p2 { color: var(--p2); border: 2px solid var(--p2); }
+
         .back-link {
             position: absolute; top: 20px; left: 20px; color: #64748b; text-decoration: none;
             font-weight: bold; font-size: 0.8rem;
@@ -167,9 +181,12 @@
 
     <div id="game-container">
         <div class="hud">
-            <span>Score: <span id="score">45</span></span>
-            <span>Best: <span id="best">--</span></span>
+            <span>Left: <span id="score">45</span></span>
+            <span id="p1-total" style="color: var(--p1)">P1: 0</span>
+            <span id="p2-total" style="color: var(--p2)">P2: 0</span>
         </div>
+
+        <div id="turn-display" class="player-indicator p1">PLAYER 1'S TURN</div>
 
         <div class="tiles-container" id="tiles">
             <!-- Tiles 1-9 -->
@@ -196,7 +213,7 @@
 
     <div id="overlay">
         <div class="winner-text" id="overlay-title">GAME OVER</div>
-        <p id="overlay-msg" style="margin-bottom: 30px;">Remaining Sum: 12</p>
+        <p id="overlay-msg" style="margin-bottom: 30px; font-size: 1.2rem;">Remaining Sum: 12</p>
         <button class="btn btn-roll" style="width: 200px;" onclick="location.reload()">New Game</button>
     </div>
 
@@ -213,20 +230,24 @@
 
         class ShutTheBox {
             constructor() {
-                this.tiles = Array(9).fill(false); // false = open, true = shut
+                this.tiles = Array(9).fill(false);
                 this.selected = new Set();
                 this.die1 = 0;
                 this.die2 = 0;
                 this.rollSum = 0;
                 this.canRoll = true;
-                this.best = localStorage.getItem('shutthebox_best') || 45;
+                
+                this.currentPlayer = 1;
+                this.p1Score = 0;
+                this.p2Score = 0;
+                this.isP2Turn = false;
 
-                document.getElementById('best').textContent = this.best;
                 this.init();
             }
 
             init() {
                 const container = document.getElementById('tiles');
+                container.innerHTML = '';
                 for (let i = 1; i <= 9; i++) {
                     const tile = document.createElement('div');
                     tile.className = 'tile';
@@ -238,7 +259,6 @@
                 document.getElementById('roll-btn').onclick = () => this.roll();
                 document.getElementById('confirm-btn').onclick = () => this.confirm();
                 
-                // Keyboard support
                 window.onkeydown = (e) => {
                     if (e.code >= 'Digit1' && e.code <= 'Digit9') this.toggleTile(parseInt(e.key));
                     if (e.code === 'Space' || e.code === 'Enter') {
@@ -274,12 +294,6 @@
                 
                 this.die1 = Math.floor(Math.random() * 6) + 1;
                 this.die2 = Math.floor(Math.random() * 6) + 1;
-                
-                // If sum of open tiles 7,8,9 is shut, can roll only 1 die (optional rule, but we'll stick to 2 for simplicity unless 1-6 only open)
-                const highTilesOpen = !this.tiles[6] || !this.tiles[7] || !this.tiles[8];
-                // In some versions if 7,8,9 are shut, you can choose to roll 1 die. 
-                // We'll auto-roll 2 for now as it's more common in basic versions.
-
                 this.rollSum = this.die1 + this.die2;
                 this.canRoll = false;
                 document.getElementById('roll-btn').disabled = true;
@@ -288,7 +302,7 @@
                 
                 setTimeout(() => {
                     if (!this.hasPossibleMove()) {
-                        this.endGame();
+                        this.endTurn();
                     }
                 }, 600);
             }
@@ -296,10 +310,8 @@
             animateDice() {
                 const d1 = document.getElementById('die1');
                 const d2 = document.getElementById('die2');
-                
                 d1.style.transform = `rotate(${Math.random()*360}deg) scale(1.1)`;
                 d2.style.transform = `rotate(${Math.random()*360}deg) scale(1.1)`;
-                
                 setTimeout(() => {
                     d1.style.transform = `rotate(0deg) scale(1)`;
                     d2.style.transform = `rotate(0deg) scale(1)`;
@@ -326,7 +338,7 @@
                 this.updateScore();
 
                 if (this.tiles.every(t => t)) {
-                    this.endGame(true);
+                    this.endTurn();
                 }
             }
 
@@ -349,28 +361,53 @@
                 return this.canMakeSum(rest, target - first) || this.canMakeSum(rest, target);
             }
 
-            endGame(win = false) {
+            endTurn() {
+                let finalScore = 0;
+                this.tiles.forEach((shut, i) => { if (!shut) finalScore += (i+1); });
+
+                if (this.currentPlayer === 1) {
+                    this.p1Score = finalScore;
+                    document.getElementById('p1-total').textContent = `P1: ${this.p1Score}`;
+                    this.currentPlayer = 2;
+                    setTimeout(() => this.switchPlayer(), 1500);
+                } else {
+                    this.p2Score = finalScore;
+                    document.getElementById('p2-total').textContent = `P2: ${this.p2Score}`;
+                    setTimeout(() => this.endGame(), 1500);
+                }
+            }
+
+            switchPlayer() {
+                this.tiles = Array(9).fill(false);
+                this.selected.clear();
+                this.canRoll = true;
+                this.init();
+                this.updateScore();
+                const display = document.getElementById('turn-display');
+                display.textContent = "PLAYER 2'S TURN";
+                display.classList.remove('p1');
+                display.classList.add('p2');
+                document.getElementById('roll-btn').disabled = false;
+            }
+
+            endGame() {
                 const overlay = document.getElementById('overlay');
                 const title = document.getElementById('overlay-title');
                 const msg = document.getElementById('overlay-msg');
-                
-                let score = 0;
-                this.tiles.forEach((shut, i) => { if (!shut) score += (i+1); });
-
-                if (score < this.best) {
-                    this.best = score;
-                    localStorage.setItem('shutthebox_best', score);
-                }
-
                 overlay.style.display = 'flex';
-                if (win || score === 0) {
-                    title.textContent = "SHUT THE BOX!";
-                    title.style.color = "var(--accent)";
-                    msg.textContent = "Perfect game! You are a master.";
+
+                if (this.p1Score < this.p2Score) {
+                    title.textContent = "PLAYER 1 WINS!";
+                    title.style.color = "var(--p1)";
+                    msg.innerHTML = `P1 Score: ${this.p1Score} | P2 Score: ${this.p2Score}<br>Lowest score wins!`;
+                } else if (this.p2Score < this.p1Score) {
+                    title.textContent = "PLAYER 2 WINS!";
+                    title.style.color = "var(--p2)";
+                    msg.innerHTML = `P1 Score: ${this.p1Score} | P2 Score: ${this.p2Score}<br>Lowest score wins!`;
                 } else {
-                    title.textContent = "GAME OVER";
-                    title.style.color = "#ef4444";
-                    msg.textContent = `Remaining Sum: ${score}`;
+                    title.textContent = "DRAW!";
+                    title.style.color = "var(--accent)";
+                    msg.textContent = `Both scored ${this.p1Score}`;
                 }
             }
         }

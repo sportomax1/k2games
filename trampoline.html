@@ -147,6 +147,10 @@
                 <div id="score-val" class="stat-val">0</div>
             </div>
             <div class="stat-card">
+                <div class="stat-label">Max Height</div>
+                <div id="height-val" class="stat-val">0m</div>
+            </div>
+            <div class="stat-card">
                 <div class="stat-label">Best</div>
                 <div id="best-val" class="stat-val">0</div>
             </div>
@@ -182,15 +186,20 @@
                     rotation: 0,
                     radius: 30,
                     state: 'jumping', // jumping, landing, crashed
-                    height: 0,
-                    tuck: 0
+                    maxHeight: 0,
+                    tuck: 0,
+                    emoji: '😄'
                 };
 
                 this.tramp = {
-                    width: 300,
+                    width: 350,
                     y: this.height - 150,
                     flex: 0
                 };
+
+                this.clouds = [];
+                this.birds = [];
+                for(let i=0; i<5; i++) this.clouds.push({x: Math.random()*this.width, y: Math.random()*this.height*0.5, s: 0.2 + Math.random()*0.5, w: 100+Math.random()*100});
 
                 this.score = 0;
                 this.best = localStorage.getItem('trampoline_best') || 0;
@@ -198,7 +207,8 @@
                 this.playing = false;
                 this.gravity = 0.25;
                 this.lastRotation = 0;
-                this.rotationCount = 0;
+                
+                this.maxHeightRecord = 0;
 
                 document.getElementById('best-val').textContent = this.best;
 
@@ -231,51 +241,74 @@
             update() {
                 if(!this.playing) return;
 
+                this.clouds.forEach(c => {
+                    c.x += c.s;
+                    if(c.x > this.width + 100) c.x = -200;
+                });
+
                 if(this.player.state === 'crashed') return;
 
                 // Physics
                 this.player.vy += this.gravity;
                 this.player.y += this.player.vy;
 
-                // Rotation
-                let rotationSpeed = 0.08;
+                // Track Height
+                const currentHeight = Math.max(0, Math.floor((this.tramp.y - this.player.y) / 10));
+                if(currentHeight > this.maxHeightRecord) {
+                    this.maxHeightRecord = currentHeight;
+                    document.getElementById('height-val').textContent = this.maxHeightRecord + "m";
+                }
+
+                // Rotation & Emoji State
+                let rotationSpeed = 0.1;
                 if(this.keys['ArrowLeft'] || this.keys['KeyA']) {
                     this.player.rotation -= rotationSpeed;
                     this.player.tuck = Math.min(1, this.player.tuck + 0.1);
+                    this.player.emoji = '😮';
                 } else if(this.keys['ArrowRight'] || this.keys['KeyD']) {
                     this.player.rotation += rotationSpeed;
                     this.player.tuck = Math.min(1, this.player.tuck + 0.1);
+                    this.player.emoji = '😮';
                 } else {
                     this.player.tuck = Math.max(0, this.player.tuck - 0.1);
+                    this.player.emoji = this.player.vy < 0 ? '😆' : '😄';
                 }
 
                 // Trampoline Interaction
                 const trampTop = this.tramp.y;
                 if(this.player.y + this.player.radius > trampTop && this.player.vy > 0) {
                     const normalizedRot = ((this.player.rotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-                    const isUpright = normalizedRot < 0.5 || normalizedRot > (Math.PI * 2 - 0.5);
+                    const isUpright = normalizedRot < 0.6 || normalizedRot > (Math.PI * 2 - 0.6);
 
                     if(isUpright) {
                         // Successful landing/bounce
-                        this.tramp.flex = Math.min(50, this.player.vy * 2);
-                        this.player.vy = -Math.max(12, this.player.vy * 0.95);
+                        const landingQuality = 1.0 - (Math.abs(normalizedRot > Math.PI ? normalizedRot - Math.PI*2 : normalizedRot) / 0.6);
+                        
+                        this.tramp.flex = Math.min(60, this.player.vy * 2.5);
+                        this.player.vy = -Math.max(14, this.player.vy * 0.98);
                         this.player.y = trampTop - this.player.radius;
+                        this.player.rotation = 0; // Snap to upright on good bounce
                         
                         // Check for flips
                         const flips = Math.floor(Math.abs(this.player.rotation - this.lastRotation) / (Math.PI * 1.8));
                         if(flips > 0) {
-                            this.addScore(flips * 100);
+                            const pts = flips * 150 + Math.floor(landingQuality * 50);
+                            this.addScore(pts);
                             this.showTrick(flips === 1 ? "FLIP!" : (flips === 2 ? "DOUBLE FLIP!!" : "INSANE!!!"));
+                        } else {
+                            // Points for height alone
+                            this.addScore(Math.floor(this.maxHeightRecord / 2));
                         }
-                        this.lastRotation = this.player.rotation;
+                        this.lastRotation = 0;
                     } else {
                         // Crash
                         this.player.state = 'crashed';
+                        this.player.emoji = '😵';
                         this.endGame();
                     }
                 }
 
-                this.tramp.flex *= 0.8;
+                this.tramp.flex *= 0.85;
             }
 
             addScore(pts) {
@@ -299,7 +332,7 @@
                 setTimeout(() => {
                     const overlay = document.getElementById('overlay');
                     overlay.querySelector('h1').textContent = "CRASHED!";
-                    overlay.querySelector('p').textContent = `Final Score: ${this.score}`;
+                    overlay.querySelector('p').innerHTML = `Score: ${this.score}<br>Max Height: ${this.maxHeightRecord}m`;
                     overlay.querySelector('button').textContent = "TRY AGAIN";
                     overlay.style.display = 'flex';
                     this.playing = false;
@@ -310,7 +343,13 @@
                 const ctx = this.ctx;
                 ctx.clearRect(0, 0, this.width, this.height);
 
-                // Sky already handled by CSS
+                // Background Decorations
+                this.clouds.forEach(c => {
+                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                    ctx.beginPath();
+                    ctx.ellipse(c.x, c.y, c.w, c.w*0.4, 0, 0, Math.PI*2);
+                    ctx.fill();
+                });
 
                 // Ground
                 ctx.fillStyle = '#14532d';
@@ -320,17 +359,24 @@
                 ctx.save();
                 ctx.translate(this.width/2, this.tramp.y);
                 
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                ctx.beginPath();
+                ctx.ellipse(0, 60, this.tramp.width/2, 20, 0, 0, Math.PI*2);
+                ctx.fill();
+
                 // Legs
                 ctx.strokeStyle = '#334155';
-                ctx.lineWidth = 8;
-                ctx.strokeRect(-this.tramp.width/2, 0, this.tramp.width, 50);
+                ctx.lineWidth = 10;
+                ctx.lineCap = 'round';
+                ctx.strokeRect(-this.tramp.width/2, 0, this.tramp.width, 60);
                 
                 // Mat
                 ctx.beginPath();
                 ctx.moveTo(-this.tramp.width/2, 0);
                 ctx.quadraticCurveTo(0, this.tramp.flex * 2, this.tramp.width/2, 0);
-                ctx.strokeStyle = '#000';
-                ctx.lineWidth = 10;
+                ctx.strokeStyle = '#111';
+                ctx.lineWidth = 12;
                 ctx.stroke();
                 
                 ctx.restore();
@@ -346,56 +392,47 @@
                 ctx.translate(p.x, p.y);
                 ctx.rotate(p.rotation);
 
-                // Body parts based on tuck
-                const tuckOffset = p.tuck * 20;
-                
-                ctx.lineWidth = 6;
+                const tuck = p.tuck;
+                ctx.lineWidth = 8;
                 ctx.lineCap = 'round';
                 ctx.strokeStyle = p.state === 'crashed' ? '#ef4444' : '#fff';
 
-                // High-quality character construction
-                
+                // Motion Blur/Trails if rotating fast
+                if(tuck > 0.5) {
+                    ctx.globalAlpha = 0.3;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 50, 0, Math.PI*2);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+                }
+
                 // Legs
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
-                ctx.lineTo(-10, 30 - tuckOffset); // Left
+                ctx.lineTo(-12, 35 - tuck*25);
                 ctx.moveTo(0, 0);
-                ctx.lineTo(10, 30 - tuckOffset); // Right
+                ctx.lineTo(12, 35 - tuck*25);
                 ctx.stroke();
 
                 // Torso
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
-                ctx.lineTo(0, -40);
+                ctx.lineTo(0, -45);
                 ctx.stroke();
 
                 // Arms
                 ctx.beginPath();
-                ctx.moveTo(0, -30);
-                ctx.lineTo(-20, -10 - tuckOffset); // Left
-                ctx.moveTo(0, -30);
-                ctx.lineTo(20, -10 - tuckOffset); // Right
+                ctx.moveTo(0, -35);
+                ctx.lineTo(-25 + tuck*10, -15 - tuck*30);
+                ctx.moveTo(0, -35);
+                ctx.lineTo(25 - tuck*10, -15 - tuck*30);
                 ctx.stroke();
 
-                // Head
-                ctx.fillStyle = '#ffccaa';
-                ctx.beginPath();
-                ctx.arc(0, -55, 15, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-
-                // Eyes
-                ctx.fillStyle = '#000';
-                if(p.state === 'crashed') {
-                    ctx.font = '12px Arial';
-                    ctx.fillText('X', -8, -52);
-                    ctx.fillText('X', 2, -52);
-                } else {
-                    ctx.beginPath();
-                    ctx.arc(-5, -55, 2, 0, Math.PI * 2);
-                    ctx.arc(5, -55, 2, 0, Math.PI * 2);
-                    ctx.fill();
-                }
+                // Head/Face
+                ctx.font = '40px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(p.emoji, 0, -65);
 
                 ctx.restore();
             }
@@ -412,10 +449,13 @@
             document.getElementById('overlay').style.display = 'none';
             game.score = 0;
             document.getElementById('score-val').textContent = "0";
-            game.player.y = game.height - 300;
+            game.maxHeightRecord = 0;
+            document.getElementById('height-val').textContent = "0m";
+            game.player.y = game.height - 350;
             game.player.vy = 0;
             game.player.rotation = 0;
             game.player.state = 'jumping';
+            game.player.emoji = '😄';
             game.playing = true;
         }
     </script>
