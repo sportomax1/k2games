@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Helmet Shuffle - K2 games</title>
+    <style>
+        :root {
+            --bg: #111827;
+            --felt: #14532d;
+            --accent: #fbbf24;
+            --helmet: #eab308;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100dvh;
+            width: 100%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, #166534 0%, #064e3b 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 60vh;
+            object-fit: contain;
+        }
+
+        #hud {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 30px;
+            pointer-events: none;
+        }
+
+        .stat-card {
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+        }
+
+        .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--accent); }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; opacity: 0.7; }
+
+        .back-link {
+            position: absolute; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 200;
+            font-weight: bold; font-size: 0.8rem; pointer-events: auto;
+        }
+
+        #msg-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            font-weight: 900;
+            color: white;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            text-align: center;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        #msg-overlay.show { opacity: 1; }
+
+        .btn-large {
+            position: absolute; bottom: 100px;
+            background: var(--accent); color: black; border: none; padding: 15px 50px;
+            border-radius: 50px; font-weight: 900; cursor: pointer; font-size: 1.2rem;
+            box-shadow: 0 10px 25px rgba(251, 191, 36, 0.3);
+            transition: transform 0.1s;
+            display: none;
+        }
+        .btn-large:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <a href="index.html" class="back-link">← HUB</a>
+        
+        <div id="hud">
+            <div style="width: 50px;"></div> <!-- Spacer -->
+            <div class="stat-card">
+                <div class="stat-label">Score</div>
+                <div id="score-val" class="stat-val">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Level</div>
+                <div id="level-val" class="stat-val">1</div>
+            </div>
+        </div>
+
+        <div id="msg-overlay">WATCH THE BALL!</div>
+        <canvas id="gameCanvas"></canvas>
+        <button id="start-btn" class="btn-large" onclick="game.startRound()">START SHUFFLE</button>
+    </div>
+
+    <script>
+        class HelmetShuffle {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize();
+
+                this.score = 0;
+                this.level = 1;
+                this.state = 'idle'; // idle, showing, shuffling, picking, reveal
+                this.helmets = [];
+                this.ballIdx = 1;
+                this.shuffleCount = 0;
+                this.shuffleSpeed = 0;
+                this.pick = -1;
+
+                this.initHelmets();
+                this.setupInput();
+                this.loop();
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight * 0.6;
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                this.centerY = this.height / 2;
+                this.initHelmets(); // Re-center
+            }
+
+            initHelmets() {
+                const spacing = Math.min(200, this.width / 3.5);
+                this.helmets = [
+                    { x: this.width/2 - spacing, y: this.centerY, yOff: 0, targetX: this.width/2 - spacing },
+                    { x: this.width/2, y: this.centerY, yOff: 0, targetX: this.width/2 },
+                    { x: this.width/2 + spacing, y: this.centerY, yOff: 0, targetX: this.width/2 + spacing }
+                ];
+            }
+
+            setupInput() {
+                const handleTap = (e) => {
+                    if (this.state !== 'picking') return;
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+                    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+
+                    this.helmets.forEach((h, i) => {
+                        if (Math.hypot(x - h.x, y - h.y) < 60) this.makePick(i);
+                    });
+                };
+                this.canvas.addEventListener('mousedown', handleTap);
+                this.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleTap(e); }, {passive: false});
+            }
+
+            startRound() {
+                document.getElementById('start-btn').style.display = 'none';
+                this.showMsg("");
+                this.state = 'showing';
+                this.ballIdx = Math.floor(Math.random() * 3);
+                
+                // Lift reveal
+                let t = 0;
+                const reveal = setInterval(() => {
+                    t += 0.1;
+                    this.helmets[this.ballIdx].yOff = -Math.sin(t) * 80;
+                    if (t >= Math.PI) {
+                        clearInterval(reveal);
+                        this.helmets[this.ballIdx].yOff = 0;
+                        setTimeout(() => this.startShuffle(), 500);
+                    }
+                }, 16);
+            }
+
+            startShuffle() {
+                this.state = 'shuffling';
+                this.shuffleCount = 5 + this.level * 2;
+                this.shuffleSpeed = Math.min(25, 5 + this.level * 2);
+                this.doSwap();
+            }
+
+            doSwap() {
+                if (this.shuffleCount <= 0) {
+                    this.state = 'picking';
+                    this.showMsg("WHERE IS IT?");
+                    return;
+                }
+
+                // Pick two random indices
+                let a = Math.floor(Math.random() * 3);
+                let b = (a + Math.floor(Math.random() * 2) + 1) % 3;
+
+                const h1 = this.helmets[a];
+                const h2 = this.helmets[b];
+                const startX1 = h1.x;
+                const startX2 = h2.x;
+
+                let progress = 0;
+                const swapAnim = () => {
+                    progress += this.shuffleSpeed / 100;
+                    if (progress >= 1) progress = 1;
+                    
+                    // Arc movement
+                    const ease = 1 - Math.pow(1 - progress, 3); // Cubic ease out
+                    const arcY = Math.sin(progress * Math.PI) * 40;
+
+                    h1.x = startX1 + (startX2 - startX1) * ease;
+                    h1.y = this.centerY + arcY * (a % 2 === 0 ? 1 : -1); // One goes up, one down
+                    
+                    h2.x = startX2 + (startX1 - startX2) * ease;
+                    h2.y = this.centerY + arcY * (b % 2 === 0 ? 1 : -1);
+
+                    if (progress < 1) {
+                        requestAnimationFrame(swapAnim);
+                    } else {
+                        // Swap array positions logically
+                        // Actually we just swapped visuals, now we need to track indices?
+                        // Easiest is just swapping object properties in the array? No, references are better.
+                        // Let's just update their 'target' logic or rely on visual position?
+                        // Let's just swap the objects in the array to keep indices simple for logic
+                        // But wait, our array order determines draw order? Not critical.
+                        // Actually, 'ballIdx' is the index of the helmet with the ball.
+                        // If we swap indices a and b in the array, we must update ballIdx if it was a or b.
+                        
+                        const temp = this.helmets[a];
+                        this.helmets[a] = this.helmets[b];
+                        this.helmets[b] = temp;
+
+                        // Correct ball index tracking
+                        if (this.ballIdx === a) this.ballIdx = b;
+                        else if (this.ballIdx === b) this.ballIdx = a;
+
+                        // Reset Y
+                        h1.y = this.centerY;
+                        h2.y = this.centerY;
+                        
+                        this.shuffleCount--;
+                        this.doSwap();
+                    }
+                };
+                swapAnim();
+            }
+
+            makePick(idx) {
+                this.state = 'reveal';
+                this.pick = idx;
+                
+                // Lift picked helmet
+                let t = 0;
+                const anim = setInterval(() => {
+                    t += 0.1;
+                    this.helmets[idx].yOff = -Math.min(80, t * 100);
+                    if (t > 1) {
+                        clearInterval(anim);
+                        this.checkWin(idx);
+                    }
+                }, 16);
+            }
+
+            checkWin(idx) {
+                if (idx === this.ballIdx) {
+                    this.score += 100 * this.level;
+                    this.level++;
+                    this.showMsg("CORRECT! +PTS");
+                    document.getElementById('score-val').textContent = this.score;
+                    document.getElementById('level-val').textContent = this.level;
+                } else {
+                    this.showMsg("WRONG!");
+                    this.score = 0;
+                    this.level = 1;
+                    document.getElementById('score-val').textContent = this.score;
+                    document.getElementById('level-val').textContent = this.level;
+                    // Reveal actual ball
+                    this.helmets[this.ballIdx].yOff = -80;
+                }
+
+                setTimeout(() => {
+                    this.helmets.forEach(h => h.yOff = 0);
+                    document.getElementById('start-btn').style.display = 'block';
+                    document.getElementById('start-btn').textContent = this.level > 1 ? "NEXT LEVEL" : "PLAY AGAIN";
+                    this.state = 'idle';
+                }, 2000);
+            }
+
+            showMsg(text) {
+                const el = document.getElementById('msg-overlay');
+                el.textContent = text;
+                if(text) el.classList.add('show');
+                else el.classList.remove('show');
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Ball (Draw first so it's under)
+                if (this.state === 'showing' || this.state === 'reveal') {
+                    const h = this.helmets[this.ballIdx];
+                    ctx.fillStyle = '#78350f'; // Football brown
+                    ctx.beginPath();
+                    // Draw football shape
+                    ctx.ellipse(h.x, this.centerY + 20, 25, 15, 0, 0, Math.PI*2);
+                    ctx.fill();
+                    // Laces
+                    ctx.strokeStyle = 'white'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(h.x-10, this.centerY+20); ctx.lineTo(h.x+10, this.centerY+20); ctx.stroke();
+                    for(let i=-1; i<=1; i++) {
+                        ctx.beginPath(); ctx.moveTo(h.x + i*5, this.centerY+15); ctx.lineTo(h.x + i*5, this.centerY+25); ctx.stroke();
+                    }
+                }
+
+                // Helmets
+                this.helmets.forEach(h => {
+                    const y = h.y + h.yOff;
+                    ctx.save();
+                    ctx.translate(h.x, y);
+                    
+                    // Shadow
+                    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                    ctx.beginPath(); ctx.ellipse(0, 45 - h.yOff*1.2, 50, 15, 0, 0, Math.PI*2); ctx.fill();
+
+                    // Helmet Shell
+                    ctx.fillStyle = '#eab308'; // Gold
+                    ctx.beginPath(); ctx.arc(0, 0, 45, Math.PI, 0); ctx.fill();
+                    ctx.fillRect(-45, 0, 90, 40); // Sides
+                    
+                    // Stripe
+                    ctx.fillStyle = '#000'; ctx.fillRect(-10, -45, 20, 85);
+
+                    // Face mask (Simple)
+                    ctx.strokeStyle = '#333'; ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.moveTo(-40, 20); ctx.lineTo(40, 20); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-30, 20); ctx.lineTo(-30, 40); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30, 20); ctx.lineTo(30, 40); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-35, 40); ctx.lineTo(35, 40); ctx.stroke();
+
+                    ctx.restore();
+                });
+            }
+
+            loop() {
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        window.game = new HelmetShuffle();
+        document.getElementById('start-btn').style.display = 'block';
+    </script>
+</body>
+</html>
