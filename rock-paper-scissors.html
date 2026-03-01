@@ -1,128 +1,397 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rock Paper Scissors</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RPS Battle Royale - K2 games</title>
     <style>
-        body { margin: 0; background: #2c3e50; font-family: sans-serif; overflow: hidden; color: white; }
-        .ui { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 15px; backdrop-filter: blur(10px); }
-        .emoji-cnt { text-align: center; font-size: 1.2rem; }
-        .controls { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
-        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; background: #3498db; color: white; }
-        .item { position: absolute; font-size: 30px; user-select: none; transition: transform 0.1s; }
-        .back { position: absolute; bottom: 20px; left: 20px; color: #3498db; text-decoration: none; }
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --accent: #3b82f6;
+            --rock: #ef4444;
+            --paper: #10b981;
+            --sci: #fbbf24;
+            --text: #f8fafc;
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            height: 100dvh;
+            width: 100%;
+            overflow: hidden;
+            position: fixed;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #battleground {
+            position: relative;
+            flex: 1;
+            width: 100%;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            overflow: hidden;
+        }
+
+        /* Top HUD */
+        .hud-top {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .timer-box {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 10px 25px;
+            border-radius: 50px;
+            border: 1px solid rgba(255,255,255,0.1);
+            font-family: monospace;
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: var(--accent);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .stats-row {
+            display: flex;
+            gap: 15px;
+            pointer-events: auto;
+        }
+
+        .stat-pill {
+            background: var(--surface);
+            padding: 8px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 80px;
+            justify-content: center;
+        }
+        .stat-pill.rock { border-bottom: 3px solid var(--rock); }
+        .stat-pill.paper { border-bottom: 3px solid var(--paper); }
+        .stat-pill.sci { border-bottom: 3px solid var(--sci); }
+
+        /* Items */
+        .entity {
+            position: absolute;
+            font-size: 28px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s linear;
+            will-change: transform;
+        }
+
+        /* Modals */
+        .modal {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: var(--surface);
+            padding: 2.5rem;
+            border-radius: 30px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        }
+
+        /* History Side Panel */
+        #history-panel {
+            position: absolute;
+            top: 100px;
+            right: 20px;
+            width: 200px;
+            max-height: 300px;
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(5px);
+            border-radius: 20px;
+            padding: 15px;
+            border: 1px solid rgba(255,255,255,0.1);
+            overflow-y: auto;
+            display: none;
+            z-index: 50;
+        }
+
+        @media (min-width: 1024px) { #history-panel { display: block; } }
+
+        .history-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; opacity: 0.6; margin-bottom: 10px; font-weight: 900; }
+        .history-item { 
+            font-size: 0.85rem; 
+            padding: 6px 0; 
+            border-bottom: 1px solid rgba(255,255,255,0.05); 
+            display: flex; 
+            justify-content: space-between;
+            font-weight: 600;
+        }
+
+        /* Controls */
+        .bottom-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            z-index: 100;
+        }
+
+        .btn-circle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: white;
+            border: none;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 0 8px 15px rgba(59, 130, 246, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+        .btn-circle:active { transform: scale(0.9); }
+
+        .back-hub { position: absolute; bottom: 20px; left: 20px; color: #64748b; text-decoration: none; font-size: 0.8rem; font-weight: bold; z-index: 100; }
+
+        .winner-msg { font-size: 3rem; font-weight: 900; margin-bottom: 10px; text-transform: uppercase; font-style: italic; }
     </style>
 </head>
 <body>
-    <div class="ui">
-        <div class="emoji-cnt">🪨 <span id="rockCnt">0</span></div>
-        <div class="emoji-cnt">📄 <span id="paperCnt">0</span></div>
-        <div class="emoji-cnt">✂️ <span id="sciCnt">0</span></div>
+    <div id="battleground">
+        <div class="hud-top">
+            <div class="timer-box" id="timer">00:00</div>
+            <div class="stats-row">
+                <div class="stat-pill rock">🪨 <span id="rockCnt">0</span></div>
+                <div class="stat-pill paper">📄 <span id="paperCnt">0</span></div>
+                <div class="stat-pill sci">✂️ <span id="sciCnt">0</span></div>
+            </div>
+        </div>
+
+        <div id="history-panel">
+            <div class="history-title">Recent Wars</div>
+            <div id="history-list"></div>
+        </div>
+
+        <div id="arena"></div>
+
+        <div class="bottom-controls">
+            <button class="btn-circle" onclick="game.start()" title="Restart">🔄</button>
+            <button class="btn-circle" onclick="game.togglePause()" id="pause-btn">⏸</button>
+            <button class="btn-circle" onclick="toggleHistoryMobile()" title="History">📜</button>
+        </div>
+
+        <a href="index.html" class="back-hub">← HUB</a>
+
+        <!-- Result Modal -->
+        <div id="result-modal" class="modal" style="display:none">
+            <div class="modal-content">
+                <div class="winner-msg" id="winner-text">ROCK WINS!</div>
+                <p style="opacity: 0.6; margin-bottom: 2rem;">Simulation complete. The stronger emoji prevailed.</p>
+                <button style="width:100%; padding: 1.2rem; border-radius: 50px; background: var(--accent); color: white; border: none; font-weight: 900; font-size: 1.1rem; cursor: pointer;" onclick="game.start()">BATTLE AGAIN</button>
+            </div>
+        </div>
     </div>
-
-    <div id="arena"></div>
-
-    <div class="controls">
-        <button class="btn" onclick="game.start()">Restart</button>
-        <button class="btn" onclick="game.pause()">Pause</button>
-    </div>
-
-    <a href="index.html" class="back">← HUB</a>
 
     <script>
-        class RPSGame {
+        function toggleHistoryMobile() {
+            const panel = document.getElementById('history-panel');
+            panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+        }
+
+        class RPSBattle {
             constructor() {
                 this.arena = document.getElementById('arena');
-                this.items = [];
+                this.entities = [];
                 this.running = false;
+                this.startTime = 0;
+                this.elapsed = 0;
+                this.lastWinner = null;
+                
                 this.width = window.innerWidth;
                 this.height = window.innerHeight;
+                
                 this.types = ['rock', 'paper', 'sci'];
                 this.emojis = { rock: '🪨', paper: '📄', sci: '✂️' };
                 this.wins = { rock: 'sci', paper: 'rock', sci: 'paper' };
                 
+                window.addEventListener('resize', () => {
+                    this.width = window.innerWidth;
+                    this.height = window.innerHeight;
+                });
+
+                this.loadHistory();
                 this.start();
                 this.loop();
             }
 
             start() {
-                this.items = [];
+                this.entities = [];
                 this.arena.innerHTML = '';
-                const count = 20;
-                
-                for(let i=0; i<count; i++) this.spawn('rock', 100, 100 + i*5);
-                for(let i=0; i<count; i++) this.spawn('paper', this.width-100, 100 + i*5);
-                for(let i=0; i<count; i++) this.spawn('sci', this.width/2, this.height-150 + i*5);
-                
+                this.startTime = Date.now();
+                this.elapsed = 0;
                 this.running = true;
+                this.lastWinner = null;
+                document.getElementById('result-modal').style.display = 'none';
+                document.getElementById('pause-btn').textContent = '⏸';
+
+                const count = 25; // entities per type
+                
+                // Spawn in corners
+                for(let i=0; i<count; i++) this.spawn('rock', 50 + Math.random()*100, 150 + Math.random()*100);
+                for(let i=0; i<count; i++) this.spawn('paper', this.width-150 + Math.random()*100, 150 + Math.random()*100);
+                for(let i=0; i<count; i++) this.spawn('sci', this.width/2-50 + Math.random()*100, this.height-200 + Math.random()*100);
             }
 
             spawn(type, x, y) {
                 const el = document.createElement('div');
-                el.className = 'item';
+                el.className = 'entity';
                 el.textContent = this.emojis[type];
                 this.arena.appendChild(el);
                 
                 const angle = Math.random() * Math.PI * 2;
-                this.items.push({
+                this.entities.push({
                     el, type, x, y,
-                    vx: Math.cos(angle) * 3,
-                    vy: Math.sin(angle) * 3
+                    vx: Math.cos(angle) * 2.5,
+                    vy: Math.sin(angle) * 2.5
                 });
             }
 
-            pause() { this.running = !this.running; }
+            togglePause() {
+                this.running = !this.running;
+                document.getElementById('pause-btn').textContent = this.running ? '⏸' : '▶';
+            }
 
             update() {
                 if (!this.running) return;
 
+                this.elapsed = Date.now() - this.startTime;
+                this.updateTimer();
+
                 const counts = { rock: 0, paper: 0, sci: 0 };
 
-                this.items.forEach(a => {
+                for (let i = 0; i < this.entities.length; i++) {
+                    const a = this.entities[i];
                     counts[a.type]++;
                     
-                    // Move
                     a.x += a.vx; a.y += a.vy;
 
                     // Bounce Walls
                     if(a.x < 0 || a.x > this.width-40) a.vx *= -1;
                     if(a.y < 0 || a.y > this.height-40) a.vy *= -1;
                     
-                    // Clamp
                     a.x = Math.max(0, Math.min(a.x, this.width-40));
                     a.y = Math.max(0, Math.min(a.y, this.height-40));
 
-                    a.el.style.transform = `translate(${a.x}px, ${a.y}px)`;
+                    a.el.style.transform = `translate3d(${a.x}px, ${a.y}px, 0)`;
 
-                    // Collision
-                    this.items.forEach(b => {
-                        if (a === b) return;
+                    // Optimized collision check
+                    for (let j = i + 1; j < this.entities.length; j++) {
+                        const b = this.entities[j];
+                        if (a.type === b.type) continue;
+
                         const dx = a.x - b.x;
                         const dy = a.y - b.y;
-                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        const distSq = dx*dx + dy*dy;
 
-                        if (dist < 30) {
-                            // Bounce off each other slightly
-                            /* 
-                            const angle = Math.atan2(dy, dx);
-                            a.vx = Math.cos(angle) * 3;
-                            a.vy = Math.sin(angle) * 3;
-                            */
-
-                            // Game Logic
+                        if (distSq < 900) { // 30px dist
                             if (this.wins[a.type] === b.type) {
-                                b.type = a.type;
-                                b.el.textContent = this.emojis[a.type];
-                                b.el.style.transform += ' scale(1.2)';
-                                setTimeout(() => b.el.style.transform = b.el.style.transform.replace(' scale(1.2)', ''), 200);
+                                this.convert(b, a.type);
+                            } else {
+                                this.convert(a, b.type);
                             }
                         }
-                    });
-                });
+                    }
+                }
 
                 document.getElementById('rockCnt').textContent = counts.rock;
                 document.getElementById('paperCnt').textContent = counts.paper;
                 document.getElementById('sciCnt').textContent = counts.sci;
+
+                // Check for single winner
+                const activeTypes = Object.entries(counts).filter(([t, c]) => c > 0);
+                if (activeTypes.length === 1 && !this.lastWinner) {
+                    this.endGame(activeTypes[0][0]);
+                }
+            }
+
+            convert(entity, newType) {
+                entity.type = newType;
+                entity.el.textContent = this.emojis[newType];
+                // Pop effect
+                entity.el.style.transform += ' scale(1.5)';
+                setTimeout(() => {
+                    if (entity.el) entity.el.style.transform = entity.el.style.transform.replace(' scale(1.5)', '');
+                }, 150);
+            }
+
+            updateTimer() {
+                const totalSecs = Math.floor(this.elapsed / 1000);
+                const m = Math.floor(totalSecs / 60).toString().padStart(2, '0');
+                const s = (totalSecs % 60).toString().padStart(2, '0');
+                document.getElementById('timer').textContent = `${m}:${s}`;
+            }
+
+            endGame(winnerType) {
+                this.running = false;
+                this.lastWinner = winnerType;
+                
+                const timeStr = document.getElementById('timer').textContent;
+                const winText = winnerType.toUpperCase() + " WINS!";
+                
+                document.getElementById('winner-text').textContent = winText;
+                document.getElementById('winner-text').style.color = `var(--${winnerType})`;
+                document.getElementById('result-modal').style.display = 'flex';
+
+                this.saveToHistory(winnerType, timeStr);
+            }
+
+            saveToHistory(type, time) {
+                const history = JSON.parse(localStorage.getItem('rps_history') || '[]');
+                history.unshift({ type, time, date: new Date().toLocaleDateString() });
+                if (history.length > 10) history.pop();
+                localStorage.setItem('rps_history', JSON.stringify(history));
+                this.loadHistory();
+            }
+
+            loadHistory() {
+                const history = JSON.parse(localStorage.getItem('rps_history') || '[]');
+                const list = document.getElementById('history-list');
+                list.innerHTML = history.map(h => `
+                    <div class="history-item">
+                        <span>${this.emojis[h.type]} Winner</span>
+                        <span style="opacity:0.5">${h.time}</span>
+                    </div>
+                `).join('');
             }
 
             loop() {
@@ -131,7 +400,7 @@
             }
         }
 
-        const game = new RPSGame();
+        const game = new RPSBattle();
 
         // Gamepad Adapter
         (function() {
@@ -142,7 +411,7 @@
                     const p = pads[0]; const now = Date.now();
                     if (now - lastP > 500) {
                         if (p.buttons[0].pressed) game.start();
-                        if (p.buttons[9].pressed || p.buttons[1].pressed) game.pause();
+                        if (p.buttons[9].pressed || p.buttons[1].pressed) game.togglePause();
                         lastP = now;
                     }
                 }

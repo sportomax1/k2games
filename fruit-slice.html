@@ -4,14 +4,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fruit Slice</title>
     <style>
-        body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; touch-action: none; }
+        body { 
+            margin: 0; 
+            background: radial-gradient(circle at center, #2c3e50, #1a1a1a); 
+            color: white; 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            overflow: hidden; 
+            touch-action: none; 
+        }
         canvas { display: block; }
-        .ui { position: absolute; top: 20px; left: 20px; font-size: 2rem; pointer-events: none; text-shadow: 2px 2px 4px black; }
-        .back { position: absolute; bottom: 20px; left: 20px; color: #ff4757; text-decoration: none; font-weight: bold; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 8px; }
+        .ui { position: absolute; top: 30px; left: 30px; font-size: 2.5rem; font-weight: 900; pointer-events: none; text-shadow: 0 4px 8px rgba(0,0,0,0.5); font-variant-numeric: tabular-nums; }
+        .back { position: absolute; bottom: 30px; left: 30px; color: #fff; text-decoration: none; font-weight: 800; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 12px 24px; border-radius: 12px; backdrop-filter: blur(5px); transition: all 0.3s; }
+        .back:hover { background: rgba(255,255,255,0.2); transform: translateY(-2px); }
     </style>
 </head>
 <body>
-    <div class="ui">Score: <span id="score">0</span></div>
+    <div class="ui">SCORE: <span id="score">0</span></div>
     <canvas id="game"></canvas>
     <a href="index.html" class="back">← HUB</a>
 
@@ -33,16 +41,35 @@
             { emoji: '🍎', color: '#ff6b81' },
             { emoji: '🥝', color: '#2ecc71' },
             { emoji: '🍍', color: '#f1c40f' },
+            { emoji: '🍐', color: '#badc58' },
             { emoji: '💣', type: 'bomb' }
         ];
 
         function spawnFruit() {
             const type = FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
+            const side = Math.floor(Math.random() * 3); // 0: Bottom, 1: Left, 2: Right
+            
+            let x, y, vx, vy;
+            
+            if (side === 0) { // Bottom launcher
+                x = Math.random() * (canvas.width * 0.6) + (canvas.width * 0.2);
+                y = canvas.height + 50;
+                vx = (Math.random() - 0.5) * 8;
+                vy = -(Math.random() * 6 + 14);
+            } else if (side === 1) { // Left launcher
+                x = -50;
+                y = Math.random() * (canvas.height * 0.4) + (canvas.height * 0.4);
+                vx = Math.random() * 10 + 10;
+                vy = -(Math.random() * 10 + 5);
+            } else { // Right launcher
+                x = canvas.width + 50;
+                y = Math.random() * (canvas.height * 0.4) + (canvas.height * 0.4);
+                vx = -(Math.random() * 10 + 10);
+                vy = -(Math.random() * 10 + 5);
+            }
+
             fruits.push({
-                x: Math.random() * (canvas.width - 100) + 50,
-                y: canvas.height + 50,
-                vx: (Math.random() - 0.5) * 4,
-                vy: -(Math.random() * 5 + 12),
+                x, y, vx, vy,
                 type: type,
                 sliced: false,
                 rot: 0,
@@ -51,12 +78,12 @@
         }
 
         function createParticles(x, y, color) {
-            for (let i = 0; i < 8; i++) {
+            for (let i = 0; i < 12; i++) {
                 particles.push({
                     x, y,
-                    vx: (Math.random() - 0.5) * 10,
-                    vy: (Math.random() - 0.5) * 10,
-                    size: Math.random() * 5 + 2,
+                    vx: (Math.random() - 0.5) * 15,
+                    vy: (Math.random() - 0.5) * 15,
+                    size: Math.random() * 8 + 2,
                     color,
                     life: 1
                 });
@@ -71,34 +98,41 @@
             if (pads[0]) {
                 gpCursor.active = true;
                 const p = pads[0];
-                gpCursor.x += p.axes[0] * 15;
-                gpCursor.y += p.axes[1] * 15;
+                gpCursor.x += p.axes[0] * 20;
+                gpCursor.y += p.axes[1] * 20;
                 gpCursor.x = Math.max(0, Math.min(canvas.width, gpCursor.x));
                 gpCursor.y = Math.max(0, Math.min(canvas.height, gpCursor.y));
                 
-                isMouseDown = p.buttons[0].pressed || p.buttons[7].pressed;
+                isMouseDown = p.buttons[0].pressed || p.buttons[7].pressed || p.buttons[6].pressed;
                 if (isMouseDown) slash.push({ x: gpCursor.x, y: gpCursor.y });
             }
 
-            if (Math.random() < 0.02) spawnFruit();
+            if (Math.random() < 0.03) spawnFruit();
 
             fruits.forEach((f, i) => {
                 f.x += f.vx;
                 f.y += f.vy;
-                f.vy += 0.2; // Gravity
+                f.vy += 0.25; // Gravity
                 f.rot += f.vrot;
 
-                if (f.y > canvas.height + 100) fruits.splice(i, 1);
+                if (f.y > canvas.height + 150 || f.x < -150 || f.x > canvas.width + 150) {
+                    fruits.splice(i, 1);
+                }
 
                 // Slice check
                 if (!f.sliced && isMouseDown && slash.length > 1) {
                     for (let j = 0; j < slash.length; j++) {
                         let dist = Math.hypot(f.x - slash[j].x, f.y - slash[j].y);
-                        if (dist < 40) {
+                        if (dist < 50) {
                             f.sliced = true;
                             if (f.type.type === 'bomb') {
-                                alert("KABOOM! Game Over. Score: " + score);
-                                location.reload();
+                                // Bomb effect
+                                createParticles(f.x, f.y, '#ffffff');
+                                createParticles(f.x, f.y, '#ff0000');
+                                setTimeout(() => {
+                                    alert("KABOOM! Game Over. Score: " + score);
+                                    location.reload();
+                                }, 100);
                             } else {
                                 score += 10;
                                 document.getElementById('score').textContent = score;
@@ -112,11 +146,12 @@
 
             particles.forEach((p, i) => {
                 p.x += p.vx; p.y += p.vy;
+                p.vy += 0.1; // Particle gravity
                 p.life -= 0.02;
                 if (p.life <= 0) particles.splice(i, 1);
             });
 
-            if (slash.length > 10) slash.shift();
+            if (slash.length > 12) slash.shift();
             else if (slash.length > 0 && !isMouseDown) slash.shift();
         }
 
@@ -125,19 +160,24 @@
 
             // Draw slash
             if (slash.length > 1) {
-                ctx.strokeStyle = "white";
-                ctx.lineWidth = 5;
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+                ctx.lineWidth = 8;
                 ctx.lineCap = "round";
+                ctx.lineJoin = "round";
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = "rgba(255, 255, 255, 0.5)";
                 ctx.beginPath();
                 ctx.moveTo(slash[0].x, slash[0].y);
                 for (let i = 1; i < slash.length; i++) ctx.lineTo(slash[i].x, slash[i].y);
                 ctx.stroke();
+                ctx.shadowBlur = 0;
             }
 
             // Draw gamepad cursor
             if (gpCursor.active) {
-                ctx.strokeStyle = "white"; ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.arc(gpCursor.x, gpCursor.y, 10, 0, Math.PI*2); ctx.stroke();
+                ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(gpCursor.x, gpCursor.y, 12, 0, Math.PI*2); ctx.stroke();
+                ctx.fillStyle = "rgba(255,255,255,0.2)"; ctx.fill();
             }
 
             // Draw fruits
@@ -146,9 +186,11 @@
                 ctx.save();
                 ctx.translate(f.x, f.y);
                 ctx.rotate(f.rot);
-                ctx.font = "50px Arial";
+                ctx.font = "60px Arial";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = "rgba(0,0,0,0.3)";
                 ctx.fillText(f.type.emoji, 0, 0);
                 ctx.restore();
             });

@@ -25,6 +25,38 @@
         .btn-large { background: var(--accent); color: white; border: none; padding: 1rem 3rem; border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem; font-size: 1.2rem; box-shadow: 0 10px 25px rgba(168, 85, 247, 0.4); }
         
         .controls-hint { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); font-size: 0.8rem; color: #64748b; font-weight: bold; }
+
+        /* Joystick Styles */
+        #joystick-container {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: none;
+            touch-action: none;
+            z-index: 1000;
+        }
+        #joystick-stick {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background: var(--accent);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
+            pointer-events: none;
+        }
+
+        @media (max-width: 768px) {
+            #joystick-container { display: block; }
+            .controls-hint { display: none; }
+        }
     </style>
 </head>
 <body>
@@ -42,13 +74,17 @@
 
         <canvas id="gameCanvas"></canvas>
 
+        <div id="joystick-container">
+            <div id="joystick-stick"></div>
+        </div>
+
         <div id="overlay">
             <h1>GALAXY GLIDER</h1>
             <p style="opacity: 0.6; max-width: 400px;">Glide through the cosmic rings. Use momentum and physics to navigate the void.</p>
             <button class="btn-large" id="start-btn">ENGAGE ENGINES</button>
         </div>
 
-        <div class="controls-hint">STAY INSIDE THE RINGS • MOUSE/TOUCH/GAMEPAD</div>
+        <div class="controls-hint">ARROWS / WASD • MOUSE • TOUCH JOYSTICK</div>
     </div>
 
     <script type="importmap">
@@ -62,50 +98,110 @@
             constructor() {
                 this.scene = new THREE.Scene();
                 this.scene.background = new THREE.Color(0x020617);
-                this.scene.fog = new THREE.FogExp2(0x020617, 0.002);
+                this.scene.fog = new THREE.FogExp2(0x020617, 0.0015);
 
-                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 3000);
                 this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
-                this.renderer.setPixelRatio(window.devicePixelRatio);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
                 this.glider = null;
                 this.rings = [];
-                this.stars = [];
+                this.boosts = [];
+                this.enemies = [];
+                this.particles = [];
+                this.warpLines = [];
                 this.score = 0;
-                this.speed = 0.5;
+                this.speed = 0.8;
+                this.boostTimer = 0;
                 this.playing = false;
                 this.input = { x: 0, y: 0 };
+                this.keys = { up: false, down: false, left: false, right: false };
+                this.joystickActive = false;
 
                 this.init();
             }
 
             init() {
                 // Lights
-                const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+                const ambient = new THREE.AmbientLight(0xffffff, 0.2);
                 this.scene.add(ambient);
-                const point = new THREE.PointLight(0xa855f7, 2, 1000);
-                point.position.set(0, 100, 100);
-                this.scene.add(point);
+                
+                const mainLight = new THREE.DirectionalLight(0xa855f7, 2);
+                mainLight.position.set(0, 10, 10);
+                this.scene.add(mainLight);
 
-                // Glider (Paper Plane style)
-                const shape = new THREE.ConeGeometry(1, 4, 3);
-                const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true });
-                this.glider = new THREE.Mesh(shape, mat);
-                this.glider.rotation.x = Math.PI / 2;
+                const rimLight = new THREE.PointLight(0x00f2ff, 1, 100);
+                this.scene.add(rimLight);
+                this.rimLight = rimLight;
+
+                // Enhanced Glider Model
+                this.glider = new THREE.Group();
+                
+                // Body
+                const bodyGeo = new THREE.ConeGeometry(0.8, 4, 4);
+                const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.8, roughness: 0.2 });
+                const body = new THREE.Mesh(bodyGeo, bodyMat);
+                body.rotation.x = Math.PI / 2;
+                this.glider.add(body);
+
+                // Wings
+                const wingGeo = new THREE.BoxGeometry(4, 0.1, 1.5);
+                const wingMat = new THREE.MeshStandardMaterial({ color: 0xa855f7, metalness: 0.9, roughness: 0.1 });
+                const wings = new THREE.Mesh(wingGeo, wingMat);
+                wings.position.set(0, 0, 0.5);
+                this.glider.add(wings);
+
+                // Cockpit
+                const cockGeo = new THREE.SphereGeometry(0.4, 16, 16);
+                const cockMat = new THREE.MeshPhongMaterial({ color: 0x00f2ff, emissive: 0x00f2ff, emissiveIntensity: 0.5 });
+                const cockpit = new THREE.Mesh(cockGeo, cockMat);
+                cockpit.position.set(0, 0.3, 0.5);
+                cockpit.scale.set(1, 1, 2);
+                this.glider.add(cockpit);
+
+                // Engines
+                const engineGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.5, 16);
+                const engineMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+                const eLeft = new THREE.Mesh(engineGeo, engineMat);
+                const eRight = eLeft.clone();
+                eLeft.position.set(-0.8, 0, 1.8);
+                eRight.position.set(0.8, 0, 1.8);
+                eLeft.rotation.x = eRight.rotation.x = Math.PI / 2;
+                this.glider.add(eLeft);
+                this.glider.add(eRight);
+
                 this.scene.add(this.glider);
 
-                // Stars
+                // Starfield
+                const starCount = 3000;
                 const starGeo = new THREE.BufferGeometry();
                 const starPos = [];
-                for(let i=0; i<5000; i++) {
+                const starCols = [];
+                const colorChoices = [0xffffff, 0xa855f7, 0x00f2ff, 0xffd700];
+                
+                for(let i=0; i<starCount; i++) {
                     starPos.push((Math.random()-0.5)*2000, (Math.random()-0.5)*2000, (Math.random()-0.5)*2000);
+                    const c = new THREE.Color(colorChoices[Math.floor(Math.random()*colorChoices.length)]);
+                    starCols.push(c.r, c.g, c.b);
                 }
                 starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
-                const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1 });
+                starGeo.setAttribute('color', new THREE.Float32BufferAttribute(starCols, 3));
+                const starMat = new THREE.PointsMaterial({ size: 1.5, vertexColors: true, transparent: true, opacity: 0.8 });
                 this.scene.add(new THREE.Points(starGeo, starMat));
 
+                // Warp Lines
+                for(let i=0; i<100; i++) {
+                    const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,20)]);
+                    const lineMat = new THREE.LineBasicMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.2 });
+                    const line = new THREE.Line(lineGeo, lineMat);
+                    line.position.set((Math.random()-0.5)*400, (Math.random()-0.5)*400, Math.random()*-2000);
+                    this.scene.add(line);
+                    this.warpLines.push(line);
+                }
+
                 this.createRings();
+                this.createInitialHazards();
                 this.setupControls();
                 
                 window.addEventListener('resize', () => {
@@ -123,38 +219,187 @@
             }
 
             createRings() {
-                for(let i=0; i<20; i++) {
-                    this.spawnRing(i * -100 - 200);
+                for(let i=0; i<25; i++) {
+                    this.spawnRing(i * -150 - 300);
+                }
+            }
+
+            createInitialHazards() {
+                for(let i=0; i<15; i++) {
+                    this.spawnEnemy(i * -250 - 500);
+                    if(i % 3 === 0) this.spawnBoost(i * -400 - 600);
                 }
             }
 
             spawnRing(z) {
-                const geo = new THREE.TorusGeometry(15, 0.5, 16, 100);
-                const mat = new THREE.MeshBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.6 });
+                const group = new THREE.Group();
+                
+                // Main Ring
+                const geo = new THREE.TorusGeometry(18, 0.4, 16, 100);
+                const mat = new THREE.MeshStandardMaterial({ 
+                    color: 0xa855f7, 
+                    emissive: 0xa855f7, 
+                    emissiveIntensity: 1.5,
+                    transparent: true, 
+                    opacity: 0.7 
+                });
                 const ring = new THREE.Mesh(geo, mat);
-                ring.position.set((Math.random()-0.5)*100, (Math.random()-0.5)*100, z);
-                this.scene.add(ring);
-                this.rings.push(ring);
+                group.add(ring);
+
+                // Inner Glow Ring
+                const innerGeo = new THREE.TorusGeometry(18, 0.1, 8, 50);
+                const innerMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+                const innerRing = new THREE.Mesh(innerGeo, innerMat);
+                group.add(innerRing);
+
+                group.position.set((Math.random()-0.5)*120, (Math.random()-0.5)*120, z);
+                group.rotation.z = Math.random() * Math.PI;
+                this.scene.add(group);
+                this.rings.push({ group, mat, innerMat, passed: false });
+            }
+
+            spawnBoost(z) {
+                const group = new THREE.Group();
+                const geo = new THREE.OctahedronGeometry(6, 0);
+                const mat = new THREE.MeshStandardMaterial({ 
+                    color: 0x4ade80, 
+                    emissive: 0x4ade80, 
+                    emissiveIntensity: 2,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const boost = new THREE.Mesh(geo, mat);
+                group.add(boost);
+
+                // Outer Frame
+                const frameGeo = new THREE.IcosahedronGeometry(10, 1);
+                const frameMat = new THREE.MeshBasicMaterial({ color: 0x4ade80, wireframe: true, transparent: true, opacity: 0.3 });
+                group.add(new THREE.Mesh(frameGeo, frameMat));
+
+                group.position.set((Math.random()-0.5)*140, (Math.random()-0.5)*140, z);
+                this.scene.add(group);
+                this.boosts.push({ group, mat, collected: false });
+            }
+
+            spawnEnemy(z) {
+                const group = new THREE.Group();
+                const geo = new THREE.IcosahedronGeometry(8, 0);
+                const mat = new THREE.MeshStandardMaterial({ color: 0xff4444, metalness: 0.8, roughness: 0.2 });
+                const mine = new THREE.Mesh(geo, mat);
+                group.add(mine);
+
+                // Spikes
+                for(let i=0; i<8; i++) {
+                    const spikeGeo = new THREE.ConeGeometry(2, 6, 4);
+                    const spike = new THREE.Mesh(spikeGeo, mat);
+                    const angle = (i / 8) * Math.PI * 2;
+                    spike.position.set(Math.cos(angle)*6, Math.sin(angle)*6, 0);
+                    spike.lookAt(new THREE.Vector3(0,0,0));
+                    spike.rotateX(Math.PI/2);
+                    group.add(spike);
+                }
+
+                group.position.set((Math.random()-0.5)*160, (Math.random()-0.5)*160, z);
+                this.scene.add(group);
+                this.enemies.push({ group, mat, hit: false });
             }
 
             setupControls() {
+                // Keyboard
+                window.addEventListener('keydown', (e) => {
+                    if (e.key === 'ArrowUp' || e.key === 'w') this.keys.up = true;
+                    if (e.key === 'ArrowDown' || e.key === 's') this.keys.down = true;
+                    if (e.key === 'ArrowLeft' || e.key === 'a') this.keys.left = true;
+                    if (e.key === 'ArrowRight' || e.key === 'd') this.keys.right = true;
+                    if (e.key === 'Enter' || e.key === ' ') document.getElementById('start-btn').click();
+                });
+                window.addEventListener('keyup', (e) => {
+                    if (e.key === 'ArrowUp' || e.key === 'w') this.keys.up = false;
+                    if (e.key === 'ArrowDown' || e.key === 's') this.keys.down = false;
+                    if (e.key === 'ArrowLeft' || e.key === 'a') this.keys.left = false;
+                    if (e.key === 'ArrowRight' || e.key === 'd') this.keys.right = false;
+                });
+
+                // Mouse
                 window.addEventListener('mousemove', (e) => {
-                    this.input.x = (e.clientX / window.innerWidth) * 2 - 1;
-                    this.input.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    if (!this.joystickActive) {
+                        this.input.x = (e.clientX / window.innerWidth) * 2 - 1;
+                        this.input.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    }
                 });
-                window.addEventListener('touchstart', (e) => {
-                    const t = e.touches[0];
-                    this.input.x = (t.clientX / window.innerWidth) * 2 - 1;
-                    this.input.y = -(t.clientY / window.innerHeight) * 2 + 1;
+
+                // Joystick
+                const jContainer = document.getElementById('joystick-container');
+                const jStick = document.getElementById('joystick-stick');
+                
+                const handleJoystick = (e) => {
+                    const touch = e.touches[0];
+                    const rect = jContainer.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    
+                    let dx = touch.clientX - centerX;
+                    let dy = touch.clientY - centerY;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const maxDist = rect.width / 2;
+
+                    if (dist > maxDist) {
+                        dx *= maxDist / dist;
+                        dy *= maxDist / dist;
+                    }
+
+                    this.input.x = dx / maxDist;
+                    this.input.y = -dy / maxDist;
+
+                    jStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+                };
+
+                jContainer.addEventListener('touchstart', (e) => {
+                    this.joystickActive = true;
+                    handleJoystick(e);
                 });
+                jContainer.addEventListener('touchmove', (e) => {
+                    handleJoystick(e);
+                });
+                jContainer.addEventListener('touchend', () => {
+                    this.joystickActive = false;
+                    this.input.x = 0;
+                    this.input.y = 0;
+                    jStick.style.transform = `translate(-50%, -50%)`;
+                });
+            }
+
+            updateInput() {
+                // Smooth ramping for keyboard to prevent 'snapping'
+                const rampSpeed = 0.1;
+                
+                let targetX = 0;
+                let targetY = 0;
+
+                if (this.keys.left) targetX = -1;
+                else if (this.keys.right) targetX = 1;
+
+                if (this.keys.up) targetY = 1;
+                else if (this.keys.down) targetY = -1;
+
+                // If keyboard is active, smoothly move the input values toward targets
+                if (this.keys.left || this.keys.right || this.keys.up || this.keys.down) {
+                    this.input.x += (targetX - this.input.x) * rampSpeed;
+                    this.input.y += (targetY - this.input.y) * rampSpeed;
+                } else if (!this.joystickActive && !window.matchMedia("(pointer: fine)").matches) {
+                    // Gradual reset if no keys and not using mouse/joystick
+                    this.input.x *= 0.9;
+                    this.input.y *= 0.9;
+                }
             }
 
             checkGamepad() {
                 const pads = navigator.getGamepads();
                 if(pads[0]) {
                     const p = pads[0];
-                    this.input.x = p.axes[0];
-                    this.input.y = -p.axes[1];
+                    // Apply slight deadzone
+                    this.input.x = Math.abs(p.axes[0]) > 0.1 ? p.axes[0] : 0;
+                    this.input.y = Math.abs(p.axes[1]) > 0.1 ? -p.axes[1] : 0;
                     if(p.buttons[0].pressed && !this.playing) document.getElementById('start-btn').click();
                 }
             }
@@ -162,48 +407,120 @@
             animate() {
                 requestAnimationFrame(() => this.animate());
                 this.checkGamepad();
+                this.updateInput();
+
+                const time = Date.now() * 0.001;
 
                 if(this.playing) {
-                    // Update Glider
-                    this.glider.position.x += (this.input.x * 20 - this.glider.position.x) * 0.05;
-                    this.glider.position.y += (this.input.y * 20 - this.glider.position.y) * 0.05;
+                    // Update Glider Physics
+                    const currentTargetSpeed = this.boostTimer > 0 ? 3.5 : 0.8 + (this.score * 0.02);
+                    this.speed += (currentTargetSpeed - this.speed) * 0.02;
+                    if(this.boostTimer > 0) this.boostTimer--;
+
+                    // Increased range from 32 to 75 to allow full screen coverage 
+                    // and matching hazard/ring spawn zones (+/- 60-80 units)
+                    this.glider.position.x += (this.input.x * 75 - this.glider.position.x) * 0.06;
+                    this.glider.position.y += (this.input.y * 75 - this.glider.position.y) * 0.06;
                     this.glider.position.z -= this.speed;
 
-                    this.glider.rotation.z = -this.input.x * 0.8;
+                    // Aesthetics: Banking & Lean (Adjusted for wider movement)
+                    this.glider.rotation.z = -this.input.x * 1.4;
+                    this.glider.rotation.x = this.input.y * 0.4;
                     this.glider.rotation.y = Math.PI + this.input.x * 0.2;
 
-                    this.speed += 0.001;
+                    this.rimLight.position.set(this.glider.position.x, this.glider.position.y, this.glider.position.z + 5);
 
-                    // Update Camera
+                    // Update Camera (Damping adjusted for wider movement)
                     this.camera.position.x += (this.glider.position.x - this.camera.position.x) * 0.1;
-                    this.camera.position.y += (this.glider.position.y + 5 - this.camera.position.y) * 0.1;
-                    this.camera.position.z = this.glider.position.z + 15;
-                    this.camera.lookAt(this.glider.position.x, this.glider.position.y, this.glider.position.z - 50);
+                    this.camera.position.y += (this.glider.position.y + 8 - this.camera.position.y) * 0.1;
+                    this.camera.position.z = this.glider.position.z + 25;
+                    this.camera.lookAt(this.glider.position.x * 0.6, this.glider.position.y * 0.6, this.glider.position.z - 80);
 
-                    // Rings Collision
+                    // Warp Lines
+                    this.warpLines.forEach(line => {
+                        line.position.z += this.speed * 2.5;
+                        line.material.color.set(this.boostTimer > 0 ? 0x4ade80 : 0x00f2ff);
+                        if(line.position.z > this.camera.position.z) {
+                            line.position.z = this.glider.position.z - 2000;
+                            line.position.x = (Math.random()-0.5)*600;
+                            line.position.y = (Math.random()-0.5)*600;
+                        }
+                    });
+
+                    // Rings & Collision
                     this.rings.forEach((ring, i) => {
-                        if(this.glider.position.z < ring.position.z + 5 && this.glider.position.z > ring.position.z - 5) {
-                            const d = Math.hypot(this.glider.position.x - ring.position.x, this.glider.position.y - ring.position.y);
-                            if(d < 15 && !ring.passed) {
+                        const pulse = 1 + Math.sin(time * 5) * 0.1;
+                        ring.group.scale.set(pulse, pulse, pulse);
+                        ring.group.rotation.z += 0.01;
+
+                        if(Math.abs(this.glider.position.z - ring.group.position.z) < 10) {
+                            const d = Math.hypot(this.glider.position.x - ring.group.position.x, this.glider.position.y - ring.group.position.y);
+                            if(d < 18 && !ring.passed) {
                                 ring.passed = true;
-                                ring.material.color.set(0x4ade80);
-                                ring.material.opacity = 1;
+                                ring.mat.color.set(0x00f2ff);
+                                ring.mat.emissive.set(0x00f2ff);
+                                ring.mat.emissiveIntensity = 4;
                                 this.score++;
                                 document.getElementById('rings-val').textContent = this.score;
                             }
                         }
-                        if(this.glider.position.z < ring.position.z - 50) {
-                            this.scene.remove(ring);
+                        
+                        if(this.glider.position.z < ring.group.position.z - 200) {
+                            this.scene.remove(ring.group);
                             this.rings.splice(i, 1);
-                            this.spawnRing(this.glider.position.z - 1000);
+                            this.spawnRing(this.glider.position.z - 2000);
                         }
                     });
 
-                    document.getElementById('speed-val').textContent = Math.floor(this.speed * 10);
+                    // Boosts & Collision
+                    this.boosts.forEach((boost, i) => {
+                        boost.group.rotation.y += 0.05;
+                        boost.group.rotation.x += 0.02;
+
+                        if(Math.abs(this.glider.position.z - boost.group.position.z) < 15) {
+                            const d = Math.hypot(this.glider.position.x - boost.group.position.x, this.glider.position.y - boost.group.position.y);
+                            if(d < 12 && !boost.collected) {
+                                boost.collected = true;
+                                this.boostTimer = 180; // ~3 seconds
+                                this.scene.remove(boost.group);
+                            }
+                        }
+
+                        if(this.glider.position.z < boost.group.position.z - 200) {
+                            this.scene.remove(boost.group);
+                            this.boosts.splice(i, 1);
+                            this.spawnBoost(this.glider.position.z - 3000);
+                        }
+                    });
+
+                    // Enemies & Collision
+                    this.enemies.forEach((enemy, i) => {
+                        enemy.group.rotation.z += 0.02;
+                        enemy.group.rotation.x += 0.01;
+
+                        if(Math.abs(this.glider.position.z - enemy.group.position.z) < 10) {
+                            const d = Math.hypot(this.glider.position.x - enemy.group.position.x, this.glider.position.y - enemy.group.position.y);
+                            if(d < 12 && !enemy.hit) {
+                                enemy.hit = true;
+                                this.speed *= 0.5;
+                                this.score = Math.max(0, this.score - 5);
+                                document.getElementById('rings-val').textContent = this.score;
+                                this.scene.remove(enemy.group);
+                            }
+                        }
+
+                        if(this.glider.position.z < enemy.group.position.z - 200) {
+                            this.scene.remove(enemy.group);
+                            this.enemies.splice(i, 1);
+                            this.spawnEnemy(this.glider.position.z - 1500);
+                        }
+                    });
+
+                    document.getElementById('speed-val').textContent = Math.floor(this.speed * 15);
                 } else {
-                    const t = Date.now() * 0.0005;
-                    this.camera.position.set(Math.cos(t)*50, 20, Math.sin(t)*50);
+                    this.camera.position.set(Math.cos(time*0.5)*80, 40, Math.sin(time*0.5)*80);
                     this.camera.lookAt(0,0,0);
+                    this.glider.position.y = Math.sin(time * 2) * 2;
                 }
 
                 this.renderer.render(this.scene, this.camera);
@@ -212,5 +529,7 @@
 
         new GalaxyGlider();
     </script>
+</body>
+</html>
 </body>
 </html>
