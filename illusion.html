@@ -253,8 +253,8 @@
             <div id="next-card-container"></div>
             
             <div style="display:flex; gap:10px; margin-top: 5px;">
-                <button class="btn-check" id="check-btn" onclick="game.checkSequence()">I DOUBT THE ORDER!</button>
-                <button class="btn-check" id="next-round-btn" style="display:none; background: var(--green); color: white;" onclick="game.nextRound()">NEXT ROUND</button>
+                <button class="btn-check" id="check-btn" onclick="window.game.checkSequence()">I DOUBT THE ORDER!</button>
+                <button class="btn-check" id="next-round-btn" style="display:none; background: var(--green); color: white;" onclick="window.game.nextRound()">NEXT ROUND</button>
             </div>
         </div>
 
@@ -262,9 +262,9 @@
             <h1 style="font-size: 3.5rem; font-style: italic; font-weight: 900; color: var(--gold);">ILLUSION</h1>
             <p style="opacity: 0.7; margin-top: 10px; max-width: 400px;">Sort cards by the percentage of the target color. Doubt the player before you if you think they're wrong!</p>
             <div style="display:flex; flex-direction:column; gap:10px; margin-top: 20px;">
-                <button class="btn-large" onclick="game.init(1, 1)" style="margin-top:0">1 PLAYER VS CPU</button>
-                <button class="btn-large" onclick="game.init(2, 0)" style="margin-top:0; background: var(--blue);">2 PLAYERS (LOCAL)</button>
-                <button class="btn-large" onclick="game.init(1, 3)" style="margin-top:0; background: #8b5cf6;">1 PLAYER VS 3 CPUS</button>
+                <button class="btn-large" onclick="window.game.init(1, 1)" style="margin-top:0">1 PLAYER VS CPU</button>
+                <button class="btn-large" onclick="window.game.init(2, 0)" style="margin-top:0; background: var(--blue);">2 PLAYERS (LOCAL)</button>
+                <button class="btn-large" onclick="window.game.init(1, 3)" style="margin-top:0; background: #8b5cf6;">1 PLAYER VS 3 CPUS</button>
             </div>
         </div>
     </div>
@@ -351,6 +351,7 @@
                 this.container = document.getElementById('sequence-container');
                 this.nextContainer = document.getElementById('next-card-container');
                 this.cpuThinking = false;
+                this.setupGamepad();
             }
 
             init(humanCount, cpuCount) {
@@ -398,64 +399,30 @@
                 this.checkCPUTurn();
             }
 
-                this.checkCPUTurn();
-
-                // Gamepad Adapter
-                const pollGamepad = () => {
+            setupGamepad() {
+                const poll = () => {
                     const pads = navigator.getGamepads();
                     if (pads[0] && this.players[this.turn] && !this.players[this.turn].isCPU && !this.revealed) {
                         const p = pads[0]; const now = Date.now();
                         const dropZones = document.querySelectorAll('.drop-zone:not(.disabled)');
-                        dropZones.forEach(dz => dz.style.background = '');
-                        if (dropZones[this.gpCursor || 0]) dropZones[this.gpCursor || 0].style.background = 'rgba(59, 130, 246, 0.4)';
-
                         if (now - (this.lastGP || 0) > 200) {
                             const b = p.buttons;
-                            if (!this.gpCursor) this.gpCursor = 0;
+                            if (this.gpCursor === undefined) this.gpCursor = 0;
                             if (b[14].pressed || p.axes[0] < -0.5) this.gpCursor = Math.max(0, this.gpCursor - 1);
                             if (b[15].pressed || p.axes[0] > 0.5) this.gpCursor = Math.min(dropZones.length - 1, this.gpCursor + 1);
                             
+                            dropZones.forEach((dz, i) => dz.style.background = (i === this.gpCursor) ? 'rgba(59, 130, 246, 0.4)' : '');
+
                             if (b[0].pressed && dropZones[this.gpCursor]) dropZones[this.gpCursor].click();
-                            if (b[2].pressed || b[3].pressed) this.checkSequence(); // X or Y to doubt
-                            
+                            if (b[2].pressed || b[3].pressed) this.checkSequence();
                             this.lastGP = now;
                         }
                     } else if (pads[0] && this.revealed) {
                         if (pads[0].buttons[0].pressed) this.nextRound();
                     }
-                    requestAnimationFrame(pollGamepad);
+                    requestAnimationFrame(poll);
                 };
-                pollGamepad();
-            }
-
-                this.checkCPUTurn();
-
-                // Gamepad Adapter
-                const pollGamepad = () => {
-                    const pads = navigator.getGamepads();
-                    if (pads[0] && this.players[this.turn] && !this.players[this.turn].isCPU && !this.revealed) {
-                        const p = pads[0]; const now = Date.now();
-                        const dropZones = document.querySelectorAll('.drop-zone:not(.disabled)');
-                        dropZones.forEach(dz => dz.style.background = '');
-                        if (dropZones[this.gpCursor || 0]) dropZones[this.gpCursor || 0].style.background = 'rgba(59, 130, 246, 0.4)';
-
-                        if (now - (this.lastGP || 0) > 200) {
-                            const b = p.buttons;
-                            if (!this.gpCursor) this.gpCursor = 0;
-                            if (b[14].pressed || p.axes[0] < -0.5) this.gpCursor = Math.max(0, this.gpCursor - 1);
-                            if (b[15].pressed || p.axes[0] > 0.5) this.gpCursor = Math.min(dropZones.length - 1, this.gpCursor + 1);
-                            
-                            if (b[0].pressed && dropZones[this.gpCursor]) dropZones[this.gpCursor].click();
-                            if (b[2].pressed || b[3].pressed) this.checkSequence(); // X or Y to doubt
-                            
-                            this.lastGP = now;
-                        }
-                    } else if (pads[0] && this.revealed) {
-                        if (pads[0].buttons[0].pressed) this.nextRound();
-                    }
-                    requestAnimationFrame(pollGamepad);
-                };
-                pollGamepad();
+                poll();
             }
 
             drawNextCard() {
@@ -550,10 +517,6 @@
                 
                 timer.style.display = 'none';
                 
-                // CPU Logic:
-                // 1. Check if the sequence is already broken. If so, high chance to doubt.
-                // 2. If not broken, place card in a plausible position.
-                
                 let brokenAt = -1;
                 for(let i=0; i<this.sequence.length-1; i++) {
                     if (this.sequence[i].percentages[this.targetColor] > this.sequence[i+1].percentages[this.targetColor]) {
@@ -562,9 +525,6 @@
                 }
 
                 const myTarget = this.nextCard.percentages[this.targetColor];
-                
-                // CPU Bluff-calling
-                // If sequence is broken, CPU will likely doubt (85% chance if broken)
                 if (brokenAt !== -1 && Math.random() < 0.85) {
                     status.textContent = `CPU ${this.turn + 1}: "I DOUBT THE ORDER!"`;
                     await new Promise(r => setTimeout(r, 1000));
@@ -573,28 +533,21 @@
                     return;
                 }
 
-                // If sequence is long, CPU might doubt even if not broken (small chance of paranoia)
                 if (this.sequence.length > 5 && Math.random() < 0.1) {
-                    status.textContent = `CPU ${this.turn + 1}: "Something feels off... I DOUBT!"`;
+                    status.textContent = `CPU ${this.turn + 1}: "I DOUBT!"`;
                     await new Promise(r => setTimeout(r, 1000));
                     this.cpuThinking = false;
                     this.checkSequence();
                     return;
                 }
 
-                // Placing the card
-                // Find best spot based on actual values (CPU is good but not perfect)
                 let bestIdx = 0;
                 for (let i = 0; i < this.sequence.length; i++) {
                     if (myTarget >= this.sequence[i].percentages[this.targetColor]) {
                         bestIdx = i + 1;
                     }
                 }
-                
-                // Add some "human error" to CPU placement occasionally
-                if (Math.random() < 0.15) {
-                    bestIdx = Math.floor(Math.random() * (this.sequence.length + 1));
-                }
+                if (Math.random() < 0.15) bestIdx = Math.floor(Math.random() * (this.sequence.length + 1));
 
                 status.textContent = `CPU ${this.turn + 1} placed a card.`;
                 await new Promise(r => setTimeout(r, 500));
@@ -640,7 +593,7 @@
             }
         }
 
-        const game = new Illusion();
+        window.onload = () => { window.game = new Illusion(); };
     </script>
 </body>
 </html>
