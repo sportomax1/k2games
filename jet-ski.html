@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jet Ski Pro 3D - K2 games</title>
+    <style>
+        :root {
+            --accent: #ffeb3b;
+            --bg: #006064;
+        }
+
+        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; }
+        
+        #ui-layer {
+            position: absolute; inset: 0; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+        }
+
+        .hud-top { display: flex; justify-content: space-between; }
+        
+        .stat-card {
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(10px);
+            padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+            text-align: center; color: white; min-width: 100px;
+        }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px; }
+        .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--accent); }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(0, 96, 100, 0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; text-align: center; pointer-events: auto;
+        }
+        h1 { font-size: 3.5rem; color: var(--accent); font-style: italic; font-weight: 900; line-height: 1; }
+        .btn {
+            padding: 18px 60px; font-size: 1.4rem; background: #fff; color: #000;
+            border: none; border-radius: 50px; font-weight: 900; cursor: pointer; margin-top: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 200;
+            font-weight: bold; font-size: 0.8rem; backdrop-filter: blur(5px); pointer-events: auto;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="stat-card">
+                <div class="stat-label">MPH</div>
+                <div id="speed-val" class="stat-val">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Progress</div>
+                <div id="progress-val" class="stat-val">0%</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h1>JET SKI<br><span style="color:#fff">PRO 3D</span></h1>
+        <p style="color: #e0f7fa; max-width: 300px; margin-top: 10px;">High-Quality 3D Racing.<br>Use Arrows/WASD to steer and gas.</p>
+        <button class="btn" onclick="game.start()">START RACE</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        class JetSki3D {
+            constructor() {
+                this.state = 'menu';
+                this.time = 0;
+                this.speed = 0;
+                this.steering = 0;
+                this.zPos = 0;
+                
+                this.initEngine();
+                this.createWater();
+                this.createJetSki();
+                this.createEnvironment();
+                this.setupInput();
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            initEngine() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x00bcd4);
+                this.scene.fog = new THREE.FogExp2(0x00bcd4, 0.002);
+
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                document.body.appendChild(this.renderer.domElement);
+
+                // Bright Sunny Day Lighting
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+                
+                // The Sun
+                const sun = new THREE.DirectionalLight(0xfffae3, 1.5);
+                sun.position.set(500, 300, -200);
+                sun.castShadow = true;
+                this.scene.add(sun);
+
+                // Sun Orb Visual
+                const sunGeo = new THREE.SphereGeometry(60, 32, 32);
+                const sunMat = new THREE.MeshBasicMaterial({ color: 0xfffae3 });
+                const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+                sunMesh.position.copy(sun.position).multiplyScalar(2);
+                this.scene.add(sunMesh);
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            createWater() {
+                const waterGeo = new THREE.PlaneGeometry(2000, 2000, 128, 128);
+                const waterMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x0097a7, 
+                    roughness: 0.0, 
+                    metalness: 0.8,
+                    flatShading: true
+                });
+                this.water = new THREE.Mesh(waterGeo, waterMat);
+                this.water.rotation.x = -Math.PI / 2;
+                this.water.receiveShadow = true;
+                this.scene.add(this.water);
+                
+                this.waterVertices = waterGeo.attributes.position;
+            }
+
+            getWaterHeight(x, z) {
+                return Math.sin(x * 0.05 + this.time * 2) * 1.5 + Math.cos(z * 0.05 + this.time * 1.5) * 1.5;
+            }
+
+            createJetSki() {
+                this.playerGroup = new THREE.Group();
+                
+                // Detailed Jet Ski Hull
+                const hull = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 5), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
+                hull.position.y = 0.5;
+                const seat = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.6, 2), new THREE.MeshStandardMaterial({ color: 0x111827 }));
+                seat.position.set(0, 1.2, 0);
+                const handlebars = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 0.2), new THREE.MeshStandardMaterial({ color: 0x374151 }));
+                handlebars.position.set(0, 1.8, -1.5);
+                const rider = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 1), new THREE.MeshStandardMaterial({ color: 0xffdbac }));
+                rider.position.set(0, 2, 0);
+
+                this.playerGroup.add(hull, seat, handlebars, rider);
+                this.scene.add(this.playerGroup);
+
+                // Splash Particles
+                this.particles = [];
+                this.particleGeo = new THREE.SphereGeometry(0.2, 4, 4);
+                this.particleMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true });
+            }
+
+            createEnvironment() {
+                // Beach Island (Far Right)
+                const island = new THREE.Group();
+                const sand = new THREE.Mesh(new THREE.ConeGeometry(300, 100, 32), new THREE.MeshStandardMaterial({ color: 0xf59e0b }));
+                sand.position.y = -20;
+                island.add(sand);
+                
+                // Palm Trees
+                for(let i=0; i<15; i++) {
+                    const tree = new THREE.Group();
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 20), new THREE.MeshStandardMaterial({ color: 0x5d4037 }));
+                    trunk.position.y = 10;
+                    const leaves = new THREE.Mesh(new THREE.ConeGeometry(10, 15, 8), new THREE.MeshStandardMaterial({ color: 0x166534 }));
+                    leaves.position.y = 20;
+                    tree.add(trunk, leaves);
+                    tree.position.set((Math.random()-0.5)*150, 0, (Math.random()-0.5)*150);
+                    island.add(tree);
+                }
+                
+                island.position.set(600, 0, -800);
+                this.scene.add(island);
+
+                // Cruise Ships (Far Left)
+                this.ships = [];
+                for(let i=0; i<2; i++) {
+                    const ship = new THREE.Group();
+                    const hull = new THREE.Mesh(new THREE.BoxGeometry(120, 20, 40), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                    hull.position.y = 5;
+                    const deck = new THREE.Mesh(new THREE.BoxGeometry(80, 15, 30), new THREE.MeshStandardMaterial({ color: 0x3b82f6 }));
+                    deck.position.y = 20;
+                    const stacks = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 15), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
+                    stacks.position.set(0, 30, 0);
+                    
+                    ship.add(hull, deck, stacks);
+                    ship.position.set(-600 - (i*300), 0, -500 - (i*400));
+                    ship.rotation.y = Math.PI / 2;
+                    this.scene.add(ship);
+                    this.ships.push(ship);
+                }
+
+                // Buoys
+                this.buoys = [];
+                for(let i=0; i<40; i++) {
+                    const buoy = new THREE.Mesh(new THREE.ConeGeometry(1, 2, 8), new THREE.MeshStandardMaterial({ color: i % 2 === 0 ? 0xef4444 : 0x22c55e }));
+                    const x = Math.sin(i * 0.5) * 40;
+                    const z = -i * 50 - 50;
+                    buoy.position.set(x, 0, z);
+                    this.scene.add(buoy);
+                    this.buoys.push(buoy);
+                }
+            }
+
+            setupInput() {
+                this.keys = {};
+                window.onkeydown = e => this.keys[e.code] = true;
+                window.onkeyup = e => this.keys[e.code] = false;
+            }
+
+            start() {
+                this.state = 'playing';
+                document.getElementById('overlay').style.display = 'none';
+            }
+
+            spawnSplash() {
+                const p = new THREE.Mesh(this.particleGeo, this.particleMat.clone());
+                const side = Math.random() > 0.5 ? 1 : -1;
+                p.position.set(this.playerGroup.position.x + side * 1.5, this.playerGroup.position.y, this.playerGroup.position.z + 1);
+                p.userData.velocity = new THREE.Vector3(side * (Math.random() * 5), Math.random() * 5 + 2, Math.random() * 2);
+                p.userData.life = 1.0;
+                this.scene.add(p);
+                this.particles.push(p);
+            }
+
+            update(dt) {
+                this.time += dt;
+
+                // Animate Ships
+                this.ships.forEach(s => {
+                    s.position.z += 0.2;
+                    if(s.position.z > 200) s.position.z = -1500;
+                });
+
+                // Update Water Mesh
+                const pos = this.waterVertices;
+                for(let i=0; i<pos.count; i++) {
+                    const x = pos.getX(i);
+                    const y = pos.getY(i); // Plane Y is world Z
+                    const h = this.getWaterHeight(x + this.playerGroup.position.x, y + this.playerGroup.position.z);
+                    pos.setZ(i, h);
+                }
+                pos.needsUpdate = true;
+
+                if(this.state !== 'playing') return;
+
+                const gas = this.keys['ArrowUp'] || this.keys['KeyW'];
+                const left = this.keys['ArrowLeft'] || this.keys['KeyA'];
+                const right = this.keys['ArrowRight'] || this.keys['KeyD'];
+
+                if(gas) this.speed = THREE.MathUtils.lerp(this.speed, 60, 0.02);
+                else this.speed *= 0.985;
+
+                const targetSteer = (left ? -1 : 0) + (right ? 1 : 0);
+                this.steering = THREE.MathUtils.lerp(this.steering, targetSteer * 0.6, 0.1);
+                
+                this.playerGroup.position.x += this.steering * (this.speed * 0.02);
+                this.zPos -= this.speed * 0.02;
+                this.playerGroup.position.z = this.zPos;
+
+                const waterH = this.getWaterHeight(this.playerGroup.position.x, this.playerGroup.position.z);
+                this.playerGroup.position.y = THREE.MathUtils.lerp(this.playerGroup.position.y, waterH, 0.2);
+                
+                this.playerGroup.rotation.z = -this.steering * 0.8;
+                this.playerGroup.rotation.y = -this.steering * 0.4;
+                this.playerGroup.rotation.x = (this.playerGroup.position.y - waterH) * 0.2;
+
+                if(this.speed > 20) {
+                    for(let i=0; i<Math.floor(this.speed/15); i++) this.spawnSplash();
+                }
+
+                this.particles.forEach((p, i) => {
+                    p.position.add(p.userData.velocity.clone().multiplyScalar(dt));
+                    p.userData.velocity.y -= 9.8 * dt;
+                    p.userData.life -= 0.05;
+                    p.material.opacity = p.userData.life;
+                    if(p.userData.life <= 0) {
+                        this.scene.remove(p);
+                        this.particles.splice(i, 1);
+                    }
+                });
+
+                const camTarget = this.playerGroup.position.clone().add(new THREE.Vector3(0, 5, 12));
+                this.camera.position.lerp(camTarget, 0.1);
+                this.camera.lookAt(this.playerGroup.position.clone().add(new THREE.Vector3(0, 1, -10)));
+
+                document.getElementById('speed-val').textContent = Math.floor(this.speed);
+                document.getElementById('progress-val').textContent = Math.min(100, Math.floor(-this.zPos / 20)) + "%";
+            }
+
+            loop() {
+                this.update(0.016);
+                this.renderer.render(this.scene, this.camera);
+                requestAnimationFrame(this.loop);
+            }
+        }
+
+        window.game = new JetSki3D();
+    </script>
+</body>
+</html>

@@ -105,8 +105,8 @@
     const mCanvas = document.getElementById('minimap');
     const mCtx = mCanvas.getContext('2d');
 
-    // World Constants
-    const WORLD_SIZE = 6000;
+    // World Constants - REDUCED MAP SIZE
+    const WORLD_SIZE = 3200; 
     const GRID_SPACING = 800;
     const ROAD_WIDTH = 200;
     const BUILDING_SIZE = 400;
@@ -135,18 +135,19 @@
         'police': { w: 60, h: 30, maxSpeed: 9, accel: 0.2, turn: 0.06, hp: 300, color: '#fff' }
     };
 
+    // UPDATED MISSION COORDINATES FOR SMALLER MAP
     const MISSIONS = [
-        { type: 'reach', x: 2400, y: 3200, name: 'The Warehouse', reward: 500 },
-        { type: 'reach', x: 4000, y: 800, name: 'Safehouse', reward: 800 },
-        { type: 'reach', x: 800, y: 4800, name: 'The Docks', reward: 1200 },
-        { type: 'reach', x: 4800, y: 2400, name: 'Downtown Bank', reward: 2000 }
+        { type: 'reach', x: 1600, y: 800, name: 'The Warehouse', reward: 500 },
+        { type: 'reach', x: 2400, y: 2400, name: 'Safehouse', reward: 800 },
+        { type: 'reach', x: 800, y: 2400, name: 'The Docks', reward: 1200 },
+        { type: 'reach', x: 2400, y: 800, name: 'Downtown Bank', reward: 2000 }
     ];
 
     function init() {
         resize();
         generateBuildings();
-        spawnVehicles(40);
-        spawnPeds(60);
+        spawnVehicles(25);
+        spawnPeds(40);
         setNextMission();
         
         // Gamepad Adapter
@@ -190,10 +191,10 @@
     function generateBuildings() {
         for (let x = GRID_SPACING/2; x < WORLD_SIZE; x += GRID_SPACING) {
             for (let y = GRID_SPACING/2; y < WORLD_SIZE; y += GRID_SPACING) {
-                if (Math.random() > 0.3) {
+                if (Math.random() > 0.2) {
                     buildings.push({
-                        x: x - BUILDING_SIZE/2 + (Math.random()-0.5)*100,
-                        y: y - BUILDING_SIZE/2 + (Math.random()-0.5)*100,
+                        x: x - BUILDING_SIZE/2 + (Math.random()-0.5)*50,
+                        y: y - BUILDING_SIZE/2 + (Math.random()-0.5)*50,
                         w: BUILDING_SIZE, h: BUILDING_SIZE,
                         color: `hsl(${200 + Math.random()*40}, 20%, ${10 + Math.random()*15}%)`
                     });
@@ -214,8 +215,8 @@
         if (!x) {
             const isVert = Math.random() > 0.5;
             const gridPos = Math.floor(Math.random() * (WORLD_SIZE / GRID_SPACING)) * GRID_SPACING;
-            x = isVert ? gridPos + (Math.random()-0.5)*100 : Math.random() * WORLD_SIZE;
-            y = isVert ? Math.random() * WORLD_SIZE : gridPos + (Math.random()-0.5)*100;
+            x = isVert ? gridPos + (Math.random()-0.5)*50 : Math.random() * WORLD_SIZE;
+            y = isVert ? Math.random() * WORLD_SIZE : gridPos + (Math.random()-0.5)*50;
         }
         return {
             x, y, angle: Math.random() * Math.PI * 2, speed: 0,
@@ -240,7 +241,8 @@
 
     function toggleVehicle() {
         if (player.inVehicle) {
-            player.x += 70;
+            player.x = player.inVehicle.x + 70;
+            player.y = player.inVehicle.y;
             player.inVehicle = null;
         } else {
             const v = vehicles.find(veh => Math.hypot(veh.x - player.x, veh.y - player.y) < 80);
@@ -263,7 +265,6 @@
             life: 60, owner: 'player'
         });
         
-        // Start police chase if shooting
         if (player.wanted === 0) setWanted(1);
     }
 
@@ -272,9 +273,8 @@
         const stars = document.querySelectorAll('.wanted-star');
         stars.forEach((s, i) => s.classList.toggle('active', i < level));
         
-        // Spawn police nearby
         if (level > 0 && vehicles.filter(v => v.type === 'police').length < level * 2) {
-            vehicles.push(createVehicle('police', player.x + 800, player.y + 800));
+            vehicles.push(createVehicle('police', player.x + (Math.random()-0.5)*1000, player.y + (Math.random()-0.5)*1000));
         }
     }
 
@@ -291,7 +291,6 @@
             v.x += Math.cos(v.angle) * v.speed;
             v.y += Math.sin(v.angle) * v.speed;
             
-            // Off-road penalty
             if (!isOnRoad(v.x, v.y)) v.speed *= 0.96;
 
             player.x = v.x; player.y = v.y; player.angle = v.angle;
@@ -310,12 +309,15 @@
             }
         }
 
+        // Keep player in bounds
+        player.x = Math.max(0, Math.min(WORLD_SIZE, player.x));
+        player.y = Math.max(0, Math.min(WORLD_SIZE, player.y));
+
         // Bullets
         bullets.forEach((b, i) => {
             b.x += b.vx; b.y += b.vy; b.life--;
             if (b.life <= 0) bullets.splice(i, 1);
             
-            // Hit detection
             vehicles.forEach(v => {
                 if (Math.hypot(v.x - b.x, v.y - b.y) < 30) {
                     v.hp -= 20; b.life = 0;
@@ -328,14 +330,14 @@
         vehicles.forEach(v => {
             if (v.type === 'police' && v !== player.inVehicle) {
                 const dist = Math.hypot(v.x - player.x, v.y - player.y);
-                if (dist < 1500 && player.wanted > 0) {
+                if (dist < 1000 && player.wanted > 0) {
                     const targetAngle = Math.atan2(player.y - v.y, player.x - v.x);
                     v.angle += (targetAngle - v.angle) * 0.05;
                     v.speed = Math.min(v.maxSpeed, v.speed + v.accel);
                     v.x += Math.cos(v.angle) * v.speed;
                     v.y += Math.sin(v.angle) * v.speed;
                     
-                    if (dist < 60) { // Ram player
+                    if (dist < 60) {
                         if (player.inVehicle) player.inVehicle.hp -= 1;
                         else player.health -= 1;
                     }
@@ -343,14 +345,12 @@
             }
         });
 
-        // Missions
         if (player.currentObjective) {
             if (Math.hypot(player.x - player.currentObjective.x, player.y - player.currentObjective.y) < 150) {
                 completeMission();
             }
         }
 
-        // Camera
         camera.x += (player.x - canvas.width/2 - camera.x) * 0.1;
         camera.y += (player.y - canvas.height/2 - camera.y) * 0.1;
         
@@ -387,7 +387,7 @@
     }
 
     function draw() {
-        ctx.fillStyle = '#1a2e1a'; // Dark Grass
+        ctx.fillStyle = '#1a2e1a';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         ctx.save();
@@ -408,46 +408,84 @@
             ctx.strokeRect(b.x, b.y, b.w, b.h);
         });
 
-        // Objective Marker
         if (player.currentObjective) {
             ctx.fillStyle = 'rgba(255, 204, 0, 0.2)';
             ctx.beginPath(); ctx.arc(player.currentObjective.x, player.currentObjective.y, 150, 0, Math.PI*2); ctx.fill();
         }
 
-        // Vehicles
+        // Detailed Vehicle Drawing
         vehicles.forEach(v => {
-            ctx.save();
-            ctx.translate(v.x, v.y);
-            ctx.rotate(v.angle);
-            ctx.fillStyle = v.color;
-            ctx.fillRect(-v.w/2, -v.h/2, v.w, v.h);
-            // Windshield
-            ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.fillRect(v.w/4, -v.h/2 + 2, 8, v.h - 4);
-            if (v.type === 'police' && Math.floor(Date.now()/150)%2===0) {
-                ctx.fillStyle = '#f00'; ctx.fillRect(-5, -v.h/2, 10, 5);
-                ctx.fillStyle = '#00f'; ctx.fillRect(-5, v.h/2 - 5, 10, 5);
-            }
-            ctx.restore();
+            drawVehicle(v);
         });
 
         // Bullets
         ctx.fillStyle = '#ff0';
         bullets.forEach(b => ctx.fillRect(b.x-2, b.y-2, 4, 4));
 
-        // Player
+        // Player (On Foot) - BETTER PERSON SPRITE
         if (!player.inVehicle) {
-            ctx.save();
-            ctx.translate(player.x, player.y);
-            ctx.rotate(player.angle);
-            ctx.fillStyle = '#fff';
-            ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#000'; ctx.fillRect(10, -10, 10, 5); // Gun
-            ctx.restore();
+            drawPerson(player.x, player.y, player.angle, '#fff');
         }
 
         ctx.restore();
         drawMinimap();
+    }
+
+    function drawVehicle(v) {
+        ctx.save();
+        ctx.translate(v.x, v.y);
+        ctx.rotate(v.angle);
+        
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(-v.w/2 + 4, -v.h/2 + 4, v.w, v.h);
+
+        // Wheels
+        ctx.fillStyle = '#111';
+        const wheelW = 12, wheelH = 6;
+        ctx.fillRect(-v.w/2 + 8, -v.h/2 - 2, wheelW, wheelH); // TL
+        ctx.fillRect(v.w/2 - 20, -v.h/2 - 2, wheelW, wheelH); // TR
+        ctx.fillRect(-v.w/2 + 8, v.h/2 - 4, wheelW, wheelH);  // BL
+        ctx.fillRect(v.w/2 - 20, v.h/2 - 4, wheelW, wheelH);  // BR
+
+        // Main Body
+        ctx.fillStyle = v.color;
+        ctx.fillRect(-v.w/2, -v.h/2, v.w, v.h);
+        
+        // Roof / Windows
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(-v.w/6, -v.h/2 + 4, v.w/2, v.h - 8);
+        
+        // Windshield
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillRect(v.w/4, -v.h/2 + 4, 6, v.h - 8);
+
+        // Police Lights
+        if (v.type === 'police' && Math.floor(Date.now()/150)%2===0) {
+            ctx.fillStyle = '#f00'; ctx.fillRect(-5, -v.h/2, 10, 5);
+            ctx.fillStyle = '#00f'; ctx.fillRect(-5, v.h/2 - 5, 10, 5);
+        }
+        ctx.restore();
+    }
+
+    function drawPerson(x, y, angle, color) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+        
+        // Shoulders / Arms
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.ellipse(0, 0, 15, 10, 0, 0, Math.PI*2); ctx.fill();
+        
+        // Head
+        ctx.fillStyle = '#ffdbac';
+        ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI*2); ctx.fill();
+        
+        // Gun
+        ctx.fillStyle = '#333';
+        ctx.fillRect(10, -4, 12, 4);
+        
+        ctx.restore();
     }
 
     function drawMinimap() {
@@ -455,7 +493,7 @@
         mCtx.fillRect(0, 0, 160, 160);
         mCtx.save();
         mCtx.translate(80, 80);
-        mCtx.scale(0.02, 0.02);
+        mCtx.scale(0.04, 0.04);
         mCtx.translate(-player.x, -player.y);
 
         mCtx.fillStyle = '#444';
@@ -466,11 +504,11 @@
 
         if (player.currentObjective) {
             mCtx.fillStyle = '#ffcc00';
-            mCtx.beginPath(); mCtx.arc(player.currentObjective.x, player.currentObjective.y, 300, 0, Math.PI*2); mCtx.fill();
+            mCtx.beginPath(); mCtx.arc(player.currentObjective.x, player.currentObjective.y, 200, 0, Math.PI*2); mCtx.fill();
         }
 
         mCtx.fillStyle = '#00f2ff';
-        mCtx.beginPath(); mCtx.arc(player.x, player.y, 200, 0, Math.PI*2); mCtx.fill();
+        mCtx.beginPath(); mCtx.arc(player.x, player.y, 150, 0, Math.PI*2); mCtx.fill();
         mCtx.restore();
     }
 
@@ -487,13 +525,12 @@
         requestAnimationFrame(loop);
     }
 
-    window.onkeydown = e => keys[e.key] = true;
-    window.onkeyup = e => keys[e.key] = false;
     window.onkeydown = e => {
         keys[e.key] = true;
         if (e.key === 'f') toggleVehicle();
         if (e.key === ' ') fireWeapon();
     };
+    window.onkeyup = e => keys[e.key] = false;
 
     init();
 </script>

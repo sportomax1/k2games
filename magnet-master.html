@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Magnet Master Elite - K2 games</title>
+    <style>
+        :root {
+            --bg: #020617;
+            --ball: #f8fafc;
+            --attract: #3b82f6;
+            --repulse: #ef4444;
+            --accent: #fbbf24;
+            --danger: #ef4444;
+            --panel: rgba(15, 23, 42, 0.9);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        body { background-color: var(--bg); color: white; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; align-items: center; justify-content: center; }
+
+        #game-container { position: relative; width: 95vw; max-width: 900px; height: 85vh; max-height: 700px; background: #0f172a; border: 4px solid #1e293b; border-radius: 24px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8); }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        #ui { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; z-index: 10; }
+        .stat-card { background: var(--panel); backdrop-filter: blur(10px); padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); text-align: center; min-width: 110px; }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.6; }
+        .stat-val { font-size: 1.4rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+
+        .mode-btn { width: 140px; height: 50px; border-radius: 25px; background: var(--attract); border: 3px solid white; color: white; font-weight: 900; font-size: 1rem; cursor: pointer; pointer-events: auto; transition: 0.2s; box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); }
+        .mode-btn.repulse { background: var(--repulse); box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); }
+
+        #overlay { position: absolute; inset: 0; background: rgba(2, 6, 23, 0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; text-align: center; padding: 40px; backdrop-filter: blur(15px); }
+        h1 { font-size: 3.5rem; color: var(--accent); font-style: italic; font-weight: 900; margin-bottom: 10px; }
+        .btn-large { padding: 18px 60px; font-size: 1.4rem; background: var(--accent); color: #000; border: none; border-radius: 100px; font-weight: 900; cursor: pointer; margin-top: 30px; box-shadow: 0 10px 25px rgba(251, 191, 36, 0.4); }
+
+        .back-link { position: fixed; top: 20px; left: 20px; color: white; text-decoration: none; opacity: 0.5; font-size: 0.8rem; z-index: 200; font-weight: bold; }
+        
+        #hint { position: absolute; bottom: 30px; width: 100%; text-align: center; color: rgba(255,255,255,0.4); font-weight: bold; font-size: 0.8rem; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="game-container">
+        <div id="ui">
+            <div class="stat-card">
+                <span class="stat-label">Course</span>
+                <div id="level-val" class="stat-val">1</div>
+            </div>
+            <button id="mode-toggle" class="mode-btn" onclick="window.game.togglePolarity()">ATTRACT</button>
+            <div class="stat-card">
+                <span class="stat-label">Deaths</span>
+                <div id="death-val" class="stat-val">0</div>
+            </div>
+        </div>
+        
+        <canvas id="gameCanvas"></canvas>
+        <div id="hint">HOLD SPACE OR TAP TO ATTRACT/REPULSE</div>
+
+        <div id="overlay">
+            <h1 id="over-title">MAGNET MASTER</h1>
+            <p id="over-msg" style="color:#cbd5e1; max-width: 400px; line-height: 1.6;">Navigate the metallic core through magnetic fields. Avoid the red zones at all costs.</p>
+            <button class="btn-large" id="start-btn" onclick="window.game.start()">ENGAGE CORE</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script>
+        const { Engine, Render, Runner, World, Bodies, Body, Events, Vector, Composite } = Matter;
+
+        class MagnetMaster {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 900;
+                this.height = 700;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                this.level = 1;
+                this.deaths = 0;
+                this.polarity = 1; // 1: Attract, -1: Repulse
+                this.isPlaying = false;
+                
+                this.initPhysics();
+                this.setupInputs();
+                this.loop();
+            }
+
+            initPhysics() {
+                this.engine = Engine.create();
+                this.world = this.engine.world;
+                this.world.gravity.y = 0;
+
+                this.runner = Runner.create();
+                Runner.run(this.runner, this.engine);
+            }
+
+            setupInputs() {
+                window.onkeydown = e => { if(e.code === 'Space') this.togglePolarity(); };
+                this.canvas.ontouchstart = e => { e.preventDefault(); this.togglePolarity(); };
+            }
+
+            togglePolarity() {
+                if(!this.isPlaying) return;
+                this.polarity *= -1;
+                const btn = document.getElementById('mode-toggle');
+                btn.textContent = this.polarity === 1 ? 'ATTRACT' : 'REPULSE';
+                btn.classList.toggle('repulse', this.polarity === -1);
+            }
+
+            start() {
+                this.isPlaying = true;
+                this.level = 1;
+                this.deaths = 0;
+                document.getElementById('overlay').style.display = 'none';
+                this.loadLevel();
+            }
+
+            loadLevel() {
+                World.clear(this.world);
+                this.magnets = [];
+                this.particles = [];
+
+                // Player Ball
+                this.ball = Bodies.circle(80, this.height/2, 16, {
+                    render: { fillStyle: '#f8fafc', strokeStyle: '#fff', lineWidth: 2 },
+                    frictionAir: 0.04,
+                    restitution: 0.6,
+                    label: 'ball'
+                });
+                World.add(this.world, this.ball);
+
+                // Exit Sensor
+                this.exit = Bodies.circle(this.width - 80, this.height/2, 30, {
+                    isStatic: true, isSensor: true,
+                    render: { fillStyle: '#fbbf24', strokeStyle: '#fff', lineWidth: 3 },
+                    label: 'exit'
+                });
+                World.add(this.world, this.exit);
+
+                // Define Levels
+                const configs = [
+                    { magnets: [{x: 450, y: 350}], walls: [] },
+                    { magnets: [{x: 300, y: 200}, {x: 600, y: 500}], walls: [ {x:450, y:350, w:20, h:300} ] },
+                    { magnets: [{x: 450, y: 150}, {x: 450, y: 550}], walls: [ {x:450, y:350, w:400, h:20} ] },
+                    { magnets: [{x: 250, y: 350, moving: true}, {x: 650, y: 350, moving: true}], walls: [] },
+                    { magnets: [{x: 450, y: 350, pulsing: true}], walls: [ {x:250, y:150, w:20, h:300}, {x:650, y:550, w:20, h:300} ] }
+                ];
+
+                const current = configs[(this.level - 1) % configs.length];
+                
+                current.magnets.forEach(m => {
+                    const mag = Bodies.circle(m.x, m.y, 28, {
+                        isStatic: true, label: 'magnet',
+                        render: { fillStyle: '#1e293b', strokeStyle: '#3b82f6', lineWidth: 4 }
+                    });
+                    if(m.moving) mag.isMoving = true;
+                    if(m.pulsing) mag.isPulsing = true;
+                    this.magnets.push(mag);
+                    World.add(this.world, mag);
+                });
+
+                current.walls.forEach(w => {
+                    const wall = Bodies.rectangle(w.x, w.y, w.w, w.h, {
+                        isStatic: true, label: 'danger',
+                        render: { fillStyle: '#ef4444' }
+                    });
+                    World.add(this.world, wall);
+                });
+
+                // Outer Bounds
+                const bOpts = { isStatic: true, label: 'danger', render: { fillStyle: '#1e293b' } };
+                World.add(this.world, [
+                    Bodies.rectangle(this.width/2, 0, this.width, 20, bOpts),
+                    Bodies.rectangle(this.width/2, this.height, this.width, 20, bOpts),
+                    Bodies.rectangle(0, this.height/2, 20, this.height, bOpts),
+                    Bodies.rectangle(this.width, this.height/2, 20, this.height, bOpts)
+                ]);
+
+                document.getElementById('level-val').textContent = this.level;
+                document.getElementById('death-val').textContent = this.deaths;
+            }
+
+            update() {
+                if(!this.isPlaying) return;
+
+                this.magnets.forEach(m => {
+                    if(m.isMoving) {
+                        const y = this.height/2 + Math.sin(Date.now() * 0.002) * 200;
+                        Body.setPosition(m, { x: m.position.x, y });
+                    }
+                    if(m.isPulsing) {
+                        m.render.lineWidth = 4 + Math.sin(Date.now() * 0.01) * 3;
+                    }
+
+                    const diff = Vector.sub(m.position, this.ball.position);
+                    const dist = Vector.magnitude(diff);
+                    
+                    if(dist < 400) {
+                        const forceMag = (1 / (dist * 0.01)) * 0.008 * this.polarity;
+                        const forceVec = Vector.mult(Vector.normalise(diff), forceMag);
+                        Body.applyForce(this.ball, this.ball.position, forceVec);
+                        
+                        // Draw Flow Particles
+                        if(Math.random() < 0.2) {
+                            this.particles.push({
+                                x: this.ball.position.x, y: this.ball.position.y,
+                                target: m.position,
+                                life: 1.0, speed: 0.05
+                            });
+                        }
+                    }
+                });
+
+                if(Vector.magnitude(Vector.sub(this.ball.position, this.exit.position)) < 40) {
+                    this.level++;
+                    this.loadLevel();
+                }
+            }
+
+            die() {
+                this.deaths++;
+                this.loadLevel();
+            }
+
+            draw() {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+
+                // Draw Flow Lines
+                this.particles.forEach((p, i) => {
+                    this.ctx.beginPath();
+                    this.ctx.strokeStyle = this.polarity === 1 ? `rgba(59, 130, 246, ${p.life * 0.3})` : `rgba(239, 68, 68, ${p.life * 0.3})`;
+                    this.ctx.lineWidth = 2;
+                    this.ctx.moveTo(p.x, p.y);
+                    
+                    const dx = p.target.x - p.x;
+                    const dy = p.target.y - p.y;
+                    p.x += dx * p.speed;
+                    p.y += dy * p.speed;
+                    
+                    this.ctx.lineTo(p.x, p.y);
+                    this.ctx.stroke();
+                    p.life -= 0.02;
+                    if(p.life <= 0) this.particles.splice(i, 1);
+                });
+
+                // Exit Pulse
+                this.ctx.beginPath();
+                this.ctx.strokeStyle = `rgba(251, 191, 36, ${0.3 + Math.sin(Date.now()*0.01)*0.2})`;
+                this.ctx.lineWidth = 10;
+                this.ctx.arc(this.exit.position.x, this.exit.position.y, 40 + Math.sin(Date.now()*0.01)*5, 0, Math.PI*2);
+                this.ctx.stroke();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        window.game = new MagnetMaster();
+
+        Events.on(window.game.engine, 'collisionStart', (e) => {
+            e.pairs.forEach(pair => {
+                if(pair.bodyA.label === 'danger' || pair.bodyB.label === 'danger') {
+                    window.game.die();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

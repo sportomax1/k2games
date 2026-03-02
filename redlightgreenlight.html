@@ -68,6 +68,7 @@
             background: white;
         }
         .light-indicator.green { background: var(--green); box-shadow: 0 0 60px var(--green); transform: scale(1.1); }
+        .light-indicator.yellow { background: #eab308; box-shadow: 0 0 60px #eab308; transform: scale(1.1); }
         .light-indicator.red { background: var(--red); box-shadow: 0 0 60px var(--red); transform: scale(1.1); }
 
         .hud-stats {
@@ -351,15 +352,22 @@
 
             switchLight(type) {
                 this.light = type;
-                this.lightTimer = 1.5 + Math.random() * 3.5;
+                if (type === 'green') {
+                    this.lightTimer = 2.0 + Math.random() * 3.5;
+                } else if (type === 'yellow') {
+                    this.lightTimer = 0.8 + Math.random() * 0.4;
+                } else {
+                    this.lightTimer = 2.0 + Math.random() * 2.5;
+                }
+                
                 const el = document.getElementById('light');
                 el.className = 'light-indicator ' + type;
                 
-                // Doll Turn Animation
-                const targetRot = type === 'red' ? 0 : Math.PI;
+                // Doll Turn Animation - starts turning during yellow
+                const targetRot = (type === 'red' || type === 'yellow') ? 0 : Math.PI;
                 const startRot = this.doll.rotation.y;
                 let startTime = null;
-                const duration = 400;
+                const duration = type === 'yellow' ? 800 : 400;
 
                 const animateTurn = (now) => {
                     if(!startTime) startTime = now;
@@ -376,7 +384,13 @@
 
                 this.lightTimer -= 1/60;
                 if(this.lightTimer <= 0) {
-                    this.switchLight(this.light === 'green' ? 'red' : 'green');
+                    if (this.light === 'green') {
+                        this.switchLight('yellow');
+                    } else if (this.light === 'yellow') {
+                        this.switchLight('red');
+                    } else {
+                        this.switchLight('green');
+                    }
                 }
 
                 // Player Physics
@@ -389,7 +403,7 @@
                     }
 
                     if(this.player.speed > 0.01) {
-                        if(this.light === 'red' && this.lightTimer < (this.lightTimer + 0.4)) {
+                        if(this.light === 'red') {
                             this.eliminatePlayer();
                         }
                         this.player.z -= this.player.speed;
@@ -410,8 +424,11 @@
                     
                     if(this.light === 'green') {
                         if(Math.random() < 0.03) opp.targetSpeed = 0.2 + Math.random() * 0.15;
+                    } else if (this.light === 'yellow') {
+                        // AI starts to slow down during yellow
+                        if(Math.random() < 0.1) opp.targetSpeed = Math.max(0, opp.targetSpeed * 0.5);
                     } else {
-                        if(this.lightTimer < 0.8) opp.targetSpeed = 0;
+                        opp.targetSpeed = 0;
                     }
 
                     opp.speed += (opp.targetSpeed - opp.speed) * 0.08;
@@ -420,7 +437,7 @@
                     const bob = Math.sin(Date.now() * 0.01 + opp.z) * opp.speed * 1.5;
                     opp.mesh.position.y = Math.abs(bob);
 
-                    if(this.light === 'red' && opp.speed > 0.08 && Math.random() < 0.02) {
+                    if(this.light === 'red' && opp.speed > 0.08 && Math.random() < 0.05) {
                         this.eliminateAI(opp);
                     }
                 });

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ping Pong Pro 3D - K2 games</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --bg: #020617;
+            --glass: rgba(15, 23, 42, 0.8);
+        }
+
+        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; }
+        
+        #ui-layer {
+            position: absolute; inset: 0; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+        }
+
+        .hud-top { display: flex; justify-content: space-around; }
+        
+        .stat-card {
+            background: var(--glass); backdrop-filter: blur(10px);
+            padding: 10px 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+            text-align: center; color: white; min-width: 120px;
+        }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px; }
+        .stat-val { font-size: 2rem; font-weight: 900; color: #fff; }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; text-align: center; pointer-events: auto;
+        }
+        h1 { font-size: 3.5rem; color: #fff; font-style: italic; font-weight: 900; margin-bottom: 10px; }
+        .btn {
+            padding: 18px 50px; font-size: 1.4rem; background: var(--primary); color: white;
+            border: none; border-radius: 50px; font-weight: 900; cursor: pointer; margin-top: 25px;
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4); text-transform: uppercase;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 200;
+            font-weight: bold; font-size: 0.8rem; backdrop-filter: blur(5px); pointer-events: auto;
+        }
+
+        #serve-hint {
+            position: absolute; bottom: 100px; width: 100%; text-align: center;
+            color: #fbbf24; font-weight: 900; font-size: 1.2rem; display: none;
+            text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="stat-card">
+                <div class="stat-label">YOU</div>
+                <div id="player-score" class="stat-val">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">CPU</div>
+                <div id="cpu-score" class="stat-val">0</div>
+            </div>
+        </div>
+        <div id="serve-hint">DIAGONAL SERVE REQUIRED</div>
+    </div>
+
+    <div id="overlay">
+        <h1>PING PONG<br><span style="color:var(--primary)">PRO 3D</span></h1>
+        <p style="color: #cbd5e1; max-width: 300px; line-height: 1.5;">Real-time 3D table tennis.<br>Move paddle to strike. Apply spin by moving horizontally.</p>
+        <button class="btn" onclick="game.start()">START MATCH</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        class PingPong3D {
+            constructor() {
+                this.state = 'menu';
+                this.scores = { player: 0, cpu: 0 };
+                this.serving = true;
+                this.server = 'player'; // 'player' or 'cpu'
+                
+                this.initEngine();
+                this.createArena();
+                this.createTable();
+                this.createBall();
+                this.createPaddles();
+                this.setupInput();
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            initEngine() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x020617);
+                this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                document.body.appendChild(this.renderer.domElement);
+
+                this.camera.position.set(0, 15, 22);
+                this.camera.lookAt(0, 5, 0);
+
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+                const spot = new THREE.SpotLight(0xffffff, 1.5);
+                spot.position.set(0, 30, 0);
+                spot.castShadow = true;
+                this.scene.add(spot);
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            createArena() {
+                const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
+                floor.rotation.x = -Math.PI / 2;
+                floor.receiveShadow = true;
+                this.scene.add(floor);
+            }
+
+            createTable() {
+                this.table = new THREE.Group();
+                const surface = new THREE.Mesh(new THREE.BoxGeometry(10, 0.4, 18), new THREE.MeshStandardMaterial({ color: 0x065f46 }));
+                surface.position.y = 6;
+                surface.receiveShadow = true;
+                
+                const whiteLineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const edgeLines = new THREE.Mesh(new THREE.BoxGeometry(10.1, 0.41, 18.1), new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true }));
+                edgeLines.position.y = 6;
+
+                const centerLine = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 18), whiteLineMat);
+                centerLine.rotation.x = -Math.PI/2;
+                centerLine.position.y = 6.21;
+                
+                const net = new THREE.Mesh(new THREE.BoxGeometry(11, 1.2, 0.05), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }));
+                net.position.y = 6.8;
+
+                const legGeo = new THREE.CylinderGeometry(0.2, 0.2, 6);
+                const legMat = new THREE.MeshStandardMaterial({ color: 0x111827 });
+                [[4,3,8], [-4,3,8], [4,3,-8], [-4,3,-8]].forEach(p => {
+                    const leg = new THREE.Mesh(legGeo, legMat);
+                    leg.position.set(...p);
+                    this.table.add(leg);
+                });
+
+                this.table.add(surface, centerLine, net, edgeLines);
+                this.scene.add(this.table);
+            }
+
+            createBall() {
+                this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                this.ball.castShadow = true;
+                this.scene.add(this.ball);
+                this.ballVelocity = new THREE.Vector3();
+                this.ballSpin = new THREE.Vector3(); // x: sidespin, y: topspin
+            }
+
+            createPaddles() {
+                const padGeo = new THREE.CylinderGeometry(0.7, 0.7, 0.1, 32);
+                this.playerPaddle = new THREE.Mesh(padGeo, new THREE.MeshStandardMaterial({ color: 0xef4444 }));
+                this.playerPaddle.rotation.x = Math.PI/2;
+                this.scene.add(this.playerPaddle);
+                this.playerPrevPos = new THREE.Vector3();
+
+                this.cpuPaddle = new THREE.Mesh(padGeo, new THREE.MeshStandardMaterial({ color: 0x3b82f6 }));
+                this.cpuPaddle.rotation.x = Math.PI/2;
+                this.scene.add(this.cpuPaddle);
+            }
+
+            resetBall(server) {
+                this.serving = true;
+                this.server = server;
+                const x = server === 'player' ? (Math.random() > 0.5 ? 2.5 : -2.5) : (Math.random() > 0.5 ? 2.5 : -2.5);
+                const z = server === 'player' ? 9.5 : -9.5;
+                this.ball.position.set(x, 8, z);
+                this.ballVelocity.set(0, 0, 0);
+                this.ballSpin.set(0, 0, 0);
+                if(server === 'player') document.getElementById('serve-hint').style.display = 'block';
+            }
+
+            setupInput() {
+                const updatePaddle = (clientX, clientY) => {
+                    if(this.state !== 'playing') return;
+                    const x = (clientX / window.innerWidth) * 2 - 1;
+                    const y = -(clientY / window.innerHeight) * 2 + 1;
+                    this.playerPrevPos.copy(this.playerPaddle.position);
+                    this.playerPaddle.position.x = x * 8;
+                    this.playerPaddle.position.y = 6.5 + (y + 1) * 3;
+                    this.playerPaddle.position.z = 9.5;
+
+                    if(this.serving && this.server === 'player') {
+                        this.ball.position.x = this.playerPaddle.position.x;
+                        this.ball.position.y = this.playerPaddle.position.y;
+                    }
+                };
+
+                window.addEventListener('mousemove', e => updatePaddle(e.clientX, e.clientY));
+                window.addEventListener('touchmove', e => { updatePaddle(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, {passive: false});
+                
+                const handleStrike = () => {
+                    if(this.state === 'playing' && this.serving && this.server === 'player') {
+                        this.serving = false;
+                        document.getElementById('serve-hint').style.display = 'none';
+                        // Diagonal Serve Logic
+                        const targetX = this.ball.position.x > 0 ? -3 : 3;
+                        this.ballVelocity.set((targetX - this.ball.position.x) * 1.5, 5, -15);
+                    }
+                };
+                window.addEventListener('mousedown', handleStrike);
+                window.addEventListener('touchstart', handleStrike);
+            }
+
+            start() {
+                this.state = 'playing';
+                this.scores = { player: 0, cpu: 0 };
+                this.updateUI();
+                document.getElementById('overlay').style.display = 'none';
+                this.resetBall('player');
+            }
+
+            update(dt) {
+                if(this.state !== 'playing') return;
+
+                if(!this.serving) {
+                    // Physics with Spin (Magnus Effect)
+                    this.ballVelocity.y -= 15 * dt; // Gravity
+                    
+                    // Side Spin curves the ball
+                    this.ballVelocity.x += this.ballSpin.x * this.ballVelocity.z * 0.1 * dt;
+                    
+                    this.ball.position.add(this.ballVelocity.clone().multiplyScalar(dt));
+
+                    // Table Bounce
+                    if(this.ball.position.y < 6.2 && Math.abs(this.ball.position.x) < 5 && Math.abs(this.ball.position.z) < 9) {
+                        this.ball.position.y = 6.2;
+                        this.ballVelocity.y *= -0.85;
+                        // Spin kick on bounce
+                        this.ballVelocity.x += this.ballSpin.x * 2;
+                        this.ballSpin.multiplyScalar(0.8); // Spin decays
+                    }
+
+                    // Wall Bounce
+                    if(Math.abs(this.ball.position.x) > 15) this.ballVelocity.x *= -1;
+
+                    // Player Strike
+                    if(this.ball.position.z > 9.2 && this.ballVelocity.z > 0) {
+                        const dist = this.ball.position.distanceTo(this.playerPaddle.position);
+                        if(dist < 1.2) {
+                            const paddleVelX = (this.playerPaddle.position.x - this.playerPrevPos.x) / dt;
+                            this.ballVelocity.z *= -1.1;
+                            this.ballVelocity.x = (this.ball.position.x - this.playerPaddle.position.x) * 8 + (paddleVelX * 0.2);
+                            this.ballVelocity.y = 7;
+                            this.ballSpin.x = paddleVelX * 0.05; // Apply sidespin
+                        }
+                    }
+
+                    // CPU AI
+                    const cpuTargetX = this.ball.position.x;
+                    const cpuTargetY = this.ball.position.y;
+                    this.cpuPaddle.position.x += (cpuTargetX - this.cpuPaddle.position.x) * 0.18;
+                    this.cpuPaddle.position.y += (cpuTargetY - this.cpuPaddle.position.y) * 0.18;
+                    this.cpuPaddle.position.z = -9.5;
+
+                    // CPU Strike
+                    if(this.ball.position.z < -9.2 && this.ballVelocity.z < 0) {
+                        const dist = this.ball.position.distanceTo(this.cpuPaddle.position);
+                        if(dist < 1.2) {
+                            this.ballVelocity.z *= -1.1;
+                            this.ballVelocity.x = (this.ball.position.x - this.cpuPaddle.position.x) * 8;
+                            this.ballVelocity.y = 7;
+                            this.ballSpin.x = (Math.random() - 0.5) * 5; // AI spin
+                        }
+                    }
+
+                    // Scoring
+                    if(this.ball.position.z > 15 || this.ball.position.y < 0) { this.scores.cpu++; this.endPoint('cpu'); }
+                    if(this.ball.position.z < -15) { this.scores.player++; this.endPoint('player'); }
+                } else if(this.server === 'cpu') {
+                    // CPU Auto Serve
+                    this.serving = false;
+                    const targetX = this.ball.position.x > 0 ? -3 : 3;
+                    this.ballVelocity.set((targetX - this.ball.position.x) * 1.5, 5, 15);
+                }
+            }
+
+            endPoint(winner) {
+                this.updateUI();
+                if(this.scores.player >= 11 || this.scores.cpu >= 11) {
+                    this.state = 'menu';
+                    document.getElementById('overlay').style.display = 'flex';
+                    document.querySelector('h1').textContent = winner === 'player' ? "VICTORY!" : "CPU WINS";
+                } else {
+                    this.resetBall(winner === 'player' ? 'cpu' : 'player');
+                }
+            }
+
+            updateUI() {
+                document.getElementById('player-score').textContent = this.scores.player;
+                document.getElementById('cpu-score').textContent = this.scores.cpu;
+            }
+
+            loop() {
+                this.update(0.016);
+                this.renderer.render(this.scene, this.camera);
+                requestAnimationFrame(this.loop);
+            }
+        }
+
+        window.game = new PingPong3D();
+    </script>
+</body>
+</html>

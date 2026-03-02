@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Log Rolling Pro: Water Championship</title>
+    <style>
+        :root {
+            --water-color: #0ea5e9;
+            --log-color: #78350f;
+            --player-color: #ef4444;
+            --ai1-color: #3b82f6;
+            --ai2-color: #a855f7;
+            --text-color: #fff;
+            --accent: #f59e0b;
+        }
+
+        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #0c4a6e; color: var(--text-color); overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+        #game-container { display: flex; flex: 1; width: 100%; max-width: 1200px; margin: 0 auto; background: var(--water-color); position: relative; }
+
+        .lane { flex: 1; position: relative; border-right: 2px solid rgba(255,255,255,0.2); display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+        .lane:last-child { border-right: none; }
+        
+        #player-lane { background: rgba(255, 255, 255, 0.05); }
+
+        .lane-header { position: absolute; top: 25px; text-align: center; width: 100%; z-index: 10; }
+        .name { font-weight: 900; font-size: 1.1rem; letter-spacing: 1px; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .score { font-size: 1.8rem; color: var(--accent); font-weight: 900; font-family: monospace; }
+
+        .log-wrapper { position: relative; width: 220px; height: 220px; display: flex; align-items: center; justify-content: center; }
+        .log-circle { width: 200px; height: 200px; background: repeating-conic-gradient(var(--log-color) 0% 10%, #451a03 10% 20%); border-radius: 50%; border: 8px solid #451a03; box-shadow: inset 0 0 50px rgba(0,0,0,0.5), 0 15px 30px rgba(0,0,0,0.3); transition: transform 0.05s linear; }
+
+        /* ELITE HUMAN ROLLER SPRITE */
+        .roller { position: absolute; width: 90px; height: 130px; bottom: 195px; left: 50%; margin-left: -45px; z-index: 5; transform-origin: 45px 115px; transition: transform 0.05s linear; }
+        .roller svg { width: 100%; height: 100%; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.2)); }
+        
+        /* Animation states */
+        .balancing .arm-l { transform-origin: 40px 45px; animation: balanceL 0.4s infinite alternate ease-in-out; }
+        .balancing .arm-r { transform-origin: 50px 45px; animation: balanceR 0.4s infinite alternate ease-in-out; }
+        @keyframes balanceL { from { transform: rotate(20deg); } to { transform: rotate(-40deg); } }
+        @keyframes balanceR { from { transform: rotate(-20deg); } to { transform: rotate(40deg); } }
+
+        #player-sprite { filter: drop-shadow(0 0 12px var(--accent)); }
+
+        .splash { position: absolute; bottom: 80px; font-size: 50px; display: none; filter: drop-shadow(0 0 10px white); z-index: 10; }
+
+        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; text-align: center; backdrop-filter: blur(10px); }
+        .btn { padding: 18px 50px; font-size: 1.5rem; background: var(--accent); border: none; border-radius: 100px; cursor: pointer; margin-top: 30px; font-weight: 900; color: #000; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+
+        .controls-hint { position: fixed; bottom: 25px; width: 100%; text-align: center; opacity: 0.6; font-size: 0.8rem; font-weight: bold; z-index: 10; }
+
+        @media (max-width: 600px) {
+            .log-circle { width: 140px; height: 140px; } .log-wrapper { width: 160px; height: 160px; }
+            .roller { transform-origin: 45px 85px; bottom: 145px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div class="lane" id="player-lane">
+            <div class="lane-header"><div class="name" style="color: var(--accent)">⭐ CHAMPION</div><div class="score" id="player-score">0</div></div>
+            <div class="log-wrapper">
+                <div class="roller balancing" id="player-sprite">
+                    <svg viewBox="0 0 100 140">
+                        <!-- Badge -->
+                        <path d="M35 5 l30 0 l-5 15 l-20 0 z" fill="var(--accent)" />
+                        <text x="50" y="15" font-size="8" font-weight="900" text-anchor="middle" fill="#000">YOU</text>
+                        <!-- Legs -->
+                        <rect x="42" y="85" width="7" height="35" rx="3" fill="#ffdbac" />
+                        <rect x="51" y="85" width="7" height="35" rx="3" fill="#ffdbac" />
+                        <!-- Board Shorts -->
+                        <rect x="40" y="70" width="20" height="18" rx="3" fill="var(--player-color)" />
+                        <path d="M40 75 h20 M40 80 h20" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+                        <!-- Torso -->
+                        <rect x="40" y="40" width="20" height="35" rx="6" fill="#ffdbac" />
+                        <!-- Arms -->
+                        <g class="arm-l">
+                            <rect x="15" y="42" width="25" height="7" rx="3" fill="#ffdbac" />
+                        </g>
+                        <g class="arm-r">
+                            <rect x="60" y="42" width="25" height="7" rx="3" fill="#ffdbac" />
+                        </g>
+                        <!-- Head -->
+                        <circle cx="50" cy="30" r="12" fill="#ffdbac" />
+                        <!-- Hair -->
+                        <path d="M40 25 q0 -15 10 -15 t10 15 Z" fill="#facc15" />
+                        <rect x="42" y="28" width="16" height="4" rx="1" fill="#222" /> <!-- Shades -->
+                    </svg>
+                </div>
+                <div class="log-circle" id="player-log"></div>
+            </div>
+            <div class="splash" id="player-splash">🌊</div>
+        </div>
+        <div class="lane" id="ai1-lane">
+            <div class="lane-header"><div class="name">BIRCH-BOT</div><div class="score" id="ai1-score">0</div></div>
+            <div class="log-wrapper">
+                <div class="roller balancing" id="ai1-sprite">
+                    <svg viewBox="0 0 100 140">
+                        <rect x="42" y="85" width="7" height="35" rx="3" fill="#ffdbac" />
+                        <rect x="51" y="85" width="7" height="35" rx="3" fill="#ffdbac" />
+                        <rect x="40" y="70" width="20" height="18" rx="3" fill="var(--ai1-color)" />
+                        <rect x="40" y="40" width="20" height="35" rx="6" fill="#ffdbac" />
+                        <g class="arm-l"> <rect x="15" y="42" width="25" height="7" rx="3" fill="#ffdbac" /> </g>
+                        <g class="arm-r"> <rect x="60" y="42" width="25" height="7" rx="3" fill="#ffdbac" /> </g>
+                        <circle cx="50" cy="30" r="12" fill="#ffdbac" />
+                        <path d="M40 25 q0 -15 10 -15 t10 15 Z" fill="#451a03" />
+                        <rect x="42" y="28" width="16" height="4" rx="1" fill="#222" />
+                    </svg>
+                </div>
+                <div class="log-circle" id="ai1-log"></div>
+            </div>
+            <div class="splash" id="ai1-splash">🌊</div>
+        </div>
+        <div class="lane" id="ai2-lane">
+            <div class="lane-header"><div class="name">OAK-O-MATIC</div><div class="score" id="ai2-score">0</div></div>
+            <div class="log-wrapper">
+                <div class="roller balancing" id="ai2-sprite">
+                    <svg viewBox="0 0 100 140">
+                        <rect x="42" y="85" width="7" height="35" rx="3" fill="#ffdbac" />
+                        <rect x="51" y="85" width="7" height="35" rx="3" fill="#ffdbac" />
+                        <rect x="40" y="70" width="20" height="18" rx="3" fill="var(--ai2-color)" />
+                        <rect x="40" y="40" width="20" height="35" rx="6" fill="#ffdbac" />
+                        <g class="arm-l"> <rect x="15" y="42" width="25" height="7" rx="3" fill="#ffdbac" /> </g>
+                        <g class="arm-r"> <rect x="60" y="42" width="25" height="7" rx="3" fill="#ffdbac" /> </g>
+                        <circle cx="50" cy="30" r="12" fill="#ffdbac" />
+                        <path d="M40 25 q0 -15 10 -15 t10 15 Z" fill="#78350f" />
+                        <rect x="42" y="28" width="16" height="4" rx="1" fill="#222" />
+                    </svg>
+                </div>
+                <div class="log-circle" id="ai2-log"></div>
+            </div>
+            <div class="splash" id="ai2-splash">🌊</div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h1>Log Rolling Pro</h1>
+        <p id="msg-desc">The ultimate water balance test!</p>
+        <button class="btn" onclick="startGame()">START COMPETITION</button>
+    </div>
+
+    <div class="controls-hint">ARROWS / A & D • TAP SIDES</div>
+
+    <script>
+        class RollerLane {
+            constructor(id, isAI = false, difficulty = 1) {
+                this.id = id; this.isAI = isAI; this.difficulty = difficulty;
+                this.score = 0; this.angle = 0; this.logRotation = 0;
+                this.spinSpeed = 0.5; this.spinDir = 1; this.isAlive = true; this.lastDirChange = 0;
+                this.logEl = document.getElementById(`${id}-log`);
+                this.spriteEl = document.getElementById(`${id}-sprite`);
+                this.scoreEl = document.getElementById(`${id}-score`);
+                this.splashEl = document.getElementById(`${id}-splash`);
+            }
+
+            reset() {
+                this.score = 0; this.angle = 0; this.logRotation = 0; this.spinSpeed = 0.5;
+                this.spinDir = Math.random() > 0.5 ? 1 : -1; this.isAlive = true;
+                this.spriteEl.style.display = 'block'; this.spriteEl.style.transform = 'rotate(0deg)';
+                this.splashEl.style.display = 'none'; this.scoreEl.innerText = '0'; this.lastDirChange = Date.now();
+            }
+
+            update(dt) {
+                if (!this.isAlive || !gameState.running) return;
+                this.spinSpeed += 0.0005 * dt;
+                if (Date.now() - this.lastDirChange > 3000 + Math.random() * 4000) { this.spinDir *= -1; this.lastDirChange = Date.now(); }
+                const move = this.spinDir * this.spinSpeed * dt;
+                this.logRotation += move * 5; this.angle += move;
+                this.score += dt * 0.1; this.scoreEl.innerText = Math.floor(this.score);
+                if (Math.abs(this.angle) > 75) this.die();
+                if (this.isAI) this.runAI(dt);
+                this.render();
+            }
+
+            runAI(dt) {
+                const reaction = 0.8 * this.difficulty;
+                if (Math.abs(this.angle) > 2) {
+                    const correction = this.angle > 0 ? -reaction : reaction;
+                    this.angle += correction * dt * 0.5;
+                    if (Math.random() < 0.002) this.angle += (Math.random() > 0.5 ? 15 : -15);
+                }
+            }
+
+            move(dir) { if (!this.isAlive || !gameState.running) return; this.angle += dir * 5; }
+            render() { this.logEl.style.transform = `rotate(${this.logRotation}deg)`; this.spriteEl.style.transform = `rotate(${this.angle}deg)`; }
+            die() { this.isAlive = false; this.spriteEl.style.display = 'none'; this.splashEl.style.display = 'block'; checkGameOver(); }
+        }
+
+        const gameState = { running: false, lanes: [], lastTime: 0 };
+        function startGame() {
+            document.getElementById('overlay').style.display = 'none';
+            if (gameState.lanes.length === 0) {
+                gameState.lanes = [ new RollerLane('player', false), new RollerLane('ai1', true, 0.9), new RollerLane('ai2', true, 0.8) ];
+            }
+            gameState.lanes.forEach(l => l.reset());
+            gameState.running = true; gameState.lastTime = performance.now(); requestAnimationFrame(gameLoop);
+        }
+
+        function gameLoop(now) {
+            if (!gameState.running) return;
+            const dt = (now - gameState.lastTime) / 16;
+            gameState.lastTime = now;
+            gameState.lanes.forEach(lane => lane.update(dt));
+            requestAnimationFrame(gameLoop);
+        }
+
+        function checkGameOver() {
+            const player = gameState.lanes[0]; const aiAlive = gameState.lanes.slice(1).some(l => l.isAlive);
+            if (!player.isAlive && !aiAlive) setTimeout(endGame, 1000);
+        }
+
+        function endGame() {
+            gameState.running = false;
+            const p = gameState.lanes[0]; const ai1 = gameState.lanes[1]; const ai2 = gameState.lanes[2];
+            const maxScore = Math.max(p.score, ai1.score, ai2.score);
+            document.querySelector('h1').innerText = p.score === maxScore ? "🏆 CHAMPION ROLLER!" : "SPLASHED!";
+            document.getElementById('msg-desc').innerHTML = `You: ${Math.floor(p.score)} • Birch: ${Math.floor(ai1.score)} • Oak: ${Math.floor(ai2.score)}`;
+            document.getElementById('overlay').style.display = 'flex';
+        }
+
+        window.addEventListener('keydown', (e) => { if (!gameState.running) return; if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') gameState.lanes[0].move(-1); if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') gameState.lanes[0].move(1); });
+        window.addEventListener('touchstart', (e) => { if (!gameState.running) return; const x = e.touches[0].clientX; gameState.lanes[0].move(x < window.innerWidth / 2 ? -1 : 1); e.preventDefault(); }, { passive: false });
+    </script>
+</body>
+</html>

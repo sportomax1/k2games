@@ -88,10 +88,10 @@
 
         .player-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
             width: 100%;
-            max-width: 1000px;
+            max-width: 1200px;
         }
 
         .player-card {
@@ -102,12 +102,52 @@
             text-align: center;
             cursor: pointer;
             transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
         }
-        .player-card:hover { transform: translateY(-10px) scale(1.02); border-color: var(--accent); background: rgba(255,255,255,0.05); box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
+        
+        .player-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.4s;
+            pointer-events: none;
+        }
 
-        .card-num { font-size: 3.5rem; font-weight: 900; margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.5)); }
-        .card-name { font-size: 1.4rem; font-weight: 800; }
-        .card-team { font-size: 0.8rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 1px; margin-top: 5px; }
+        .player-card:hover { 
+            transform: translateY(-10px) scale(1.02); 
+            border-color: var(--accent); 
+            background: rgba(255,255,255,0.05); 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4); 
+        }
+        
+        .player-card:hover::before { opacity: 0.1; }
+
+        .card-num { font-size: 4rem; font-weight: 900; margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.5)); position: relative; }
+        .card-name { font-size: 1.6rem; font-weight: 800; position: relative; }
+        .card-team { font-size: 0.9rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 2px; margin-top: 5px; position: relative; }
+
+        .jersey-preview {
+            width: 60px;
+            height: 80px;
+            margin: 0 auto 15px auto;
+            position: relative;
+            background: var(--card-color);
+            clip-path: polygon(20% 0%, 80% 0%, 100% 20%, 100% 100%, 0% 100%, 0% 20%);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 1.5rem;
+            color: var(--jersey-color);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
 
         /* Controls */
         #mobile-controls {
@@ -145,19 +185,33 @@
             position: absolute;
             left: 40px;
             bottom: 40px;
-            width: 35px;
-            height: 250px;
-            background: rgba(0,0,0,0.6);
-            border: 3px solid rgba(255,255,255,0.2);
-            border-radius: 20px;
+            width: 45px;
+            height: 300px;
+            background: rgba(0,0,0,0.7);
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 25px;
             overflow: hidden;
             display: none;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
         }
+        
         #meter-fill {
             position: absolute; bottom: 0; left: 0; width: 100%; height: 0%;
-            background: linear-gradient(to top, #22c55e, #fbbf24, #ef4444);
+            background: linear-gradient(to top, #ef4444, #fbbf24, #22c55e, #fbbf24, #ef4444);
             box-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
+        }
+
+        .sweet-spot-marker {
+            position: absolute;
+            bottom: 50%;
+            left: 0;
+            width: 100%;
+            height: 15%;
+            background: rgba(255, 255, 255, 0.2);
+            border-top: 2px solid white;
+            border-bottom: 2px solid white;
+            pointer-events: none;
+            z-index: 10;
         }
 
         #overlay {
@@ -206,6 +260,7 @@
         <canvas id="gameCanvas"></canvas>
 
         <div id="meter-container">
+            <div class="sweet-spot-marker"></div>
             <div id="meter-fill"></div>
         </div>
 
@@ -271,7 +326,7 @@
                     const card = document.createElement('div');
                     card.className = 'player-card';
                     card.innerHTML = `
-                        <div class="card-num" style="color:${p.jersey}">#${p.number}</div>
+                        <div class="jersey-preview" style="--card-color:${p.color}; --jersey-color:${p.jersey}">${p.number}</div>
                         <div class="card-name">${p.name}</div>
                         <div class="card-team">${p.team}</div>
                     `;
@@ -317,7 +372,13 @@
                 this.shots++;
 
                 const power = 17 + (this.meter.val / 100) * 11;
-                const accuracy = 1 - Math.abs(55 - this.meter.val) / 45; // Sweet spot 55%
+                // Wider sweet spot: 50% to 65%
+                let accuracy = 0;
+                if (this.meter.val >= 50 && this.meter.val <= 65) {
+                    accuracy = 1;
+                } else {
+                    accuracy = 1 - Math.min(1, Math.abs(57.5 - this.meter.val) / 40);
+                }
                 this.ball.accuracy = accuracy;
 
                 const angle = -Math.PI / 3.5;
@@ -331,7 +392,7 @@
                 if(this.gameState !== 'playing') return;
 
                 if(this.meter.charging) {
-                    this.meter.val += 2.8 * this.meter.dir;
+                    this.meter.val += 2.5 * this.meter.dir; // Slower meter for easier timing
                     if(this.meter.val >= 100 || this.meter.val <= 0) this.meter.dir *= -1;
                     document.getElementById('meter-fill').style.height = this.meter.val + '%';
                 }
@@ -368,23 +429,25 @@
             }
 
             checkHoop() {
-                // Backboard
-                if(this.ball.x > 850 && this.ball.x < 875 && this.ball.y > 200 && this.ball.y < 450) {
-                    this.ball.vx *= -0.4; this.ball.x = 849;
+                // Backboard - more forgiving bounce
+                if(this.ball.x > 850 && this.ball.x < 880 && this.ball.y > 200 && this.ball.y < 450) {
+                    this.ball.vx *= -0.5; this.ball.x = 849;
                     this.ball.spin *= -1;
                 }
-                // Rim Collision
+                
+                // Rim Collision - slightly smaller collision box for better swishes
                 const rimX = 805, rimY = 350;
                 const dist = Math.hypot(this.ball.x - rimX, this.ball.y - rimY);
-                if(dist < this.ball.r + 10) {
+                if(dist < this.ball.r + 5) {
                     const angle = Math.atan2(this.ball.y - rimY, this.ball.x - rimX);
-                    this.ball.vx = Math.cos(angle) * 5;
-                    this.ball.vy = Math.sin(angle) * 5;
+                    this.ball.vx = Math.cos(angle) * 4;
+                    this.ball.vy = Math.sin(angle) * 4;
                     this.ball.shot = false; // Ruined shot
                 }
-                // Scored!
-                if(this.ball.shot && this.ball.vy > 0 && this.ball.y > 350 && this.ball.y < 380 && this.ball.x > 780 && this.ball.x < 860) {
-                    const success = Math.random() < (0.35 + this.ball.accuracy * 0.65);
+                
+                // Scored! Higher base success and more forgiving box
+                if(this.ball.shot && this.ball.vy > 0 && this.ball.y > 340 && this.ball.y < 390 && this.ball.x > 770 && this.ball.x < 870) {
+                    const success = Math.random() < (0.5 + this.ball.accuracy * 0.5);
                     if(success) {
                         this.score += 3; this.made++; this.streak++;
                         this.screenshake = 10;

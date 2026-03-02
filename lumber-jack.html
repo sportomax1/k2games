@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lumberjack Championship: Elite Edition</title>
+    <style>
+        :root {
+            --bg-color: #e0f2f1;
+            --tree-color: #5d4037;
+            --branch-color: #3e2723;
+            --leaf-color: #2e7d32;
+            --player-color: #ef4444;
+            --ai1-color: #3b82f6;
+            --ai2-color: #a855f7;
+            --text-color: #263238;
+            --accent-color: #f59e0b;
+        }
+
+        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-color); color: var(--text-color); overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+
+        #game-container { display: flex; flex: 1; width: 100%; max-width: 1200px; margin: 0 auto; position: relative; background: linear-gradient(to bottom, #81d4fa 0%, #e0f2f1 100%); }
+
+        .lane { flex: 1; position: relative; border-right: 2px dashed rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; overflow: hidden; transition: box-shadow 0.3s; }
+        .lane:last-child { border-right: none; }
+        
+        #player-lane { background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 50px rgba(245, 158, 11, 0.15); border-left: 4px solid var(--accent-color); border-right: 4px solid var(--accent-color); }
+        #player-lane::after { content: 'CHAMPION'; position: absolute; top: 120px; font-weight: 900; font-size: 0.7rem; color: var(--accent-color); letter-spacing: 2px; opacity: 0.6; z-index: 1; }
+
+        .lane-header { padding: 15px; text-align: center; z-index: 10; background: rgba(255, 255, 255, 0.9); width: 100%; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .name { font-weight: 900; font-size: 1.1rem; letter-spacing: 1px; }
+        .score { font-size: 1.8rem; color: #333; font-family: monospace; }
+
+        .tree-trunk { position: absolute; bottom: 0; width: 60px; height: 100%; background-color: var(--tree-color); z-index: 2; box-shadow: inset -10px 0 20px rgba(0,0,0,0.2); }
+        .segment { position: absolute; width: 60px; height: 80px; background-color: var(--tree-color); border-bottom: 2px solid rgba(0,0,0,0.2); transition: transform 0.1s ease-out, opacity 0.1s; }
+        .branch { position: absolute; width: 90px; height: 24px; background-color: var(--branch-color); top: 28px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        .branch.left { right: 100%; border-radius: 12px 0 0 12px; }
+        .branch.right { left: 100%; border-radius: 0 12px 12px 0; }
+
+        /* ELITE LUMBERJACK SPRITE */
+        .lumberjack { position: absolute; bottom: 20px; width: 90px; height: 110px; z-index: 5; transition: transform 0.05s ease-in-out; }
+        .lumberjack svg { width: 100%; height: 100%; filter: drop-shadow(0 6px 6px rgba(0,0,0,0.25)); }
+        
+        .lumberjack.side-left { transform: translateX(-90px); }
+        .lumberjack.side-right { transform: translateX(90px) scaleX(-1); }
+
+        /* Chop Animation */
+        .chopping .arm-swing { animation: pro-swing 0.1s forwards; }
+        @keyframes pro-swing { 0% { transform: rotate(0deg); } 50% { transform: rotate(-70deg); } 100% { transform: rotate(0deg); } }
+
+        #player-sprite { filter: drop-shadow(0 0 12px var(--accent-color)); }
+
+        .chip { position: absolute; width: 8px; height: 8px; background: #8d6e63; z-index: 6; border-radius: 2px; pointer-events: none; }
+
+        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; color: white; text-align: center; backdrop-filter: blur(10px); }
+        .btn { padding: 18px 50px; font-size: 1.5rem; background: var(--accent-color); border: none; border-radius: 100px; cursor: pointer; margin-top: 30px; font-weight: 900; color: #000; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+
+        .timer-bar-container { width: 100%; height: 12px; background: #334155; position: absolute; bottom: 0; z-index: 20; }
+        .timer-bar { height: 100%; width: 100%; background: var(--accent-color); transition: width 0.1s linear; }
+
+        .controls-hint { position: fixed; bottom: 25px; width: 100%; text-align: center; opacity: 0.5; font-size: 0.8rem; font-weight: bold; letter-spacing: 1px; pointer-events: none; }
+
+        @media (max-width: 600px) {
+            .lumberjack.side-left { transform: translateX(-60px); }
+            .lumberjack.side-right { transform: translateX(60px) scaleX(-1); }
+            .tree-trunk, .segment { width: 45px; } .branch { width: 60px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- Player Lane -->
+        <div class="lane" id="player-lane">
+            <div class="lane-header">
+                <div class="name" style="color: var(--accent-color)">🏆 YOU</div>
+                <div class="score" id="player-score">0</div>
+            </div>
+            <div class="tree-trunk" id="player-tree"></div>
+            <div class="lumberjack side-left" id="player-sprite">
+                <svg viewBox="0 0 100 120">
+                    <!-- Boots -->
+                    <rect x="32" y="95" width="16" height="10" rx="3" fill="#3e2723" />
+                    <rect x="52" y="95" width="16" height="10" rx="3" fill="#3e2723" />
+                    <!-- Legs -->
+                    <rect x="34" y="70" width="12" height="30" fill="#1e3a8a" />
+                    <rect x="54" y="70" width="12" height="30" fill="#1e3a8a" />
+                    <!-- Torso -->
+                    <rect x="30" y="35" width="40" height="40" rx="8" fill="var(--player-color)" />
+                    <!-- Flannel Pattern -->
+                    <path d="M30 45h40 M30 55h40 M30 65h40 M40 35v40 M50 35v40 M60 35v40" stroke="rgba(0,0,0,0.15)" stroke-width="1" />
+                    <!-- Suspenders -->
+                    <rect x="36" y="35" width="5" height="40" fill="#222" />
+                    <rect x="59" y="35" width="5" height="40" fill="#222" />
+                    <!-- Head -->
+                    <circle cx="50" cy="25" r="16" fill="#ffdbac" />
+                    <!-- Full Beard -->
+                    <path d="M34 25 q0 18 16 18 t16 -18" fill="#451a03" />
+                    <!-- Beanie -->
+                    <path d="M34 15 q0 -12 16 -12 t16 12 Z" fill="#333" />
+                    <rect x="42" y="1" width="16" height="4" rx="2" fill="#222" />
+                    <!-- Arm & Axe -->
+                    <g class="arm-swing" style="transform-origin: 40px 40px;">
+                        <rect x="35" y="35" width="12" height="35" rx="6" fill="#ffdbac" />
+                        <rect x="35" y="65" width="45" height="8" fill="#78350f" />
+                        <path d="M75 55 l18 0 l0 22 l-18 0 q-10 -11 0 -22 z" fill="#94a3b8" stroke="#334155" stroke-width="2" />
+                    </g>
+                </svg>
+            </div>
+            <div class="timer-bar-container"><div class="timer-bar" id="player-timer"></div></div>
+        </div>
+
+        <!-- AI 1 Lane -->
+        <div class="lane" id="ai1-lane">
+            <div class="lane-header">
+                <div class="name">ROBO-CHOP</div>
+                <div class="score" id="ai1-score">0</div>
+            </div>
+            <div class="tree-trunk" id="ai1-tree"></div>
+            <div class="lumberjack side-left" id="ai1-sprite">
+                <svg viewBox="0 0 100 120">
+                    <rect x="32" y="95" width="16" height="10" rx="3" fill="#222" />
+                    <rect x="52" y="95" width="16" height="10" rx="3" fill="#222" />
+                    <rect x="34" y="70" width="12" height="30" fill="#334155" />
+                    <rect x="54" y="70" width="12" height="30" fill="#334155" />
+                    <rect x="30" y="35" width="40" height="40" rx="8" fill="var(--ai1-color)" />
+                    <path d="M30 45h40 M30 55h40 M30 65h40 M40 35v40 M50 35v40 M60 35v40" stroke="rgba(0,0,0,0.15)" stroke-width="1" />
+                    <circle cx="50" cy="25" r="16" fill="#ffdbac" />
+                    <path d="M34 25 q0 18 16 18 t16 -18" fill="#222" />
+                    <path d="M34 15 q0 -12 16 -12 t16 12 Z" fill="#ef4444" />
+                    <g class="arm-swing" style="transform-origin: 40px 40px;">
+                        <rect x="35" y="35" width="12" height="35" rx="6" fill="#ffdbac" />
+                        <rect x="35" y="65" width="45" height="8" fill="#78350f" />
+                        <path d="M75 55 l18 0 l0 22 l-18 0 q-10 -11 0 -22 z" fill="#94a3b8" stroke="#334155" stroke-width="2" />
+                    </g>
+                </svg>
+            </div>
+            <div class="timer-bar-container"><div class="timer-bar" id="ai1-timer"></div></div>
+        </div>
+
+        <!-- AI 2 Lane -->
+        <div class="lane" id="ai2-lane">
+            <div class="lane-header">
+                <div class="name">CHIP 2.0</div>
+                <div class="score" id="ai2-score">0</div>
+            </div>
+            <div class="tree-trunk" id="ai2-tree"></div>
+            <div class="lumberjack side-left" id="ai2-sprite">
+                <svg viewBox="0 0 100 120">
+                    <rect x="32" y="95" width="16" height="10" rx="3" fill="#451a03" />
+                    <rect x="52" y="95" width="16" height="10" rx="3" fill="#451a03" />
+                    <rect x="34" y="70" width="12" height="30" fill="#064e3b" />
+                    <rect x="54" y="70" width="12" height="30" fill="#064e3b" />
+                    <rect x="30" y="35" width="40" height="40" rx="8" fill="var(--ai2-color)" />
+                    <path d="M30 45h40 M30 55h40 M30 65h40 M40 35v40 M50 35v40 M60 35v40" stroke="rgba(0,0,0,0.15)" stroke-width="1" />
+                    <circle cx="50" cy="25" r="16" fill="#ffdbac" />
+                    <path d="M34 25 q0 18 16 18 t16 -18" fill="#78350f" />
+                    <path d="M34 15 q0 -12 16 -12 t16 12 Z" fill="#10b981" />
+                    <g class="arm-swing" style="transform-origin: 40px 40px;">
+                        <rect x="35" y="35" width="12" height="35" rx="6" fill="#ffdbac" />
+                        <rect x="35" y="65" width="45" height="8" fill="#78350f" />
+                        <path d="M75 55 l18 0 l0 22 l-18 0 q-10 -11 0 -22 z" fill="#94a3b8" stroke="#334155" stroke-width="2" />
+                    </g>
+                </svg>
+            </div>
+            <div class="timer-bar-container"><div class="timer-bar" id="ai2-timer"></div></div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h1 id="msg-title">Lumberjack Pro</h1>
+        <p id="msg-desc">Elite Woodsman Championship!</p>
+        <button class="btn" onclick="startGame()">START RACE</button>
+    </div>
+
+    <div class="controls-hint">ARROWS / A & D • TAP SIDES</div>
+
+    <script>
+        const CONFIG = { SEGMENT_HEIGHT: 80, MAX_TIME: 100, TIME_DECAY: 0.5, TIME_GAIN: 4, BRANCH_CHANCE: 0.4 };
+
+        class GameLane {
+            constructor(id, isAI = false, aiSpeed = 300) {
+                this.id = id; this.isAI = isAI; this.aiSpeed = aiSpeed; this.aiCooldown = 0;
+                this.score = 0; this.timeLeft = CONFIG.MAX_TIME; this.side = 'left'; 
+                this.segments = []; this.isAlive = true;
+                
+                this.container = document.getElementById(`${id}-tree`);
+                this.scoreEl = document.getElementById(`${id}-score`);
+                this.spriteEl = document.getElementById(`${id}-sprite`);
+                this.timerEl = document.getElementById(`${id}-timer`);
+                this.laneEl = document.getElementById(`${id}-lane`);
+                this.initTree();
+            }
+
+            initTree() {
+                this.segments = [];
+                for (let i = 0; i < 10; i++) this.addSegment(i === 0);
+                this.renderTree();
+            }
+
+            addSegment(forceEmpty = false) {
+                let branch = (!forceEmpty && Math.random() < CONFIG.BRANCH_CHANCE) ? (Math.random() > 0.5 ? 'left' : 'right') : null;
+                this.segments.push({ branch });
+            }
+
+            renderTree() {
+                this.container.innerHTML = '';
+                this.segments.forEach((seg, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'segment'; div.style.bottom = `${i * CONFIG.SEGMENT_HEIGHT}px`;
+                    if (seg.branch) {
+                        const b = document.createElement('div');
+                        b.className = `branch ${seg.branch}`; div.appendChild(b);
+                    }
+                    this.container.appendChild(div);
+                });
+            }
+
+            chop(side) {
+                if (!this.isAlive || !gameState.running) return;
+                this.side = side;
+                this.spriteEl.className = `lumberjack side-${side} chopping`;
+                if (this.segments[0].branch === side) { this.die(); return; }
+
+                this.score++; this.scoreEl.innerText = this.score;
+                this.timeLeft = Math.min(CONFIG.MAX_TIME, this.timeLeft + CONFIG.TIME_GAIN);
+                this.segments.shift(); this.addSegment();
+                this.spawnChips(side);
+                if (this.segments[0].branch === side) this.die();
+                this.renderTree();
+                setTimeout(() => this.spriteEl.classList.remove('chopping'), 50);
+            }
+
+            spawnChips(side) {
+                const rect = this.spriteEl.getBoundingClientRect();
+                for(let i=0; i<3; i++) {
+                    const chip = document.createElement('div');
+                    chip.className = 'chip';
+                    chip.style.left = (side === 'left' ? rect.right - 20 : rect.left + 20) + 'px';
+                    chip.style.top = (rect.top + 40) + 'px';
+                    document.body.appendChild(chip);
+                    let vx = (Math.random()-0.5)*10;
+                    let vy = -Math.random()*10;
+                    let x = parseFloat(chip.style.left), y = parseFloat(chip.style.top), gravity = 0.5;
+                    const anim = () => {
+                        x += vx; y += vy; vy += gravity;
+                        chip.style.left = x + 'px'; chip.style.top = y + 'px';
+                        if(y < window.innerHeight) requestAnimationFrame(anim); else chip.remove();
+                    };
+                    requestAnimationFrame(anim);
+                }
+            }
+
+            die() {
+                this.isAlive = false;
+                this.spriteEl.style.opacity = '0.1';
+                this.spriteEl.style.filter = 'grayscale(1) blur(2px)';
+                checkGameOver();
+            }
+
+            update(dt) {
+                if (!this.isAlive || !gameState.running) return;
+                this.timeLeft -= CONFIG.TIME_DECAY * dt * (1 + this.score / 150);
+                this.timerEl.style.width = `${this.timeLeft}%`;
+                if (this.timeLeft <= 0) this.die();
+                if (this.isAI) this.runAI();
+            }
+
+            runAI() {
+                if (this.aiCooldown > 0) { this.aiCooldown--; return; }
+                const currentBranch = this.segments[0].branch;
+                const nextBranch = this.segments[1] ? this.segments[1].branch : null;
+                let targetSide = currentBranch ? (currentBranch === 'left' ? 'right' : 'left') : (nextBranch ? (nextBranch === 'left' ? 'right' : 'left') : this.side);
+                this.chop(targetSide);
+                this.aiCooldown = (this.aiSpeed / 16) * (0.8 + Math.random() * 0.4);
+                if (Math.random() < 0.01) this.chop(this.segments[0].branch || (this.side === 'left' ? 'right' : 'left'));
+            }
+        }
+
+        const gameState = { running: false, lanes: [], lastTime: 0 };
+        function init() { gameState.lanes = [ new GameLane('player', false), new GameLane('ai1', true, 260), new GameLane('ai2', true, 320) ]; }
+        function startGame() { document.getElementById('overlay').style.display = 'none'; init(); gameState.running = true; gameState.lastTime = performance.now(); requestAnimationFrame(gameLoop); }
+        function gameLoop(now) { if (!gameState.running) return; const dt = (now - gameState.lastTime) / 16; gameState.lastTime = now; gameState.lanes.forEach(lane => lane.update(dt)); requestAnimationFrame(gameLoop); }
+        function checkGameOver() { const playerAlive = gameState.lanes[0].isAlive; const aiAlive = gameState.lanes.slice(1).some(l => l.isAlive); if (!playerAlive && !aiAlive) endGame(); else if (!playerAlive) setTimeout(() => { if (!gameState.lanes[0].isAlive) endGame(); }, 2000); }
+        function endGame() {
+            if (!gameState.running) return; gameState.running = false;
+            const p = gameState.lanes[0]; const ai1 = gameState.lanes[1]; const ai2 = gameState.lanes[2];
+            let msg = p.score > ai1.score && p.score > ai2.score ? "🏆 CHAMPION!" : "GAME OVER";
+            document.getElementById('msg-title').innerText = msg;
+            document.getElementById('msg-desc').innerHTML = `You: ${p.score} • Robo: ${ai1.score} • Chip: ${ai2.score}`;
+            document.getElementById('overlay').style.display = 'flex';
+        }
+
+        window.addEventListener('keydown', (e) => { if (!gameState.running) return; if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') gameState.lanes[0].chop('left'); else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') gameState.lanes[0].chop('right'); });
+        window.addEventListener('touchstart', (e) => { if (!gameState.running) return; const x = e.touches[0].clientX; if (x < window.innerWidth / 2) gameState.lanes[0].chop('left'); else gameState.lanes[0].chop('right'); e.preventDefault(); }, { passive: false });
+        init();
+    </script>
+</body>
+</html>

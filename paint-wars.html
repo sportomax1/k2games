@@ -300,30 +300,73 @@
                     }
                 }
 
-                // Smarter AI
-                if(Math.random() < 0.25) {
+                // Elite Goal-Oriented AI
+                this.aiFrame = (this.aiFrame || 0) + 1;
+                const aiSpeed = this.timer < 20 || this.p2.score < this.p1.score ? 3 : 4; 
+                if(this.aiFrame % aiSpeed === 0) {
                     const dirs = [[0,1], [0,-1], [1,0], [-1,0]];
-                    // AI looks for non-AI color or edge
-                    let bestDir = dirs[Math.floor(Math.random()*4)];
-                    let maxVal = -1;
+                    let bestDir = null;
 
-                    dirs.forEach(d => {
-                        const nx = this.p2.x + d[0];
-                        const ny = this.p2.y + d[1];
-                        if(nx >= 0 && nx < this.cols && ny >= 0 && ny < this.rows) {
-                            let val = 0;
-                            if(this.grid[ny][nx] === null) val = 2;
-                            if(this.grid[ny][nx] === this.p1.color) val = 3;
-                            if(val > maxVal) { maxVal = val; bestDir = d; }
-                        }
+                    // 1. Check immediate surroundings for high-value targets (player color)
+                    let immediateTargets = dirs.filter(d => {
+                        const nx = this.p2.x + d[0], ny = this.p2.y + d[1];
+                        return nx >= 0 && nx < this.cols && ny >= 0 && ny < this.rows && this.grid[ny][nx] === this.p1.color;
                     });
 
-                    this.p2.x = Math.max(0, Math.min(this.cols-1, this.p2.x + bestDir[0]));
-                    this.p2.y = Math.max(0, Math.min(this.rows-1, this.p2.y + bestDir[1]));
-                    this.paintArea(this.p2.x, this.p2.y, this.p2.color);
+                    if(immediateTargets.length > 0) {
+                        bestDir = immediateTargets[Math.floor(Math.random() * immediateTargets.length)];
+                    } else {
+                        // 2. BFS to find nearest unpainted or player territory
+                        bestDir = this.findPathToTarget();
+                    }
+
+                    if(!bestDir) bestDir = dirs[Math.floor(Math.random()*4)]; // Wander
+
+                    const nx = Math.max(0, Math.min(this.cols-1, this.p2.x + bestDir[0]));
+                    const ny = Math.max(0, Math.min(this.rows-1, this.p2.y + bestDir[1]));
+                    
+                    if(nx !== this.p2.x || ny !== this.p2.y) {
+                        this.p2.x = nx;
+                        this.p2.y = ny;
+                        this.paintArea(this.p2.x, this.p2.y, this.p2.color);
+                    }
                 }
 
                 this.calculateScores();
+            }
+
+            findPathToTarget() {
+                const start = {x: this.p2.x, y: this.p2.y};
+                const queue = [[start, null]];
+                const visited = new Set();
+                visited.add(`${start.x},${start.y}`);
+
+                const dirs = [[0,1], [0,-1], [1,0], [-1,0]];
+
+                while(queue.length > 0) {
+                    const [curr, firstMove] = queue.shift();
+
+                    for(const d of dirs) {
+                        const nx = curr.x + d[0];
+                        const ny = curr.y + d[1];
+                        const move = firstMove || d;
+
+                        if(nx >= 0 && nx < this.cols && ny >= 0 && ny < this.rows) {
+                            const key = `${nx},${ny}`;
+                            if(!visited.has(key)) {
+                                const cell = this.grid[ny][nx];
+                                // Found a target!
+                                if(cell === null || cell === this.p1.color) return move;
+                                
+                                visited.add(key);
+                                queue.push([{x: nx, y: ny}, move]);
+                            }
+                        }
+                    }
+                    // Limit search depth for performance
+                    if(visited.size > 200) break;
+                }
+                return null;
             }
 
             calculateScores() {

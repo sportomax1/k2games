@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Beer Pong Pro 3D - K2 games</title>
+    <style>
+        :root {
+            --primary: #ef4444;
+            --accent: #fbbf24;
+            --bg: #0f172a;
+            --glass: rgba(15, 23, 42, 0.8);
+        }
+
+        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; }
+        
+        #ui-layer {
+            position: absolute; inset: 0; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+        }
+
+        .hud-top { display: flex; justify-content: space-around; }
+        
+        .stat-card {
+            background: var(--glass); backdrop-filter: blur(10px);
+            padding: 10px 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+            text-align: center; color: white; min-width: 120px;
+        }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px; }
+        .stat-val { font-size: 1.8rem; font-weight: 900; color: #fff; }
+
+        #power-meter {
+            position: absolute; left: 20px; top: 50%; transform: translateY(-50%);
+            width: 12px; height: 200px; background: rgba(255,255,255,0.1);
+            border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.2);
+            display: none;
+        }
+        #power-fill { width: 100%; height: 0%; background: var(--primary); position: absolute; bottom: 0; }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; text-align: center; pointer-events: auto;
+        }
+        h1 { font-size: 3.5rem; color: var(--primary); font-style: italic; font-weight: 900; margin-bottom: 10px; }
+        .btn {
+            padding: 18px 50px; font-size: 1.4rem; background: var(--primary); color: white;
+            border: none; border-radius: 50px; font-weight: 900; cursor: pointer; margin-top: 25px;
+            box-shadow: 0 10px 25px rgba(239, 68, 68, 0.4); text-transform: uppercase;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 200;
+            font-weight: bold; font-size: 0.8rem; backdrop-filter: blur(5px); pointer-events: auto;
+        }
+
+        #instruction {
+            position: absolute; bottom: 100px; width: 100%; text-align: center;
+            color: white; opacity: 0.6; font-weight: bold; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="stat-card">
+                <div class="stat-label">YOU</div>
+                <div id="player-cups" class="stat-val">10</div>
+            </div>
+            <div id="turn-indicator" style="color: var(--accent); font-weight: 900; font-size: 1.2rem; padding-top: 10px;">YOUR TURN</div>
+            <div class="stat-card">
+                <div class="stat-label">CPU</div>
+                <div id="cpu-cups" class="stat-val">10</div>
+            </div>
+        </div>
+        <div id="power-meter"><div id="power-fill"></div></div>
+        <div id="instruction">FLING BALL UP TO THROW</div>
+    </div>
+
+    <div id="overlay">
+        <h1>BEER PONG<br>PRO 3D</h1>
+        <p style="color: #cbd5e1; max-width: 300px; line-height: 1.5;">Sink all the CPU's cups to win.<br>Fling for power and aim.</p>
+        <button class="btn" onclick="window.game.start()">START MATCH</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        class BeerPong3D {
+            constructor() {
+                this.state = 'menu';
+                this.turn = 'player';
+                this.playerCupsLeft = 10;
+                this.cpuCupsLeft = 10;
+                
+                this.initEngine();
+                this.createTable();
+                this.createCups();
+                this.createBall();
+                this.setupInput();
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            initEngine() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x020617);
+                this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                document.body.appendChild(this.renderer.domElement);
+
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+                const spot = new THREE.PointLight(0xffffff, 1.5);
+                spot.position.set(0, 20, 0);
+                spot.castShadow = true;
+                this.scene.add(spot);
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            createTable() {
+                // Large Party Table
+                const tableGeo = new THREE.BoxGeometry(10, 0.5, 30);
+                const tableMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.2 });
+                const table = new THREE.Mesh(tableGeo, tableMat);
+                table.position.y = 5;
+                table.receiveShadow = true;
+                this.scene.add(table);
+
+                // Floor
+                const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0x0f172a }));
+                floor.rotation.x = -Math.PI/2;
+                this.scene.add(floor);
+            }
+
+            createCups() {
+                this.playerCups = [];
+                this.cpuCups = [];
+                
+                const cupGeo = new THREE.CylinderGeometry(0.45, 0.35, 1.2, 16);
+                const playerMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
+                const cpuMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
+
+                const positions = [
+                    {z: 0, x: 0},
+                    {z: 1, x: -0.5}, {z: 1, x: 0.5},
+                    {z: 2, x: -1}, {z: 2, x: 0}, {z: 2, x: 1},
+                    {z: 3, x: -1.5}, {z: 3, x: -0.5}, {z: 3, x: 0.5}, {z: 3, x: 1.5}
+                ];
+
+                positions.forEach(p => {
+                    // CPU Cups (Targets for Player)
+                    const cCup = new THREE.Mesh(cupGeo, cpuMat);
+                    cCup.position.set(p.x, 5.85, -14 + p.z);
+                    cCup.castShadow = true;
+                    this.scene.add(cCup);
+                    this.cpuCups.push(cCup);
+
+                    // Player Cups (Targets for CPU)
+                    const pCup = new THREE.Mesh(cupGeo, playerMat);
+                    pCup.position.set(p.x, 5.85, 14 - p.z);
+                    pCup.castShadow = true;
+                    this.scene.add(pCup);
+                    this.playerCups.push(pCup);
+                });
+            }
+
+            createBall() {
+                this.ball = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.18, 16, 16),
+                    new THREE.MeshStandardMaterial({ color: 0xffffff })
+                );
+                this.ball.castShadow = true;
+                this.scene.add(this.ball);
+                this.ballVelocity = new THREE.Vector3();
+                this.ballGravity = -15;
+            }
+
+            resetBall() {
+                if (this.turn === 'player') {
+                    this.ball.position.set(0, 7.5, 14);
+                    this.camera.position.set(0, 10, 18);
+                    this.camera.lookAt(0, 6, -5);
+                } else {
+                    this.ball.position.set(0, 7.5, -14);
+                    this.camera.position.set(0, 10, -18);
+                    this.camera.lookAt(0, 6, 5);
+                }
+                this.ballVelocity.set(0, 0, 0);
+                this.state = 'aiming';
+            }
+
+            setupInput() {
+                let startX, startY, startTime;
+                const onDown = (e) => {
+                    if (this.state !== 'aiming' || this.turn !== 'player') return;
+                    startX = e.touches ? e.touches[0].clientX : e.clientX;
+                    startY = e.touches ? e.touches[0].clientY : e.clientY;
+                    startTime = Date.now();
+                };
+                const onUp = (e) => {
+                    if (this.state !== 'aiming' || this.turn !== 'player' || !startTime) return;
+                    const endX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+                    const endY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+                    const dt = Date.now() - startTime;
+                    const dx = endX - startX;
+                    const dy = endY - startY;
+
+                    if (dy < -50 && dt < 600) {
+                        this.throwBall(dx, dy, dt);
+                    }
+                    startTime = null;
+                };
+
+                window.addEventListener('mousedown', onDown);
+                window.addEventListener('mouseup', onUp);
+                window.addEventListener('touchstart', e => { e.preventDefault(); onDown(e); }, {passive:false});
+                window.addEventListener('touchend', e => { e.preventDefault(); onUp(e); }, {passive:false});
+            }
+
+            throwBall(dx, dy, dt) {
+                this.state = 'flying';
+                const power = Math.min(30, Math.abs(dy) / dt * 25);
+                const angle = -dx * 0.005;
+                
+                this.ballVelocity.set(
+                    angle * power,
+                    power * 0.4,
+                    -power
+                );
+            }
+
+            cpuTurn() {
+                setTimeout(() => {
+                    this.state = 'flying';
+                    const target = this.playerCups[Math.floor(Math.random() * this.playerCups.length)];
+                    const dist = this.ball.position.distanceTo(target.position);
+                    
+                    // Simple AI with small error margin
+                    const accuracy = 0.95;
+                    const vx = (target.position.x - this.ball.position.x) * (0.5 + Math.random() * 0.1);
+                    this.ballVelocity.set(vx, 8 + Math.random() * 2, 12 + Math.random() * 2);
+                }, 1500);
+            }
+
+            update(dt) {
+                if (this.state === 'flying') {
+                    this.ballVelocity.y += this.ballGravity * dt;
+                    this.ball.position.add(this.ballVelocity.clone().multiplyScalar(dt));
+
+                    // Table Bounce
+                    if (this.ball.position.y < 5.4 && Math.abs(this.ball.position.x) < 5 && Math.abs(this.ball.position.z) < 15) {
+                        this.ball.position.y = 5.4;
+                        this.ballVelocity.y *= -0.6;
+                        this.ballVelocity.multiplyScalar(0.9);
+                    }
+
+                    // Collision with Cups
+                    const targets = this.turn === 'player' ? this.cpuCups : this.playerCups;
+                    targets.forEach((cup, idx) => {
+                        const dist = this.ball.position.distanceTo(new THREE.Vector3(cup.position.x, 6.5, cup.position.z));
+                        if (dist < 0.45 && this.ballVelocity.y < 0) {
+                            this.sinkCup(targets, idx);
+                        }
+                    });
+
+                    // Camera Follow
+                    this.camera.position.lerp(this.ball.position.clone().add(new THREE.Vector3(0, 3, this.turn==='player'?5:-5)), 0.1);
+                    this.camera.lookAt(this.ball.position);
+
+                    // End flight
+                    if (this.ball.position.y < 0 || Math.abs(this.ball.position.z) > 20) {
+                        this.switchTurn();
+                    }
+                }
+            }
+
+            sinkCup(array, idx) {
+                const cup = array[idx];
+                this.scene.remove(cup);
+                array.splice(idx, 1);
+                
+                if (this.turn === 'player') this.cpuCupsLeft--;
+                else this.playerCupsLeft--;
+                
+                this.updateUI();
+                this.switchTurn();
+            }
+
+            switchTurn() {
+                this.state = 'resetting';
+                setTimeout(() => {
+                    this.turn = this.turn === 'player' ? 'cpu' : 'player';
+                    document.getElementById('turn-indicator').textContent = this.turn === 'player' ? "YOUR TURN" : "CPU'S TURN";
+                    this.resetBall();
+                    if (this.turn === 'cpu') this.cpuTurn();
+                }, 1000);
+            }
+
+            updateUI() {
+                document.getElementById('player-cups').textContent = this.playerCupsLeft;
+                document.getElementById('cpu-cups').textContent = this.cpuCupsLeft;
+                
+                if (this.cpuCupsLeft === 0 || this.playerCupsLeft === 0) {
+                    this.state = 'over';
+                    document.getElementById('overlay').style.display = 'flex';
+                    document.querySelector('h1').textContent = this.cpuCupsLeft === 0 ? "VICTORY!" : "YOU'RE DRUNK!";
+                }
+            }
+
+            start() {
+                this.state = 'playing';
+                document.getElementById('overlay').style.display = 'none';
+                this.resetBall();
+            }
+
+            loop() {
+                this.update(0.016);
+                this.renderer.render(this.scene, this.camera);
+                requestAnimationFrame(this.loop);
+            }
+        }
+
+        const game = new BeerPong3D();
+        window.game = game;
+    </script>
+</body>
+</html>

@@ -60,7 +60,7 @@
         canvas {
             background: #000;
             border-radius: 15px;
-            width: 57.8vmin; /* 450:700 ratio approx */
+            width: 57.8vmin;
             height: 90vmin;
             max-width: 450px;
             max-height: 700px;
@@ -132,7 +132,7 @@
 
         let score = 0;
         let ballsLeft = 9;
-        let ball = { x: W/2, y: H-80, z: 0, vx: 0, vy: 0, vz: 0, active: false, r: 18, rolling: true };
+        let ball = { x: W/2, y: H-100, z: 0, vx: 0, vy: 0, vz: 0, active: false, r: 18, rolling: true, trail: [] };
         let holes = [
             { x: W/2, y: 100, r: 22, val: 100, color: '#f0f' },
             { x: W/2 - 90, y: 160, r: 25, val: 50, color: '#0ff' },
@@ -143,7 +143,7 @@
             { x: W/2, y: 500, r: 45, val: 10, color: '#f00' }
         ];
 
-        const RAMP_Y = 580; // Where the jump ramp begins
+        const RAMP_Y = 550; // Higher up for longer launch ramp feel
 
         let dragData = null;
         let isGameOver = false;
@@ -152,9 +152,10 @@
             ball.active = false;
             ball.rolling = true;
             ball.x = W/2;
-            ball.y = H-80;
+            ball.y = H-100;
             ball.z = 0;
             ball.vx = 0; ball.vy = 0; ball.vz = 0;
+            ball.trail = [];
         }
 
         function resetGame() {
@@ -171,10 +172,9 @@
             ball.rolling = true;
             ball.vx = vx * 0.12;
             ball.vy = vy * 0.18;
-            ball.vz = 0; // Starts rolling
+            ball.vz = 0;
         }
 
-        // Input Logic
         function handleStart(x, y) {
             if (ball.active || isGameOver) return;
             const rect = canvas.getBoundingClientRect();
@@ -225,50 +225,30 @@
             e.preventDefault();
         }, {passive: false});
 
-        // Gamepad Adapter
-        (function() {
-            let lastP = 0;
-            function poll() {
-                const pads = navigator.getGamepads();
-                if (pads[0] && !ball.active && !isGameOver) {
-                    const p = pads[0]; const now = Date.now();
-                    if (Math.abs(p.axes[0]) > 0.1) {
-                        ball.x += p.axes[0] * 8;
-                        ball.x = Math.max(50, Math.min(W-50, ball.x));
-                    }
-                    if (p.buttons[0].pressed && now - lastP > 500) {
-                        launch(0, -150); // Fixed flick strength for gamepad
-                        lastP = now;
-                    }
-                }
-                requestAnimationFrame(poll);
-            }
-            poll();
-        })();
-
         function update() {
             if (ball.active) {
                 ball.x += ball.vx;
                 ball.y += ball.vy;
                 ball.z += ball.vz;
 
-                // Physics
-                ball.vx *= 0.99;
-                ball.vy *= 0.99;
+                // Trail tracking
+                ball.trail.push({x: ball.x, y: ball.y - ball.z/2, z: ball.z});
+                if (ball.trail.length > 15) ball.trail.shift();
+
+                ball.vx *= 0.992;
+                ball.vy *= 0.992;
                 
                 if (ball.rolling) {
                     if (ball.y < RAMP_Y) {
-                        // HIT THE JUMP RAMP!
                         ball.rolling = false;
-                        ball.vz = Math.abs(ball.vy) * 0.8; // Launch into air
+                        ball.vz = Math.abs(ball.vy) * 0.95; // Stronger kick
                     }
                 } else {
-                    ball.vz *= 0.985;
-                    ball.vz -= 0.25; // Gravity
+                    ball.vz *= 0.98;
+                    ball.vz -= 0.3; // Slightly more gravity for better arc visibility
                 }
 
-                // Check collisions with holes
-                if (!ball.rolling && ball.z > 20) {
+                if (!ball.rolling && ball.z > 15) {
                     for(let h of holes) {
                         const dist = Math.hypot(ball.x - h.x, ball.y - h.y);
                         if (dist < h.r) {
@@ -279,7 +259,7 @@
                     }
                 }
 
-                if (ball.y < 20 || (ball.z < -5 && !ball.rolling) || ball.x < 0 || ball.x > W) {
+                if (ball.y < 20 || (ball.z < -10 && !ball.rolling) || ball.x < 0 || ball.x > W) {
                     resolveBall();
                 }
             }
@@ -300,83 +280,94 @@
         function draw() {
             ctx.clearRect(0, 0, W, H);
 
-            // Draw Target Board (Perspective)
-            const boardGrad = ctx.createLinearGradient(0, 0, 0, RAMP_Y);
-            boardGrad.addColorStop(0, '#1e293b');
-            boardGrad.addColorStop(1, '#0f172a');
-            ctx.fillStyle = boardGrad;
-            ctx.beginPath();
-            ctx.moveTo(40, 50); ctx.lineTo(W-40, 50);
-            ctx.lineTo(W-10, RAMP_Y); ctx.lineTo(10, RAMP_Y);
-            ctx.closePath();
-            ctx.fill();
-            ctx.strokeStyle = '#334155'; ctx.lineWidth = 2; ctx.stroke();
+            // DRAW MACHINE STRUCTURE (3D Lane)
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, W, H);
 
-            // Draw Leadup Lane
-            const laneGrad = ctx.createLinearGradient(0, RAMP_Y, 0, H);
-            laneGrad.addColorStop(0, '#334155');
-            laneGrad.addColorStop(1, '#1e293b');
-            ctx.fillStyle = laneGrad;
+            // Target Board Perspective
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.moveTo(30, 20); ctx.lineTo(W-30, 20);
+            ctx.lineTo(W-5, RAMP_Y); ctx.lineTo(5, RAMP_Y);
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 3; ctx.stroke();
+
+            // Lower Ramp / Lead-in
+            ctx.fillStyle = '#334155';
             ctx.fillRect(0, RAMP_Y, W, H - RAMP_Y);
             
-            // Lane Lines
+            // Lane markings
             ctx.strokeStyle = 'rgba(255,255,255,0.05)';
             for(let i=0; i<=W; i+=50) {
                 ctx.beginPath(); ctx.moveTo(i, RAMP_Y); ctx.lineTo(i, H); ctx.stroke();
             }
 
-            // Draw Jump Ramp (The Kick)
-            ctx.fillStyle = '#475569';
-            ctx.fillRect(0, RAMP_Y - 10, W, 15);
-            const rampHighlight = ctx.createLinearGradient(0, RAMP_Y-10, 0, RAMP_Y+5);
-            rampHighlight.addColorStop(0, 'rgba(255,255,255,0.2)');
-            rampHighlight.addColorStop(1, 'transparent');
-            ctx.fillStyle = rampHighlight;
-            ctx.fillRect(0, RAMP_Y - 10, W, 15);
+            // Jump Lip
+            const lipGrad = ctx.createLinearGradient(0, RAMP_Y - 20, 0, RAMP_Y + 10);
+            lipGrad.addColorStop(0, '#475569');
+            lipGrad.addColorStop(0.5, '#94a3b8');
+            lipGrad.addColorStop(1, '#1e293b');
+            ctx.fillStyle = lipGrad;
+            ctx.fillRect(0, RAMP_Y - 15, W, 25);
 
-            // Draw Holes
+            // Holes
             holes.forEach(h => {
                 ctx.save();
-                ctx.shadowBlur = 15; ctx.shadowColor = h.color;
+                ctx.shadowBlur = 20; ctx.shadowColor = h.color;
                 ctx.fillStyle = '#000';
                 ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, Math.PI*2); ctx.fill();
-                ctx.strokeStyle = h.color; ctx.lineWidth = 4; ctx.stroke();
+                ctx.strokeStyle = h.color; ctx.lineWidth = 5; ctx.stroke();
                 
+                ctx.shadowBlur = 0;
                 ctx.fillStyle = h.color;
-                ctx.font = 'bold 18px Arial';
+                ctx.font = 'bold 20px Arial';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(h.val, h.x, h.y);
                 ctx.restore();
             });
 
-            // Draw Ball
-            const scale = ball.rolling ? 1 : Math.max(0.4, 1 - (ball.z * 0.004));
-            const r = ball.r * scale;
-            
-            // Shadow (only if in air)
-            if (!ball.rolling) {
-                ctx.fillStyle = 'rgba(0,0,0,0.4)';
-                ctx.beginPath(); ctx.ellipse(ball.x, ball.y + r + ball.z/5, r, r/3, 0, 0, Math.PI*2); ctx.fill();
-            } else {
-                ctx.fillStyle = 'rgba(0,0,0,0.2)';
-                ctx.beginPath(); ctx.ellipse(ball.x, ball.y + r/2, r, r/4, 0, 0, Math.PI*2); ctx.fill();
-            }
+            // BALL TRAIL ANIMATION
+            ball.trail.forEach((t, i) => {
+                const alpha = i / ball.trail.length;
+                const scale = t.z > 0 ? Math.max(0.4, 1 - (t.z * 0.005)) : 1;
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.3})`;
+                ctx.beginPath(); ctx.arc(t.x, t.y, ball.r * scale, 0, Math.PI*2); ctx.fill();
+            });
 
-            // 3D Ball
+            // DRAW BALL
+            const scale = ball.rolling ? 1 : Math.max(0.35, 1 - (ball.z * 0.005));
+            const r = ball.r * scale;
+            const drawY = ball.y - ball.z/2;
+            
+            // Ball shadow
+            ctx.fillStyle = ball.rolling ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.4)';
+            ctx.beginPath(); 
+            if (ball.rolling) ctx.ellipse(ball.x, ball.y + r/2, r, r/4, 0, 0, Math.PI*2);
+            else ctx.ellipse(ball.x, ball.y + r/2 + ball.z/10, r, r/3, 0, 0, Math.PI*2);
+            ctx.fill();
+
+            // Ball 3D shading
             ctx.save();
-            const bGrad = ctx.createRadialGradient(ball.x - r/3, ball.y - ball.z/2 - r/3, r/5, ball.x, ball.y - ball.z/2, r);
-            bGrad.addColorStop(0, '#fff');
-            bGrad.addColorStop(1, '#64748b');
+            const bGrad = ctx.createRadialGradient(ball.x - r/3, drawY - r/3, r/5, ball.x, drawY, r);
+            bGrad.addColorStop(0, '#ffffff');
+            bGrad.addColorStop(1, '#94a3b8');
             ctx.fillStyle = bGrad;
-            ctx.beginPath(); ctx.arc(ball.x, ball.y - ball.z/2, r, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(ball.x, drawY, r, 0, Math.PI*2); ctx.fill();
             ctx.restore();
+
+            // Flick visualizer
+            if (dragData && !ball.active) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                ctx.lineWidth = 4;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath(); ctx.moveTo(ball.x, ball.y); ctx.lineTo(ball.x, ball.y - 100); ctx.stroke();
+                ctx.setLineDash([]);
+            }
 
             update();
             requestAnimationFrame(draw);
         }
-
-        draw();
 
         draw();
     </script>
