@@ -3,525 +3,298 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Store Dash - K2 games</title>
+    <title>Shopping Cart Pro - K2 games</title>
     <style>
         :root {
-            --bg: #f8fafc;
-            --shelf: #334155;
-            --accent: #0ea5e9;
-            --text: #1e293b;
-            --glass: rgba(255, 255, 255, 0.9);
-            --danger: #ef4444;
-            --success: #22c55e;
+            --shelf: #e2e8f0;
+            --floor: #f8fafc;
+            --accent: #fbbf24;
+            --glass: rgba(255, 255, 255, 0.95);
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        body { margin: 0; overflow: hidden; background: #f1f5f9; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; color: #1e293b; touch-action: none; }
         
-        body {
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            height: 100dvh;
-            width: 100%;
-            overflow: hidden;
-            position: fixed;
-            display: flex;
-            flex-direction: column;
+        #ui-layer {
+            position: absolute; inset: 0; pointer-events: none;
+            display: flex; flex-direction: column; padding: 15px;
+            z-index: 10;
         }
 
-        #game-container {
-            position: relative;
-            flex: 1;
-            width: 100%;
-            height: 100%;
-            background: #e2e8f0;
+        /* COMPACT LIST */
+        #list-container {
+            position: absolute; top: 70px; right: 15px;
+            width: 180px; background: var(--glass); backdrop-filter: blur(10px);
+            padding: 15px; border-radius: 16px; border: 2px solid white;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); pointer-events: auto;
         }
-
-        canvas { 
-            display: block; 
-            width: 100%; 
-            height: 100%; 
-            object-fit: contain;
-            background: #f1f5f9;
-        }
-
-        /* Top HUD */
-        .top-hud {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            right: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            pointer-events: none;
-            z-index: 100;
-        }
-
-        .hud-card {
-            background: var(--glass);
-            backdrop-filter: blur(10px);
-            padding: 8px 16px;
-            border-radius: 12px;
-            border: 1px solid rgba(0,0,0,0.05);
-            pointer-events: auto;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-        }
-
-        .timer-display { font-family: monospace; font-size: 1.2rem; font-weight: 900; color: var(--accent); }
-
-        /* Shopping List Toggle */
-        #list-toggle {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            font-weight: 800;
-            font-size: 0.9rem;
-        }
-
-        /* Modals */
-        .modal {
-            position: absolute;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(5px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            padding: 20px;
-        }
-
-        .modal-content {
-            background: white;
-            padding: 2rem;
-            border-radius: 24px;
-            max-width: 400px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
-        }
-
-        .shopping-list-modal {
-            position: absolute;
-            top: 70px;
-            right: 10px;
-            width: 280px;
-            background: white;
-            border-radius: 20px;
-            padding: 1.5rem;
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
-            border: 1px solid #e2e8f0;
-            display: none;
-            z-index: 500;
-        }
-
-        .list-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; color: #64748b; font-weight: 800; margin-bottom: 12px; }
+        @media (max-width: 1024px) { #list-container { width: 140px; top: 15px; } }
         
-        .shopping-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-        .list-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            padding: 10px;
-            background: #f8fafc;
-            border-radius: 10px;
-            border: 1px solid #e2e8f0;
-        }
-        .list-item.checked { opacity: 0.5; text-decoration: line-through; background: #f1f5f9; border-color: var(--success); }
-        .check { width: 20px; height: 20px; border: 2px solid #cbd5e1; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--success); }
-        .list-item.checked .check::after { content: '✓'; }
+        .list-title { font-size: 0.7rem; text-transform: uppercase; font-weight: 900; letter-spacing: 1px; opacity: 0.6; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+        .list-item { font-size: 0.9rem; font-weight: 700; margin: 4px 0; display: flex; align-items: center; gap: 8px; }
+        .list-item.done { text-decoration: line-through; opacity: 0.3; }
+        .check { color: #22c55e; }
 
-        /* Controls */
-        #controls-overlay {
-            position: absolute;
-            bottom: 20px;
-            left: 0;
-            right: 0;
-            padding: 0 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
+        /* HUD TOP */
+        .hud-top { display: flex; gap: 10px; pointer-events: auto; }
+        .stat-pill { background: white; padding: 8px 20px; border-radius: 50px; font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+
+        #mobile-controls {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 100%; max-width: 400px; display: none; justify-content: space-between; padding: 0 30px;
             pointer-events: none;
-            z-index: 100;
+        }
+        @media (max-width: 1024px) { #mobile-controls { display: flex; } }
+        .joy-pad { width: 120px; height: 120px; background: rgba(0,0,0,0.05); border-radius: 50%; position: relative; pointer-events: auto; border: 2px solid white; }
+        #stick { width: 50px; height: 50px; background: white; border-radius: 50%; position: absolute; top: 35px; left: 35px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); pointer-events: none; }
+
+        #overlay {
+            position: absolute; inset: 0; background: radial-gradient(circle at center, #ffffff, #f1f5f9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1000; text-align: center; padding: 30px;
+        }
+        h1 { font-size: 3.5rem; color: #1e293b; font-weight: 900; line-height: 0.9; margin: 0; }
+        .btn {
+            padding: 18px 60px; font-size: 1.4rem; background: #1e293b; color: white;
+            border: none; border-radius: 100px; font-weight: 900; cursor: pointer; margin-top: 30px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         }
 
-        .joystick-container {
-            width: 120px;
-            height: 120px;
-            background: rgba(255,255,255,0.2);
-            border: 2px solid rgba(255,255,255,0.3);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: auto;
-            backdrop-filter: blur(5px);
-        }
-
-        .joystick-knob {
-            width: 50px;
-            height: 50px;
-            background: white;
-            border-radius: 50%;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .action-btn {
-            width: 80px;
-            height: 80px;
-            background: var(--accent);
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 900;
-            pointer-events: auto;
-            box-shadow: 0 8px 15px rgba(14, 165, 233, 0.4);
-            border: 4px solid rgba(255,255,255,0.3);
-        }
-
-        .action-btn:active { transform: scale(0.9); }
-
-        .btn-large {
-            background: var(--accent); color: white; border: none; padding: 1rem 2.5rem;
-            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 1.5rem;
-            font-size: 1.1rem; width: 100%;
-        }
-
-        .back-hub { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: #64748b; text-decoration: none; font-size: 0.8rem; font-weight: bold; pointer-events: auto; }
-
-        @media (min-width: 1024px) {
-            .shopping-list-modal { display: block !important; position: static; width: 320px; }
-            #list-toggle { display: none; }
-            #game-container { display: flex; padding: 20px; gap: 20px; }
-            .top-hud { position: static; width: auto; }
-            #controls-overlay { display: none; }
+        .back-link {
+            position: fixed; top: 15px; left: 15px; color: #1e293b; text-decoration: none;
+            background: white; padding: 8px 16px; border-radius: 10px; z-index: 2000;
+            font-weight: bold; font-size: 0.8rem; box-shadow: 0 4px 10px rgba(0,0,0,0.05); pointer-events: auto;
         }
     </style>
 </head>
 <body>
-    <div id="game-container">
-        <div class="top-hud">
-            <div class="hud-card timer-display" id="timer">00:00.0</div>
-            <div class="hud-card" id="list-toggle" onclick="toggleList()">
-                📋 <span id="items-left">0/6</span>
-            </div>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="stat-pill" id="score-val">ITEMS: 0/5</div>
         </div>
 
-        <canvas id="gameCanvas"></canvas>
-
-        <div id="list-modal" class="shopping-list-modal">
+        <div id="list-container">
             <div class="list-title">Shopping List</div>
-            <ul class="shopping-list" id="todo-list"></ul>
-        </div>
-
-        <div id="controls-overlay">
-            <div class="joystick-container" id="joy-base">
-                <div class="joystick-knob" id="joy-knob"></div>
-            </div>
-            <div class="action-btn" id="btn-grab">GRAB</div>
-        </div>
-
-        <a href="index.html" class="back-hub">← HUB</a>
-
-        <!-- Start Modal -->
-        <div id="start-modal" class="modal">
-            <div class="modal-content">
-                <h1 style="font-size: 2.5rem; font-weight: 900; color: var(--accent); margin-bottom: 1rem;">STORE DASH</h1>
-                <p style="color: #64748b; margin-bottom: 1.5rem;">Find all items on your list and head to the <b>BLUE CHECKOUT</b> zone!</p>
-                <div style="text-align: left; background: #f1f5f9; padding: 15px; border-radius: 12px; font-size: 0.85rem; margin-bottom: 1.5rem;">
-                    🎮 Use <b>WASD/Arrows</b> or <b>Joystick</b> to move.<br>
-                    🛒 Press <b>Space</b> or <b>GRAB</b> to collect items.<br>
-                    🚪 Enter through the <b>GREEN DOOR</b>.
-                </div>
-                <button class="btn-large" onclick="game.start()">START DASH</button>
-            </div>
-        </div>
-
-        <!-- Finish Modal -->
-        <div id="finish-modal" class="modal" style="display:none">
-            <div class="modal-content">
-                <h1 style="font-size: 2rem; font-weight: 900; color: var(--success); margin-bottom: 1rem;">MISSION COMPLETE!</h1>
-                <p style="color: #64748b;">You cleared the store in record time.</p>
-                <div style="margin: 1.5rem 0; padding: 1.5rem; background: #f8fafc; border-radius: 20px; border: 2px solid #e2e8f0;">
-                    <p style="font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 800; letter-spacing: 1px;">Final Time</p>
-                    <h2 id="final-time" style="font-size: 2.5rem; color: var(--accent); font-family: monospace;">00:00.0</h2>
-                </div>
-                <button class="btn-large" onclick="location.reload()">PLAY AGAIN</button>
-            </div>
+            <div id="shopping-list"></div>
         </div>
     </div>
 
-    <script>
-        const ALL_EMOJIS = [
-            "🍎", "🍌", "🥕", "🥦", "🍕", "🍨", "🥤", "💧", "🥔", "🍿", "🥩", "🍗", "🥛", "🥚", "🧀", "🍦",
-            "🍞", "🥐", "🥖", "🍩", "👕", "👖", "🧢", "👗", "🏈", "🏀", "🎾", "🏋️", "🧼", "🪥", "🧻", "🧴",
-            "⛺", "🎒", "🔦", "🔥", "🍍", "🍓", "🍒", "🍇", "🍉", "🍑", "🍋", "🍊", "🥬", "🌽", "🌶️", "🍄",
-            "🥨", "🥜", "🍪", "🍫", "🍬", "🍭", "🍯", "🍮", "🍰", "🥧", "🌮", "🌯", "🍝", "🍔", "🍟", "🍙",
-            "🍣", "🦐", "🦞", "🦀", "🦑", "🐙", "🐠", "🐡", "🥣", "🥗", "🥘", "🧂", "🥢", "🍴", "🥣", "🍶",
-            "🍵", "☕", "🍺", "🍷", "🍸", "🍹", "🍾", "🧁", "🎂", "🍳", "🥞", "🥓", "🥩", "🍖", "🦴", "🌭"
+    <div id="mobile-controls">
+        <div class="joy-pad" id="joystick"><div id="stick"></div></div>
+    </div>
+
+    <div id="overlay">
+        <h1>SHOPPING<br>CART PRO</h1>
+        <p style="opacity: 0.6; margin-top: 15px;">Navigate the aisles and grab your list!</p>
+        <button class="btn" onclick="window.game.start()">GO SHOPPING</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        const AISLES = [
+            { name: "PRODUCE", items: ["🍎", "🍌", "🥦", "🥕", "🥑"] },
+            { name: "BAKERY", items: ["🍞", "🥐", "🥯", "🥖", "🥨"] },
+            { name: "DAIRY", items: ["🥛", "🧀", "🧈", "🍦", "🍳"] },
+            { name: "MEAT", items: ["🥩", "🍗", "🥓", "🍖", "🌭"] },
+            { name: "SNACKS", items: ["🍕", "🍔", "🍟", "🍩", "🍪"] },
+            { name: "DRINKS", items: ["🥤", "🧃", "🍺", "🍷", "☕"] }
         ];
 
-        function toggleList() {
-            const modal = document.getElementById('list-modal');
-            modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
-        }
-
-        class StoreGame {
+        class ShopGame {
             constructor() {
-                this.canvas = document.getElementById('gameCanvas');
-                this.ctx = this.canvas.getContext('2d');
-                
-                // Virtual World Size
-                this.worldWidth = 1600;
-                this.worldHeight = 1200;
-                
-                this.player = { x: 60, y: 600, r: 30, speed: 8, anim: 0, dir: 1 };
-                this.cam = { x: 0, y: 0 };
-                this.keys = {};
-                this.joy = { active: false, x: 0, y: 0 };
-                
+                this.state = 'menu';
+                this.collected = [];
+                this.targetItems = [];
                 this.aisles = [];
-                this.itemsOnField = [];
-                this.shoppingList = [];
-                this.playing = false;
-                this.timer = 0;
-                this.startTime = 0;
-
-                this.checkoutZone = { x: 1400, y: 500, w: 150, h: 250 };
-                this.entranceDoor = { x: 0, y: 550, w: 30, h: 120 };
-
-                this.init();
+                this.inputVec = {x:0, y:0};
+                
+                this.initEngine();
+                this.createStore();
+                this.createCart();
+                this.setupInput();
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
             }
 
-            init() {
-                this.resize();
-                window.addEventListener('resize', () => this.resize());
+            initEngine() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0xf1f5f9);
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                document.body.appendChild(this.renderer.domElement);
 
-                // Generate Aisles
-                const aisleW = 120, aisleH = 300, gapX = 180, gapY = 150;
-                for (let row = 0; row < 3; row++) {
-                    for (let col = 0; col < 5; col++) {
-                        this.aisles.push({
-                            id: row * 5 + col + 1,
-                            x: 250 + col * (aisleW + gapX),
-                            y: 100 + row * (aisleH + gapY),
-                            w: aisleW, h: aisleH
-                        });
-                    }
-                }
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+                const sun = new THREE.DirectionalLight(0xffffff, 0.5);
+                sun.position.set(50, 100, 50); sun.castShadow = true;
+                this.scene.add(sun);
 
-                // Populate items
-                const shuffled = [...ALL_EMOJIS].sort(() => 0.5 - Math.random());
-                this.aisles.forEach(a => {
-                    for (let i = 0; i < 3; i++) {
-                        this.itemsOnField.push({
-                            emoji: shuffled.pop(),
-                            x: a.x + 20 + Math.random() * (a.w - 40),
-                            y: a.y + 20 + Math.random() * (a.h - 40)
-                        });
-                    }
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            createStore() {
+                const floor = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({color: 0xffffff}));
+                floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; this.scene.add(floor);
+
+                AISLES.forEach((aisle, index) => {
+                    const z = (index - 2.5) * 60;
+                    this.createAisle(aisle, z);
+                });
+            }
+
+            createAisle(data, z) {
+                // SHELF UNIT
+                const shelfGroup = new THREE.Group();
+                const shelfGeo = new THREE.BoxGeometry(150, 15, 10);
+                const shelfMat = new THREE.MeshStandardMaterial({color: 0xe2e8f0});
+                
+                // Back Wall
+                const back = new THREE.Mesh(new THREE.BoxGeometry(150, 20, 1), shelfMat);
+                back.position.y = 10; back.position.z = -5; shelfGroup.add(back);
+
+                // Levels
+                [0, 8, 16].forEach(y => {
+                    const lev = new THREE.Mesh(new THREE.BoxGeometry(150, 0.5, 10), shelfMat);
+                    lev.position.y = y; shelfGroup.add(lev);
+                    
+                    // Emojis on this level
+                    data.items.forEach((emoji, i) => {
+                        const x = (i - 2) * 25;
+                        const sprite = this.createEmojiSprite(emoji);
+                        sprite.position.set(x, y + 2.5, 0);
+                        sprite.userData = { emoji, name: data.name };
+                        this.scene.add(sprite);
+                        this.aisles.push(sprite);
+                    });
                 });
 
-                this.setupInputs();
-                this.loop();
+                // AISLE LABEL
+                const label = this.createTextLabel(data.name);
+                label.position.set(-85, 15, 0);
+                shelfGroup.add(label);
+
+                shelfGroup.position.set(0, 0, z);
+                this.scene.add(shelfGroup);
             }
 
-            resize() {
-                this.canvas.width = window.innerWidth;
-                this.canvas.height = window.innerHeight;
+            createEmojiSprite(emoji) {
+                const can = document.createElement('canvas'); const ctx = can.getContext('2d');
+                can.width = 128; can.height = 128; ctx.font = '80px Arial'; ctx.textAlign = 'center';
+                ctx.fillText(emoji, 64, 90);
+                const mat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(can) });
+                const spr = new THREE.Sprite(mat); spr.scale.set(10, 10, 1); return spr;
             }
 
-            setupInputs() {
-                window.onkeydown = e => this.keys[e.code] = true;
-                window.onkeyup = e => this.keys[e.code] = false;
+            createTextLabel(text) {
+                const can = document.createElement('canvas'); const ctx = can.getContext('2d');
+                can.width = 256; can.height = 64; ctx.fillStyle = '#1e293b'; ctx.font = '900 40px Segoe UI'; ctx.textAlign = 'left';
+                ctx.fillText(text, 10, 45);
+                const mat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(can) });
+                const spr = new THREE.Sprite(mat); spr.scale.set(20, 5, 1); return spr;
+            }
 
-                const joyBase = document.getElementById('joy-base'), knob = document.getElementById('joy-knob');
-                const handleJoy = (e) => {
-                    if(!this.joy.active) return;
-                    const rect = joyBase.getBoundingClientRect();
-                    const t = e.touches ? e.touches[0] : e;
-                    const dx = t.clientX - (rect.left + rect.width/2);
-                    const dy = t.clientY - (rect.top + rect.height/2);
-                    const dist = Math.min(45, Math.hypot(dx, dy));
-                    const ang = Math.atan2(dy, dx);
-                    this.joy.x = Math.cos(ang) * (dist/45);
-                    this.joy.y = Math.sin(ang) * (dist/45);
-                    knob.style.transform = `translate(${this.joy.x * 35}px, ${this.joy.y * 35}px)`;
+            createCart() {
+                this.cart = new THREE.Group();
+                const basket = new THREE.Mesh(new THREE.BoxGeometry(8, 6, 12), new THREE.MeshStandardMaterial({color: 0xcbd5e1, wireframe: true}));
+                basket.position.y = 5;
+                const handle = new THREE.Mesh(new THREE.BoxGeometry(8, 0.5, 0.5), new THREE.MeshStandardMaterial({color: 0x1e293b}));
+                handle.position.set(0, 8, 6);
+                this.cart.add(basket, handle);
+                this.scene.add(this.cart);
+            }
+
+            setupInput() {
+                this.keys = {}; window.onkeydown = e => this.keys[e.code] = true; window.onkeyup = e => this.keys[e.code] = false;
+                
+                const joy = document.getElementById('joystick'); const stick = document.getElementById('stick');
+                let startX, startY;
+                joy.ontouchstart = e => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; };
+                joy.ontouchmove = e => {
+                    const dx = e.touches[0].clientX - startX; const dy = e.touches[0].clientY - startY;
+                    const dist = Math.min(35, Math.hypot(dx, dy)); const ang = Math.atan2(dy, dx);
+                    stick.style.transform = `translate(${Math.cos(ang)*dist}px, ${Math.sin(ang)*dist}px)`;
+                    this.inputVec = { x: dx/35, y: dy/35 };
                 };
-
-                joyBase.addEventListener('touchstart', e => { this.joy.active = true; handleJoy(e); }, {passive:false});
-                window.addEventListener('touchmove', handleJoy, {passive:false});
-                window.addEventListener('touchend', () => { 
-                    this.joy.active = false; this.joy.x = this.joy.y = 0; 
-                    knob.style.transform = 'translate(0,0)';
-                });
-
-                document.getElementById('btn-grab').addEventListener('touchstart', e => { e.preventDefault(); this.grab(); });
-                window.addEventListener('keydown', e => { if(e.code === 'Space') this.grab(); });
+                joy.ontouchend = () => { stick.style.transform = 'translate(0,0)'; this.inputVec = {x:0, y:0}; };
             }
 
             start() {
-                const targets = [...this.itemsOnField].sort(() => 0.5 - Math.random()).slice(0, 6);
-                this.shoppingList = targets.map(t => ({ ...t, collected: false }));
-                this.playing = true;
-                this.startTime = Date.now();
-                document.getElementById('start-modal').style.display = 'none';
-                this.renderList();
+                this.state = 'playing'; document.getElementById('overlay').style.display = 'none';
+                this.generateList();
             }
 
-            grab() {
-                if(!this.playing) return;
-                const hitIdx = this.itemsOnField.findIndex(i => Math.hypot(this.player.x - i.x, this.player.y - i.y) < 80);
-                if(hitIdx !== -1) {
-                    const item = this.itemsOnField[hitIdx];
-                    const listTarget = this.shoppingList.find(li => li.emoji === item.emoji && !li.collected);
-                    if(listTarget) {
-                        listTarget.collected = true;
-                        this.itemsOnField.splice(hitIdx, 1);
-                        this.renderList();
-                    }
+            generateList() {
+                this.targetItems = [];
+                const all = AISLES.flatMap(a => a.items);
+                for(let i=0; i<5; i++) {
+                    const itm = all[Math.floor(Math.random()*all.length)];
+                    if(!this.targetItems.includes(itm)) this.targetItems.push(itm);
+                    else i--;
                 }
-
-                if(this.shoppingList.every(li => li.collected)) {
-                    if(this.player.x > this.checkoutZone.x && this.player.x < this.checkoutZone.x + this.checkoutZone.w &&
-                       this.player.y > this.checkoutZone.y && this.player.y < this.checkoutZone.y + this.checkoutZone.h) {
-                        this.finish();
-                    }
-                }
+                this.updateUI();
             }
 
-            renderList() {
-                const todo = document.getElementById('todo-list');
-                const collected = this.shoppingList.filter(li => li.collected).length;
-                document.getElementById('items-left').textContent = `${collected}/6`;
-                todo.innerHTML = this.shoppingList.map(li => `
-                    <li class="list-item ${li.collected ? 'checked' : ''}">
-                        <div class="check"></div>
-                        <span>${li.emoji} Item</span>
-                    </li>
-                `).join('');
-            }
-
-            finish() {
-                this.playing = false;
-                const time = this.formatTime(Date.now() - this.startTime);
-                document.getElementById('finish-modal').style.display = 'flex';
-                document.getElementById('final-time').textContent = time;
-            }
-
-            formatTime(ms) {
-                const s = ms / 1000;
-                return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toFixed(1).padStart(4,'0')}`;
-            }
-
-            update() {
-                if(!this.playing) return;
-                this.timer = Date.now() - this.startTime;
-                document.getElementById('timer').textContent = this.formatTime(this.timer);
-
-                let dx = 0, dy = 0;
-                if(this.keys['KeyW'] || this.keys['ArrowUp']) dy = -1;
-                if(this.keys['KeyS'] || this.keys['ArrowDown']) dy = 1;
-                if(this.keys['KeyA'] || this.keys['ArrowLeft']) dx = -1;
-                if(this.keys['KeyD'] || this.keys['ArrowRight']) dx = 1;
-                if(this.joy.active) { dx = this.joy.x; dy = this.joy.y; }
-
-                const mag = Math.hypot(dx, dy);
-                if(mag > 0.1) {
-                    dx /= mag; dy /= mag;
-                    const nextX = this.player.x + dx * this.player.speed;
-                    const nextY = this.player.y + dy * this.player.speed;
-                    
-                    let collideX = false, collideY = false;
-                    const pr = 20;
-                    this.aisles.forEach(a => {
-                        if(nextX+pr > a.x && nextX-pr < a.x+a.w && this.player.y+pr > a.y && this.player.y-pr < a.y+a.h) collideX = true;
-                        if(this.player.x+pr > a.x && this.player.x-pr < a.x+a.w && nextY+pr > a.y && nextY-pr < a.y+a.h) collideY = true;
-                    });
-
-                    if(!collideX) this.player.x = nextX;
-                    if(!collideY) this.player.y = nextY;
-                    
-                    this.player.anim += 0.15;
-                    this.player.dir = dx >= 0 ? 1 : -1;
-                }
-
-                this.player.x = Math.max(30, Math.min(this.worldWidth-30, this.player.x));
-                this.player.y = Math.max(30, Math.min(this.worldHeight-30, this.player.y));
-
-                this.cam.x = this.player.x - window.innerWidth/2;
-                this.cam.y = this.player.y - window.innerHeight/2;
-                this.cam.x = Math.max(0, Math.min(this.worldWidth - window.innerWidth, this.cam.x));
-                this.cam.y = Math.max(0, Math.min(this.worldHeight - window.innerHeight, this.cam.y));
-            }
-
-            draw() {
-                const ctx = this.ctx;
-                ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-                ctx.save();
-                ctx.translate(-this.cam.x, -this.cam.y);
-
-                // Floor
-                ctx.fillStyle = '#f8fafc';
-                ctx.fillRect(0, 0, this.worldWidth, this.worldHeight);
-                ctx.strokeStyle = '#e2e8f0';
-                ctx.lineWidth = 2;
-                for(let x=0; x<this.worldWidth; x+=100) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,this.worldHeight); ctx.stroke(); }
-                for(let y=0; y<this.worldHeight; y+=100) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(this.worldWidth,y); ctx.stroke(); }
-
-                // Zones
-                ctx.fillStyle = '#22c55e';
-                ctx.fillRect(this.entranceDoor.x, this.entranceDoor.y, this.entranceDoor.w, this.entranceDoor.h);
-                
-                ctx.fillStyle = this.shoppingList.every(li => li.collected) ? '#0ea5e9' : '#cbd5e1';
-                ctx.fillRect(this.checkoutZone.x, this.checkoutZone.y, this.checkoutZone.w, this.checkoutZone.h);
-
-                // Aisles
-                this.aisles.forEach(a => {
-                    ctx.fillStyle = '#334155';
-                    ctx.beginPath(); ctx.roundRect(a.x, a.y, a.w, a.h, 12); ctx.fill();
-                    ctx.fillStyle = '#475569';
-                    ctx.fillRect(a.x+10, a.y+10, a.w-20, a.h-20);
-                    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-                    ctx.font = '900 40px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(a.id, a.x+a.w/2, a.y+a.h/2+15);
+            updateUI() {
+                const cont = document.getElementById('shopping-list'); cont.innerHTML = '';
+                this.targetItems.forEach(itm => {
+                    const div = document.createElement('div');
+                    const done = this.collected.includes(itm);
+                    div.className = `list-item ${done?'done':''}`;
+                    div.innerHTML = `<span>${itm}</span> ${done?'<span class="check">✓</span>':''}`;
+                    cont.appendChild(div);
                 });
-
-                // Items
-                ctx.font = '45px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                this.itemsOnField.forEach(i => ctx.fillText(i.emoji, i.x, i.y));
-
-                // Player
-                ctx.save();
-                ctx.translate(this.player.x, this.player.y);
-                if(this.player.dir === -1) ctx.scale(-1, 1);
-                const waddle = Math.sin(this.player.anim) * 5;
-                ctx.font = '60px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('🛒', 0, waddle + 10);
-                ctx.fillText('🚶', -20, waddle - 20);
-                ctx.restore();
-
-                ctx.restore();
+                document.getElementById('score-val').textContent = `ITEMS: ${this.collected.length}/${this.targetItems.length}`;
             }
 
-            loop() {
-                this.update();
-                this.draw();
-                requestAnimationFrame(() => this.loop());
+            update(dt) {
+                if(this.state !== 'playing') return;
+
+                let dx = (this.keys['ArrowLeft']?-1:0) + (this.keys['ArrowRight']?1:0);
+                let dz = (this.keys['ArrowUp']?-1:0) + (this.keys['ArrowDown']?1:0);
+                if(this.inputVec.x || this.inputVec.y) { dx = this.inputVec.x; dz = this.inputVec.y; }
+
+                if(dx || dz) {
+                    this.cart.position.x += dx * 40 * dt;
+                    this.cart.position.z += dz * 40 * dt;
+                    this.cart.lookAt(this.cart.position.clone().add(new THREE.Vector3(dx, 0, dz)));
+                }
+
+                // Check Pickups
+                for(let i=this.aisles.length-1; i>=0; i--) {
+                    const spr = this.aisles[i];
+                    const dist = this.cart.position.distanceTo(spr.position);
+                    if(dist < 12) {
+                        const itm = spr.userData.emoji;
+                        if(this.targetItems.includes(itm) && !this.collected.includes(itm)) {
+                            this.collected.push(itm);
+                            this.scene.remove(spr); this.aisles.splice(i, 1);
+                            this.updateUI();
+                            if(this.collected.length === this.targetItems.length) {
+                                alert("SHOPPING COMPLETE!"); location.reload();
+                            }
+                        }
+                    }
+                }
+
+                this.camera.position.lerp(this.cart.position.clone().add(new THREE.Vector3(0, 60, 40)), 0.1);
+                this.camera.lookAt(this.cart.position);
             }
+
+            loop() { this.update(0.016); this.renderer.render(this.scene, this.camera); requestAnimationFrame(this.loop); }
         }
-
-        const game = new StoreGame();
+        window.game = new ShopGame();
     </script>
 </body>
 </html>

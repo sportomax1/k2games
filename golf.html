@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fairway Pro 3D - K2 games</title>
+    <style>
+        :root {
+            --green: #15803d;
+            --fairway: #16a34a;
+            --rough: #14532d;
+            --sand: #fbbf24;
+            --water: #0ea5e9;
+            --accent: #fbbf24;
+            --glass: rgba(15, 23, 42, 0.8);
+        }
+
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; color: white; touch-action: none; }
+        
+        #ui-layer {
+            position: absolute; inset: 0; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+            z-index: 10;
+        }
+
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        
+        .stat-card {
+            background: var(--glass); backdrop-filter: blur(10px);
+            padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+            text-align: center; min-width: 80px;
+        }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px; }
+        .stat-val { font-size: 1.2rem; font-weight: 900; color: var(--accent); }
+
+        #wind-display { display: flex; align-items: center; gap: 10px; }
+        #wind-arrow { font-size: 1.5rem; transform-origin: center; transition: transform 0.5s; }
+
+        #shot-controls {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            width: 350px; text-align: center; pointer-events: auto;
+        }
+
+        #power-meter {
+            width: 100%; height: 30px; background: rgba(0,0,0,0.6);
+            border: 2px solid white; border-radius: 15px; position: relative;
+            overflow: hidden; margin-bottom: 15px;
+        }
+        #power-fill { width: 0%; height: 100%; background: linear-gradient(to right, #22c55e, #eab308, #ef4444); }
+
+        #club-selector { display: flex; justify-content: center; gap: 8px; margin-bottom: 15px; }
+        .club-btn {
+            background: var(--glass); border: 1px solid rgba(255,255,255,0.3);
+            color: white; padding: 5px 12px; border-radius: 20px; cursor: pointer;
+            font-weight: bold; font-size: 0.8rem;
+        }
+        .club-btn.active { background: var(--accent); color: black; border-color: white; }
+
+        #mobile-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .nav-btn {
+            width: 60px; height: 60px; background: var(--glass); border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 1.5rem; cursor: pointer;
+        }
+        .nav-btn:active { background: var(--accent); color: black; }
+
+        #swing-btn {
+            width: 80px; height: 80px; background: var(--accent); color: black;
+            border: 4px solid white; border-radius: 50%; font-weight: 900;
+            font-size: 1.2rem; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            margin: 0 auto; display: flex; align-items: center; justify-content: center;
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1000; text-align: center; padding: 30px;
+        }
+        h1 { font-size: 4rem; color: var(--accent); font-style: italic; font-weight: 900; line-height: 0.9; margin: 0; }
+        .brief { color: #94a3b8; max-width: 400px; line-height: 1.5; margin: 20px 0; font-weight: 600; }
+        .btn {
+            padding: 20px 80px; font-size: 1.5rem; background: #fff; color: #000;
+            border: none; border-radius: 50px; font-weight: 900; cursor: pointer;
+            box-shadow: 0 10px 0 #cbd5e1; transition: all 0.1s;
+        }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 2000;
+            font-weight: bold; font-size: 0.8rem; backdrop-filter: blur(5px); pointer-events: auto;
+        }
+
+        #shot-result {
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 3rem; font-weight: 900; text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            opacity: 0; pointer-events: none; z-index: 50;
+        }
+        .anim-text { animation: popFade 2s forwards; }
+        @keyframes popFade {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            20% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            100% { opacity: 0; transform: translate(-50%, -100%) scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="shot-result">PERFECT!</div>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="stat-card">
+                <div class="stat-label">Strokes</div>
+                <div id="strokes-val" class="stat-val">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Dist</div>
+                <div id="dist-val" class="stat-val">350y</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Wind</div>
+                <div id="wind-display">
+                    <div id="wind-arrow">➤</div>
+                    <div id="wind-val" class="stat-val">5</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="shot-controls">
+            <div id="club-selector">
+                <div class="club-btn active" onclick="game.setClub('DR')">DR</div>
+                <div class="club-btn" onclick="game.setClub('IR')">IR</div>
+                <div class="club-btn" onclick="game.setClub('WD')">WD</div>
+                <div class="club-btn" onclick="game.setClub('PT')">PT</div>
+            </div>
+            <div id="mobile-nav">
+                <div class="nav-btn" id="btn-left">◀</div>
+                <div class="score-label">AIM DIRECTION</div>
+                <div class="nav-btn" id="btn-right">▶</div>
+            </div>
+            <div id="power-meter">
+                <div id="power-fill"></div>
+            </div>
+            <div id="swing-btn">SWING</div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h1>FAIRWAY<br>PRO 3D</h1>
+        <div class="brief">
+            Professional 3D Golfing. <br>
+            Aim with <b>ARROWS</b>. Time your <b>SWING</b>. <br>
+            Watch out for hills, ponds, and sand!
+        </div>
+        <button class="btn" onclick="window.game.start()">TEE OFF</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        class GolfGame {
+            constructor() {
+                this.state = 'menu';
+                this.strokes = 0;
+                this.wind = { speed: 5, dir: 0 };
+                this.clubs = {
+                    'DR': { range: 280, loft: 0.12 },
+                    'IR': { range: 180, loft: 0.3 },
+                    'WD': { range: 100, loft: 0.6 },
+                    'PT': { range: 45, loft: 0.01 }
+                };
+                this.currentClub = 'DR';
+                this.power = 0;
+                this.powerDir = 1;
+                this.angle = 0;
+                this.lastLie = new THREE.Vector3(0, 0, 0);
+                
+                this.initEngine();
+                this.createCourse();
+                this.createPlayer();
+                this.setupInput();
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            initEngine() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x87ceeb);
+                this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0015);
+                
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 3000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                document.body.appendChild(this.renderer.domElement);
+
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+                const sun = new THREE.DirectionalLight(0xfffae3, 1.3);
+                sun.position.set(100, 400, 100); sun.castShadow = true;
+                sun.shadow.mapSize.set(2048, 2048);
+                this.scene.add(sun);
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            getHeight(x, z) {
+                // Hill generation logic
+                const hills = Math.sin(x * 0.02) * 5 + Math.cos(z * 0.01) * 8;
+                const valley = Math.sin(x * 0.005 + z * 0.005) * 15;
+                // Plateau for green at -600
+                const distToGreen = Math.hypot(x, z + 600);
+                if (distToGreen < 40) return Math.max(-5, hills + valley) * (distToGreen/40) + 2 * (1 - distToGreen/40);
+                return hills + valley;
+            }
+
+            getNormal(x, z) {
+                const eps = 0.1;
+                const hL = this.getHeight(x - eps, z);
+                const hR = this.getHeight(x + eps, z);
+                const hD = this.getHeight(x, z - eps);
+                const hU = this.getHeight(x, z + eps);
+                return new THREE.Vector3(hL - hR, 2 * eps, hD - hU).normalize();
+            }
+
+            createCourse() {
+                this.course = new THREE.Group();
+                const size = 2000;
+                const segments = 120;
+                const groundGeo = new THREE.PlaneGeometry(size, size, segments, segments);
+                const pos = groundGeo.attributes.position;
+                const colors = [];
+                const color = new THREE.Color();
+
+                for(let i=0; i<pos.count; i++) {
+                    const x = pos.getX(i);
+                    const z = -pos.getY(i);
+                    const h = this.getHeight(x, z);
+                    pos.setZ(i, h);
+
+                    // Terrain coloring
+                    const distToGreen = Math.hypot(x, z + 600);
+                    const fairwayX = Math.abs(x);
+                    
+                    if (h < -5) color.setHex(0x0ea5e9); // Water
+                    else if (distToGreen < 15) color.setHex(0x4ade80); // Green
+                    else if (distToGreen < 25) color.setHex(0x22c55e); // Fringe
+                    else if (fairwayX < 40 && z < -50 && z > -550) color.setHex(0x16a34a); // Fairway
+                    else color.setHex(0x14532d); // Rough
+                    
+                    colors.push(color.r, color.g, color.b);
+                }
+                groundGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+                groundGeo.computeVertexNormals();
+                const ground = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }));
+                ground.rotation.x = -Math.PI/2; ground.receiveShadow = true;
+                this.course.add(ground);
+
+                // Water visual plane
+                const water = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.6 }));
+                water.rotation.x = -Math.PI/2; water.position.y = -5.5;
+                this.course.add(water);
+
+                // 3D Objects: Trees and Sand Traps
+                for(let i=0; i<60; i++) {
+                    const x = (Math.random()-0.5)*400;
+                    const z = -Math.random()*800;
+                    const h = this.getHeight(x, z);
+                    if (h < -2) continue;
+
+                    // Trees in rough
+                    if (Math.abs(x) > 60 || z > -50) {
+                        const tree = this.buildTree();
+                        tree.position.set(x, h, z);
+                        this.course.add(tree);
+                    } 
+                    // Sand traps near green or fairway
+                    else if (Math.random() < 0.1) {
+                        const sand = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 0.5, 16), new THREE.MeshStandardMaterial({color: 0xfbbf24}));
+                        sand.position.set(x, h + 0.1, z);
+                        sand.userData = { type: 'sand' };
+                        this.course.add(sand);
+                    }
+                }
+
+                // Flag
+                this.flagPos = new THREE.Vector3(0, this.getHeight(0, -600), -600);
+                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 10), new THREE.MeshStandardMaterial({color: 0xffffff}));
+                pole.position.copy(this.flagPos).add(new THREE.Vector3(0, 5, 0));
+                this.course.add(pole);
+                const flag = new THREE.Mesh(new THREE.BoxGeometry(2, 1.2, 0.1), new THREE.MeshStandardMaterial({color: 0xef4444}));
+                flag.position.copy(this.flagPos).add(new THREE.Vector3(1, 9, 0));
+                this.course.add(flag);
+
+                this.scene.add(this.course);
+            }
+
+            buildTree() {
+                const group = new THREE.Group();
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 1, 10), new THREE.MeshStandardMaterial({color: 0x451a03}));
+                trunk.position.y = 5;
+                const leaves = new THREE.Mesh(new THREE.DodecahedronGeometry(6), new THREE.MeshStandardMaterial({color: 0x064e3b}));
+                leaves.position.y = 12;
+                group.add(trunk, leaves);
+                group.castShadow = true;
+                return group;
+            }
+
+            createPlayer() {
+                this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                this.ball.castShadow = true; this.ball.position.set(0, this.getHeight(0,0)+0.2, 0);
+                this.scene.add(this.ball);
+                this.ballVel = new THREE.Vector3();
+
+                this.golfer = new THREE.Group();
+                const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 1.5), new THREE.MeshStandardMaterial({ color: 0x3b82f6 }));
+                body.position.y = 0.75;
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.4), new THREE.MeshStandardMaterial({ color: 0xffdbac }));
+                head.position.y = 1.8;
+                this.clubMesh = new THREE.Group();
+                const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2), new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
+                shaft.position.y = 1;
+                const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.15, 0.2), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+                this.clubMesh.add(shaft, headMesh);
+                this.clubMesh.rotation.z = Math.PI/4; this.clubMesh.position.set(0.6, 1, 0);
+                this.golfer.add(body, head, this.clubMesh);
+                this.scene.add(this.golfer);
+                
+                this.aimLine = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 60), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 }));
+                this.aimLine.rotation.x = -Math.PI/2; this.scene.add(this.aimLine);
+            }
+
+            setupInput() {
+                this.keys = {};
+                window.onkeydown = e => this.keys[e.code] = true;
+                window.onkeyup = e => this.keys[e.code] = false;
+                const swing = document.getElementById('swing-btn');
+                const handleSwing = (e) => {
+                    e.preventDefault();
+                    if (this.state === 'aiming') { this.state = 'swinging'; this.power = 0; swing.textContent = 'SET'; }
+                    else if (this.state === 'swinging') { this.hitBall(); swing.textContent = 'WAIT'; }
+                };
+                swing.addEventListener('mousedown', handleSwing); swing.addEventListener('touchstart', handleSwing);
+                const b = (id) => {
+                    const el = document.getElementById(id);
+                    el.onmousedown = () => this.keys[id] = true; el.onmouseup = () => this.keys[id] = false;
+                    el.ontouchstart = (e) => { e.preventDefault(); this.keys[id] = true; }; el.ontouchend = (e) => { e.preventDefault(); this.keys[id] = false; };
+                };
+                b('btn-left'); b('btn-right');
+            }
+
+            start() { this.state = 'aiming'; document.getElementById('overlay').style.display = 'none'; this.resetWind(); this.updateUI(); }
+
+            resetWind() {
+                this.wind.speed = Math.random() * 15; this.wind.dir = Math.random() * Math.PI * 2;
+                document.getElementById('wind-arrow').style.transform = `rotate(${this.wind.dir}rad)`;
+                document.getElementById('wind-val').textContent = Math.floor(this.wind.speed);
+            }
+
+            setClub(c) {
+                if (this.state !== 'aiming') return; this.currentClub = c;
+                document.querySelectorAll('.club-btn').forEach(b => b.classList.remove('active'));
+                event.target.classList.add('active');
+            }
+
+            hitBall() {
+                this.state = 'flying'; this.lastLie.copy(this.ball.position);
+                const club = this.clubs[this.currentClub];
+                const p = this.power / 100;
+                const speed = club.range * p * 0.9;
+                this.ballVel.set(-Math.sin(this.angle)*speed*(1-club.loft), speed*club.loft, -Math.cos(this.angle)*speed*(1-club.loft));
+                this.strokes++; document.getElementById('strokes-val').textContent = this.strokes;
+                this.showFeedback(this.power > 95 ? "BOOM!" : "GOOD", this.power > 95 ? "#22c55e" : "#fbbf24");
+            }
+
+            showFeedback(t, c) {
+                const el = document.getElementById('shot-result'); el.textContent = t; el.style.color = c;
+                el.classList.remove('anim-text'); void el.offsetWidth; el.classList.add('anim-text');
+            }
+
+            update(dt) {
+                const b = this.ball;
+                if (this.state === 'aiming') {
+                    if (this.keys['ArrowLeft'] || this.keys['btn-left']) this.angle += 1.2 * dt;
+                    if (this.keys['ArrowRight'] || this.keys['btn-right']) this.angle -= 1.2 * dt;
+                    
+                    const dist = 1.2;
+                    this.golfer.position.set(b.position.x + Math.cos(this.angle)*dist, b.position.y - 0.2, b.position.z - Math.sin(this.angle)*dist);
+                    this.golfer.rotation.y = this.angle;
+                    this.aimLine.position.set(b.position.x - Math.sin(this.angle)*30, b.position.y + 0.05, b.position.z - Math.cos(this.angle)*30);
+                    this.aimLine.rotation.z = this.angle;
+                    
+                    this.camera.position.lerp(new THREE.Vector3(b.position.x + Math.sin(this.angle)*15, b.position.y + 10, b.position.z + Math.cos(this.angle)*15), 0.1);
+                    this.camera.lookAt(b.position.x - Math.sin(this.angle)*40, b.position.y, b.position.z - Math.cos(this.angle)*40);
+                }
+
+                if (this.state === 'swinging') {
+                    this.power += this.powerDir * 200 * dt;
+                    if (this.power >= 100 || this.power <= 0) this.powerDir *= -1;
+                    document.getElementById('power-fill').style.width = this.power + '%';
+                    this.clubMesh.rotation.z = Math.PI/4 + (this.power/100) * 2.5;
+                }
+
+                if (this.state === 'flying') {
+                    // Wind & Gravity
+                    this.ballVel.y -= 25 * dt;
+                    this.ballVel.x += Math.sin(this.wind.dir) * this.wind.speed * 0.01 * dt;
+                    this.ballVel.z += Math.cos(this.wind.dir) * this.wind.speed * 0.01 * dt;
+                    
+                    b.position.add(this.ballVel.clone().multiplyScalar(dt));
+
+                    const groundH = this.getHeight(b.position.x, b.position.z);
+                    if (b.position.y <= groundH + 0.2) {
+                        b.position.y = groundH + 0.2;
+                        
+                        // Surface Normal for Slope Physics
+                        const normal = this.getNormal(b.position.x, b.position.z);
+                        if (Math.abs(this.ballVel.y) > 3) {
+                            this.ballVel.reflect(normal).multiplyScalar(0.4);
+                        } else {
+                            this.ballVel.y = 0;
+                            // Add Slope Force (Gravity pulling ball down hills)
+                            const slopeForce = new THREE.Vector3(normal.x, 0, normal.z).multiplyScalar(15 * dt);
+                            this.ballVel.add(slopeForce);
+
+                            // Friction
+                            const distToGreen = Math.hypot(b.position.x, b.position.z + 600);
+                            let f = 0.97; // Fairway
+                            if (distToGreen < 15) f = 0.99; // Green
+                            else if (Math.abs(b.position.x) > 40) f = 0.88; // Rough
+                            
+                            this.ballVel.multiplyScalar(f);
+                            if (this.ballVel.length() < 0.4) { this.ballVel.set(0,0,0); this.checkHole(); }
+                        }
+                    }
+                    this.camera.position.lerp(b.position.clone().add(new THREE.Vector3(0, 15, 25)), 0.1);
+                    this.camera.lookAt(b.position);
+                }
+            }
+
+            checkHole() {
+                const dist = this.ball.position.distanceTo(this.flagPos);
+                if (dist < 1.5) {
+                    this.showFeedback("IN THE CUP!", "#22c55e");
+                    setTimeout(() => this.resetHole(), 3000);
+                } else if (this.ball.position.y < -4) {
+                    this.showFeedback("WATER HAZARD!", "#0ea5e9");
+                    this.strokes++; document.getElementById('strokes-val').textContent = this.strokes;
+                    setTimeout(() => { this.ball.position.copy(this.lastLie); this.state = 'aiming'; document.getElementById('swing-btn').textContent = 'SWING'; }, 2000);
+                } else {
+                    this.state = 'aiming'; document.getElementById('swing-btn').textContent = 'SWING';
+                }
+                this.updateUI();
+            }
+
+            resetHole() {
+                this.strokes = 0; this.ball.position.set(0, this.getHeight(0,0)+0.2, 0); this.ballVel.set(0,0,0);
+                this.resetWind(); this.updateUI(); this.angle = 0; document.getElementById('swing-btn').textContent = 'SWING';
+            }
+
+            updateUI() {
+                const d = this.ball.position.distanceTo(this.flagPos);
+                document.getElementById('dist-val').textContent = Math.floor(d) + 'y';
+            }
+
+            loop() { this.update(0.016); this.renderer.render(this.scene, this.camera); requestAnimationFrame(this.loop); }
+        }
+        window.game = new GolfGame();
+    </script>
+</body>
+</html>

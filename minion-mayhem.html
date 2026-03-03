@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Minion Mayhem: Park Chaos - K2 games</title>
+    <style>
+        :root {
+            --minion-yellow: #facc15;
+            --denim-blue: #3b82f6;
+            --grass: #22c55e;
+            --glass: rgba(15, 23, 42, 0.85);
+        }
+
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; color: white; touch-action: none; }
+        
+        #ui-layer {
+            position: absolute; inset: 0; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+            z-index: 10;
+        }
+
+        .hud-top { display: flex; justify-content: space-between; }
+        
+        .stat-card {
+            background: var(--glass); backdrop-filter: blur(10px);
+            padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+            text-align: center; min-width: 100px;
+        }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px; }
+        .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--minion-yellow); }
+
+        #action-grid {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(2, 1fr);
+            gap: 10px; pointer-events: auto;
+            background: var(--glass); padding: 15px; border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .action-btn {
+            width: 60px; height: 60px; background: rgba(255,255,255,0.1); 
+            border: 2px solid rgba(255,255,255,0.3); border-radius: 15px; 
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.8rem; cursor: pointer; transition: all 0.1s;
+        }
+        .action-btn:active { transform: scale(0.9); background: var(--minion-yellow); }
+
+        @media (max-width: 600px) {
+            #action-grid { transform: translateX(-50%) scale(0.85); bottom: 10px; }
+        }
+
+        #speech-bubble {
+            position: absolute; top: 20%; left: 50%; transform: translate(-50%, -50%);
+            background: white; color: black; padding: 10px 25px; border-radius: 30px;
+            font-weight: 900; font-family: 'Comic Sans MS', cursive, sans-serif;
+            display: none; pointer-events: none; z-index: 50; box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+            text-transform: uppercase; border: 3px solid var(--minion-yellow);
+        }
+        .pop-anim { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes popIn { 0% { opacity: 0; transform: translate(-50%, 0) scale(0.5); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+    <div id="speech-bubble">BANANA!</div>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="stat-card">
+                <div class="stat-label">Chaos</div>
+                <div id="chaos-val" class="stat-val">0%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Horde Size</div>
+                <div id="count-val" class="stat-val">30</div>
+            </div>
+        </div>
+
+        <div id="action-grid">
+            <div class="action-btn" id="btn-banana" title="Throw Banana">🍌</div>
+            <div class="action-btn" id="btn-dance" title="Disco Party">💃</div>
+            <div class="action-btn" id="btn-panic" title="Panic">📢</div>
+            <div class="action-btn" id="btn-fart" title="Fart Gun">💨</div>
+            <div class="action-btn" id="btn-soccer" title="Soccer Ball">⚽</div>
+            <div class="action-btn" id="btn-spin" title="Tornado">🌪️</div>
+            <div class="action-btn" id="btn-jet" title="Jetpacks">🚀</div>
+            <div class="action-btn" id="btn-sleep" title="Nap Time">😴</div>
+            <div class="action-btn" id="btn-cong" title="Conga Line">🏃</div>
+            <div class="action-btn" id="btn-stac" title="Minion Stack">🏗️</div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        class MinionGame {
+            constructor() {
+                this.state = 'playing';
+                this.chaos = 0;
+                this.minions = [];
+                this.items = [];
+                this.soccerBall = null;
+                this.initEngine();
+                this.createWorld();
+                this.createHuman();
+                this.createMinionHorde(30);
+                this.setupInput();
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            initEngine() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x7dd3fc); 
+                this.scene.fog = new THREE.FogExp2(0x7dd3fc, 0.002);
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1500);
+                this.camera.position.set(0, 45, 65);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                document.body.appendChild(this.renderer.domElement);
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+                const sun = new THREE.DirectionalLight(0xfffae3, 1.2);
+                sun.position.set(100, 200, 100); sun.castShadow = true;
+                sun.shadow.mapSize.set(2048, 2048); this.scene.add(sun);
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            createWorld() {
+                const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 1 }));
+                ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; this.scene.add(ground);
+                const path = new THREE.Mesh(new THREE.PlaneGeometry(30, 500), new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
+                path.rotation.x = -Math.PI/2; path.position.y = 0.01; this.scene.add(path);
+                for(let i=0; i<40; i++) {
+                    const tree = new THREE.Group();
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.5, 15), new THREE.MeshStandardMaterial({color: 0x451a03})); trunk.position.y = 7.5;
+                    const leaves = new THREE.Mesh(new THREE.DodecahedronGeometry(8), new THREE.MeshStandardMaterial({color: 0x166534})); leaves.position.y = 18;
+                    tree.add(trunk, leaves); const angle = Math.random()*Math.PI*2; const rad = 80 + Math.random()*100;
+                    tree.position.set(Math.cos(angle)*rad, 0, Math.sin(angle)*rad); tree.castShadow = true; this.scene.add(tree);
+                }
+            }
+
+            createHuman() {
+                this.human = new THREE.Group();
+                const coat = new THREE.Mesh(new THREE.CapsuleGeometry(1.2, 3), new THREE.MeshStandardMaterial({color: 0xffffff})); coat.position.y = 2.0;
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.9), new THREE.MeshStandardMaterial({color: 0xffdbac})); head.position.y = 4.5;
+                const legs = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2, 1), new THREE.MeshStandardMaterial({color: 0x1e293b})); legs.position.y = 1.0;
+                this.human.add(coat, head, legs); this.human.castShadow = true;
+                this.humanTarget = new THREE.Vector3(0,0,0); this.scene.add(this.human);
+            }
+
+            createMinionHorde(count) {
+                for(let i=0; i<count; i++) {
+                    const m = new THREE.Group();
+                    const isTall = Math.random() > 0.7; const isOneEye = Math.random() > 0.5;
+                    const bodyH = isTall ? 2.5 : 1.6;
+                    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.8, bodyH), new THREE.MeshStandardMaterial({ color: 0xfacc15 })); body.position.y = bodyH/2+0.5; m.add(body);
+                    const pants = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.82, 1.2), new THREE.MeshStandardMaterial({ color: 0x3b82f6 })); pants.position.y = 1.0; m.add(pants);
+                    const gMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8 });
+                    if(isOneEye) { const g = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.15), gMat); g.position.set(0, bodyH-0.2, 0.6); m.add(g); }
+                    else { const g1 = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.1), gMat); g1.position.set(-0.4, bodyH-0.2, 0.6); m.add(g1); const g2 = g1.clone(); g2.position.x = 0.4; m.add(g2); }
+                    m.position.set((Math.random()-0.5)*100, 0, (Math.random()-0.5)*100);
+                    m.userData = { vel: new THREE.Vector3(), state: 'idle', id: i, timer: 0 }; m.castShadow = true; this.scene.add(m); this.minions.push(m);
+                }
+            }
+
+            setupInput() {
+                window.addEventListener('pointerdown', (e) => {
+                    if(e.target.closest('.action-btn')) return;
+                    const ray = new THREE.Raycaster();
+                    const mouse = new THREE.Vector2((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1);
+                    ray.setFromCamera(mouse, this.camera);
+                    const hits = ray.intersectObjects(this.scene.children);
+                    if(hits.length > 0) { this.humanTarget.copy(hits[0].point); this.humanTarget.y = 0; }
+                });
+                const b = (id, f) => document.getElementById(id).onclick = f;
+                b('btn-banana', () => this.tossBanana());
+                b('btn-dance', () => this.trigger('dance'));
+                b('btn-panic', () => this.trigger('panic'));
+                b('btn-fart', () => this.trigger('panic', "PUUUU!!"));
+                b('btn-soccer', () => this.spawnSoccer());
+                b('btn-spin', () => this.trigger('spin'));
+                b('btn-jet', () => this.trigger('jet'));
+                b('btn-sleep', () => this.trigger('sleep'));
+                b('btn-cong', () => this.trigger('conga'));
+                b('btn-stac', () => this.trigger('stack'));
+            }
+
+            tossBanana() {
+                const b = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1), new THREE.MeshStandardMaterial({color: 0xfef08a}));
+                b.position.copy(this.human.position).add(new THREE.Vector3(0, 10, 0));
+                const tx = (Math.random()-0.5)*80, tz = (Math.random()-0.5)*80;
+                const dir = new THREE.Vector3(tx, 0, tz).sub(b.position).normalize();
+                b.userData = { vel: dir.multiplyScalar(1.5).add(new THREE.Vector3(0, 0.8, 0)) };
+                this.scene.add(b); this.items.push(b); this.shout("BANANA!", 2000); this.chaos += 5;
+            }
+
+            spawnSoccer() {
+                if(this.soccerBall) this.scene.remove(this.soccerBall);
+                this.soccerBall = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 16), new THREE.MeshStandardMaterial({color: 0xffffff, roughness: 0.3}));
+                this.soccerBall.position.set(0, 20, 0); this.soccerBall.userData = { vel: new THREE.Vector3(0,0,0) };
+                this.scene.add(this.soccerBall); this.shout("SOCCER!!", 2000); this.chaos += 10;
+            }
+
+            trigger(type, msg = null) {
+                this.minions.forEach(m => { m.userData.state = type; if(type==='panic') m.userData.vel.set(Math.random()-0.5, 0, Math.random()-0.5).multiplyScalar(3); });
+                const ms = { 'dance': "DANCE!", 'panic': msg || "BEE-DOO!", 'spin': "🌪️ WEE!", 'jet': "🚀 UP!", 'sleep': "😴 Zzz", 'conga': "🏃 FOLLOW!", 'stack': "🏗️ STACK!" };
+                this.shout(ms[type] || "GO!", 2000); this.chaos += 10; document.getElementById('chaos-val').textContent = Math.min(100, this.chaos) + "%";
+            }
+
+            shout(t, d) {
+                const el = document.getElementById('speech-bubble'); el.textContent = t; el.style.display = 'block';
+                el.classList.remove('pop-anim'); void el.offsetWidth; el.classList.add('pop-anim');
+                setTimeout(() => el.style.display = 'none', d);
+            }
+
+            update(dt) {
+                const time = Date.now() * 0.001;
+                if(this.human.position.distanceTo(this.humanTarget) > 0.5) {
+                    const d = this.humanTarget.clone().sub(this.human.position).normalize();
+                    this.human.position.add(d.multiplyScalar(15 * dt)); this.human.lookAt(this.humanTarget);
+                    this.human.position.y = Math.abs(Math.sin(time*10))*0.3;
+                }
+                if(this.soccerBall) {
+                    this.soccerBall.position.add(this.soccerBall.userData.vel); this.soccerBall.userData.vel.multiplyScalar(0.98);
+                    if(this.soccerBall.position.y > 4) this.soccerBall.userData.vel.y -= 0.15; else { this.soccerBall.position.y = 4; this.soccerBall.userData.vel.y = 0; }
+                }
+                this.minions.forEach(m => {
+                    const d = m.userData;
+                    if(d.state === 'dance') { m.rotation.y += 0.2; m.position.y = Math.abs(Math.sin(time*12 + d.id))*2; }
+                    else if(d.state === 'spin') { m.rotation.y += 0.6; m.position.y = 0; }
+                    else if(d.state === 'sleep') { m.rotation.x = Math.PI/2; m.position.y = 0.5; }
+                    else if(d.state === 'panic') { m.position.add(d.vel); m.rotation.y += 0.5; if(m.position.length() > 150) d.vel.multiplyScalar(-1); }
+                    else if(d.state === 'jet') { m.position.y = 15 + Math.sin(time*5 + d.id)*8; m.rotation.x = 0.5; }
+                    else if(d.state === 'stack') {
+                        const target = new THREE.Vector3(0, (d.id % 5) * 2.5, 0);
+                        m.position.lerp(target, 0.05); m.lookAt(0, m.position.y, 0);
+                    }
+                    else if(d.state === 'conga') { 
+                        const t = d.id === 0 ? this.human.position : this.minions[d.id-1].position;
+                        if(m.position.distanceTo(t) > 6) { m.position.add(t.clone().sub(m.position).normalize().multiplyScalar(0.25)); m.lookAt(t); }
+                    } else {
+                        m.rotation.x = 0; let it = null; this.items.forEach(i => { if(m.position.distanceTo(i.position) < 40) it = i; });
+                        if(it) {
+                            m.position.add(it.position.clone().sub(m.position).normalize().multiplyScalar(0.4)); m.lookAt(it.position);
+                            if(m.position.distanceTo(it.position) < 2) { this.scene.remove(it); this.items.splice(this.items.indexOf(it), 1); this.shout("YUM!", 1000); d.state = 'dance'; }
+                        } else {
+                            if(Math.random() < 0.02) d.vel.set(Math.random()-0.5, 0, Math.random()-0.5).multiplyScalar(0.3);
+                            m.position.add(d.vel); m.lookAt(m.position.clone().add(d.vel));
+                        }
+                    }
+                    if(this.soccerBall && m.position.distanceTo(this.soccerBall.position) < 5) this.soccerBall.userData.vel.add(this.soccerBall.position.clone().sub(m.position).normalize().multiplyScalar(0.6));
+                });
+                this.camera.position.lerp(this.human.position.clone().add(new THREE.Vector3(0, 45, 65)), 0.05); this.camera.lookAt(this.human.position);
+                for(let i=this.items.length-1; i>=0; i--) { const it = this.items[i]; it.position.add(it.userData.vel); it.userData.vel.y -= 0.05; if(it.position.y < 0.5) { it.position.y = 0.5; it.userData.vel.set(0,0,0); } }
+            }
+
+            loop() { this.update(0.016); this.renderer.render(this.scene, this.camera); requestAnimationFrame(this.loop); }
+        }
+        window.game = new MinionGame();
+    </script>
+</body>
+</html>

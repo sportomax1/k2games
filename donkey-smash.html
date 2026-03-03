@@ -176,9 +176,17 @@
 
                 let nearLadder = null;
                 this.ladders.forEach(l => { if(Math.abs(p.x + p.w/2 - (l.x + 12)) < 25 && p.y + p.h > l.y && p.y < l.y + l.h) nearLadder = l; });
-                if(nearLadder && (this.keys['ArrowUp'] || this.keys['ArrowDown'] || p.climbing)) {
+                
+                const upPressed = this.keys['ArrowUp'] || this.keys['KeyW'];
+                const downPressed = this.keys['ArrowDown'] || this.keys['KeyS'];
+
+                if(nearLadder && (upPressed || downPressed || p.climbing)) {
                     p.climbing = true; p.vx = 0; p.vy = 0; p.x = nearLadder.x + 12 - p.w/2;
-                } else p.climbing = false;
+                    if(upPressed) p.y -= 3;
+                    else if(downPressed) p.y += 3;
+                } else {
+                    p.climbing = false;
+                }
 
                 p.onGround = false;
                 if(!p.climbing) {
@@ -191,7 +199,12 @@
                         }
                     });
                 }
-                if(this.keys['Space'] && p.onGround) p.vy = JUMP;
+
+                // JUMPING: Space or ArrowUp (if not climbing)
+                if((this.keys['Space'] || (upPressed && !nearLadder)) && p.onGround) {
+                    p.vy = JUMP;
+                    p.onGround = false;
+                }
 
                 // Barrel Logic (Zig-Zag DOWN)
                 for(let i = this.barrels.length - 1; i >= 0; i--) {
@@ -205,16 +218,30 @@
                             let py = this.getPlatformY(b.x, plat);
                             if(b.y + b.r >= py && b.y + b.r <= py + 20 && b.vy >= 0) {
                                 b.y = py - b.r; b.vy = 0; onP = true;
-                                // Gravity acceleration down the slope
-                                const accel = (plat.s / plat.w) * 0.5;
-                                b.vx -= accel; // If s is positive (slopes up to right), accel is positive, vx decreases (moves left)
-                                if(Math.abs(b.vx) < 1) b.vx = (plat.s > 0 ? -2 : (plat.s < 0 ? 2 : b.vx));
+                                
+                                // Gravity acceleration down the slope (Corrected)
+                                const slopeDir = (plat.s > 0 ? 1 : (plat.s < 0 ? -1 : 0));
+                                if (slopeDir !== 0) {
+                                    b.vx += slopeDir * 0.15;
+                                    // Speed limit
+                                    if (Math.abs(b.vx) > 4) b.vx = slopeDir * 4;
+                                }
+
+                                // Fall down ladder chance
+                                this.ladders.forEach(l => {
+                                    if (Math.abs(b.x - (l.x + 12)) < 15 && b.y + b.r >= l.y - 5 && b.y + b.r <= l.y + 5) {
+                                        if (Math.random() < 0.02) { // 2% chance per frame while over ladder
+                                            b.y += 10; b.vx = 0; // Drop it
+                                        }
+                                    }
+                                });
                             }
                         }
                     });
 
-                    if(b.x < 5) b.vx = 2;
-                    if(b.x > this.width - 5) b.vx = -2;
+                    // Screen Bounds
+                    if(b.x < 5) { b.x = 5; b.vx = Math.abs(b.vx); }
+                    if(b.x > this.width - 5) { b.x = this.width - 5; b.vx = -Math.abs(b.vx); }
 
                     const dist = Math.hypot(p.x + p.w/2 - b.x, p.y + p.h/2 - b.y);
                     if(dist < 30) { if(p.hammer > 0) this.destroyBarrel(b, i); else if(p.invuln <= 0) this.die(); }

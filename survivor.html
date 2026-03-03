@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Survivor: Legacy - K2 games</title>
+    <style>
+        :root {
+            --sand: #e6c288;
+            --jungle: #166534;
+            --night: #0f172a;
+            --fire: #f97316;
+            --ui-bg: rgba(0, 0, 0, 0.9);
+            --accent: #fbbf24;
+        }
+
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; color: white; touch-action: none; }
+        
+        #ui-layer {
+            position: absolute; inset: 0; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+            z-index: 10;
+        }
+
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        
+        .stat-card {
+            background: var(--ui-bg); backdrop-filter: blur(10px);
+            padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+            text-align: center; min-width: 100px;
+        }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px; }
+        .stat-val { font-size: 1.2rem; font-weight: 900; color: var(--accent); }
+
+        #trust-container {
+            position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+            width: 200px; text-align: center; display: none; pointer-events: none;
+        }
+        #trust-bar { width: 100%; height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; overflow: hidden; margin-top: 5px; }
+        #trust-fill { height: 100%; width: 50%; background: #22c55e; transition: width 0.3s; }
+
+        #dialogue-box {
+            position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 600px; background: var(--ui-bg);
+            border: 2px solid rgba(255,255,255,0.2); border-radius: 15px;
+            padding: 20px; display: none; pointer-events: auto;
+            flex-direction: column; gap: 15px;
+        }
+        .npc-name { color: var(--accent); font-weight: 900; font-size: 1.1rem; }
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .opt-btn {
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3);
+            padding: 12px; border-radius: 8px; color: white; cursor: pointer; font-size: 0.9rem;
+        }
+
+        #action-bar {
+            position: absolute; bottom: 40px; right: 20px;
+            display: flex; flex-direction: column; gap: 10px; pointer-events: auto;
+        }
+        .act-btn {
+            width: 70px; height: 70px; background: var(--ui-bg); border: 2px solid var(--accent);
+            border-radius: 50%; color: white; font-weight: 900; font-size: 0.7rem;
+            display: flex; align-items: center; justify-content: center; text-align: center;
+            cursor: pointer; transition: transform 0.1s;
+        }
+
+        #vote-reveal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: white; color: black; padding: 40px; border-radius: 5px;
+            font-family: 'Permanent Marker', cursive, serif; font-size: 3rem;
+            display: none; z-index: 200; box-shadow: 0 0 50px rgba(0,0,0,1);
+        }
+
+        #mobile-controls {
+            position: absolute; bottom: 40px; left: 40px; width: 120px; height: 120px;
+            background: rgba(255,255,255,0.1); border-radius: 50%; display: none;
+            pointer-events: auto;
+        }
+        @media (max-width: 1024px) { #mobile-controls { display: block; } }
+        #joystick { width: 50px; height: 50px; background: rgba(255,255,255,0.5); border-radius: 50%; position: absolute; top: 35px; left: 35px; pointer-events: none; }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 2000;
+            font-weight: bold; font-size: 0.8rem; backdrop-filter: blur(5px); pointer-events: auto;
+        }
+        
+        #phase-btn {
+            position: absolute; top: 20px; right: 20px; padding: 12px 25px;
+            background: var(--fire); color: white; font-weight: 900; border: none;
+            border-radius: 30px; cursor: pointer; pointer-events: auto;
+            display: none; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        #game-msg {
+            position: absolute; top: 20%; width: 100%; text-align: center;
+            font-size: 2.5rem; font-weight: 900; color: white; text-shadow: 0 0 20px black;
+            display: none; z-index: 500; pointer-events: none;
+        }
+
+        #vote-modal {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.95);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1000; pointer-events: auto;
+        }
+        .vote-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 30px; width: 90%; max-width: 500px; }
+        .vote-card { background: #1e293b; padding: 20px; border-radius: 10px; text-align: center; cursor: pointer; border: 2px solid transparent; }
+        .vote-card:hover { border-color: var(--fire); }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="game-msg"></div>
+    <div id="vote-reveal">...</div>
+
+    <div id="vote-modal">
+        <h2 style="font-size: 2.5rem; color: var(--fire);">CAST YOUR VOTE</h2>
+        <div id="vote-options" class="vote-grid"></div>
+    </div>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="stat-card">
+                <div class="stat-label">Remaining</div>
+                <div id="count-val" class="stat-val">8</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Inventory</div>
+                <div id="inv-val" class="stat-val">EMPTY</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Day</div>
+                <div id="day-val" class="stat-val">1</div>
+            </div>
+        </div>
+        
+        <div id="trust-container">
+            <div class="stat-label" id="trust-name">TRUST</div>
+            <div id="trust-bar"><div id="trust-fill"></div></div>
+        </div>
+
+        <button id="phase-btn" onclick="game.startTribalTransition()">GO TO TRIBAL</button>
+
+        <div id="dialogue-box">
+            <div class="npc-name">Survivor</div>
+            <div class="npc-text" id="npc-chat">...</div>
+            <div id="dialogue-options" class="options-grid"></div>
+        </div>
+
+        <div id="action-bar">
+            <div class="act-btn" id="btn-fire">TEND<br>FIRE</div>
+            <div class="act-btn" id="btn-build">BUILD<br>SHELTER</div>
+            <div class="act-btn" id="btn-talk">TALK</div>
+        </div>
+    </div>
+
+    <div id="mobile-controls"><div id="joystick"></div></div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        class SurvivorGame {
+            constructor() {
+                this.day = 1;
+                this.npcs = [];
+                this.state = 'intro'; // intro, march, camp, traveling, sitting, voting, reading, result, return
+                this.voterIndex = -1;
+                this.voteTally = {};
+                this.shelterBuilt = 0;
+                this.fireStrength = 0.5;
+                this.timeOfDay = 0;
+                
+                this.initEngine();
+                this.createWorld();
+                this.createCharacters();
+                this.createBoat();
+                this.setupInput();
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+                this.startIntro();
+            }
+
+            initEngine() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x7dd3fc);
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 3000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                document.body.appendChild(this.renderer.domElement);
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+                this.sun = new THREE.DirectionalLight(0xfffae3, 1.2);
+                this.sun.position.set(50, 100, 50); this.sun.castShadow = true;
+                this.scene.add(this.sun);
+                this.fireLight = new THREE.PointLight(0xf97316, 2, 60); this.scene.add(this.fireLight);
+            }
+
+            createWorld() {
+                const sandMat = new THREE.MeshStandardMaterial({ color: 0xe6c288 });
+                const ground = new THREE.Mesh(new THREE.CylinderGeometry(150, 150, 2, 64), sandMat);
+                ground.receiveShadow = true; this.scene.add(ground);
+
+                // Landmarks
+                this.well = this.buildWell(); this.well.position.set(-30, 0, -30); this.scene.add(this.well);
+                this.shelter = this.buildShelterGhost(); this.shelter.position.set(30, 0, -30); this.scene.add(this.shelter);
+                this.campFirePos = new THREE.Vector3(0, 0, 0);
+                this.flame = new THREE.Mesh(new THREE.ConeGeometry(1.5, 3, 8), new THREE.MeshBasicMaterial({color: 0xf97316}));
+                this.flame.position.y = 1; this.scene.add(this.flame);
+
+                // TRIBAL COUNCIL SET (at 500, 0, 0)
+                this.councilPos = new THREE.Vector3(500, 0, 0);
+                const councilBase = new THREE.Mesh(new THREE.CylinderGeometry(50, 55, 3, 64), new THREE.MeshStandardMaterial({color: 0x3d2b1f}));
+                councilBase.position.copy(this.councilPos); this.scene.add(councilBase);
+                
+                this.councilStumps = [];
+                for(let i=0; i<8; i++) {
+                    const ang = (i/8) * Math.PI * 1.2 + Math.PI*0.4;
+                    const stump = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 1.2), new THREE.MeshStandardMaterial({color: 0x451a03}));
+                    stump.position.set(500 + Math.cos(ang)*20, 1.5, Math.sin(ang)*20);
+                    this.scene.add(stump); this.councilStumps.push(stump.position.clone());
+                }
+
+                this.hostStump = new THREE.Vector3(500 + 30, 0, 0);
+                this.urnPodium = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 3), new THREE.MeshStandardMaterial({color: 0x451a03}));
+                this.urnPodium.position.set(500 + 25, 2, 15); this.scene.add(this.urnPodium);
+
+                const water = new THREE.Mesh(new THREE.PlaneGeometry(5000, 5000), new THREE.MeshStandardMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.7 }));
+                water.rotation.x = -Math.PI/2; water.position.y = -1.5; this.scene.add(water);
+            }
+
+            buildWell() {
+                const g = new THREE.Group();
+                g.add(new THREE.Mesh(new THREE.CylinderGeometry(4,4,3,16), new THREE.MeshStandardMaterial({color:0x64748b})));
+                const r = new THREE.Mesh(new THREE.ConeGeometry(5,4,4), new THREE.MeshStandardMaterial({color:0x78350f}));
+                r.position.y = 8; r.rotation.y = Math.PI/4; g.add(r); return g;
+            }
+
+            buildShelterGhost() {
+                const g = new THREE.Group();
+                this.shelterParts = [];
+                for(let i=0; i<6; i++) {
+                    const log = new THREE.Mesh(new THREE.BoxGeometry(12, 0.6, 0.6), new THREE.MeshStandardMaterial({color: 0x451a03}));
+                    log.position.set(0, i*1.2, -6); log.visible = false;
+                    g.add(log); this.shelterParts.push(log);
+                }
+                return g;
+            }
+
+            createCharacters() {
+                this.playerMe = this.buildChar(0x3b82f6);
+                this.playerTorch = this.buildTorch(); this.playerMe.add(this.playerTorch);
+                this.scene.add(this.playerMe);
+
+                const names = ["Sarah", "Mike", "Emily", "Tom", "Lisa", "Alex", "Chloe"];
+                for(let i=0; i<7; i++) {
+                    const npcMesh = this.buildChar(0xef4444);
+                    const npc = { 
+                        mesh: npcMesh, name: names[i], torch: this.buildTorch(), 
+                        status: 'active', state: 'wandering', timer: 0, target: new THREE.Vector3(), trust: 50
+                    };
+                    npcMesh.add(npc.torch); this.npcs.push(npc);
+                    this.scene.add(npcMesh);
+                    this.addLabel(npc);
+                }
+
+                this.host = this.buildChar(0x111111); // The Jeff
+                this.host.position.copy(this.hostStump); this.scene.add(this.host);
+            }
+
+            buildChar(c) {
+                const g = new THREE.Group();
+                const b = new THREE.Mesh(new THREE.CapsuleGeometry(0.6, 1.8), new THREE.MeshStandardMaterial({color:c})); b.position.y = 0.9;
+                const h = new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshStandardMaterial({color:0xffdbac})); h.position.y = 2.2;
+                g.add(b, h); return g;
+            }
+
+            buildTorch() {
+                const g = new THREE.Group();
+                const s = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3), new THREE.MeshStandardMaterial({color: 0x451a03}));
+                const f = new THREE.Mesh(new THREE.SphereGeometry(0.4), new THREE.MeshBasicMaterial({color: 0xf97316}));
+                f.position.y = 1.5; g.add(s, f); g.position.set(0.8, 1.5, 0.5); g.visible = false;
+                return g;
+            }
+
+            addLabel(n) {
+                const can = document.createElement('canvas'); const ctx = can.getContext('2d');
+                can.width = 128; can.height = 64; ctx.fillStyle = 'white'; ctx.font = 'bold 25px Arial'; ctx.textAlign = 'center';
+                ctx.fillText(n.name, 64, 40);
+                const spr = new THREE.Sprite(new THREE.SpriteMaterial({map: new THREE.CanvasTexture(can)}));
+                spr.position.y = 4; spr.scale.set(3, 1.5, 1); n.mesh.add(spr);
+            }
+
+            createBoat() {
+                this.boat = new THREE.Group();
+                const h = new THREE.Mesh(new THREE.BoxGeometry(15, 4, 30), new THREE.MeshStandardMaterial({color: 0x451a03}));
+                const m = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 25), new THREE.MeshStandardMaterial({color: 0x333333})); m.position.y = 12;
+                const s = new THREE.Mesh(new THREE.BoxGeometry(12, 18, 0.1), new THREE.MeshBasicMaterial({color: 0xffffff})); s.position.set(0, 15, 2);
+                this.boat.add(h, m, s); this.boat.position.set(0, -1, 400); this.scene.add(this.boat);
+            }
+
+            startIntro() {
+                this.playerMe.position.set(0, 2, 400); 
+                this.npcs.forEach((n, i) => n.mesh.position.set((i%2?3:-3), 2, 400 + (i-3)*4));
+            }
+
+            setupInput() {
+                this.keys = {}; window.onkeydown = e => { this.keys[e.code] = true; if(e.code === 'Space') this.interact(); };
+                window.onkeyup = e => this.keys[e.code] = false;
+                document.getElementById('btn-talk').onclick = () => this.interact();
+                document.getElementById('btn-fire').onclick = () => { this.fireStrength = Math.min(2, this.fireStrength+0.3); this.showMessage("Fire Tended"); };
+                document.getElementById('btn-build').onclick = () => { if(this.playerMe.position.distanceTo(this.shelter.position)<15 && this.shelterBuilt<6) { this.shelterParts[this.shelterBuilt].visible=true; this.shelterBuilt++; this.showMessage("Building..."); } };
+            }
+
+            interact() { if (this.interactingWith && this.state === 'camp') this.startDialogue(this.interactingWith); }
+
+            startDialogue(npc) {
+                this.state = 'dialogue'; document.getElementById('dialogue-box').style.display = 'flex';
+                document.querySelector('.npc-name').textContent = npc.name;
+                const opts = document.getElementById('dialogue-options'); opts.innerHTML = '';
+                const add = (t, f) => { const b = document.createElement('div'); b.className = 'opt-btn'; b.textContent = t; b.onclick = f; opts.appendChild(b); };
+                add("Alliance?", () => { document.getElementById('npc-chat').textContent = "Okay, let's do it."; npc.trust += 10; });
+                add("Goodbye", () => { document.getElementById('dialogue-box').style.display = 'none'; this.state = 'camp'; });
+            }
+
+            showMessage(t) { const el = document.getElementById('game-msg'); el.textContent = t; el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 3000); }
+
+            startTribalTransition() {
+                this.state = 'traveling'; document.getElementById('phase-btn').style.display = 'none';
+                this.playerTorch.visible = true; this.npcs.filter(n => n.status === 'active').forEach(n => n.torch.visible = true);
+                this.showMessage("The tribe is heading to Tribal Council...");
+            }
+
+            async beginVotingProcess() {
+                this.state = 'voting';
+                const active = [this.playerMe, ...this.npcs.filter(n => n.status === 'active').map(n => n.mesh)];
+                const voters = [ {mesh: this.playerMe, name: "YOU", isPlayer: true}, ...this.npcs.filter(n => n.status === 'active') ];
+                this.voteTally = {};
+
+                for (let v of voters) {
+                    // Walk to Urn
+                    this.showMessage(v.name + " is voting...");
+                    await this.walkTo(v.mesh, this.urnPodium.position);
+                    
+                    if (v.isPlayer) {
+                        const target = await this.getPlayerVote();
+                        this.voteTally[target] = (this.voteTally[target] || 0) + 1;
+                    } else {
+                        const target = voters[Math.floor(Math.random() * voters.length)].name;
+                        this.voteTally[target] = (this.voteTally[target] || 0) + 1;
+                    }
+                    
+                    // Walk back to stump
+                    await this.walkTo(v.mesh, v.councilStumpPos);
+                }
+
+                this.readVotes();
+            }
+
+            getPlayerVote() {
+                return new Promise(resolve => {
+                    const modal = document.getElementById('vote-modal'); modal.style.display = 'flex';
+                    const opts = document.getElementById('vote-options'); opts.innerHTML = '';
+                    const active = this.npcs.filter(n => n.status === 'active');
+                    active.forEach(n => {
+                        const c = document.createElement('div'); c.className = 'vote-card'; c.textContent = n.name;
+                        c.onclick = () => { modal.style.display = 'none'; resolve(n.name); }; opts.appendChild(c);
+                    });
+                });
+            }
+
+            async walkTo(mesh, pos) {
+                if (!pos) return Promise.resolve(); // Safety check
+                return new Promise(resolve => {
+                    const start = mesh.position.clone();
+                    const duration = 1500; const startTime = Date.now();
+                    const tick = () => {
+                        const p = Math.min(1, (Date.now() - startTime) / duration);
+                        mesh.position.lerpVectors(start, new THREE.Vector3(pos.x, 1.5, pos.z), p);
+                        mesh.lookAt(pos.x, 1.5, pos.z);
+                        if (p < 1) requestAnimationFrame(tick); else resolve();
+                    };
+                    tick();
+                });
+            }
+
+            async readVotes() {
+                this.state = 'reading';
+                const reveal = document.getElementById('vote-reveal'); reveal.style.display = 'block';
+                const votes = [];
+                for (let [name, count] of Object.entries(this.voteTally)) { for (let i = 0; i < count; i++) votes.push(name); }
+                votes.sort(() => Math.random() - 0.5);
+
+                const currentTally = {};
+                let eliminated = null;
+                for (let v of votes) {
+                    reveal.textContent = v;
+                    currentTally[v] = (currentTally[v] || 0) + 1;
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+
+                let max = 0;
+                for (let [n, c] of Object.entries(currentTally)) { if (c > max) { max = c; eliminated = n; } }
+
+                reveal.style.display = 'none';
+                this.showMessage(eliminated + ", the tribe has spoken.");
+                const elimNPC = this.npcs.find(n => n.name === eliminated);
+                if (elimNPC) {
+                    await this.walkTo(elimNPC.mesh, this.hostStump);
+                    elimNPC.torch.children[1].visible = false; // SNUFF
+                    await new Promise(r => setTimeout(r, 2000));
+                    elimNPC.status = 'eliminated';
+                }
+
+                this.state = 'returning';
+                this.showMessage("The remaining survivors return to camp.");
+            }
+
+            update(dt) {
+                this.timeOfDay = (Date.now() % 120000) / 120000;
+                if (this.state === 'camp' || this.state === 'march') {
+                    this.scene.background = new THREE.Color().setHSL(0.6, 0.5, 0.2 + Math.abs(Math.sin(this.timeOfDay * Math.PI)) * 0.6);
+                    this.sun.intensity = Math.max(0.1, Math.sin(this.timeOfDay * Math.PI) * 1.5);
+                } else if (this.state === 'traveling' || this.state === 'sitting' || this.state === 'voting') {
+                    this.scene.background = new THREE.Color(0x020617); this.sun.intensity = 0.1;
+                }
+
+                this.fireStrength -= 0.0005; if(this.fireStrength < 0.1) this.fireStrength = 0.1;
+                this.flame.scale.set(this.fireStrength, this.fireStrength + Math.sin(Date.now()*0.01)*0.2, this.fireStrength);
+                this.fireLight.intensity = this.fireStrength * 5;
+
+                if (this.state === 'intro') {
+                    this.boat.position.z -= 100 * dt; this.playerMe.position.z -= 100 * dt;
+                    this.npcs.forEach(n => n.mesh.position.z -= 100 * dt);
+                    this.camera.position.set(0, 30, this.boat.position.z + 50);
+                    if (this.boat.position.z < 80) this.state = 'march';
+                } else if (this.state === 'march') {
+                    const line = [this.playerMe, ...this.npcs.map(n => n.mesh)];
+                    line.forEach((m, i) => m.position.lerp(new THREE.Vector3(0, 1.5, 15 + i*4), 0.05));
+                    if (this.playerMe.position.distanceTo(new THREE.Vector3(0,1.5,15)) < 1) { this.state = 'camp'; document.getElementById('phase-btn').style.display = 'block'; }
+                } else if (this.state === 'camp') {
+                    let dx = (this.keys['ArrowLeft']?-1:0) + (this.keys['ArrowRight']?1:0);
+                    let dz = (this.keys['ArrowUp']?-1:0) + (this.keys['ArrowDown']?1:0);
+                    if (dx || dz) { this.playerMe.position.x += dx*15*dt; this.playerMe.position.z += dz*15*dt; this.playerMe.lookAt(this.playerMe.position.clone().add(new THREE.Vector3(dx,0,dz))); }
+                    this.npcs.forEach(n => {
+                        if (n.status !== 'active') { n.mesh.visible = false; return; }
+                        if (n.timer <= 0) { n.target.set((Math.random()-0.5)*150, 1.5, (Math.random()-0.5)*150); n.timer = 200 + Math.random()*400; }
+                        n.mesh.position.lerp(n.target, 0.01); n.mesh.lookAt(n.target); n.timer--;
+                    });
+                } else if (this.state === 'traveling') {
+                    const active = [this.playerMe, ...this.npcs.filter(n => n.status === 'active').map(n => n.mesh)];
+                    active.forEach((m, i) => { m.position.lerp(new THREE.Vector3(450 + i*4, 1.5, 0), 0.02); m.lookAt(500, 1.5, 0); });
+                    if (this.playerMe.position.x > 440) {
+                        this.state = 'sitting';
+                        this.playerMe.position.copy(this.councilStumps[0]); this.playerMe.councilStumpPos = this.councilStumps[0];
+                        this.npcs.filter(n => n.status === 'active').forEach((n, i) => { n.mesh.position.copy(this.councilStumps[i+1]); n.councilStumpPos = this.councilStumps[i+1]; });
+                        setTimeout(() => this.beginVotingProcess(), 2000);
+                    }
+                } else if (this.state === 'returning') {
+                    const active = [this.playerMe, ...this.npcs.filter(n => n.status === 'active').map(n => n.mesh)];
+                    active.forEach((m, i) => m.position.lerp(new THREE.Vector3(0, 1.5, 15 + i*4), 0.03));
+                    if (this.playerMe.position.x < 50) { this.day++; this.state = 'camp'; document.getElementById('phase-btn').style.display = 'block'; }
+                }
+
+                let near = null; this.npcs.forEach(n => { if (n.status==='active' && this.playerMe.position.distanceTo(n.mesh.position) < 8) near = n; });
+                this.interactingWith = near;
+                document.getElementById('btn-talk').style.opacity = near ? '1' : '0.5';
+                
+                this.camera.position.lerp(this.playerMe.position.clone().add(new THREE.Vector3(0, 20, 30)), 0.1);
+                this.camera.lookAt(this.playerMe.position);
+            }
+
+            loop() { this.update(0.016); this.renderer.render(this.scene, this.camera); requestAnimationFrame(this.loop); }
+        }
+        window.game = new SurvivorGame();
+    </script>
+</body>
+</html>

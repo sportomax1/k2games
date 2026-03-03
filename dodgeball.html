@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dodgeball Arena 5v5 - K2 games</title>
+    <style>
+        :root {
+            --red: #ef4444;
+            --blue: #3b82f6;
+            --floor: #d4a373;
+            --accent: #facc15;
+            --glass: rgba(15, 23, 42, 0.8);
+        }
+
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; color: white; touch-action: none; }
+        
+        #ui-layer {
+            position: absolute; inset: 0; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+            z-index: 10;
+        }
+
+        .hud-top { display: flex; justify-content: space-between; align-items: center; }
+        
+        .team-card {
+            background: var(--glass); backdrop-filter: blur(10px);
+            padding: 10px 30px; border-radius: 12px; border: 2px solid rgba(255,255,255,0.1);
+            text-align: center; min-width: 120px;
+        }
+        .team-name { font-size: 0.7rem; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; }
+        .team-val { font-size: 2rem; font-weight: 900; }
+        .blue-team { border-color: var(--blue); color: var(--blue); }
+        .red-team { border-color: var(--red); color: var(--red); }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.5); border-radius: 50%;
+            pointer-events: none;
+        }
+        #charge-bar {
+            position: absolute; top: 55%; left: 50%; transform: translateX(-50%);
+            width: 100px; height: 8px; background: rgba(0,0,0,0.5); border: 1px solid white; border-radius: 4px;
+            overflow: hidden; display: none;
+        }
+        #charge-fill { width: 0%; height: 100%; background: var(--accent); }
+
+        #controls-hint {
+            position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
+            background: var(--glass); padding: 10px 25px; border-radius: 25px;
+            font-weight: bold; font-size: 0.9rem; text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        #mobile-controls {
+            position: absolute; bottom: 40px; left: 0; right: 0;
+            display: none; justify-content: space-between; padding: 0 30px;
+            pointer-events: none; z-index: 50;
+        }
+        @media (max-width: 1024px) { #mobile-controls { display: flex; } }
+        .m-btn {
+            width: 80px; height: 80px; background: rgba(255,255,255,0.1);
+            border: 2px solid white; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; color: white;
+            font-weight: 900; pointer-events: auto; backdrop-filter: blur(5px);
+        }
+        .m-btn:active { background: var(--accent); color: black; }
+
+        #overlay {
+            position: absolute; inset: 0; background: radial-gradient(circle at center, #1e293b, #0f172a);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1000; text-align: center; padding: 30px;
+        }
+        h1 { font-size: 4rem; color: var(--accent); font-style: italic; font-weight: 900; line-height: 0.9; margin: 0; text-shadow: 4px 4px 0 #000; }
+        .brief { color: #94a3b8; max-width: 400px; line-height: 1.5; margin: 20px 0; font-weight: 600; }
+        .btn {
+            padding: 20px 80px; font-size: 1.5rem; background: var(--accent); color: #000;
+            border: 4px solid #fff; border-radius: 50px; font-weight: 900; cursor: pointer;
+            box-shadow: 0 10px 0 #b45309; transition: all 0.1s;
+        }
+        .btn:active { transform: translateY(5px); box-shadow: 0 5px 0 #b45309; }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 2000;
+            font-weight: bold; font-size: 0.8rem; backdrop-filter: blur(5px); pointer-events: auto;
+        }
+
+        #hit-msg {
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 4rem; font-weight: 900; color: var(--red); display: none;
+            text-shadow: 0 0 20px black; z-index: 100;
+        }
+        .pop-in { animation: popIn 0.3s forwards; }
+        @keyframes popIn { 0% { opacity: 0; transform: translate(-50%, 0) scale(0.5); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="hit-msg">HIT!</div>
+    <div id="crosshair"></div>
+    <div id="charge-bar"><div id="charge-fill"></div></div>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="team-card blue-team">
+                <div class="team-name">Blue (You)</div>
+                <div id="p1-val" class="team-val">5</div>
+            </div>
+            <div style="font-size:2rem; font-weight:900; opacity:0.5;">VS</div>
+            <div class="team-card red-team">
+                <div class="team-name">Red (CPU)</div>
+                <div id="p2-val" class="team-val">5</div>
+            </div>
+        </div>
+        <div id="controls-hint">Move: ARROWS • Throw: SPACE • Catch: C</div>
+    </div>
+
+    <div id="mobile-controls">
+        <div style="display:flex; gap:10px;">
+            <div class="m-btn" id="m-left">L</div>
+            <div class="m-btn" id="m-right">R</div>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <div class="m-btn" id="m-catch">CATCH</div>
+            <div class="m-btn" id="m-throw" style="background:var(--accent); color:black;">THROW</div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h1>DODGEBALL<br>5 v 5</h1>
+        <div class="brief">
+            Epic Team Battle! <br>
+            Use <b>SPACE</b> to power up throws.<br>
+            Press <b>C</b> to catch.<br>
+            Eliminate all 5 opponents to win!
+        </div>
+        <button class="btn" onclick="window.game.startMatch()">START GAME</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        class DodgeballGame {
+            constructor() {
+                this.state = 'menu';
+                this.blueLeft = 5;
+                this.redLeft = 5;
+                this.balls = [];
+                this.players = [];
+                this.holdingBall = null;
+                this.charge = 0;
+                
+                this.initEngine();
+                this.createArena();
+                this.createPlayers();
+                this.createBalls(5);
+                this.setupInput();
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            initEngine() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x1e293b);
+                this.scene.fog = new THREE.FogExp2(0x1e293b, 0.012);
+
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera.position.set(0, 15, 35);
+                this.camera.lookAt(0, 0, 0);
+
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                document.body.appendChild(this.renderer.domElement);
+
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+                const light = new THREE.PointLight(0xffffff, 0.8, 100);
+                light.position.set(0, 25, 0); light.castShadow = true;
+                light.shadow.mapSize.set(2048, 2048);
+                this.scene.add(light);
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            createArena() {
+                // Floor
+                const floorMat = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.5 });
+                const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 70), floorMat);
+                floor.rotation.x = -Math.PI/2; floor.receiveShadow = true;
+                this.scene.add(floor);
+
+                // Walls
+                const wallMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+                const backWall = new THREE.Mesh(new THREE.BoxGeometry(52, 10, 1), wallMat);
+                backWall.position.set(0, 5, -35.5); this.scene.add(backWall);
+                const frontWall = backWall.clone(); frontWall.position.z = 35.5; this.scene.add(frontWall);
+                const leftWall = new THREE.Mesh(new THREE.BoxGeometry(1, 10, 72), wallMat);
+                leftWall.position.set(-25.5, 5, 0); this.scene.add(leftWall);
+                const rightWall = leftWall.clone(); rightWall.position.x = 25.5; this.scene.add(rightWall);
+
+                // Mid Line
+                const midLine = new THREE.Mesh(new THREE.PlaneGeometry(48, 0.5), new THREE.MeshBasicMaterial({color: 0xffffff}));
+                midLine.rotation.x = -Math.PI/2; midLine.position.y = 0.01;
+                this.scene.add(midLine);
+            }
+
+            createPlayers() {
+                this.players = [];
+                // Blue Team (5)
+                for(let i=0; i<5; i++) this.createCharacter('blue', (i-2)*6, 0, 25, i===2);
+                // Red Team (5)
+                for(let i=0; i<5; i++) this.createCharacter('red', (i-2)*6, 0, -25, false);
+            }
+
+            createCharacter(team, x, y, z, isPlayer) {
+                const color = team === 'blue' ? 0x3b82f6 : 0xef4444;
+                const mesh = new THREE.Group();
+                
+                // Head
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), new THREE.MeshStandardMaterial({color: 0xffdbac}));
+                head.position.y = 2.8;
+                // Face
+                const eye = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.1), new THREE.MeshBasicMaterial({color: 0x000000}));
+                eye.position.set(0.2, 2.9, 0.4); head.add(eye);
+                const eye2 = eye.clone(); eye2.position.x = -0.2; head.add(eye2);
+
+                // Torso
+                const torso = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.5, 0.6), new THREE.MeshStandardMaterial({color: color}));
+                torso.position.y = 1.65;
+
+                // Limbs
+                const limbGeo = new THREE.BoxGeometry(0.4, 1.2, 0.4);
+                const limbMat = new THREE.MeshStandardMaterial({color: team==='blue'?0x1e293b:0x7f1d1d});
+                const skinMat = new THREE.MeshStandardMaterial({color: 0xffdbac});
+                
+                const legL = new THREE.Mesh(limbGeo, limbMat); legL.position.set(-0.4, 0.6, 0);
+                const legR = new THREE.Mesh(limbGeo, limbMat); legR.position.set(0.4, 0.6, 0);
+                
+                const armL = new THREE.Mesh(limbGeo, skinMat); armL.position.set(-0.8, 2.0, 0);
+                const armR = new THREE.Mesh(limbGeo, skinMat); armR.position.set(0.8, 2.0, 0);
+
+                mesh.add(head, torso, legL, legR, armL, armR);
+                mesh.position.set(x, y, z);
+                if (team === 'red') mesh.rotation.y = Math.PI; // Face player
+                
+                mesh.castShadow = true;
+                this.scene.add(mesh);
+
+                const p = { 
+                    mesh, team, isPlayer, 
+                    vel: new THREE.Vector3(), 
+                    status: 'active', holdBall: null,
+                    animPhase: Math.random()*10,
+                    limbs: { legL, legR, armL, armR }
+                };
+                if(isPlayer) this.player = p;
+                this.players.push(p);
+            }
+
+            createBalls(count) {
+                const geo = new THREE.SphereGeometry(0.6);
+                const mat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4 });
+                for(let i=0; i<count; i++) {
+                    const b = new THREE.Mesh(geo, mat);
+                    b.position.set((i-2)*3, 0.6, 0);
+                    b.castShadow = true;
+                    b.userData = { vel: new THREE.Vector3(), owner: null, state: 'idle' };
+                    this.scene.add(b);
+                    this.balls.push(b);
+                }
+            }
+
+            setupInput() {
+                this.keys = {};
+                window.onkeydown = e => this.keys[e.code] = true;
+                window.onkeyup = e => {
+                    this.keys[e.code] = false;
+                    if(e.code === 'Space' && this.player.holdBall) this.throwBall();
+                };
+                
+                const bind = (id, key) => {
+                    const el = document.getElementById(id);
+                    el.addEventListener('touchstart', e => { e.preventDefault(); this.keys[key] = true; });
+                    el.addEventListener('touchend', e => { 
+                        e.preventDefault(); this.keys[key] = false;
+                        if(key === 'Space' && this.player.holdBall) this.throwBall();
+                    });
+                };
+                bind('m-left', 'ArrowLeft'); bind('m-right', 'ArrowRight');
+                bind('m-throw', 'Space'); bind('m-catch', 'KeyC');
+            }
+
+            startMatch() {
+                this.state = 'playing';
+                document.getElementById('overlay').style.display = 'none';
+            }
+
+            throwBall() {
+                const b = this.player.holdBall;
+                if(!b) return;
+                const force = 0.8 + (this.charge / 100) * 1.5;
+                // Auto aim assist
+                let target = null;
+                let minD = 100;
+                this.players.forEach(p => {
+                    if (p.team === 'red' && p.status === 'active') {
+                        const d = Math.abs(p.mesh.position.x - this.player.mesh.position.x);
+                        if (d < minD) { minD = d; target = p; }
+                    }
+                });
+                
+                let dir = new THREE.Vector3(0, 0.1, -1);
+                if (target) dir = target.mesh.position.clone().sub(this.player.mesh.position).normalize();
+                
+                b.userData.vel = dir.multiplyScalar(force);
+                b.userData.owner = this.player;
+                b.userData.state = 'thrown';
+                this.scene.attach(b);
+                this.player.holdBall = null;
+                this.charge = 0;
+                document.getElementById('charge-bar').style.display = 'none';
+                
+                // Anim
+                this.player.limbs.armR.rotation.x = -1.5; 
+                setTimeout(() => this.player.limbs.armR.rotation.x = 0, 300);
+            }
+
+            showMessage(text, color) {
+                const el = document.getElementById('hit-msg');
+                el.textContent = text; el.style.color = color; el.style.display = 'block';
+                el.classList.remove('pop-in'); void el.offsetWidth; el.classList.add('pop-in');
+                setTimeout(() => el.style.display = 'none', 1000);
+            }
+
+            update(dt) {
+                if(this.state !== 'playing') return;
+
+                // --- Player ---
+                if (this.player.status === 'active') {
+                    let dx = (this.keys['ArrowLeft'] ? -1 : 0) + (this.keys['ArrowRight'] ? 1 : 0);
+                    let dz = (this.keys['ArrowUp'] ? -1 : 0) + (this.keys['ArrowDown'] ? 1 : 0);
+                    
+                    this.player.mesh.position.x += dx * 18 * dt;
+                    this.player.mesh.position.z += dz * 18 * dt;
+                    
+                    this.player.mesh.position.x = THREE.MathUtils.clamp(this.player.mesh.position.x, -23, 23);
+                    this.player.mesh.position.z = THREE.MathUtils.clamp(this.player.mesh.position.z, 1, 33);
+
+                    if (this.keys['Space'] && this.player.holdBall) {
+                        this.charge = Math.min(100, this.charge + 3);
+                        document.getElementById('charge-bar').style.display = 'block';
+                        document.getElementById('charge-fill').style.width = this.charge + '%';
+                        this.player.limbs.armR.rotation.x = -Math.PI/2 - (this.charge/100);
+                    }
+
+                    // Pickup
+                    if (!this.player.holdBall) {
+                        this.balls.forEach(b => {
+                            if (b.userData.state === 'idle' && b.position.distanceTo(this.player.mesh.position) < 2.5) {
+                                this.player.holdBall = b;
+                                b.userData.state = 'held';
+                                this.player.mesh.add(b);
+                                b.position.set(0.8, 1.5, 0.5);
+                            }
+                        });
+                    }
+                    
+                    // Walk Anim
+                    if (dx || dz) {
+                        this.player.animPhase += 15 * dt;
+                        this.player.limbs.legL.rotation.x = Math.sin(this.player.animPhase) * 0.5;
+                        this.player.limbs.legR.rotation.x = -Math.sin(this.player.animPhase) * 0.5;
+                    }
+                }
+
+                // --- AI ---
+                this.players.forEach(p => {
+                    if (p.isPlayer || p.status === 'out') return;
+                    
+                    // Wander/Dodge
+                    if (!p.holdBall) {
+                        let targetBall = null;
+                        this.balls.forEach(b => {
+                            if (b.userData.state === 'idle') {
+                                // Go for balls on their side
+                                const mySide = p.team === 'red' ? b.position.z < 0 : b.position.z > 0;
+                                if(mySide && b.position.distanceTo(p.mesh.position) < 15) targetBall = b;
+                            }
+                        });
+
+                        if (targetBall) {
+                            const dir = targetBall.position.clone().sub(p.mesh.position).normalize();
+                            p.mesh.position.add(dir.multiplyScalar(10 * dt));
+                            if (p.mesh.position.distanceTo(targetBall.position) < 2.5) {
+                                p.holdBall = targetBall;
+                                targetBall.userData.state = 'held';
+                                p.mesh.add(targetBall);
+                                targetBall.position.set(0.8, 1.5, 0.5);
+                            }
+                        } else {
+                            if (Math.random() < 0.02) p.vel.set((Math.random()-0.5)*15, 0, (Math.random()-0.5)*15);
+                            p.mesh.position.add(p.vel.clone().multiplyScalar(dt));
+                        }
+                    } else {
+                        // Throw
+                        if (Math.random() < 0.015) {
+                            const targets = this.players.filter(t => t.team !== p.team && t.status === 'active');
+                            if(targets.length > 0) {
+                                const target = targets[Math.floor(Math.random()*targets.length)];
+                                const dir = target.mesh.position.clone().sub(p.mesh.position).normalize();
+                                p.holdBall.userData.vel = dir.multiplyScalar(0.9);
+                                p.holdBall.userData.owner = p;
+                                p.holdBall.userData.state = 'thrown';
+                                this.scene.attach(p.holdBall);
+                                p.holdBall = null;
+                                p.limbs.armR.rotation.x = -1.5; setTimeout(() => p.limbs.armR.rotation.x = 0, 300);
+                            }
+                        }
+                    }
+
+                    // Bounds
+                    const zMin = p.team === 'red' ? -33 : 1;
+                    const zMax = p.team === 'red' ? -1 : 33;
+                    p.mesh.position.x = THREE.MathUtils.clamp(p.mesh.position.x, -23, 23);
+                    p.mesh.position.z = THREE.MathUtils.clamp(p.mesh.position.z, zMin, zMax);
+
+                    // Anim
+                    p.animPhase += 10 * dt;
+                    p.limbs.legL.rotation.x = Math.sin(p.animPhase)*0.5;
+                    p.limbs.legR.rotation.x = -Math.sin(p.animPhase)*0.5;
+                });
+
+                // --- Ball Physics ---
+                this.balls.forEach(b => {
+                    if (b.userData.state === 'thrown') {
+                        b.position.add(b.userData.vel);
+                        b.userData.vel.y -= 0.025; // Gravity
+                        if (b.position.y < 0.6) {
+                            b.position.y = 0.6;
+                            b.userData.vel.multiplyScalar(0.7);
+                            b.userData.vel.y = -b.userData.vel.y * 0.6;
+                            if (b.userData.vel.length() < 0.2) { b.userData.state = 'idle'; b.userData.owner = null; }
+                        }
+                        
+                        // Walls
+                        if (Math.abs(b.position.x) > 24) b.userData.vel.x *= -0.8;
+                        if (Math.abs(b.position.z) > 34) b.userData.vel.z *= -0.8;
+
+                        // Hits
+                        this.players.forEach(p => {
+                            // Check if ball has an owner before checking team to prevent crash
+                            if (p.status === 'active' && b.userData.owner && p !== b.userData.owner && p.team !== b.userData.owner.team) {
+                                if (p.mesh.position.distanceTo(b.position) < 2.0) {
+                                    // Catch?
+                                    if (p.isPlayer && this.keys['KeyC']) {
+                                        this.showMessage("CAUGHT!", "#facc15");
+                                        b.userData.state = 'held';
+                                        p.holdBall = b;
+                                        p.mesh.add(b);
+                                        b.position.set(0.8, 1.5, 0.5);
+                                    } else {
+                                        // Hit
+                                        p.status = 'out';
+                                        p.mesh.rotation.x = -Math.PI/2; // Ragdoll
+                                        p.mesh.position.y = 0.5;
+                                        b.userData.state = 'idle';
+                                        b.userData.vel.multiplyScalar(-0.5);
+                                        
+                                        this.showMessage("ELIMINATED!", p.team === 'blue' ? "#ef4444" : "#3b82f6");
+                                        if(p.team === 'blue') this.blueLeft--; else this.redLeft--;
+                                        document.getElementById('p1-val').textContent = this.blueLeft;
+                                        document.getElementById('p2-val').textContent = this.redLeft;
+                                        
+                                        if(this.blueLeft === 0 || this.redLeft === 0) this.endMatch();
+                                    }
+                                }
+                            }
+                        });
+                    }
+                });
+
+                // Camera follow
+                this.camera.position.x = THREE.MathUtils.lerp(this.camera.position.x, this.player.mesh.position.x * 0.4, 0.1);
+            }
+
+            endMatch() {
+                this.state = 'over';
+                document.getElementById('overlay').style.display = 'flex';
+                const win = this.blueLeft > 0;
+                document.querySelector('h1').textContent = win ? "VICTORY!" : "DEFEAT";
+                document.querySelector('.brief').textContent = win ? "Red Team Eliminated!" : "Blue Team Eliminated.";
+                document.querySelector('.btn').textContent = "REMATCH";
+            }
+
+            loop() {
+                this.update(0.016);
+                this.renderer.render(this.scene, this.camera);
+                requestAnimationFrame(this.loop);
+            }
+        }
+
+        window.game = new DodgeballGame();
+    </script>
+</body>
+</html>

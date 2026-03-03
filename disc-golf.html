@@ -6,59 +6,66 @@
     <title>Disc Golf Pro 3D - K2 games</title>
     <style>
         :root {
-            --primary: #fbbf24;
-            --secondary: #10b981;
-            --bg: #0f172a;
+            --grass: #22c55e;
+            --accent: #fbbf24;
             --glass: rgba(15, 23, 42, 0.8);
         }
 
-        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; }
+        body { margin: 0; overflow: hidden; background: #7dd3fc; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; color: white; touch-action: none; }
         
         #ui-layer {
             position: absolute; inset: 0; pointer-events: none;
-            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 25px;
+            z-index: 10;
         }
 
         .hud-top { display: flex; justify-content: space-between; }
         
         .stat-card {
             background: var(--glass); backdrop-filter: blur(10px);
-            padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
-            text-align: center; color: white; min-width: 100px;
+            padding: 10px 30px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);
+            text-align: center; min-width: 140px;
         }
-        .stat-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px; }
-        .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--primary); }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1.5px; font-weight: 800; }
+        .stat-val { font-size: 2.2rem; font-weight: 900; color: var(--accent); font-family: 'Courier New', monospace; }
 
         #power-meter {
-            position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
-            width: 20px; height: 200px; background: rgba(255,255,255,0.1);
-            border-radius: 10px; overflow: hidden; border: 2px solid rgba(255,255,255,0.2);
-            display: none;
+            position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%);
+            width: 200px; height: 12px; background: rgba(0,0,0,0.3); border-radius: 6px;
+            border: 2px solid white; display: none; overflow: hidden;
         }
-        #power-fill { width: 100%; height: 0%; background: linear-gradient(to top, #10b981, #fbbf24, #ef4444); position: absolute; bottom: 0; transition: height 0.1s; }
+        #power-fill { height: 100%; width: 0%; background: var(--accent); transition: width 0.05s; }
+
+        #mobile-controls {
+            position: absolute; bottom: 40px; left: 0; right: 0;
+            display: none; justify-content: space-around; padding: 0 40px;
+            pointer-events: none;
+        }
+        @media (max-width: 1024px) { #mobile-controls { display: flex; } }
+        .m-btn {
+            width: 90px; height: 90px; background: rgba(255,255,255,0.1);
+            border: 3px solid white; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; color: white;
+            font-weight: 900; pointer-events: auto; backdrop-filter: blur(5px);
+        }
 
         #overlay {
-            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.9);
+            position: absolute; inset: 0; background: radial-gradient(circle at center, #22c55e, #166534);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 100; text-align: center; pointer-events: auto;
+            z-index: 1000; text-align: center; padding: 30px;
         }
-        h1 { font-size: 3rem; color: var(--primary); font-style: italic; font-weight: 900; margin-bottom: 10px; }
+        h1 { font-size: 5rem; color: #fff; font-style: italic; font-weight: 900; line-height: 0.9; margin: 0; text-shadow: 0 10px 30px rgba(0,0,0,0.2); }
         .btn {
-            padding: 15px 40px; font-size: 1.2rem; background: var(--secondary); color: white;
-            border: none; border-radius: 50px; font-weight: 900; cursor: pointer; margin-top: 20px;
-            box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3); text-transform: uppercase;
+            padding: 20px 80px; font-size: 1.8rem; background: var(--accent); color: #000;
+            border: none; border-radius: 100px; font-weight: 900; cursor: pointer; margin-top: 40px;
+            box-shadow: 0 10px 0 #b45309; transition: transform 0.1s;
         }
+        .btn:active { transform: translateY(5px); box-shadow: 0 5px 0 #b45309; }
 
         .back-link {
             position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
-            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 200;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 2000;
             font-weight: bold; font-size: 0.8rem; backdrop-filter: blur(5px); pointer-events: auto;
-        }
-
-        #instruction {
-            position: absolute; bottom: 100px; width: 100%; text-align: center;
-            color: white; opacity: 0.7; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-            pointer-events: none;
         }
     </style>
 </head>
@@ -68,26 +75,34 @@
     <div id="ui-layer">
         <div class="hud-top">
             <div class="stat-card">
-                <div class="stat-label">Hole</div>
-                <div id="hole-val" class="stat-val">1</div>
+                <div class="stat-label">Strokes</div>
+                <div id="score-val" class="stat-val">0</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Par</div>
-                <div id="par-val" class="stat-val">3</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Distance</div>
+                <div class="stat-label">To Pin</div>
                 <div id="dist-val" class="stat-val">0m</div>
             </div>
         </div>
+        
         <div id="power-meter"><div id="power-fill"></div></div>
-        <div id="instruction">SWIPE UP TO THROW</div>
+    </div>
+
+    <div id="mobile-controls">
+        <div style="display:flex; gap:15px;">
+            <div class="m-btn" id="m-left">←</div>
+            <div class="m-btn" id="m-right">→</div>
+        </div>
+        <div class="m-btn" id="m-throw" style="background:var(--accent); color:black;">THROW</div>
     </div>
 
     <div id="overlay">
         <h1>DISC GOLF<br>PRO 3D</h1>
-        <p style="color: #cbd5e1; max-width: 300px; line-height: 1.5;">Master the wind and terrain.<br>Swipe fast for power, angle for curve.</p>
-        <button class="btn" onclick="window.game.startRound()">TEE OFF</button>
+        <p style="color: #fff; margin-top: 20px; max-width: 400px; font-weight: 600; line-height: 1.5; opacity: 0.9;">
+            Arrows to Aim.<br>
+            Space to Charge & Release.<br>
+            Master the glide to hit the chains!
+        </p>
+        <button class="btn" onclick="window.game.start()">TEE OFF</button>
     </div>
 
     <script type="importmap">
@@ -99,16 +114,15 @@
 
         class DiscGolfGame {
             constructor() {
-                this.state = 'menu'; // menu, aiming, flying, hole_out
-                this.hole = 1;
-                this.strokes = 0;
-                this.par = 3;
-                this.wind = new THREE.Vector3(0, 0, 0);
+                this.state = 'menu'; // menu, aiming, charging, flying, landed
+                this.score = 0;
+                this.power = 0;
+                this.yaw = 0;
                 
                 this.initEngine();
                 this.createCourse();
+                this.createCharacter();
                 this.createDisc();
-                this.createBasket();
                 this.setupInput();
                 
                 this.loop = this.loop.bind(this);
@@ -117,29 +131,18 @@
 
             initEngine() {
                 this.scene = new THREE.Scene();
-                this.scene.background = new THREE.Color(0x87ceeb);
-                this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0025);
-
-                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.scene.background = new THREE.Color(0x7dd3fc);
+                this.scene.fog = new THREE.FogExp2(0x7dd3fc, 0.002);
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 3000);
                 this.renderer = new THREE.WebGLRenderer({ antialias: true });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
                 this.renderer.shadowMap.enabled = true;
                 document.body.appendChild(this.renderer.domElement);
 
-                // Lighting
-                const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
-                this.scene.add(hemiLight);
-
-                const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-                dirLight.position.set(50, 200, 100);
-                dirLight.castShadow = true;
-                dirLight.shadow.mapSize.width = 2048;
-                dirLight.shadow.mapSize.height = 2048;
-                dirLight.shadow.camera.top = 100;
-                dirLight.shadow.camera.bottom = -100;
-                dirLight.shadow.camera.left = -100;
-                dirLight.shadow.camera.right = 100;
-                this.scene.add(dirLight);
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+                const sun = new THREE.DirectionalLight(0xfffae3, 1.2);
+                sun.position.set(100, 300, 100); sun.castShadow = true;
+                this.scene.add(sun);
 
                 window.addEventListener('resize', () => {
                     this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -150,239 +153,163 @@
 
             createCourse() {
                 // Ground
-                const groundGeo = new THREE.PlaneGeometry(1000, 1000, 64, 64);
-                // Simple terrain noise
-                const pos = groundGeo.attributes.position;
-                for(let i=0; i<pos.count; i++) {
-                    const x = pos.getX(i);
-                    const y = pos.getY(i); // This is Z in world space
-                    // Gentle rolling hills
-                    const z = Math.sin(x * 0.02) * 2 + Math.cos(y * 0.02) * 2 + Math.random() * 0.5;
-                    pos.setZ(i, z);
-                }
-                groundGeo.computeVertexNormals();
+                const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000, 32, 32), new THREE.MeshStandardMaterial({color: 0x22c55e}));
+                ground.rotation.x = -Math.PI/2; ground.receiveShadow = true;
+                this.scene.add(ground);
 
-                const groundMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.8 });
-                this.ground = new THREE.Mesh(groundGeo, groundMat);
-                this.ground.rotation.x = -Math.PI / 2;
-                this.ground.receiveShadow = true;
-                this.scene.add(this.ground);
+                // THE BASKET
+                this.basket = new THREE.Group();
+                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 6), new THREE.MeshStandardMaterial({color: 0x94a3b8}));
+                const base = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.2), new THREE.MeshStandardMaterial({color: 0x94a3b8}));
+                const cage = new THREE.Mesh(new THREE.CylinderGeometry(2, 1.5, 1.5, 12, 1, true), new THREE.MeshStandardMaterial({color: 0x94a3b8, side: THREE.DoubleSide}));
+                cage.position.y = 2;
+                const top = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 0.2), new THREE.MeshStandardMaterial({color: 0x94a3b8}));
+                top.position.y = 4.5;
+                
+                // Chains
+                for(let i=0; i<12; i++) {
+                    const ang = (i/12) * Math.PI * 2;
+                    const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.5), new THREE.MeshStandardMaterial({color: 0xcbd5e1}));
+                    chain.position.set(Math.cos(ang)*1.2, 3.2, Math.sin(ang)*1.2);
+                    this.basket.add(chain);
+                }
+
+                this.basket.add(pole, base, cage, top);
+                this.basket.position.set(0, 0, -250);
+                this.scene.add(this.basket);
 
                 // Trees
                 for(let i=0; i<50; i++) {
                     const tree = new THREE.Group();
-                    const trunk = new THREE.Mesh(
-                        new THREE.CylinderGeometry(0.5, 0.8, 4), 
-                        new THREE.MeshStandardMaterial({ color: 0x5d4037 })
-                    );
-                    trunk.position.y = 2;
-                    trunk.castShadow = true;
-                    
-                    const leaves = new THREE.Mesh(
-                        new THREE.ConeGeometry(3, 8, 8),
-                        new THREE.MeshStandardMaterial({ color: 0x166534 })
-                    );
-                    leaves.position.y = 7;
-                    leaves.castShadow = true;
-
-                    tree.add(trunk, leaves);
-                    
-                    // Random placement avoiding start area
-                    const x = (Math.random() - 0.5) * 800;
-                    const z = (Math.random() - 0.5) * 800;
-                    if(Math.hypot(x, z) > 20) {
-                        tree.position.set(x, 0, z);
-                        this.scene.add(tree);
-                    }
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 10), new THREE.MeshStandardMaterial({color: 0x451a03}));
+                    const leaves = new THREE.Mesh(new THREE.DodecahedronGeometry(4), new THREE.MeshStandardMaterial({color: 0x166534}));
+                    leaves.position.y = 8; tree.add(trunk, leaves);
+                    const ang = Math.random()*Math.PI*2; const rad = 50 + Math.random()*300;
+                    tree.position.set(Math.cos(ang)*rad, 0, Math.sin(ang)*rad);
+                    this.scene.add(tree);
                 }
             }
 
+            createCharacter() {
+                this.player = new THREE.Group();
+                const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.6, 1.8), new THREE.MeshStandardMaterial({color: 0x3b82f6}));
+                body.position.y = 1.2;
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshStandardMaterial({color: 0xffdbac}));
+                head.position.y = 2.5;
+                
+                // Articulated Arms
+                this.armR = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 1.2), new THREE.MeshStandardMaterial({color: 0x3b82f6}));
+                this.armR.position.set(0.8, 1.8, 0);
+                this.armR.rotation.z = -0.5;
+                
+                this.player.add(body, head, this.armR);
+                this.player.position.set(0, 0, 0);
+                this.scene.add(this.player);
+            }
+
             createDisc() {
-                this.disc = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.3, 0.3, 0.05, 32),
-                    new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.2, roughness: 0.1 })
-                );
+                const geo = new THREE.CylinderGeometry(0.8, 0.8, 0.1, 32);
+                const mat = new THREE.MeshStandardMaterial({color: 0xef4444, roughness: 0.3});
+                this.disc = new THREE.Mesh(geo, mat);
                 this.disc.castShadow = true;
                 this.scene.add(this.disc);
                 this.resetDisc();
             }
 
-            createBasket() {
-                this.basket = new THREE.Group();
-                
-                // Pole
-                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.5), new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
-                pole.position.y = 0.75;
-                
-                // Cage
-                const cage = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.3, 0.2, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
-                cage.position.y = 0.8;
-                
-                // Chains (Visual representation)
-                const chains = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.1, 0.6, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0xcbd5e1, transparent: true, opacity: 0.8 }));
-                chains.position.y = 1.2;
+            setupInput() {
+                this.keys = {};
+                window.onkeydown = e => {
+                    this.keys[e.code] = true;
+                    if (this.state === 'aiming' && e.code === 'Space') {
+                        this.state = 'charging';
+                        document.getElementById('power-meter').style.display = 'block';
+                    }
+                };
+                window.onkeyup = e => {
+                    this.keys[e.code] = false;
+                    if (this.state === 'charging' && e.code === 'Space') this.throwDisc();
+                };
 
-                this.basket.add(pole, cage, chains);
-                this.scene.add(this.basket);
-                this.placeBasket();
+                const bind = (id, k, press) => {
+                    const el = document.getElementById(id);
+                    el.ontouchstart = (e) => { e.preventDefault(); if(press) press(); this.keys[k] = true; };
+                    el.ontouchend = (e) => { e.preventDefault(); if(k === 'Space' && this.state === 'charging') this.throwDisc(); this.keys[k] = false; };
+                };
+                bind('m-left', 'ArrowLeft'); bind('m-right', 'ArrowRight');
+                bind('m-throw', 'Space', () => { if(this.state === 'aiming') { this.state = 'charging'; document.getElementById('power-meter').style.display = 'block'; } });
+            }
+
+            start() { this.state = 'aiming'; document.getElementById('overlay').style.display = 'none'; }
+
+            throwDisc() {
+                this.state = 'flying';
+                this.score++;
+                document.getElementById('score-val').textContent = this.score;
+                document.getElementById('power-meter').style.display = 'none';
+                
+                const speed = 1 + (this.power / 100) * 3;
+                this.discVel = new THREE.Vector3(Math.sin(this.yaw), 0.1, Math.cos(this.yaw)).multiplyScalar(-speed);
+                this.power = 0;
             }
 
             resetDisc() {
-                this.disc.position.set(0, 1.2, 0); // Tee pad height
-                this.disc.rotation.set(0, 0, 0);
-                this.discVelocity = new THREE.Vector3();
-                this.discAngularVel = new THREE.Vector3();
+                this.disc.position.copy(this.player.position).add(new THREE.Vector3(-1, 2, -1));
                 this.state = 'aiming';
-                
-                // Reset camera behind disc
-                this.camera.position.set(0, 2.5, 3);
-                this.camera.lookAt(0, 1.5, -5);
             }
 
-            placeBasket() {
-                // Random position down range
-                this.basket.position.set(
-                    (Math.random() - 0.5) * 40,
-                    0,
-                    -50 - (this.hole * 10)
-                );
-                this.par = Math.ceil(this.basket.position.distanceTo(new THREE.Vector3(0,0,0)) / 40);
-                document.getElementById('par-val').textContent = this.par;
-                document.getElementById('hole-val').textContent = this.hole;
-            }
-
-            setupInput() {
-                let startX, startY, startTime;
-                
-                const onStart = (e) => {
-                    if(this.state !== 'aiming') return;
-                    startX = e.touches ? e.touches[0].clientX : e.clientX;
-                    startY = e.touches ? e.touches[0].clientY : e.clientY;
-                    startTime = Date.now();
-                };
-
-                const onEnd = (e) => {
-                    if(this.state !== 'aiming') return;
-                    const endX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
-                    const endY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
-                    
-                    const dx = endX - startX;
-                    const dy = endY - startY;
-                    const dt = Date.now() - startTime;
-
-                    if(dy < -50 && dt < 600) {
-                        this.throwDisc(dx, dy, dt);
-                    }
-                };
-
-                document.addEventListener('mousedown', onStart);
-                document.addEventListener('mouseup', onEnd);
-                document.addEventListener('touchstart', (e) => { e.preventDefault(); onStart(e); }, {passive:false});
-                document.addEventListener('touchend', (e) => { e.preventDefault(); onEnd(e); }, {passive:false});
-            }
-
-            throwDisc(dx, dy, dt) {
-                this.state = 'flying';
-                this.strokes++;
-                document.getElementById('instruction').style.display = 'none';
-
-                // Calculate Launch Vector
-                const speed = Math.min(40, Math.abs(dy) / dt * 30);
-                const angle = -Math.atan2(dx, dy); // Left/Right aim
-                
-                // Initial Velocity
-                this.discVelocity.set(
-                    Math.sin(angle) * speed,
-                    Math.abs(dy / dt) * 5, // Upward lift from swipe speed
-                    -Math.cos(angle) * speed
-                );
-
-                // Spin affects stability
-                this.discAngularVel.set(0, 20, 0); 
-            }
-
-            updatePhysics(dt) {
-                if(this.state === 'flying') {
-                    // Gravity
-                    this.discVelocity.y -= 9.8 * dt;
-
-                    // Drag (Air Resistance)
-                    this.discVelocity.multiplyScalar(1 - (0.5 * dt));
-
-                    // Move
-                    this.disc.position.add(this.discVelocity.clone().multiplyScalar(dt));
-
-                    // Ground Collision
-                    if(this.disc.position.y < 0.1) {
-                        this.disc.position.y = 0.1;
-                        this.discVelocity.multiplyScalar(0.5); // Friction
-                        this.discVelocity.y = 0;
-                        if(this.discVelocity.length() < 0.5) {
-                            this.discVelocity.set(0,0,0);
-                            this.state = 'landed';
-                            this.checkHoleOut();
-                        }
-                    }
-
-                    // Basket Collision (Simplified)
-                    const distToBasket = this.disc.position.distanceTo(new THREE.Vector3(this.basket.position.x, 1, this.basket.position.z));
-                    if(distToBasket < 0.5 && Math.abs(this.disc.position.y - 1) < 0.5) {
-                        this.state = 'hole_out';
-                        this.holeComplete();
-                    }
-
-                    // Camera Follow
-                    this.camera.position.lerp(
-                        this.disc.position.clone().add(new THREE.Vector3(0, 2, 4)), 
-                        0.1
-                    );
-                    this.camera.lookAt(this.disc.position);
-                } else if (this.state === 'landed') {
-                    // Ready for next shot from lie
-                    setTimeout(() => {
-                        this.state = 'aiming';
-                        // Position camera behind disc facing basket
-                        const dirToBasket = this.basket.position.clone().sub(this.disc.position).normalize();
-                        const camPos = this.disc.position.clone().sub(dirToBasket.multiplyScalar(3));
-                        camPos.y += 1.5;
-                        this.camera.position.copy(camPos);
-                        this.camera.lookAt(this.basket.position.clone().add(new THREE.Vector3(0, 1, 0)));
-                    }, 1000);
+            update(dt) {
+                if(this.state === 'aiming') {
+                    if (this.keys['ArrowLeft']) this.yaw += dt * 2;
+                    if (this.keys['ArrowRight']) this.yaw -= dt * 2;
+                    this.player.rotation.y = this.yaw;
+                    this.disc.position.copy(this.player.position).add(new THREE.Vector3(1.2, 2, 0.5).applyAxisAngle(new THREE.Vector3(0,1,0), this.yaw));
+                } 
+                else if (this.state === 'charging') {
+                    this.power = (this.power + dt * 150) % 100;
+                    document.getElementById('power-fill').style.width = this.power + "%";
+                    this.armR.rotation.y = Math.sin(Date.now()*0.01) * 1.5; // Wind up
                 }
-            }
+                else if (this.state === 'flying') {
+                    this.disc.position.add(this.discVel);
+                    this.discVel.y -= 0.005; // Light gravity
+                    this.discVel.multiplyScalar(0.99); // Drag
+                    
+                    // Disc spin/wobble
+                    this.disc.rotation.y += 0.5;
+                    this.disc.rotation.x = this.discVel.y * 2;
 
-            checkHoleOut() {
-                // If aiming and close enough, maybe auto-putt logic later
-            }
+                    // Distance
+                    const d = this.disc.position.distanceTo(this.basket.position);
+                    document.getElementById('dist-val').textContent = Math.floor(d) + "m";
 
-            holeComplete() {
-                alert(`Hole ${this.hole} Complete! Score: ${this.strokes} (Par ${this.par})`);
-                this.hole++;
-                this.strokes = 0;
-                this.placeBasket();
-                this.resetDisc();
-            }
+                    if (this.disc.position.y <= 0.1) {
+                        this.disc.position.y = 0.1;
+                        this.state = 'landed';
+                        this.player.position.copy(this.disc.position).add(new THREE.Vector3(0,0,5));
+                        setTimeout(() => this.resetDisc(), 1500);
+                    }
 
-            startRound() {
-                document.getElementById('overlay').style.display = 'none';
-                this.resetDisc();
+                    if (d < 3) {
+                        alert("CHICKEN DINNER! HOLE IN ONE!");
+                        location.reload();
+                    }
+                }
+
+                // Camera
+                const target = this.state === 'flying' ? this.disc : this.player;
+                const camOffset = new THREE.Vector3(0, 10, 20).applyAxisAngle(new THREE.Vector3(0,1,0), this.yaw);
+                this.camera.position.lerp(target.position.clone().add(camOffset), 0.1);
+                this.camera.lookAt(target.position);
             }
 
             loop() {
-                const dt = 0.016; // Fixed timestep for simplicity
-                this.updatePhysics(dt);
-                
-                // Dist to pin
-                const d = this.disc.position.distanceTo(this.basket.position);
-                document.getElementById('dist-val').textContent = Math.floor(d) + 'm';
-
+                this.update(0.016);
                 this.renderer.render(this.scene, this.camera);
                 requestAnimationFrame(this.loop);
             }
         }
 
-        const game = new DiscGolfGame();
-        window.game = game;
+        window.game = new DiscGolfGame();
     </script>
 </body>
 </html>

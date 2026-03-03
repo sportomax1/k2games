@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BMX Dirt Pro - K2 games</title>
+    <style>
+        :root {
+            --dirt: #78350f;
+            --accent: #fbbf24;
+            --glass: rgba(15, 23, 42, 0.8);
+        }
+
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; color: white; touch-action: none; }
+        
+        #ui-layer {
+            position: absolute; inset: 0; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+            z-index: 10;
+        }
+
+        .hud-top { display: flex; justify-content: space-between; }
+        
+        .stat-card {
+            background: var(--glass); backdrop-filter: blur(10px);
+            padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+            text-align: center; min-width: 100px;
+        }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px; }
+        .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--accent); }
+
+        #controls-display {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 20px; pointer-events: none;
+            background: rgba(0,0,0,0.5); padding: 15px; border-radius: 20px; backdrop-filter: blur(5px);
+        }
+        .keys-grid { display: grid; grid-template-columns: repeat(3, 45px); gap: 5px; }
+        .key-cap { 
+            width: 45px; height: 45px; background: rgba(255,255,255,0.1); 
+            border: 2px solid rgba(255,255,255,0.3); border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 0.9rem;
+        }
+        .key-cap.active { background: var(--accent); color: #000; border-color: #fff; transform: translateY(2px); }
+
+        #mobile-controls {
+            position: absolute; bottom: 40px; left: 0; right: 0;
+            display: none; justify-content: space-between; padding: 0 30px;
+            pointer-events: none; z-index: 50;
+        }
+        @media (max-width: 1024px) { 
+            #mobile-controls { display: flex; } 
+            #controls-display { display: none; }
+        }
+        .m-btn {
+            width: 80px; height: 80px; background: rgba(255,255,255,0.1);
+            border: 2px solid white; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; color: white;
+            font-weight: 900; pointer-events: auto; backdrop-filter: blur(5px);
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1000; text-align: center; padding: 30px;
+        }
+        h1 { font-size: 4rem; color: var(--accent); font-style: italic; font-weight: 900; line-height: 0.9; margin: 0; }
+        .brief { color: #94a3b8; max-width: 400px; line-height: 1.5; margin: 20px 0; }
+        .btn {
+            padding: 20px 80px; font-size: 1.5rem; background: #fff; color: #000;
+            border: none; border-radius: 50px; font-weight: 900; cursor: pointer;
+            box-shadow: 0 10px 0 #cbd5e1; transition: all 0.1s;
+        }
+        .btn:active { transform: translateY(5px); box-shadow: 0 5px 0 #cbd5e1; }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 2000;
+            font-weight: bold; font-size: 0.8rem; backdrop-filter: blur(5px); pointer-events: auto;
+        }
+
+        #lap-indicator {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 5rem; font-weight: 900; color: white; opacity: 0; pointer-events: none;
+            text-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        .animate-lap { animation: lapPop 2s ease-out forwards; }
+        @keyframes lapPop {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            20% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="lap-indicator">LAP 2</div>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="stat-card">
+                <div class="stat-label">Position</div>
+                <div id="pos-val" class="stat-val">1 / 4</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Lap</div>
+                <div id="lap-val" class="stat-val">1 / 2</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Speed</div>
+                <div id="speed-val" class="stat-val">0</div>
+            </div>
+        </div>
+
+        <div id="controls-display">
+            <div class="keys-grid">
+                <div></div><div class="key-cap" id="key-ArrowUp">↑</div><div></div>
+                <div class="key-cap" id="key-ArrowLeft">←</div><div class="key-cap" id="key-ArrowDown">↓</div><div class="key-cap" id="key-ArrowRight">→</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mobile-controls">
+        <div style="display:flex; gap:10px;">
+            <div class="m-btn" id="m-left">L</div>
+            <div class="m-btn" id="m-right">R</div>
+        </div>
+        <div class="m-btn" id="m-up" style="background:var(--accent); color:black;">PEDAL</div>
+    </div>
+
+    <div id="overlay">
+        <h1>BMX DIRT<br>PRO</h1>
+        <div class="brief">Race AI on the dirt circuit. Use Arrows to steer and pass others. Use visible ramps to launch into the air!</div>
+        <button class="btn" onclick="window.game.start()">START RACE</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        class BMXRacing {
+            constructor() {
+                this.state = 'menu';
+                this.lapsToWin = 2;
+                this.trackWidth = 20;
+                this.initEngine();
+                this.createTrack();
+                this.createRacers();
+                this.setupInput();
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            initEngine() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x87ceeb);
+                this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0015);
+
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 3000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                document.body.appendChild(this.renderer.domElement);
+
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+                const sun = new THREE.DirectionalLight(0xfffae3, 1.2);
+                sun.position.set(200, 400, 100);
+                sun.castShadow = true;
+                sun.shadow.camera.left = -1000;
+                sun.shadow.camera.right = 1000;
+                sun.shadow.camera.top = 1000;
+                sun.shadow.camera.bottom = -1000;
+                this.scene.add(sun);
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            createTrack() {
+                // Flat path - we add ramps as separate geometry
+                const pts = [
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(100, 0, 100),
+                    new THREE.Vector3(300, 0, 200),
+                    new THREE.Vector3(500, 0, 100),
+                    new THREE.Vector3(600, 0, -100),
+                    new THREE.Vector3(500, 0, -300),
+                    new THREE.Vector3(200, 0, -400),
+                    new THREE.Vector3(-100, 0, -300),
+                    new THREE.Vector3(-300, 0, -100),
+                    new THREE.Vector3(-200, 0, 100),
+                    new THREE.Vector3(0, 0, 0)
+                ];
+
+                this.trackCurve = new THREE.CatmullRomCurve3(pts);
+                this.trackCurve.closed = true;
+
+                // Create Track Mesh
+                const trackGeo = new THREE.TubeGeometry(this.trackCurve, 400, this.trackWidth, 12, true);
+                const trackMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 1 });
+                this.trackMesh = new THREE.Mesh(trackGeo, trackMat);
+                this.trackMesh.receiveShadow = true;
+                this.trackMesh.position.y = -this.trackWidth + 0.5;
+                this.scene.add(this.trackMesh);
+
+                // Add visible ramps
+                this.ramps = [];
+                const rampGeo = new THREE.BoxGeometry(this.trackWidth * 1.5, 8, 15);
+                const rampMat = new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 1 });
+                
+                const rampLocations = [0.15, 0.35, 0.6, 0.85];
+                rampLocations.forEach(loc => {
+                    const pos = this.trackCurve.getPointAt(loc);
+                    const tangent = this.trackCurve.getTangentAt(loc);
+                    const ramp = new THREE.Mesh(rampGeo, rampMat);
+                    ramp.position.copy(pos);
+                    ramp.lookAt(pos.clone().add(tangent));
+                    ramp.rotateX(-0.3); // Incline
+                    ramp.position.y -= 2;
+                    this.scene.add(ramp);
+                    this.ramps.push({ mesh: ramp, loc: loc });
+                });
+
+                // Environment
+                const ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshStandardMaterial({ color: 0x166534 }));
+                ground.rotation.x = -Math.PI/2; ground.position.y = -this.trackWidth; ground.receiveShadow = true;
+                this.scene.add(ground);
+            }
+
+            createRacers() {
+                this.racers = [];
+                const colors = [0x3b82f6, 0xef4444, 0x10b981, 0xf59e0b];
+                for(let i=0; i<4; i++) {
+                    const group = new THREE.Group();
+                    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.5, 3.5), new THREE.MeshStandardMaterial({ color: colors[i] }));
+                    frame.position.y = 1.5;
+                    const wGeo = new THREE.CylinderGeometry(1.2, 1.2, 0.4, 12); wGeo.rotateZ(Math.PI/2);
+                    const wMat = new THREE.MeshStandardMaterial({ color: 0x111827 });
+                    const w1 = new THREE.Mesh(wGeo, wMat); w1.position.set(0, 1.2, 1.5);
+                    const w2 = new THREE.Mesh(wGeo, wMat); w2.position.set(0, 1.2, -1.5);
+                    const head = new THREE.Mesh(new THREE.SphereGeometry(0.7), new THREE.MeshStandardMaterial({ color: 0xffdbac })); head.position.set(0, 4.5, -0.4);
+                    const torso = new THREE.Mesh(new THREE.BoxGeometry(1, 1.8, 0.7), new THREE.MeshStandardMaterial({ color: 0x222222 })); torso.position.set(0, 3.2, -0.4); torso.rotation.x = 0.4;
+                    group.add(frame, w1, w2, head, torso); group.castShadow = true;
+                    this.scene.add(group);
+
+                    this.racers.push({
+                        mesh: group, progress: i * 0.006, lateralOffset: (i - 1.5) * 4, speed: 0,
+                        isPlayer: i === 0, lap: 1, rank: i + 1, y: 0, vy: 0, isJumping: false
+                    });
+                }
+                this.player = this.racers[0];
+            }
+
+            setupInput() {
+                this.keys = {};
+                window.onkeydown = e => { this.keys[e.code] = true; this.updateKeyViz(e.code, true); };
+                window.onkeyup = e => { this.keys[e.code] = false; this.updateKeyViz(e.code, false); };
+                const bind = (id, key) => {
+                    const el = document.getElementById(id);
+                    el.ontouchstart = (e) => { e.preventDefault(); this.keys[key] = true; };
+                    el.ontouchend = (e) => { e.preventDefault(); this.keys[key] = false; };
+                };
+                bind('m-up', 'ArrowUp'); bind('m-left', 'ArrowLeft'); bind('m-right', 'ArrowRight');
+            }
+
+            updateKeyViz(code, active) {
+                const el = document.getElementById('key-' + code);
+                if(el) active ? el.classList.add('active') : el.classList.remove('active');
+            }
+
+            start() { this.state = 'playing'; document.getElementById('overlay').style.display = 'none'; }
+
+            update(dt) {
+                if(this.state === 'menu') return;
+
+                this.racers.forEach((r, idx) => {
+                    if (this.state === 'over') { r.speed *= 0.95; return; }
+
+                    if (r.isPlayer) {
+                        const accel = this.keys['ArrowUp'] ? 0.003 : -0.001;
+                        r.speed = Math.max(0, Math.min(0.0055, r.speed + accel)); // Speed Reduced
+                        if (this.keys['ArrowLeft']) r.lateralOffset += 0.35;
+                        if (this.keys['ArrowRight']) r.lateralOffset -= 0.35;
+                        r.lateralOffset = THREE.MathUtils.clamp(r.lateralOffset, -this.trackWidth+5, this.trackWidth-5);
+                        const steer = (this.keys['ArrowLeft'] ? 1 : 0) + (this.keys['ArrowRight'] ? -1 : 0);
+                        r.mesh.rotation.z = THREE.MathUtils.lerp(r.mesh.rotation.z, steer * 0.4, 0.1);
+                    } else {
+                        const aiBase = 0.0045 + (Math.sin(Date.now()*0.001 + idx) * 0.0005);
+                        r.speed = THREE.MathUtils.lerp(r.speed, aiBase, 0.05);
+                        r.lateralOffset += Math.sin(Date.now()*0.001 + idx*10) * 0.1;
+                    }
+
+                    r.progress += r.speed;
+                    if (r.progress >= 1) { r.progress -= 1; r.lap++; if (r.isPlayer) { this.showLapMsg(`LAP ${r.lap}`); if (r.lap > this.lapsToWin) this.endRace(); } }
+
+                    const pos = this.trackCurve.getPointAt(r.progress);
+                    const tangent = this.trackCurve.getTangentAt(r.progress);
+                    const normal = new THREE.Vector3(0, 1, 0).cross(tangent).normalize();
+                    const finalPos = pos.clone().add(normal.clone().multiplyScalar(r.lateralOffset));
+                    
+                    r.mesh.position.copy(finalPos);
+                    r.mesh.lookAt(this.trackCurve.getPointAt((r.progress + 0.01) % 1).add(normal.clone().multiplyScalar(r.lateralOffset)));
+
+                    // Natural Jump Physics
+                    let terrainY = 0;
+                    this.ramps.forEach(ramp => {
+                        const dist = Math.abs(r.progress - ramp.loc);
+                        if (dist < 0.01) {
+                            const localDist = (r.progress - (ramp.loc - 0.005)) / 0.01;
+                            if (localDist > 0 && localDist < 1) terrainY = Math.sin(localDist * Math.PI) * 4;
+                        }
+                    });
+
+                    if (!r.isJumping && terrainY > 0.5) {
+                        r.isJumping = true;
+                        r.vy = r.speed * 150; // Launch velocity based on speed
+                    }
+
+                    if (r.isJumping) {
+                        r.y += r.vy; r.vy -= 0.4; // Normal Gravity
+                        if (r.y <= terrainY) {
+                            r.y = terrainY;
+                            if (r.vy < 0) { r.isJumping = false; r.vy = 0; }
+                        }
+                    } else {
+                        r.y = terrainY;
+                    }
+                    r.mesh.position.y += r.y;
+                });
+
+                const sorted = [...this.racers].sort((a, b) => (b.lap * 1 + b.progress) - (a.lap * 1 + a.progress));
+                sorted.forEach((r, i) => r.rank = i + 1);
+
+                const camPos = this.player.mesh.position.clone();
+                const backVec = this.trackCurve.getTangentAt(this.player.progress).negate();
+                camPos.add(backVec.multiplyScalar(35)).add(new THREE.Vector3(0, 20, 0));
+                this.camera.position.lerp(camPos, 0.1);
+                this.camera.lookAt(this.player.mesh.position.clone().add(new THREE.Vector3(0, 5, 0)));
+
+                this.updateUI();
+            }
+
+            showLapMsg(txt) {
+                const el = document.getElementById('lap-indicator'); el.textContent = txt;
+                el.classList.remove('animate-lap'); void el.offsetWidth; el.classList.add('animate-lap');
+            }
+
+            updateUI() {
+                document.getElementById('pos-val').textContent = `${this.player.rank} / 4`;
+                document.getElementById('lap-val').textContent = `${Math.min(2, this.player.lap)} / 2`;
+                document.getElementById('speed-val').textContent = Math.floor(this.player.speed * 15000);
+            }
+
+            endRace() { this.state = 'over'; document.getElementById('overlay').style.display = 'flex'; document.querySelector('h1').textContent = this.player.rank === 1 ? "VICTORY!" : "RACE OVER"; }
+            loop() { this.update(0.016); this.renderer.render(this.scene, this.camera); requestAnimationFrame(this.loop); }
+        }
+        window.game = new BMXRacing();
+    </script>
+</body>
+</html>

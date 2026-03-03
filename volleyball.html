@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Beach Volleyball Pro - K2 games</title>
+    <style>
+        :root {
+            --sand: #dbb48c;
+            --sky: #7dd3fc;
+            --accent: #fbbf24;
+            --glass: rgba(15, 23, 42, 0.7);
+        }
+
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; color: white; touch-action: none; }
+        
+        #ui-layer {
+            position: absolute; inset: 0; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+            z-index: 10;
+        }
+
+        .hud-top { display: flex; justify-content: space-between; align-items: center; }
+        
+        .score-board {
+            background: var(--glass); backdrop-filter: blur(10px);
+            padding: 10px 30px; border-radius: 20px; border: 2px solid rgba(255,255,255,0.1);
+            display: flex; gap: 20px; align-items: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .team-score { text-align: center; }
+        .score-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px; }
+        .score-val { font-size: 2.5rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+        .score-sep { font-size: 1.5rem; opacity: 0.5; font-weight: 900; }
+
+        #hint-text {
+            position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%);
+            background: var(--glass); padding: 12px 30px; border-radius: 30px;
+            font-weight: 800; text-transform: uppercase; letter-spacing: 1px;
+            border: 1px solid rgba(255,255,255,0.2); transition: all 0.3s;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        #controls-display {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 20px; pointer-events: none;
+            background: rgba(0,0,0,0.5); padding: 15px; border-radius: 20px; backdrop-filter: blur(5px);
+        }
+        .keys-grid { display: grid; grid-template-columns: repeat(3, 40px); gap: 4px; }
+        .key-cap { 
+            width: 40px; height: 40px; background: rgba(255,255,255,0.1); 
+            border: 1px solid rgba(255,255,255,0.3); border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 0.8rem;
+        }
+        .key-cap.active { background: var(--accent); color: #000; border-color: #fff; transform: translateY(2px); }
+        .key-space { width: 120px; height: 30px; margin-top: 5px; }
+
+        #mobile-controls {
+            position: absolute; bottom: 40px; left: 0; right: 0;
+            display: none; justify-content: space-between; padding: 0 30px;
+            pointer-events: none; z-index: 50;
+        }
+        @media (max-width: 1024px) { 
+            #mobile-controls { display: flex; } 
+            #controls-display { display: none; }
+        }
+        .m-btn {
+            width: 80px; height: 80px; background: rgba(255,255,255,0.1);
+            border: 2px solid white; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; color: white;
+            font-weight: 900; pointer-events: auto; backdrop-filter: blur(5px);
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: radial-gradient(circle at center, rgba(14, 165, 233, 0.4), rgba(15, 23, 42, 0.95));
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1000; text-align: center; padding: 30px; backdrop-filter: blur(5px);
+        }
+        h1 { font-size: 4rem; color: #fff; font-style: italic; font-weight: 900; line-height: 0.9; margin: 0; text-shadow: 0 4px 0 var(--primary); }
+        .mission-brief { color: #94a3b8; max-width: 450px; line-height: 1.6; margin: 20px 0; font-size: 1.1rem; }
+        .btn {
+            padding: 20px 80px; font-size: 1.5rem; background: var(--accent); color: #000;
+            border: none; border-radius: 50px; font-weight: 900; cursor: pointer; margin-top: 40px;
+            box-shadow: 0 10px 0 #b45309; transition: transform 0.1s;
+        }
+        .btn:active { transform: translateY(5px); box-shadow: 0 5px 0 #b45309; }
+
+        .back-link {
+            position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 2000;
+            font-weight: bold; font-size: 0.8rem; backdrop-filter: blur(5px); pointer-events: auto;
+        }
+
+        .score-anim {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 4rem; font-weight: 900; color: #fbbf24; opacity: 0; pointer-events: none;
+            z-index: 100; text-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        @keyframes popUp {
+            0% { opacity: 0; transform: translate(-50%, 0) scale(0.5); }
+            20% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -150px) scale(1.5); }
+        }
+        .animate-score { animation: popUp 2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← HUB</a>
+
+    <div id="score-text" class="score-anim">POINT!</div>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div style="width:100px"></div> 
+            <div class="score-board">
+                <div class="team-score">
+                    <div class="score-label">YOU</div>
+                    <div id="score-p1" class="score-val">0</div>
+                </div>
+                <div class="score-sep">:</div>
+                <div class="team-score">
+                    <div class="score-label">CPU</div>
+                    <div id="score-p2" class="score-val">0</div>
+                </div>
+            </div>
+            <div style="width:100px"></div> 
+        </div>
+        <div id="hint-text">GET TO THE SHADOW OF THE BALL!</div>
+
+        <div id="controls-display">
+            <div style="text-align: center;">
+                <div class="score-label" style="margin-bottom: 5px;">Move</div>
+                <div class="keys-grid">
+                    <div></div><div class="key-cap" id="key-ArrowUp">↑</div><div></div>
+                    <div class="key-cap" id="key-ArrowLeft">←</div><div class="key-cap" id="key-ArrowDown">↓</div><div class="key-cap" id="key-ArrowRight">→</div>
+                </div>
+            </div>
+            <div style="text-align: center;">
+                <div class="score-label" style="margin-bottom: 5px;">Action</div>
+                <div class="key-cap key-space" id="key-Space">SPACE (HIT)</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mobile-controls">
+        <div style="display:flex; gap:10px;">
+            <div class="m-btn" id="m-left">L</div>
+            <div class="m-btn" id="m-right">R</div>
+        </div>
+        <div class="m-btn" id="m-hit" style="background:var(--accent); color:black;">HIT</div>
+    </div>
+
+    <div id="overlay">
+        <h1>BEACH<br>VOLLEYBALL PRO</h1>
+        <div class="mission-brief">
+            PRO COURT: First to 11 wins.<br>
+            Use Arrows to move and SPACE to hit.<br>
+            Time your jump to spike the ball downward!
+        </div>
+        <button class="btn" onclick="window.game.startMatch()">START MATCH</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        class VolleyballGame {
+            constructor() {
+                this.state = 'menu';
+                this.p1Score = 0;
+                this.p2Score = 0;
+                this.hits = 0;
+                this.lastHitBy = 0; 
+                this.serving = true;
+                this.server = 1; 
+                
+                // COURT SCALE (Realistic 16x8m equivalent)
+                this.courtWidth = 24; 
+                this.courtDepth = 48;
+                this.netY = 12;
+
+                this.init();
+                this.createWorld();
+                this.createPlayers();
+                this.createBall();
+                this.setupInput();
+                
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            init() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x7dd3fc);
+                this.scene.fog = new THREE.FogExp2(0x7dd3fc, 0.002);
+
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+                this.camera.position.set(0, 30, 60);
+                this.camera.lookAt(0, 5, 0);
+
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                document.body.appendChild(this.renderer.domElement);
+
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+                const sun = new THREE.DirectionalLight(0xfffae3, 1.3);
+                sun.position.set(50, 150, 50); sun.castShadow = true;
+                sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048;
+                sun.shadow.camera.left = -60; sun.shadow.camera.right = 60;
+                sun.shadow.camera.top = 60; sun.shadow.camera.bottom = -60;
+                this.scene.add(sun);
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            createWorld() {
+                // Sand
+                const ground = new THREE.Mesh(
+                    new THREE.PlaneGeometry(400, 400),
+                    new THREE.MeshStandardMaterial({ color: 0xdbb48c, roughness: 1 })
+                );
+                ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
+                this.scene.add(ground);
+
+                // Realistic Court Lines
+                const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const box = new THREE.Mesh(new THREE.PlaneGeometry(this.courtWidth, this.courtDepth), lineMat);
+                box.rotation.x = -Math.PI/2; box.position.y = 0.01;
+                this.scene.add(box);
+                const sandInner = new THREE.Mesh(new THREE.PlaneGeometry(this.courtWidth - 0.5, this.courtDepth - 0.5), new THREE.MeshStandardMaterial({ color: 0xdbb48c }));
+                sandInner.rotation.x = -Math.PI/2; sandInner.position.y = 0.02;
+                this.scene.add(sandInner);
+
+                // Mid line
+                const mid = new THREE.Mesh(new THREE.PlaneGeometry(this.courtWidth, 0.5), lineMat);
+                mid.rotation.x = -Math.PI/2; mid.position.y = 0.03;
+                this.scene.add(mid);
+
+                // Net
+                const netGroup = new THREE.Group();
+                const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 15), new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
+                p1.position.set(-(this.courtWidth/2 + 2), 7.5, 0);
+                const p2 = p1.clone(); p2.position.x = (this.courtWidth/2 + 2);
+                const net = new THREE.Mesh(new THREE.PlaneGeometry(this.courtWidth + 4, 4), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, wireframe: true, side: THREE.DoubleSide }));
+                net.position.y = this.netY - 2;
+                const tape = new THREE.Mesh(new THREE.PlaneGeometry(this.courtWidth + 4, 0.5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                tape.position.y = this.netY;
+                netGroup.add(p1, p2, net, tape); this.scene.add(netGroup);
+
+                // Decorations
+                for(let i=0; i<20; i++) {
+                    const palm = new THREE.Group();
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 1, 20), new THREE.MeshStandardMaterial({color: 0x451a03}));
+                    const leaves = new THREE.Mesh(new THREE.DodecahedronGeometry(6), new THREE.MeshStandardMaterial({color: 0x166534}));
+                    leaves.position.y = 10; palm.add(trunk, leaves);
+                    palm.position.set((Math.random()-0.5)*200, 0, (Math.random()-0.5)*150 - 150);
+                    this.scene.add(palm);
+                }
+            }
+
+            createPlayers() {
+                const buildPlayer = (color) => {
+                    const group = new THREE.Group();
+                    const body = new THREE.Mesh(new THREE.CapsuleGeometry(1.0, 2.5), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+                    body.position.y = 2.2;
+                    const skin = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+                    const head = new THREE.Mesh(new THREE.SphereGeometry(0.8), skin); head.position.y = 4.2;
+                    const arms = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.5, 0.5), skin); arms.position.y = 3.0;
+                    group.add(body, head, arms); group.castShadow = true;
+                    return group;
+                };
+                this.p1 = buildPlayer(0x3b82f6); this.p1.position.set(0, 0, 15); this.scene.add(this.p1); this.p1Vel = new THREE.Vector3();
+                this.p2 = buildPlayer(0xef4444); this.p2.position.set(0, 0, -15); this.p2.rotation.y = Math.PI; this.scene.add(this.p2); this.p2Vel = new THREE.Vector3();
+            }
+
+            createBall() {
+                this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 16), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                this.ball.castShadow = true; this.scene.add(this.ball); this.ballVel = new THREE.Vector3();
+                this.ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.8, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 }));
+                this.ballShadow.rotation.x = -Math.PI/2; this.ballShadow.position.y = 0.05;
+                this.scene.add(this.ballShadow);
+                this.resetBall(1);
+            }
+
+            resetBall(server) {
+                this.server = server;
+                this.ball.position.set(server === 1 ? this.p1.position.x : this.p2.position.x, 15, server === 1 ? 20 : -20);
+                this.ballVel.set(0, 0, 0); this.hits = 0; this.lastHitBy = 0; this.serving = true;
+            }
+
+            setupInput() {
+                this.keys = {};
+                window.onkeydown = e => { this.keys[e.code] = true; this.updateKeyViz(e.code, true); };
+                window.onkeyup = e => { this.keys[e.code] = false; this.updateKeyViz(e.code, false); };
+                const bind = (id, key) => {
+                    const el = document.getElementById(id);
+                    el.ontouchstart = (e) => { e.preventDefault(); this.keys[key] = true; this.updateKeyViz(key, true); };
+                    el.ontouchend = (e) => { e.preventDefault(); this.keys[key] = false; this.updateKeyViz(key, false); };
+                };
+                bind('m-left', 'ArrowLeft'); bind('m-right', 'ArrowRight'); bind('m-hit', 'Space');
+            }
+
+            updateKeyViz(code, active) {
+                const el = document.getElementById('key-' + code); if(el) active ? el.classList.add('active') : el.classList.remove('active');
+            }
+
+            startMatch() { this.state = 'playing'; document.getElementById('overlay').style.display = 'none'; }
+
+            update(dt) {
+                if(this.state !== 'playing') return;
+                const p1 = this.p1; const p2 = this.p2; const b = this.ball;
+
+                // Move P1
+                let moveX = (this.keys['ArrowLeft'] ? -1 : 0) + (this.keys['ArrowRight'] ? 1 : 0);
+                let moveZ = (this.keys['ArrowUp'] ? -1 : 0) + (this.keys['ArrowDown'] ? 1 : 0);
+                p1.position.x += moveX * 35 * dt; p1.position.z += moveZ * 35 * dt;
+                p1.position.x = THREE.MathUtils.clamp(p1.position.x, -this.courtWidth/2, this.courtWidth/2);
+                p1.position.z = THREE.MathUtils.clamp(p1.position.z, 1, this.courtDepth/2);
+                if (this.keys['Space'] && p1.position.y === 0) this.p1Vel.y = 18;
+                p1.position.y += this.p1Vel.y * dt; this.p1Vel.y -= 45 * dt;
+                if(p1.position.y < 0) { p1.position.y = 0; this.p1Vel.y = 0; }
+
+                // AI P2
+                if (b.position.z < 0) {
+                    p2.position.x = THREE.MathUtils.lerp(p2.position.x, b.position.x, 0.12);
+                    p2.position.z = THREE.MathUtils.lerp(p2.position.z, THREE.MathUtils.clamp(b.position.z, -this.courtDepth/2, -2), 0.12);
+                    if (b.position.y < 10 && b.position.z > -15 && p2.position.y === 0) this.p2Vel.y = 15;
+                } else {
+                    p2.position.x = THREE.MathUtils.lerp(p2.position.x, 0, 0.05);
+                    p2.position.z = THREE.MathUtils.lerp(p2.position.z, -15, 0.05);
+                }
+                p2.position.y += this.p2Vel.y * dt; this.p2Vel.y -= 45 * dt;
+                if(p2.position.y < 0) { p2.position.y = 0; this.p2Vel.y = 0; }
+
+                // Ball
+                this.ballShadow.position.set(b.position.x, 0.05, b.position.z);
+                if (this.serving) {
+                    if (this.server === 1 && this.keys['Space']) { this.ballVel.set(0, 18, -35); this.serving = false; this.lastHitBy = 1; }
+                    else if (this.server === 2) { this.ballVel.set(0, 18, 35); this.serving = false; this.lastHitBy = 2; }
+                } else {
+                    b.position.add(this.ballVel.clone().multiplyScalar(dt));
+                    this.ballVel.y -= 30 * dt; // Gravity
+                    this.ballVel.multiplyScalar(0.995); // Air Drag
+
+                    if (Math.abs(b.position.z) < 0.8 && b.position.y < this.netY) { this.ballVel.z *= -0.6; this.ballVel.y *= 0.5; }
+                    if (b.position.y < 0.8) {
+                        if (Math.abs(b.position.x) > this.courtWidth/2 || Math.abs(b.position.z) > this.courtDepth/2) this.score(this.lastHitBy === 1 ? 2 : 1);
+                        else this.score(b.position.z > 0 ? 2 : 1);
+                    }
+
+                    const checkHit = (p, id) => {
+                        const dist = b.position.distanceTo(new THREE.Vector3(p.position.x, p.position.y + 3.5, p.position.z));
+                        if (dist < 4.5) {
+                            const dir = id === 1 ? -1 : 1;
+                            const power = (p.position.y > 2) ? 22 : 16; // Spike power
+                            this.ballVel.set((b.position.x - p.position.x) * 10, power, 35 * dir);
+                            this.lastHitBy = id; this.hits = this.lastHitBy === id ? this.hits + 1 : 1;
+                            if (this.hits > 3) this.score(id === 1 ? 2 : 1);
+                            b.position.y += 1;
+                        }
+                    };
+                    checkHit(p1, 1); checkHit(p2, 2);
+                }
+                this.camera.position.x = THREE.MathUtils.lerp(this.camera.position.x, b.position.x * 0.4, 0.1);
+                this.camera.lookAt(0, 5, 0);
+            }
+
+            score(team) {
+                if (team === 1) this.p1Score++; else this.p2Score++;
+                document.getElementById('score-p1').textContent = this.p1Score;
+                document.getElementById('score-p2').textContent = this.p2Score;
+                const el = document.getElementById('score-text');
+                el.textContent = team === 1 ? "YOU SCORE!" : "CPU SCORES!";
+                el.classList.remove('animate-score'); void el.offsetWidth; el.classList.add('animate-score');
+                if (this.p1Score >= 11 || this.p2Score >= 11) {
+                    this.state = 'over';
+                    setTimeout(() => {
+                        document.getElementById('overlay').style.display = 'flex';
+                        document.querySelector('#overlay h1').textContent = this.p1Score > this.p2Score ? "VICTORY!" : "DEFEAT";
+                        this.p1Score = 0; this.p2Score = 0;
+                    }, 2000);
+                } else setTimeout(() => this.resetBall(team === 1 ? 2 : 1), 1000);
+            }
+
+            loop() { this.update(0.016); this.renderer.render(this.scene, this.camera); requestAnimationFrame(this.loop); }
+        }
+        window.game = new VolleyballGame();
+    </script>
+</body>
+</html>

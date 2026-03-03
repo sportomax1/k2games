@@ -3,31 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MedEvac Forest Rescue 3D - K2 games</title>
+    <title>MedEvac Pro: Wilderness Rescue - K2 games</title>
     <style>
         :root {
             --primary: #3b82f6;
             --accent: #ef4444;
             --bg: #064e3b;
-            --glass: rgba(6, 78, 59, 0.8);
+            --glass: rgba(15, 23, 42, 0.85);
         }
 
-        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; color: white; touch-action: none; }
         
         #ui-layer {
             position: absolute; inset: 0; pointer-events: none;
             display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+            z-index: 10;
         }
 
-        .hud-top { display: flex; justify-content: space-between; }
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
         
         .stat-card {
             background: var(--glass); backdrop-filter: blur(10px);
-            padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
-            text-align: center; color: white; min-width: 100px;
+            padding: 12px 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);
+            text-align: left; min-width: 120px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
         }
-        .stat-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px; }
-        .stat-val { font-size: 1.5rem; font-weight: 900; color: #fbbf24; }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.6; letter-spacing: 1.5px; font-weight: 800; }
+        .stat-val { font-size: 1.4rem; font-weight: 900; color: #fbbf24; font-family: monospace; }
+
+        .telemetry {
+            position: absolute; top: 100px; left: 20px;
+            display: flex; flex-direction: column; gap: 5px;
+        }
+        .tel-item { font-size: 0.8rem; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+
+        #controls-display {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 20px; pointer-events: none;
+            background: rgba(0,0,0,0.5); padding: 15px; border-radius: 20px; backdrop-filter: blur(5px);
+        }
+
+        @media (max-width: 1024px) { #controls-display { display: none; } }
+
+        .ctrl-group { text-align: center; }
+        .ctrl-label { font-size: 0.6rem; font-weight: 800; margin-bottom: 8px; opacity: 0.8; text-transform: uppercase; }
+        .keys-grid { display: grid; grid-template-columns: repeat(3, 40px); gap: 4px; }
+        .key-cap { 
+            width: 40px; height: 40px; background: rgba(255,255,255,0.1); 
+            border: 1px solid rgba(255,255,255,0.3); border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 0.8rem;
+        }
+        .key-cap.active { background: #fbbf24; color: #000; border-color: #fff; transform: translateY(2px); }
+        .key-space { width: 120px; height: 30px; margin-top: 5px; }
 
         #mobile-controls {
             position: absolute; bottom: 40px; left: 0; right: 0;
@@ -35,62 +63,120 @@
             pointer-events: none; z-index: 50;
         }
         @media (max-width: 1024px) { #mobile-controls { display: flex; } }
+
         .m-btn {
-            width: 80px; height: 80px; background: rgba(255,255,255,0.15);
-            border: 2px solid white; border-radius: 50%; display: flex;
+            width: 75px; height: 75px; background: rgba(255,255,255,0.15);
+            border: 2px solid rgba(255,255,255,0.4); border-radius: 50%; display: flex;
             align-items: center; justify-content: center; color: white;
             font-weight: 900; pointer-events: auto; backdrop-filter: blur(5px);
+            font-size: 0.8rem;
         }
+        .m-btn:active { background: #fbbf24; color: black; }
+        .m-btn.active-toggle { background: #fbbf24; color: black; border-color: white; }
 
         #overlay {
-            position: absolute; inset: 0; background: rgba(6, 78, 59, 0.95);
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 100; text-align: center; pointer-events: auto;
+            z-index: 1000; text-align: center; padding: 30px;
         }
-        h1 { font-size: 3rem; color: #fbbf24; font-style: italic; font-weight: 900; line-height: 1; }
+        h1 { font-size: 4rem; color: #fbbf24; font-style: italic; font-weight: 900; line-height: 0.9; margin: 0; }
+        .mission-brief { color: #94a3b8; max-width: 450px; line-height: 1.6; margin: 20px 0; font-size: 1.1rem; }
         .btn {
-            padding: 18px 60px; font-size: 1.4rem; background: #fff; color: #000;
-            border: none; border-radius: 50px; font-weight: 900; cursor: pointer; margin-top: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            padding: 20px 80px; font-size: 1.5rem; background: #fbbf24; color: #000;
+            border: none; border-radius: 50px; font-weight: 900; cursor: pointer;
+            box-shadow: 0 10px 0 #b45309; transition: all 0.1s;
         }
+        .btn:active { transform: translateY(5px); box-shadow: 0 5px 0 #b45309; }
 
         .back-link {
             position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
-            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 200;
+            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 2000;
             font-weight: bold; font-size: 0.8rem; backdrop-filter: blur(5px); pointer-events: auto;
         }
+
+        .rescue-anim {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 2rem; font-weight: 900; color: #4ade80; opacity: 0; pointer-events: none;
+            z-index: 100; text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        @keyframes popUp {
+            0% { opacity: 0; transform: translate(-50%, 0); }
+            20% { opacity: 1; }
+            100% { opacity: 0; transform: translate(-50%, -150px); }
+        }
+        .animate-rescue { animation: popUp 2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
     </style>
 </head>
 <body>
     <a href="index.html" class="back-link">← HUB</a>
 
+    <div id="rescue-text" class="rescue-anim">PERSON RESCUED!</div>
+
     <div id="ui-layer">
         <div class="hud-top">
             <div class="stat-card">
-                <div class="stat-label">Survivors</div>
-                <div id="rescue-val" class="stat-val">0 / 5</div>
+                <div class="stat-label">On Board</div>
+                <div id="holding-val" class="stat-val">0 / 3</div>
+            </div>
+            <div class="stat-card" style="border-color: #fbbf24;">
+                <div class="stat-label" id="mode-status">Mode: FLIGHT</div>
+                <div id="rescue-val" class="stat-val">0 / 10</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Fuel</div>
                 <div id="fuel-val" class="stat-val">100%</div>
             </div>
         </div>
+
+        <div class="telemetry">
+            <div class="tel-item">ALT: <span id="alt-val">0</span>m</div>
+            <div class="tel-item">SPD: <span id="spd-val">0</span>km/h</div>
+            <div class="tel-item">WNC: <span id="winch-val">0</span>m</div>
+        </div>
+
+        <div id="controls-display">
+            <div class="ctrl-group">
+                <div class="ctrl-label" id="mode-label">Arrows: Forward/Roll</div>
+                <div class="keys-grid">
+                    <div></div><div class="key-cap" id="key-ArrowUp">↑</div><div></div>
+                    <div class="key-cap" id="key-ArrowLeft">←</div><div class="key-cap" id="key-ArrowDown">↓</div><div class="key-cap" id="key-ArrowRight">→</div>
+                </div>
+                <div class="key-cap key-space" id="key-Space">SPACE (HOLD)</div>
+            </div>
+            <div class="ctrl-group" style="margin-left: 20px;">
+                <div class="ctrl-label">Winch Control</div>
+                <div class="keys-grid">
+                    <div class="key-cap" id="key-KeyR">R</div>
+                    <div class="key-cap" id="key-KeyF">F</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="mobile-controls">
-        <div style="display:flex; gap:10px;">
-            <div class="m-btn" id="m-left">◀</div>
-            <div class="m-btn" id="m-right">▶</div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <div class="m-btn" id="m-up">↑</div>
+            <div class="m-btn" id="m-down">↓</div>
+            <div class="m-btn" id="m-winch-up" style="background:rgba(255,255,255,0.05); border-radius:10px; height:40px;">WNC UP</div>
         </div>
-        <div style="display:flex; gap:10px;">
-            <div class="m-btn" id="m-up" style="background:rgba(59, 130, 246, 0.4)">UP</div>
-            <div class="m-btn" id="m-down">DN</div>
+        <div style="display:flex; flex-direction:column; gap:10px; align-items:flex-end;">
+            <div class="m-btn" id="m-space" style="border-color:#fbbf24; border-radius:15px; height:50px;">MODE: FLT</div>
+            <div style="display:flex; gap:10px;">
+                <div class="m-btn" id="m-left">←</div>
+                <div class="m-btn" id="m-right">→</div>
+            </div>
+            <div class="m-btn" id="m-winch-down" style="background:rgba(255,255,255,0.05); border-radius:10px; height:40px;">WNC DN</div>
         </div>
     </div>
 
     <div id="overlay">
-        <h1>FOREST<br>RESCUE 3D</h1>
-        <p style="color: #cbd5e1; max-width: 300px; line-height: 1.5; margin-top: 10px;">Find survivors signaling with orange SOS smoke. Hover low to rescue them.</p>
+        <h1>MEDEVAC<br>PRO</h1>
+        <div class="mission-brief">
+            Randomized Mountains! 🏔️ Animated Wildlife! 🦌<br>
+            <b>DESKTOP:</b> Arrows to Fly | SPACE to Toggle Mode.<br>
+            <b>MOBILE:</b> Use pads to fly | Tap MODE to switch controls.<br>
+            Hover or Land near survivors to rescue!
+        </div>
         <button class="btn" onclick="window.game.start()">COMMENCE MISSION</button>
     </div>
 
@@ -104,15 +190,25 @@
         class MedEvacRescue {
             constructor() {
                 this.state = 'menu';
-                this.rescued = 0;
-                this.totalPeds = 20;
+                this.rescuedTotal = 0;
+                this.holding = 0;
+                this.maxHolding = 3;
+                this.goalTotal = 10;
                 this.fuel = 100;
-                this.holdingPed = false;
+                this.winchLen = 0;
+                this.maxWinch = 35;
+                this.mobileToggle = false;
                 
+                this.seed = Math.random() * 1000;
+                this.clouds = [];
+                this.survivors = [];
+                this.wildlife = [];
+                this.birds = [];
+
                 this.initEngine();
                 this.createWorld();
                 this.createHeli();
-                this.createSurvivors();
+                this.createEntities();
                 this.setupInput();
                 
                 this.loop = this.loop.bind(this);
@@ -121,25 +217,24 @@
 
             initEngine() {
                 this.scene = new THREE.Scene();
-                this.scene.background = new THREE.Color(0x87ceeb);
-                this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.001);
+                this.scene.background = new THREE.Color(0x7dd3fc);
+                this.scene.fog = new THREE.FogExp2(0x7dd3fc, 0.0005);
 
-                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 3000);
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 8000);
                 this.renderer = new THREE.WebGLRenderer({ antialias: true });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
                 this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
                 document.body.appendChild(this.renderer.domElement);
 
-                this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-                const sun = new THREE.DirectionalLight(0xfffae3, 1.2);
-                sun.position.set(500, 500, 200);
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+                const sun = new THREE.DirectionalLight(0xfffae3, 1.5);
+                sun.position.set(400, 1500, 200);
                 sun.castShadow = true;
-                sun.shadow.camera.left = -1000;
-                sun.shadow.camera.right = 1000;
-                sun.shadow.camera.top = 1000;
-                sun.shadow.camera.bottom = -1000;
-                sun.shadow.mapSize.width = 2048;
-                sun.shadow.mapSize.height = 2048;
+                sun.shadow.camera.left = -2500;
+                sun.shadow.camera.right = 2500;
+                sun.shadow.camera.top = 2500;
+                sun.shadow.camera.bottom = -2500;
                 this.scene.add(sun);
 
                 window.addEventListener('resize', () => {
@@ -149,179 +244,299 @@
                 });
             }
 
+            getHeight(x, z) {
+                const s = this.seed;
+                const hills = Math.sin(x * 0.01 + s) * 15 + Math.cos(z * 0.012 + s) * 15;
+                const base = Math.sin(x * 0.005 + s) * Math.cos(z * 0.005 + s) * 40;
+                let mountainNoise = Math.abs(Math.sin(x * 0.015 + s) * Math.cos(z * 0.015 + s)) * 100 + Math.abs(Math.sin(x * 0.004 + s) * Math.cos(z * 0.004 + s)) * 250;
+                let mountains = Math.pow(mountainNoise / 300, 2.5) * 600;
+                const h = hills + base + mountains;
+                return h < 5 ? h - 25 : h;
+            }
+
             createWorld() {
-                const groundGeo = new THREE.PlaneGeometry(3000, 3000, 64, 64);
+                const size = 6000;
+                const segments = 160;
+                const groundGeo = new THREE.PlaneGeometry(size, size, segments, segments);
                 const pos = groundGeo.attributes.position;
+                const colors = [];
+                const color = new THREE.Color();
+
                 for(let i=0; i<pos.count; i++) {
                     const x = pos.getX(i);
                     const y = pos.getY(i);
-                    const h = Math.sin(x * 0.01) * 10 + Math.cos(y * 0.01) * 10;
+                    const h = this.getHeight(x, -y);
                     pos.setZ(i, h);
+                    if (h < 0) color.setHex(0x14532d);
+                    else if (h < 150) color.setHex(0x166534);
+                    else if (h < 300) color.setHex(0x4b5563);
+                    else color.setHex(0xffffff);
+                    colors.push(color.r, color.g, color.b);
                 }
+                groundGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
                 groundGeo.computeVertexNormals();
-                const ground = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.9 }));
+                const ground = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }));
                 ground.rotation.x = -Math.PI/2;
                 ground.receiveShadow = true;
                 this.scene.add(ground);
 
+                this.water = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.7, roughness: 0.1 }));
+                this.water.rotation.x = -Math.PI/2;
+                this.water.position.y = -5;
+                this.scene.add(this.water);
+
                 this.base = new THREE.Group();
-                const pad = new THREE.Mesh(new THREE.CylinderGeometry(20, 20, 1, 32), new THREE.MeshStandardMaterial({ color: 0x22c55e }));
-                const hMark = new THREE.Mesh(new THREE.BoxGeometry(10, 0.2, 2), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-                this.base.add(pad, hMark);
-                this.base.position.set(0, 0, 0);
+                this.base.add(new THREE.Mesh(new THREE.CylinderGeometry(40, 40, 2, 32), new THREE.MeshStandardMaterial({ color: 0x22c55e })));
+                const h1 = new THREE.Mesh(new THREE.BoxGeometry(25, 0.5, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                this.base.add(h1);
+                this.base.position.set(0, this.getHeight(0,0) + 1, 0);
                 this.scene.add(this.base);
 
-                for(let i=0; i<1200; i++) {
-                    const tree = new THREE.Group();
-                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 6), new THREE.MeshStandardMaterial({ color: 0x451a03 }));
-                    trunk.position.y = 3;
-                    const leaves = new THREE.Mesh(new THREE.ConeGeometry(4, 15, 8), new THREE.MeshStandardMaterial({ color: 0x064e3b }));
-                    leaves.position.y = 10;
-                    tree.add(trunk, leaves);
-                    const x = (Math.random()-0.5)*2500;
-                    const z = (Math.random()-0.5)*2500;
-                    if(Math.hypot(x, z) < 80) continue;
-                    tree.position.set(x, 0, z);
-                    tree.castShadow = true;
-                    this.scene.add(tree);
+                const cloudGeo = new THREE.SphereGeometry(1, 8, 8);
+                for(let i=0; i<50; i++) {
+                    const cloud = new THREE.Group();
+                    for(let j=0; j<6; j++) {
+                        const m = new THREE.Mesh(cloudGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 }));
+                        m.position.set(j*18, Math.random()*15, Math.random()*15);
+                        m.scale.setScalar(20 + Math.random()*20);
+                        cloud.add(m);
+                    }
+                    cloud.position.set((Math.random()-0.5)*8000, 800 + Math.random()*400, (Math.random()-0.5)*8000);
+                    this.scene.add(cloud);
+                    this.clouds.push(cloud);
                 }
             }
 
             createHeli() {
                 this.heli = new THREE.Group();
-                const body = new THREE.Mesh(new THREE.CapsuleGeometry(1.5, 4, 4, 8), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
+                const body = new THREE.Mesh(new THREE.CapsuleGeometry(2.2, 6, 4, 12), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
                 body.rotation.x = Math.PI/2;
-                const cockpit = new THREE.Mesh(new THREE.SphereGeometry(1.2, 16, 16), new THREE.MeshStandardMaterial({ color: 0x1e293b, transparent: true, opacity: 0.7 }));
-                cockpit.position.set(0, 0, -2);
-                this.rotor = new THREE.Mesh(new THREE.BoxGeometry(12, 0.1, 0.5), new THREE.MeshStandardMaterial({ color: 0x111827 }));
-                this.rotor.position.y = 1.8;
+                const cockpit = new THREE.Mesh(new THREE.SphereGeometry(2.0, 16, 16), new THREE.MeshStandardMaterial({ color: 0x1e293b, transparent: true, opacity: 0.8 }));
+                cockpit.position.set(0, 0.2, -3.0);
+                this.rotor = new THREE.Mesh(new THREE.BoxGeometry(22, 0.15, 1.5), new THREE.MeshStandardMaterial({ color: 0x111827 }));
+                this.rotor.position.y = 2.8;
+                this.tailRotor = new THREE.Mesh(new THREE.BoxGeometry(0.1, 4, 0.5), new THREE.MeshStandardMaterial({ color: 0x111827 }));
+                this.tailRotor.position.set(0.6, 0.5, 8.5);
+                const tail = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 8), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
+                tail.position.set(0, 0.5, 5);
                 const skids = new THREE.Group();
-                const skid = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 6), new THREE.MeshStandardMaterial({ color: 0x334155 }));
-                const s1 = skid.clone(); s1.position.x = -1.2;
-                const s2 = skid.clone(); s2.position.x = 1.2;
-                skids.add(s1, s2); skids.position.y = -1.5;
-                this.heli.add(body, cockpit, this.rotor, skids);
-                this.heli.position.set(0, 5, 0);
+                const skid = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 9), new THREE.MeshStandardMaterial({ color: 0x334155 }));
+                const s1 = skid.clone(); s1.position.x = -2; const s2 = skid.clone(); s2.position.x = 2;
+                skids.add(s1, s2); skids.position.y = -2.5;
+                this.winchHook = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 1.5), new THREE.MeshStandardMaterial({ color: 0xfacc15 }));
+                this.winchRope = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1), new THREE.MeshBasicMaterial({ color: 0x111827 }));
+                this.winchHook.position.y = -3;
+                this.heli.add(body, cockpit, this.rotor, tail, this.tailRotor, skids, this.winchHook, this.winchRope);
+                this.heli.position.set(0, 100, 0);
                 this.scene.add(this.heli);
                 this.heliVel = new THREE.Vector3();
             }
 
-            createSurvivors() {
-                this.survivors = [];
-                for(let i=0; i<this.totalPeds; i++) {
+            createEntities() {
+                const prompts = ["🆘", "HELP!", "🙋‍♂️", "SOS!"];
+                for(let i=0; i<this.goalTotal + 15; i++) {
+                    const x = (Math.random()-0.5)*5000; const z = (Math.random()-0.5)*5000; const h = this.getHeight(x, z);
+                    if(Math.hypot(x, z) < 600 || h < 0) { i--; continue; }
                     const group = new THREE.Group();
-                    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 1), new THREE.MeshStandardMaterial({ color: 0x3b82f6 }));
-                    body.position.y = 0.5;
-                    const smoke = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 8), new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.4 }));
-                    smoke.position.y = 5;
-                    group.add(body, smoke);
-                    const x = (Math.random()-0.5)*2000;
-                    const z = (Math.random()-0.5)*2000;
-                    if(Math.hypot(x, z) < 300) { i--; continue; }
-                    group.position.set(x, 0, z);
-                    this.scene.add(group);
-                    this.survivors.push(group);
+                    const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+                    const body = new THREE.Mesh(new THREE.CapsuleGeometry(1.2, 2), new THREE.MeshStandardMaterial({ color: 0x3b82f6 })); body.position.y = 1.5;
+                    const head = new THREE.Mesh(new THREE.SphereGeometry(1.0), skinMat); head.position.y = 3.8;
+                    const smoke = new THREE.Mesh(new THREE.SphereGeometry(3, 8, 8), new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.5 })); smoke.position.y = 15;
+                    const lArm = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2, 0.5), skinMat); lArm.position.set(-1.5, 2.5, 0);
+                    const rArm = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2, 0.5), skinMat); rArm.position.set(1.5, 2.5, 0);
+                    const prompt = this.createLabel(prompts[Math.floor(Math.random()*prompts.length)]); prompt.position.y = 10; prompt.visible = false;
+                    group.add(body, head, smoke, lArm, rArm, prompt);
+                    group.position.set(x, h, z); this.scene.add(group); this.survivors.push(group);
                 }
+                for(let i=0; i<150; i++) {
+                    const x = (Math.random()-0.5)*5500; const z = (Math.random()-0.5)*5500; const h = this.getHeight(x, z);
+                    if (h < 0) { i--; continue; }
+                    const type = ['deer', 'wolf', 'bunny'][Math.floor(Math.random()*3)];
+                    const animal = this.buildAnimal(type); animal.position.set(x, h, z);
+                    animal.userData = { type, angle: Math.random()*Math.PI*2, speed: 0.1 + Math.random()*0.2 };
+                    this.scene.add(animal); this.wildlife.push(animal);
+                }
+                for(let i=0; i<1200; i++) {
+                    const x = (Math.random()-0.5)*5500; const z = (Math.random()-0.5)*5500; const h = this.getHeight(x, z);
+                    if (h < 0 || h > 200 || Math.hypot(x, z) < 200) continue;
+                    const tree = new THREE.Group();
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.5, 12), new THREE.MeshStandardMaterial({ color: 0x451a03 })); trunk.position.y = 6;
+                    const leaves = new THREE.Mesh(new THREE.ConeGeometry(8, 30, 8), new THREE.MeshStandardMaterial({ color: 0x064e3b })); leaves.position.y = 20;
+                    tree.add(trunk, leaves); tree.position.set(x, h, z); this.scene.add(tree);
+                }
+            }
+
+            buildAnimal(type) {
+                const group = new THREE.Group();
+                const mat = new THREE.MeshStandardMaterial({ color: type==='deer' ? 0x92400e : (type==='wolf' ? 0x4b5563 : 0xffffff) });
+                const body = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 4), mat); body.position.y = 2; group.add(body);
+                const head = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 1.5), mat); head.position.set(0, 3.5, -2.5); group.add(head);
+                const legs = new THREE.Group();
+                for(let i=0; i<4; i++) {
+                    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2, 0.5), mat);
+                    leg.position.set(i%2?0.8:-0.8, 1, i<2?1.5:-1.5);
+                    legs.add(leg);
+                }
+                group.add(legs);
+                if (type === 'deer') {
+                    group.scale.setScalar(1.5); head.position.y = 5;
+                    const neck = new THREE.Mesh(new THREE.BoxGeometry(1, 3, 1), mat);
+                    neck.position.set(0, 3.5, -2); neck.rotation.x = -0.5; group.add(neck);
+                } else if (type === 'bunny') group.scale.setScalar(0.6);
+                return group;
+            }
+
+            createLabel(text) {
+                const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+                canvas.width = 128; canvas.height = 64;
+                ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.roundRect(0,0,128,64,15); ctx.fill();
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 45px Arial'; ctx.textAlign = 'center'; ctx.fillText(text, 64, 48);
+                const tex = new THREE.CanvasTexture(canvas);
+                return new THREE.Mesh(new THREE.PlaneGeometry(10, 5), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
             }
 
             setupInput() {
                 this.keys = {};
-                window.onkeydown = e => this.keys[e.code] = true;
-                window.onkeyup = e => this.keys[e.code] = false;
-                const bind = (id, key) => {
+                window.onkeydown = e => { this.keys[e.code] = true; this.updateKeyViz(e.code, true); };
+                window.onkeyup = e => { this.keys[e.code] = false; this.updateKeyViz(e.code, false); };
+                
+                const bind = (id, key, isToggle = false) => {
                     const el = document.getElementById(id);
-                    el.ontouchstart = (e) => { e.preventDefault(); this.keys[key] = true; };
-                    el.ontouchend = (e) => { e.preventDefault(); this.keys[key] = false; };
+                    el.ontouchstart = (e) => { 
+                        e.preventDefault(); 
+                        if (isToggle) {
+                            this.mobileToggle = !this.mobileToggle;
+                            this.keys[key] = this.mobileToggle;
+                            this.mobileToggle ? el.classList.add('active-toggle') : el.classList.remove('active-toggle');
+                            this.updateKeyViz(key, this.mobileToggle);
+                        } else {
+                            this.keys[key] = true;
+                            this.updateKeyViz(key, true);
+                        }
+                    };
+                    el.ontouchend = (e) => { e.preventDefault(); if (!isToggle) { this.keys[key] = false; this.updateKeyViz(key, false); } };
                 };
-                bind('m-up', 'KeyW'); bind('m-down', 'KeyS'); bind('m-left', 'KeyA'); bind('m-right', 'KeyD');
+                bind('m-up', 'ArrowUp'); bind('m-down', 'ArrowDown'); bind('m-left', 'ArrowLeft'); bind('m-right', 'ArrowRight');
+                bind('m-space', 'Space', true); bind('m-winch-up', 'KeyR'); bind('m-winch-down', 'KeyF');
             }
 
-            start() {
-                this.state = 'playing';
-                document.getElementById('overlay').style.display = 'none';
+            updateKeyViz(code, active) {
+                const el = document.getElementById('key-' + code); if(el) active ? el.classList.add('active') : el.classList.remove('active');
+                if(code === 'Space') {
+                    const status = document.getElementById('mode-status');
+                    const label = document.getElementById('mode-label');
+                    const mob = document.getElementById('m-space');
+                    if (active) {
+                        status.textContent = "Mode: LIFT & TURN";
+                        if(label) label.textContent = "Arrows: Lift/Yaw";
+                        if(mob) mob.textContent = "MODE: LIFT";
+                    } else {
+                        status.textContent = "Mode: FLIGHT";
+                        if(label) label.textContent = "Arrows: Forward/Roll";
+                        if(mob) mob.textContent = "MODE: FLT";
+                    }
+                }
             }
+
+            start() { this.state = 'playing'; document.getElementById('overlay').style.display = 'none'; }
 
             update(dt) {
-                this.rotor.rotation.y += 0.6;
+                this.rotor.rotation.y += 1.5; this.tailRotor.rotation.x += 1.5;
+                const time = Date.now() * 0.001;
+
                 this.survivors.forEach(s => {
-                    const smoke = s.children[1];
-                    smoke.position.y = 5 + Math.sin(Date.now() * 0.002) * 2;
-                    smoke.scale.setScalar(1 + Math.sin(Date.now() * 0.003) * 0.5);
+                    const dist = s.position.distanceTo(this.heli.position);
+                    const prompt = s.children[5], lArm = s.children[3], rArm = s.children[4];
+                    if (dist < 250) { prompt.visible = true; prompt.lookAt(this.camera.position); lArm.rotation.x = Math.sin(time*10) * 1.5; rArm.rotation.x = Math.cos(time*10) * 1.5; }
+                    else { prompt.visible = false; lArm.rotation.x = 0; rArm.rotation.x = 0; }
+                    s.children[2].position.y = 15 + Math.sin(time*2)*5;
                 });
+
+                this.wildlife.forEach(w => {
+                    w.userData.angle += 0.01;
+                    w.position.x += Math.cos(w.userData.angle) * w.userData.speed;
+                    w.position.z += Math.sin(w.userData.angle) * w.userData.speed;
+                    w.position.y = Math.max(0, this.getHeight(w.position.x, w.position.z));
+                    w.rotation.y = -w.userData.angle + Math.PI;
+                    const legs = w.children[2]; legs.children.forEach((l, i) => { l.rotation.x = Math.sin(time*10 + i) * 0.5; });
+                });
+
+                this.clouds.forEach(c => { c.position.x += 0.3; if(c.position.x > 4000) c.position.x = -4000; });
 
                 if(this.state !== 'playing') return;
 
-                const thrust = (this.keys['KeyW'] || this.keys['ArrowUp']) ? 1 : (this.keys['KeyS'] || this.keys['ArrowDown'] ? -1 : 0);
-                const tiltX = (this.keys['KeyA'] || this.keys['ArrowLeft']) ? -1 : (this.keys['KeyD'] || this.keys['ArrowRight'] ? 1 : 0);
-                const rotate = (this.keys['KeyQ'] ? 1 : (this.keys['KeyE'] ? -1 : 0));
+                const isLift = this.keys['Space'];
+                let pitch = 0, roll = 0, yaw = 0, collective = 0;
+                if (!isLift) {
+                    if (this.keys['ArrowUp']) pitch = 1; if (this.keys['ArrowDown']) pitch = -1;
+                    if (this.keys['ArrowLeft']) roll = 1; if (this.keys['ArrowRight']) roll = -1;
+                } else {
+                    if (this.keys['ArrowUp']) collective = 1; if (this.keys['ArrowDown']) collective = -1;
+                    if (this.keys['ArrowLeft']) yaw = 1; if (this.keys['ArrowRight']) yaw = -1;
+                }
 
-                if(thrust > 0) { this.heliVel.y += 40 * dt; this.fuel -= 0.08; }
-                else if(thrust < 0) this.heliVel.y -= 25 * dt;
+                if(collective > 0) { this.heliVel.y += 65 * dt; this.fuel -= 0.25 * dt; }
+                else if(collective < 0) this.heliVel.y -= 50 * dt;
+                this.heliVel.y -= 12 * dt; this.heliVel.y *= 0.98;
 
-                this.heli.rotation.z = THREE.MathUtils.lerp(this.heli.rotation.z, -tiltX * 0.6, 0.1);
-                this.heli.rotation.x = THREE.MathUtils.lerp(this.heli.rotation.x, thrust * 0.4, 0.1);
-                this.heli.rotation.y += rotate * 4 * dt;
+                this.heli.rotation.x = THREE.MathUtils.lerp(this.heli.rotation.x, pitch * 0.5, 0.06);
+                this.heli.rotation.z = THREE.MathUtils.lerp(this.heli.rotation.z, roll * 0.5, 0.06);
+                this.heli.rotation.y += yaw * 3.0 * dt;
 
-                this.heliVel.y -= 10 * dt; // Gravity
-                this.heliVel.y *= 0.99;
-                
-                const moveForce = new THREE.Vector3(0, 0, -this.heli.rotation.x * 180 * dt);
-                moveForce.applyEuler(new THREE.Euler(0, this.heli.rotation.y, 0));
-                const tiltForce = new THREE.Vector3(-this.heli.rotation.z * 180 * dt, 0, 0);
-                tiltForce.applyEuler(new THREE.Euler(0, this.heli.rotation.y, 0));
-                
-                this.heliVel.add(moveForce).add(tiltForce);
-                this.heliVel.x *= 0.995; this.heliVel.z *= 0.995;
-
+                const move = new THREE.Vector3(0, 0, -this.heli.rotation.x * 450 * dt).applyEuler(new THREE.Euler(0, this.heli.rotation.y, 0));
+                const side = new THREE.Vector3(-this.heli.rotation.z * 450 * dt, 0, 0).applyEuler(new THREE.Euler(0, this.heli.rotation.y, 0));
+                this.heliVel.add(move).add(side);
+                this.heliVel.x *= 0.98; this.heliVel.z *= 0.98;
                 this.heli.position.add(this.heliVel.clone().multiplyScalar(dt));
 
-                if(this.heli.position.y < 2) { this.heli.position.y = 2; this.heliVel.y = Math.max(0, this.heliVel.y); }
+                const groundH = this.getHeight(this.heli.position.x, this.heli.position.z);
+                const finalFloor = Math.max(-5, groundH);
+                if(this.heli.position.y < finalFloor + 3.5) {
+                    this.heli.position.y = finalFloor + 3.5; this.heliVel.y = Math.max(0, this.heliVel.y);
+                    if(this.holding > 0 && this.heli.position.distanceTo(this.base.position) < 60) {
+                        this.rescuedTotal += this.holding; this.holding = 0; this.fuel = Math.min(100, this.fuel + 40);
+                        this.triggerRescueMsg("DROP-OFF COMPLETE!");
+                    }
+                }
 
-                if(!this.holdingPed && this.heli.position.y < 6) {
+                const winch = (this.keys['KeyR'] ? -1 : (this.keys['KeyF'] ? 1 : 0));
+                this.winchLen = Math.max(0, Math.min(this.maxWinch, this.winchLen + winch * 15 * dt));
+                this.winchHook.position.y = -3 - this.winchLen;
+                this.winchRope.scale.y = this.winchLen + 3;
+                this.winchRope.position.y = -(this.winchLen + 3) / 2;
+
+                const hookPos = new THREE.Vector3(); this.winchHook.getWorldPosition(hookPos);
+                if(this.holding < this.maxHolding) {
                     this.survivors.forEach((s, idx) => {
-                        if(s.position.distanceTo(this.heli.position) < 15) {
-                            this.scene.remove(s);
-                            this.survivors.splice(idx, 1);
-                            this.holdingPed = true;
+                        if((s.position.distanceTo(this.heli.position) < 20 && this.heli.position.y < groundH + 15) || s.position.distanceTo(hookPos) < 12) {
+                            this.scene.remove(s); this.survivors.splice(idx, 1);
+                            this.holding++; this.triggerRescueMsg("SURVIVOR SECURED!");
                         }
                     });
                 }
 
-                if(this.holdingPed && this.heli.position.y < 6 && this.heli.position.distanceTo(this.base.position) < 25) {
-                    this.rescued++;
-                    this.holdingPed = false;
-                    this.fuel = Math.min(100, this.fuel + 25);
-                    this.updateUI();
-                }
+                const camOff = new THREE.Vector3(0, 25, 55).applyEuler(new THREE.Euler(0, this.heli.rotation.y, 0));
+                this.camera.position.lerp(this.heli.position.clone().add(camOff), 0.1);
+                this.camera.lookAt(this.heli.position.clone().add(new THREE.Vector3(0, -15, 0)));
 
-                const offset = new THREE.Vector3(0, 15, 30).applyEuler(new THREE.Euler(0, this.heli.rotation.y, 0));
-                this.camera.position.lerp(this.heli.position.clone().add(offset), 0.1);
-                this.camera.lookAt(this.heli.position);
-
-                this.updateUI();
-                if(this.fuel <= 0) this.endMission("OUT OF FUEL");
-                if(this.rescued >= this.totalPeds) this.endMission("ALL SURVIVORS SAFE");
+                this.updateUI(groundH);
+                if(this.fuel <= 0) this.endMission("ENGINE FAILURE: OUT OF FUEL");
+                if(this.rescuedTotal >= this.goalTotal) this.endMission("ALL EVACUATIONS COMPLETE");
             }
 
-            updateUI() {
-                document.getElementById('rescue-val').textContent = `${this.rescued} / ${this.totalPeds}`;
+            triggerRescueMsg(t) { const el = document.getElementById('rescue-text'); el.textContent = t; el.classList.remove('animate-rescue'); void el.offsetWidth; el.classList.add('animate-rescue'); }
+            updateUI(gh) {
+                document.getElementById('holding-val').textContent = `${this.holding} / ${this.maxHolding}`;
+                document.getElementById('rescue-val').textContent = `${this.rescuedTotal} / ${this.goalTotal}`;
                 document.getElementById('fuel-val').textContent = Math.floor(this.fuel) + "%";
+                document.getElementById('alt-val').textContent = Math.max(0, Math.floor(this.heli.position.y - gh));
+                document.getElementById('spd-val').textContent = Math.floor(this.heliVel.length() * 3);
+                document.getElementById('winch-val').textContent = this.winchLen.toFixed(1);
             }
 
-            endMission(msg) {
-                this.state = 'over';
-                document.getElementById('overlay').style.display = 'flex';
-                document.querySelector('h1').textContent = this.rescued >= this.totalPeds ? "MISSION SUCCESS" : "MISSION FAILED";
-                document.querySelector('#overlay p').textContent = msg;
-            }
-
-            loop() {
-                this.update(0.016);
-                this.renderer.render(this.scene, this.camera);
-                requestAnimationFrame(this.loop);
-            }
+            endMission(m) { this.state = 'over'; document.getElementById('overlay').style.display = 'flex'; document.querySelector('h1').textContent = this.rescuedTotal >= this.goalTotal ? "SUCCESS" : "FAILED"; document.querySelector('#overlay .mission-brief').innerHTML = m; }
+            loop() { this.update(0.016); this.renderer.render(this.scene, this.camera); requestAnimationFrame(this.loop); }
         }
-
         window.game = new MedEvacRescue();
     </script>
 </body>
