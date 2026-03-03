@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Home Scavenger Hunt - K2 games</title>
+    <style>
+        :root {
+            --primary: #fbbf24;
+            --primary-dark: #d97706;
+            --secondary: #10b981;
+            --bg: #1e293b;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --danger: #ef4444;
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+            --radius: 24px;
+        }
+
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(215, 28%, 17%, 1) 0, transparent 50%), 
+                radial-gradient(at 100% 100%, hsla(215, 28%, 12%, 1) 0, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            animation: slideDown 0.6s ease-out;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin: 0;
+            background: linear-gradient(135deg, #fcd34d, #fbbf24);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 900;
+            letter-spacing: -1px;
+        }
+
+        .subtitle { color: #94a3b8; font-size: 1rem; margin-top: 5px; font-weight: 500; }
+
+        #app-container {
+            width: 100%;
+            max-width: 500px;
+            z-index: 10;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .screen { display: none; opacity: 0; transform: translateY(20px); }
+        .screen.active { 
+            display: block; 
+            animation: fadeIn 0.4s forwards cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Settings UI */
+        .setting-group { margin-bottom: 25px; text-align: left; }
+        .setting-label { font-weight: 800; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; display: block; }
+        
+        .toggle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .toggle-btn {
+            background: #f1f5f9;
+            border: 2px solid #e2e8f0;
+            padding: 12px;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .toggle-btn.active {
+            background: #fef3c7;
+            border-color: var(--primary);
+            color: var(--primary-dark);
+        }
+
+        /* Players List */
+        .player-tag {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 4px;
+            font-weight: 600;
+        }
+        .player-tag button { background: none; border: none; color: var(--danger); cursor: pointer; font-weight: 800; }
+
+        /* Game UI */
+        .timer-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+        .timer-progress {
+            height: 100%;
+            background: var(--primary);
+            width: 100%;
+            transition: width 0.1s linear;
+        }
+
+        .item-display { margin: 40px 0; }
+        .item-emoji { font-size: 6rem; margin-bottom: 10px; display: block; animation: bounce 0.5s ease infinite alternate; }
+        .item-name { font-size: 2rem; font-weight: 900; color: var(--text-main); }
+
+        @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-10px); } }
+
+        /* Buttons */
+        .btn {
+            width: 100%;
+            padding: 18px;
+            border-radius: 16px;
+            font-size: 1.1rem;
+            font-weight: 800;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+        .btn-primary { background: var(--primary); color: var(--text-main); box-shadow: 0 4px 0 var(--primary-dark); }
+        .btn-primary:active { transform: translateY(4px); box-shadow: none; }
+        
+        .btn-success { background: var(--secondary); color: white; box-shadow: 0 4px 0 #059669; }
+        .btn-success:active { transform: translateY(4px); box-shadow: none; }
+
+        .btn-outline { background: #f1f5f9; border: 2px solid #e2e8f0; color: var(--text-muted); }
+        
+        /* Stats */
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; }
+        .stat-box { background: #f8fafc; padding: 15px; border-radius: 16px; }
+        .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--primary-dark); display: block; }
+        .stat-lbl { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+
+        /* Custom Input */
+        .custom-input { display: flex; gap: 8px; margin-top: 10px; }
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+            font-size: 1rem;
+            outline: none;
+        }
+        input:focus { border-color: var(--primary); }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .card { border-radius: 0; min-height: 100vh; padding: 20px; }
+            #app-container { max-width: 100%; margin: -20px; }
+            body { padding: 0; background: white; }
+            h1 { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Home Scavenger</h1>
+        <p class="subtitle">Find it. Snap it. Win it.</p>
+    </header>
+
+    <div id="app-container">
+        <div class="card">
+            
+            <!-- Setup Screen -->
+            <div id="screen-setup" class="screen active">
+                <div class="setting-group">
+                    <span class="setting-label">Game Duration</span>
+                    <div class="toggle-grid">
+                        <button class="toggle-btn" onclick="setTimer(60)">⏱️ 1 Min</button>
+                        <button class="toggle-btn active" onclick="setTimer(120)">⏱️ 2 Mins</button>
+                        <button class="toggle-btn" onclick="setTimer(300)">⏱️ 5 Mins</button>
+                        <button class="toggle-btn" onclick="setTimer(0)">♾️ No Limit</button>
+                    </div>
+                </div>
+
+                <div id="categories" class="setting-group">
+                    <span class="setting-label">Categories</span>
+                    <div class="toggle-grid">
+                        <button class="toggle-btn active" data-cat="Common">🏠 Common</button>
+                        <button class="toggle-btn active" data-cat="Kitchen">🍳 Kitchen</button>
+                        <button class="toggle-btn active" data-cat="Bedroom">🛏️ Bedroom</button>
+                        <button class="toggle-btn active" data-cat="Bathroom">🪥 Bathroom</button>
+                        <button class="toggle-btn" data-cat="Pets">🐱 Pets</button>
+                        <button class="toggle-btn" data-cat="Kids">🧸 Kids</button>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <span class="setting-label">Players (Pass & Play)</span>
+                    <div id="players-list"></div>
+                    <div class="custom-input">
+                        <input type="text" id="player-name" placeholder="Enter player name...">
+                        <button class="btn btn-primary" style="width:auto; margin:0; padding: 12px 20px;" onclick="addPlayer()">+</button>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="startGame()">Start The Hunt! 🚀</button>
+            </div>
+
+            <!-- Game Screen -->
+            <div id="screen-game" class="screen">
+                <div id="player-banner" style="font-weight: 800; color: var(--primary-dark); margin-bottom: 10px;"></div>
+                <div class="timer-bar" id="timer-container">
+                    <div class="timer-progress" id="timer-progress"></div>
+                </div>
+                
+                <div class="item-display">
+                    <span class="item-emoji" id="item-emoji">❓</span>
+                    <span class="item-name" id="item-name">Loading...</span>
+                </div>
+
+                <button class="btn btn-success" onclick="foundItem()">Found It! ✅</button>
+                <button class="btn btn-outline" onclick="nextItem()">Skip This ⏭️</button>
+                <button class="btn btn-outline" style="color:var(--danger); border-color: #fee2e2;" onclick="endGame()">Quit Game</button>
+            </div>
+
+            <!-- Results Screen -->
+            <div id="screen-results" class="screen">
+                <h2 style="font-weight:900; margin-top:0;">Hunt Complete! 🏆</h2>
+                <div id="results-list"></div>
+                <button class="btn btn-primary" onclick="resetGame()">Play Again</button>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const items = {
+            Common: [
+                {n: "A TV Remote", e: "📺"}, {n: "A Green Sock", e: "🧦"}, {n: "House Keys", e: "🔑"}, {n: "A Drinking Glass", e: "🥛"},
+                {n: "A Coaster", e: "🥃"}, {n: "A Phone Charger", e: "🔌"}, {n: "A Pillow", e: "🛋️"}, {n: "A Mirror", e: "🪞"},
+                {n: "A Light Switch", e: "💡"}, {n: "A Window", e: "🪟"}, {n: "A Door Handle", e: "🚪"}, {n: "A Trash Can", e: "🗑️"},
+                {n: "A Calendar", e: "📅"}, {n: "A Pen or Pencil", e: "✏️"}, {n: "A Piece of Mail", e: "✉️"}, {n: "A Battery", e: "🔋"}
+            ],
+            Kitchen: [
+                {n: "A Metal Spoon", e: "🥄"}, {n: "A Coffee Mug", e: "☕"}, {n: "A Fridge Magnet", e: "🧲"}, {n: "A Toaster", e: "🍞"},
+                {n: "A Paper Towel", e: "🧻"}, {n: "Dish Soap", e: "🧼"}, {n: "A Frying Pan", e: "🍳"}, {n: "A Banana", e: "🍌"},
+                {n: "A Wooden Spoon", e: "🪵"}, {n: "A Spice Jar", e: "🧂"}, {n: "An Oven Mitt", e: "🧤"}, {n: "A Cutting Board", e: "🔪"}
+            ],
+            Bedroom: [
+                {n: "A Slipper", e: "🥿"}, {n: "A Hanger", e: "🧥"}, {n: "A Bedside Lamp", e: "💡"}, {n: "A Blanket", e: "🛌"},
+                {n: "A Book", e: "📖"}, {n: "An Alarm Clock", e: "⏰"}, {n: "A Jewelry Box", e: "💍"}, {n: "A Laundry Basket", e: "🧺"}
+            ],
+            Bathroom: [
+                {n: "A Toothbrush", e: "🪥"}, {n: "A Bar of Soap", e: "🧼"}, {n: "A Towel", e: "🛁"}, {n: "A Hairbrush", e: "🪮"},
+                {n: "Toothpaste", e: "🧴"}, {n: "A Bath Mat", e: "🛀"}, {n: "Shampoo", e: "🧴"}, {n: "A Toilet Roll", e: "🧻"}
+            ],
+            Pets: [
+                {n: "A Pet Toy", e: "🎾"}, {n: "A Pet Bowl", e: "🥣"}, {n: "A Leash", e: "🐕"}, {n: "A Cat Tree", e: "🐈"},
+                {n: "Pet Food", e: "🥩"}, {n: "A Brush for Fur", e: "🪮"}, {n: "A Pet Bed", e: "🛏️"}
+            ],
+            Kids: [
+                {n: "A Toy Car", e: "🏎️"}, {n: "A Teddy Bear", e: "🧸"}, {n: "A Building Block", e: "🧱"}, {n: "A Crayon", e: "🖍️"},
+                {n: "A Picture Book", e: "📚"}, {n: "A Ball", e: "⚽"}, {n: "A Puzzle Piece", e: "🧩"}
+            ]
+        };
+
+        let gameSettings = {
+            time: 120,
+            activeCategories: ["Common", "Kitchen", "Bedroom", "Bathroom"],
+            players: ["Player 1"]
+        };
+
+        let gameState = {
+            currentPlayerIdx: 0,
+            score: 0,
+            timeLeft: 0,
+            pool: [],
+            foundItems: [],
+            timerInterval: null
+        };
+
+        // UI Helpers
+        document.querySelectorAll('#categories .toggle-btn').forEach(btn => {
+            btn.onclick = () => {
+                const cat = btn.dataset.cat;
+                btn.classList.toggle('active');
+                if (btn.classList.contains('active')) {
+                    if (!gameSettings.activeCategories.includes(cat)) gameSettings.activeCategories.push(cat);
+                } else {
+                    gameSettings.activeCategories = gameSettings.activeCategories.filter(c => c !== cat);
+                }
+            };
+        });
+
+        function setTimer(secs) {
+            gameSettings.time = secs;
+            document.querySelectorAll('#screen-setup .toggle-btn').forEach(btn => {
+                if (btn.innerText.includes(secs === 0 ? "No Limit" : secs / 60)) btn.classList.add('active');
+                else if (!btn.dataset.cat) btn.classList.remove('active');
+            });
+        }
+
+        function addPlayer() {
+            const input = document.getElementById('player-name');
+            const name = input.value.trim();
+            if (name) {
+                if (gameSettings.players[0] === "Player 1" && gameSettings.players.length === 1) gameSettings.players = [];
+                gameSettings.players.push(name);
+                input.value = '';
+                renderPlayers();
+            }
+        }
+
+        function removePlayer(idx) {
+            gameSettings.players.splice(idx, 1);
+            if (gameSettings.players.length === 0) gameSettings.players = ["Player 1"];
+            renderPlayers();
+        }
+
+        function renderPlayers() {
+            const list = document.getElementById('players-list');
+            list.innerHTML = gameSettings.players.map((p, i) => `
+                <div class="player-tag">${p} <button onclick="removePlayer(${i})">×</button></div>
+            `).join('');
+        }
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        // Game Logic
+        function startGame() {
+            if (gameSettings.activeCategories.length === 0) {
+                alert("Please select at least one category!");
+                return;
+            }
+
+            gameState.pool = [];
+            gameSettings.activeCategories.forEach(cat => {
+                gameState.pool.push(...items[cat]);
+            });
+            // Shuffle pool
+            gameState.pool.sort(() => 0.5 - Math.random());
+            
+            gameState.currentPlayerIdx = 0;
+            gameState.playerScores = gameSettings.players.map(p => ({ name: p, score: 0 }));
+            
+            startTurn();
+            showScreen('screen-game');
+        }
+
+        function startTurn() {
+            const player = gameState.playerScores[gameState.currentPlayerIdx];
+            document.getElementById('player-banner').innerText = `Current Hunter: ${player.name}`;
+            
+            gameState.timeLeft = gameSettings.time;
+            gameState.turnScore = 0;
+            
+            if (gameSettings.time > 0) {
+                document.getElementById('timer-container').style.display = 'block';
+                updateTimerUI();
+                gameState.timerInterval = setInterval(() => {
+                    gameState.timeLeft--;
+                    updateTimerUI();
+                    if (gameState.timeLeft <= 0) endTurn();
+                }, 1000);
+            } else {
+                document.getElementById('timer-container').style.display = 'none';
+            }
+
+            nextItem();
+        }
+
+        function updateTimerUI() {
+            const percent = (gameState.timeLeft / gameSettings.time) * 100;
+            document.getElementById('timer-progress').style.width = `${percent}%`;
+            if (percent < 20) document.getElementById('timer-progress').style.background = 'var(--danger)';
+            else document.getElementById('timer-progress').style.background = 'var(--primary)';
+        }
+
+        function nextItem() {
+            if (gameState.pool.length === 0) {
+                endGame();
+                return;
+            }
+            const item = gameState.pool.pop();
+            gameState.currentItem = item;
+            document.getElementById('item-emoji').innerText = item.e;
+            document.getElementById('item-name').innerText = item.n;
+        }
+
+        function foundItem() {
+            gameState.playerScores[gameState.currentPlayerIdx].score++;
+            nextItem();
+        }
+
+        function endTurn() {
+            clearInterval(gameState.timerInterval);
+            gameState.currentPlayerIdx++;
+            
+            if (gameState.currentPlayerIdx < gameSettings.players.length) {
+                alert(`Time's up! Pass the phone to ${gameSettings.players[gameState.currentPlayerIdx]}`);
+                startTurn();
+            } else {
+                endGame();
+            }
+        }
+
+        function endGame() {
+            clearInterval(gameState.timerInterval);
+            const results = document.getElementById('results-list');
+            results.innerHTML = `
+                <div class="stats-grid">
+                    ${gameState.playerScores.map(ps => `
+                        <div class="stat-box">
+                            <span class="stat-val">${ps.score}</span>
+                            <span class="stat-lbl">${ps.name}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            showScreen('screen-results');
+        }
+
+        function resetGame() {
+            showScreen('screen-setup');
+        }
+
+        renderPlayers();
+    </script>
+</body>
+</html>
