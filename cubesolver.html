@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Pro Rubik's Cube</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #0f172a; 
+            font-family: 'Inter', sans-serif; 
+            /* Prevent mobile gestures from interfering with the game */
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        canvas { display: block; touch-action: none; }
+        .ui-overlay { pointer-events: none; }
+        .ui-overlay * { pointer-events: auto; }
+        .btn-action {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(12px);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn-action:active { transform: scale(0.95); background: rgba(51, 65, 85, 1); }
+        
+        #loading-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0f172a; display: flex; align-items: center; justify-content: center;
+            z-index: 100; transition: opacity 0.5s;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading-screen">
+    <div class="text-white text-2xl font-bold animate-pulse text-center">
+        <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        OPTIMIZING TOUCH...
+    </div>
+</div>
+
+<!-- UI Overlay -->
+<div class="ui-overlay fixed inset-0 flex flex-col justify-between p-4 md:p-8 text-white">
+    <!-- Header -->
+    <div class="flex justify-between items-start">
+        <div>
+            <h1 class="text-xl md:text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">RUBIK'S PRO 3D</h1>
+            <p class="text-[10px] md:text-sm text-slate-400 uppercase tracking-widest font-semibold">Touch & Motion Optimized</p>
+        </div>
+        <div class="flex flex-col gap-2 items-end">
+            <div class="flex gap-2">
+                <button onclick="scrambleCube()" class="btn-action px-3 py-2 md:px-4 md:py-2 rounded-xl border border-slate-700 text-xs md:text-sm font-bold shadow-xl">SCRAMBLE</button>
+                <button onclick="quickSolve()" class="btn-action px-3 py-2 md:px-4 md:py-2 rounded-xl border border-blue-500 text-xs md:text-sm font-bold shadow-xl text-blue-400">SOLVE</button>
+            </div>
+            <button onclick="resetCube()" class="btn-action px-3 py-1 rounded-lg border border-slate-700 text-[10px] font-bold text-red-400 opacity-70">RESET</button>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="flex flex-col items-center gap-4 mb-2 md:mb-0">
+        <div id="move-history" class="h-6 text-blue-400 font-mono text-sm md:text-lg overflow-hidden whitespace-nowrap opacity-60"></div>
+        
+        <div class="grid grid-cols-4 md:flex md:flex-wrap justify-center gap-2 max-w-lg">
+            <!-- Manual Move Buttons with larger touch targets for mobile -->
+            <button onclick="handleManualMove('U')" class="btn-action w-12 h-12 md:w-10 md:h-10 rounded-lg border border-slate-700 font-bold">U</button>
+            <button onclick="handleManualMove('D')" class="btn-action w-12 h-12 md:w-10 md:h-10 rounded-lg border border-slate-700 font-bold">D</button>
+            <button onclick="handleManualMove('L')" class="btn-action w-12 h-12 md:w-10 md:h-10 rounded-lg border border-slate-700 font-bold">L</button>
+            <button onclick="handleManualMove('R')" class="btn-action w-12 h-12 md:w-10 md:h-10 rounded-lg border border-slate-700 font-bold">R</button>
+            <button onclick="handleManualMove('F')" class="btn-action w-12 h-12 md:w-10 md:h-10 rounded-lg border border-slate-700 font-bold">F</button>
+            <button onclick="handleManualMove('B')" class="btn-action w-12 h-12 md:w-10 md:h-10 rounded-lg border border-slate-700 font-bold">B</button>
+            <button onclick="toggleInvert()" id="invert-btn" class="btn-action col-span-2 px-3 py-1 rounded-lg border border-slate-700 text-xs font-bold uppercase">CW</button>
+        </div>
+
+        <div class="hidden md:block text-slate-500 text-xs text-center">
+            Drag to rotate view • [U,D,L,R,F,B] keys • Shift for CCW
+        </div>
+    </div>
+</div>
+
+<script>
+    /**
+     * CORE VARIABLES
+     */
+    let scene, camera, renderer, cubeGroup;
+    let cubies = [];
+    let isRotating = false;
+    let isInverted = false;
+    let moveStack = [];
+    const CUBIE_SIZE = 1;
+    const SPACING = 0.08;
+    const ANIM_SPEED = 0.25;
+
+    const COLORS = {
+        white: 0xffffff, yellow: 0xffff00, orange: 0xffa500,
+        red: 0xff0000, green: 0x00ff00, blue: 0x0000ff,
+        internal: 0x111111
+    };
+
+    /**
+     * INITIALIZATION
+     */
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f172a);
+
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(7, 7, 10);
+        camera.lookAt(0, 0, 0);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+        document.body.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+
+        const pointLight1 = new THREE.PointLight(0xffffff, 1.2);
+        pointLight1.position.set(10, 15, 10);
+        scene.add(pointLight1);
+
+        createCube();
+        
+        window.addEventListener('resize', onWindowResize);
+        window.addEventListener('keydown', onKeyDown);
+        setupPointerControls();
+
+        setTimeout(() => {
+            const ls = document.getElementById('loading-screen');
+            if (ls) {
+                ls.style.opacity = '0';
+                setTimeout(() => ls.remove(), 500);
+            }
+        }, 800);
+
+        animate();
+    }
+
+    function createRoundedCubie(x, y, z) {
+        const group = new THREE.Group();
+        const coreSize = 0.95;
+        const coreGeom = new THREE.BoxGeometry(coreSize, coreSize, coreSize);
+        const coreMat = new THREE.MeshLambertMaterial({ color: 0x000000 });
+        group.add(new THREE.Mesh(coreGeom, coreMat));
+
+        const stickerSize = 0.85;
+        const stickerDepth = 0.05;
+        const stickerGeom = new THREE.BoxGeometry(stickerSize, stickerSize, stickerDepth);
+
+        const faceConfig = [
+            { pos: [0.5, 0, 0], rot: [0, Math.PI/2, 0], color: x === 1 ? COLORS.red : null },
+            { pos: [-0.5, 0, 0], rot: [0, -Math.PI/2, 0], color: x === -1 ? COLORS.orange : null },
+            { pos: [0, 0.5, 0], rot: [-Math.PI/2, 0, 0], color: y === 1 ? COLORS.white : null },
+            { pos: [0, -0.5, 0], rot: [Math.PI/2, 0, 0], color: y === -1 ? COLORS.yellow : null },
+            { pos: [0, 0, 0.5], rot: [0, 0, 0], color: z === 1 ? COLORS.green : null },
+            { pos: [0, 0, -0.5], rot: [0, Math.PI, 0], color: z === -1 ? COLORS.blue : null }
+        ];
+
+        faceConfig.forEach(cfg => {
+            if (cfg.color !== null) {
+                const mat = new THREE.MeshLambertMaterial({ color: cfg.color, emissive: cfg.color, emissiveIntensity: 0.05 });
+                const sticker = new THREE.Mesh(stickerGeom, mat);
+                sticker.position.set(...cfg.pos);
+                sticker.rotation.set(...cfg.rot);
+                group.add(sticker);
+            }
+        });
+        return group;
+    }
+
+    function createCube() {
+        if (cubeGroup) scene.remove(cubeGroup);
+        cubeGroup = new THREE.Group();
+        cubies = [];
+        moveStack = [];
+
+        for (let x = -1; x <= 1; x++) {
+            for (let y = -1; y <= 1; y++) {
+                for (let z = -1; z <= 1; z++) {
+                    const cubie = createRoundedCubie(x, y, z);
+                    cubie.position.set(x * (CUBIE_SIZE + SPACING), y * (CUBIE_SIZE + SPACING), z * (CUBIE_SIZE + SPACING));
+                    cubeGroup.add(cubie);
+                    cubies.push(cubie);
+                }
+            }
+        }
+        scene.add(cubeGroup);
+    }
+
+    function rotateFace(face, clockwise = true, isAuto = false) {
+        if (isRotating) return;
+        isRotating = true;
+
+        const pivot = new THREE.Group();
+        scene.add(pivot);
+
+        const movingCubies = [];
+        const threshold = 0.1;
+
+        cubies.forEach(c => {
+            const pos = new THREE.Vector3();
+            c.getWorldPosition(pos);
+            let isPart = false;
+            switch(face) {
+                case 'R': if (pos.x > threshold) isPart = true; break;
+                case 'L': if (pos.x < -threshold) isPart = true; break;
+                case 'U': if (pos.y > threshold) isPart = true; break;
+                case 'D': if (pos.y < -threshold) isPart = true; break;
+                case 'F': if (pos.z > threshold) isPart = true; break;
+                case 'B': if (pos.z < -threshold) isPart = true; break;
+            }
+            if (isPart) movingCubies.push(c);
+        });
+
+        movingCubies.forEach(c => pivot.add(c));
+        let currentRot = 0;
+        const step = (clockwise ? -1 : 1) * ANIM_SPEED;
+
+        function animateRotation() {
+            if (Math.abs(currentRot) < Math.PI / 2) {
+                const delta = Math.min(Math.abs(step), Math.PI / 2 - Math.abs(currentRot)) * Math.sign(step);
+                if (face === 'R' || face === 'L') pivot.rotation.x += delta;
+                else if (face === 'U' || face === 'D') pivot.rotation.y += delta;
+                else if (face === 'F' || face === 'B') pivot.rotation.z += delta;
+                currentRot += delta;
+                requestAnimationFrame(animateRotation);
+            } else {
+                finalizeRotation(pivot, movingCubies);
+                if (!isAuto) {
+                    moveStack.push({ face, clockwise });
+                    logMove(face + (clockwise ? "" : "'"));
+                }
+            }
+        }
+        animateRotation();
+    }
+
+    function finalizeRotation(pivot, movingCubies) {
+        pivot.updateMatrixWorld();
+        movingCubies.forEach(c => {
+            c.applyMatrix4(pivot.matrixWorld);
+            cubeGroup.add(c);
+        });
+        scene.remove(pivot);
+        isRotating = false;
+    }
+
+    function quickSolve() {
+        if (isRotating || moveStack.length === 0) return;
+        const reverseMoves = [...moveStack].reverse();
+        moveStack = [];
+        document.getElementById('move-history').innerText = "SOLVING...";
+        let i = 0;
+        const solveInterval = setInterval(() => {
+            if (i < reverseMoves.length) {
+                rotateFace(reverseMoves[i].face, !reverseMoves[i].clockwise, true); 
+                i++;
+            } else {
+                clearInterval(solveInterval);
+                document.getElementById('move-history').innerText = "SOLVED";
+            }
+        }, 300);
+    }
+
+    function onKeyDown(e) {
+        const key = e.key.toUpperCase();
+        if (['U', 'D', 'L', 'R', 'F', 'B'].includes(key)) rotateFace(key, !e.shiftKey);
+    }
+
+    /**
+     * UNIFIED POINTER CONTROLS (TOUCH + MOUSE)
+     */
+    function setupPointerControls() {
+        let isDragging = false;
+        let lastX, lastY;
+
+        const onStart = (e) => {
+            // Check if we hit UI
+            if (e.target.closest('.ui-overlay')) return;
+            isDragging = true;
+            lastX = e.clientX || (e.touches && e.touches[0].clientX);
+            lastY = e.clientY || (e.touches && e.touches[0].clientY);
+        };
+
+        const onMove = (e) => {
+            if (!isDragging) return;
+            // Prevent default touch scrolling
+            if (e.cancelable) e.preventDefault();
+
+            const currentX = e.clientX || (e.touches && e.touches[0].clientX);
+            const currentY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            const dx = (currentX - lastX) * 0.007;
+            const dy = (currentY - lastY) * 0.007;
+
+            const spherical = new THREE.Spherical().setFromVector3(camera.position);
+            spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi - dy));
+            spherical.theta -= dx;
+            camera.position.setFromSpherical(spherical);
+            camera.lookAt(0, 0, 0);
+
+            lastX = currentX;
+            lastY = currentY;
+        };
+
+        const onEnd = () => { isDragging = false; };
+
+        // Support both mouse and touch via standard pointer events where possible
+        renderer.domElement.addEventListener('mousedown', onStart);
+        window.addEventListener('mousemove', onMove, { passive: false });
+        window.addEventListener('mouseup', onEnd);
+
+        renderer.domElement.addEventListener('touchstart', onStart, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onEnd);
+    }
+
+    function scrambleCube() {
+        if (isRotating) return;
+        const moves = ['U', 'D', 'L', 'R', 'F', 'B'];
+        let count = 0;
+        const interval = setInterval(() => {
+            rotateFace(moves[Math.floor(Math.random() * 6)], Math.random() > 0.5);
+            if (++count >= 15) clearInterval(interval);
+        }, 320);
+    }
+
+    function resetCube() {
+        if (isRotating) return;
+        createCube();
+        document.getElementById('move-history').innerText = "RESET";
+    }
+
+    function handleManualMove(face) {
+        rotateFace(face, !isInverted);
+    }
+
+    function toggleInvert() {
+        isInverted = !isInverted;
+        document.getElementById('invert-btn').innerText = isInverted ? "CCW" : "CW";
+        document.getElementById('invert-btn').classList.toggle('text-blue-400');
+    }
+
+    function logMove(move) {
+        const hist = document.getElementById('move-history');
+        hist.innerText = (hist.innerText + " " + move).split(' ').slice(-10).join(' ');
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+    }
+
+    init();
+</script>
+</body>
+</html>
