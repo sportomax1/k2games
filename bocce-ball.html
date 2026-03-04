@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Bocce Master 3D</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Goldman:wght@400;700&family=Outfit:wght@300;600;900&display=swap');
+
+        :root {
+            --p1-color: #3b82f6;
+            --p2-color: #ef4444;
+            --accent: #f59e0b;
+            --glass: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+        }
+
+        body { margin: 0; overflow: hidden; font-family: 'Outfit', sans-serif; background: #0a0a0a; touch-action: none; user-select: none; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        
+        /* UI Layer */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+        }
+
+        /* Glass HUD */
+        .glass-panel {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            pointer-events: auto;
+        }
+
+        #header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 30px; margin: 20px;
+        }
+
+        .score-display { display: flex; align-items: center; gap: 20px; }
+        .score-group { text-align: center; }
+        .score-val { font-family: 'Goldman', cursive; font-size: 42px; line-height: 1; margin-bottom: 5px; }
+        .score-label { font-size: 10px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7; }
+        
+        .round-info { text-align: center; border-left: 1px solid var(--glass-border); border-right: 1px solid var(--glass-border); padding: 0 30px; }
+        .round-num { font-size: 24px; font-weight: 900; }
+
+        /* Turn Indicator */
+        .turn-dot { width: 10px; height: 10px; border-radius: 50%; margin: 8px auto; background: rgba(255,255,255,0.1); transition: 0.4s; }
+        .active-p1 #turn-dot-p1 { background: var(--p1-color); box-shadow: 0 0 15px var(--p1-color); }
+        .active-p2 #turn-dot-p2 { background: var(--p2-color); box-shadow: 0 0 15px var(--p2-color); }
+
+        /* Power & Pitch */
+        #controls-left { position: absolute; left: 30px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 20px; }
+        .slider-box { width: 60px; height: 240px; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
+        .slider-track { width: 6px; height: 180px; background: rgba(0,0,0,0.3); border-radius: 3px; position: relative; }
+        #power-fill { width: 100%; height: 0%; background: linear-gradient(to top, #4ade80, #facc15, #ef4444); position: absolute; bottom: 0; border-radius: 3px; transition: 0.1s; }
+        #pitch-knob { width: 24px; height: 24px; background: white; border-radius: 50%; position: absolute; left: -9px; bottom: 30%; box-shadow: 0 2px 10px rgba(0,0,0,0.5); pointer-events: none; }
+
+        /* Action */
+        #footer { position: absolute; bottom: 40px; width: 100%; display: flex; justify-content: center; gap: 30px; align-items: center; }
+        #action-btn {
+            width: 120px; height: 120px; border-radius: 50%; border: 6px solid var(--glass-border);
+            background: linear-gradient(135deg, var(--accent), #d97706);
+            color: white; font-weight: 900; font-size: 20px; cursor: pointer;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4); pointer-events: auto;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #action-btn:hover { transform: scale(1.05); }
+        #action-btn:active { transform: scale(0.9); }
+        #action-btn span { font-size: 10px; opacity: 0.8; margin-top: 4px; }
+        #action-btn:disabled { filter: grayscale(1); opacity: 0.5; }
+
+        /* Course Selector */
+        #course-panel { position: absolute; top: 120px; right: 20px; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .course-btn { 
+            width: 50px; height: 50px; border-radius: 12px; border: 1px solid var(--glass-border);
+            background: var(--glass); color: white; cursor: pointer; font-size: 20px; transition: 0.3s;
+        }
+        .course-btn.active { background: white; color: black; border-color: white; }
+
+        /* Overlays */
+        #start-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.9) 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; backdrop-filter: blur(15px); color: white; text-align: center;
+            transition: 0.5s; pointer-events: auto;
+        }
+        #start-overlay h1 { font-family: 'Goldman', cursive; font-size: 80px; margin: 0; text-shadow: 0 0 30px var(--accent); }
+        #start-overlay p { font-size: 18px; opacity: 0.6; letter-spacing: 4px; margin-bottom: 40px; }
+
+        #msg-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; color: white; opacity: 0; transition: 0.5s; pointer-events: none;
+            z-index: 150;
+        }
+        #msg-text { font-size: 80px; font-weight: 900; text-transform: uppercase; font-style: italic; letter-spacing: -4px; text-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+
+        .hint { color: rgba(255,255,255,0.5); font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin-top: 10px; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="start-overlay">
+        <h1>BOCCE MASTER</h1>
+        <p>THE ULTIMATE 3D CHALLENGE</p>
+        <button id="play-match-btn" class="action-btn" style="width: 200px; height: 60px; border-radius: 30px;">PLAY MATCH</button>
+    </div>
+
+    <div id="ui-layer">
+        <div id="header" class="glass-panel active-p1">
+            <div class="score-display">
+                <div class="score-group">
+                    <div class="score-label" style="color:var(--p1-color)">Player</div>
+                    <div class="score-val" id="score-p1">0</div>
+                    <div class="turn-dot" id="turn-dot-p1"></div>
+                </div>
+                <div class="round-info">
+                    <div class="score-label">Round</div>
+                    <div class="round-num" id="round-num">1</div>
+                </div>
+                <div class="score-group">
+                    <div class="score-label" style="color:var(--p2-color)">CPU</div>
+                    <div class="score-val" id="score-p2">0</div>
+                    <div class="turn-dot" id="turn-dot-p2"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="controls-left">
+            <div class="glass-panel slider-box">
+                <div class="score-label" style="writing-mode: vertical-lr; transform: rotate(180deg)">Pitch</div>
+                <div class="slider-track" id="pitch-track" style="pointer-events: auto;">
+                    <div id="pitch-knob"></div>
+                </div>
+            </div>
+            <div class="glass-panel slider-box">
+                <div class="score-label" style="writing-mode: vertical-lr; transform: rotate(180deg)">Power</div>
+                <div class="slider-track">
+                    <div id="power-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="course-panel" class="glass-panel">
+            <button class="course-btn active" onclick="setCourse('park')">🌳</button>
+            <button class="course-btn" onclick="setCourse('beach')">🏖️</button>
+            <button class="course-btn" onclick="setCourse('stadium')">🏟️</button>
+        </div>
+
+        <div id="msg-overlay">
+            <div id="msg-text">POINT!</div>
+            <div id="msg-sub">Fantastic Throw</div>
+        </div>
+
+        <div id="footer">
+            <div style="text-align: right">
+                <div class="score-label" id="balls-left-label">Balls Left</div>
+                <div class="round-num" id="balls-count">4</div>
+            </div>
+            <button id="action-btn">THROW<span>HOLD TO CHARGE</span></button>
+            <div class="hint">DRAG SCREEN TO AIM</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- Config & Assets ---
+        const CONFIG = {
+            BALL_RADIUS: 0.16,
+            JACK_RADIUS: 0.08,
+            COURT_W: 4.6,
+            COURT_L: 26,
+            GRAVITY: -9.8
+        };
+
+        const COURTS = {
+            park: { color: 0x3d6e3d, drag: 0.978, sky: 0x87CEEB, bounce: 0.35, fog: 0x87CEEB },
+            beach: { color: 0xdec196, drag: 0.945, sky: 0x4dabff, bounce: 0.12, fog: 0x4dabff },
+            stadium: { color: 0x9c3a3a, drag: 0.988, sky: 0x1a1a2e, bounce: 0.45, fog: 0x1a1a2e }
+        };
+
+        // --- Core Scene ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 500);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // --- Materials & Textures ---
+        function createNoiseTexture(color1, color2) {
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color1; ctx.fillRect(0,0,512,512);
+            for(let i=0; i<5000; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? color1 : color2;
+                ctx.fillRect(Math.random()*512, Math.random()*512, 2, 2);
+            }
+            const tex = new THREE.CanvasTexture(canvas); tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        }
+
+        const textures = {
+            grass: createNoiseTexture('#2d5a27', '#3a7532'),
+            sand: createNoiseTexture('#dec196', '#cfaf82'),
+            clay: createNoiseTexture('#9c3a3a', '#b54a4a')
+        };
+
+        // --- Environment ---
+        const courtGroup = new THREE.Group();
+        scene.add(courtGroup);
+
+        function buildCourt(type) {
+            const c = COURTS[type];
+            scene.background = new THREE.Color(c.sky);
+            scene.fog = new THREE.Fog(c.fog, 20, 100);
+            courtGroup.clear();
+
+            const groundGeo = new THREE.PlaneGeometry(200, 200);
+            const groundMat = new THREE.MeshStandardMaterial({ color: c.color, roughness: 1 });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI/2; ground.position.y = -0.05; ground.receiveShadow = true;
+            courtGroup.add(ground);
+
+            const tex = type === 'park' ? textures.grass : (type === 'beach' ? textures.sand : textures.clay);
+            tex.repeat.set(4, 20);
+            const courtMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9, metalness: 0.05 });
+            const court = new THREE.Mesh(new THREE.PlaneGeometry(CONFIG.COURT_W, CONFIG.COURT_L), courtMat);
+            court.rotation.x = -Math.PI/2; court.position.z = -CONFIG.COURT_L/2 + 5; court.receiveShadow = true;
+            courtGroup.add(court);
+
+            const bMat = new THREE.MeshStandardMaterial({ color: 0x4a3222, roughness: 0.7 });
+            const sideGeo = new THREE.BoxGeometry(0.3, 0.5, CONFIG.COURT_L);
+            const leftB = new THREE.Mesh(sideGeo, bMat); leftB.position.set(-CONFIG.COURT_W/2 - 0.15, 0.2, court.position.z);
+            const rightB = leftB.clone(); rightB.position.x *= -1;
+            const endB = new THREE.Mesh(new THREE.BoxGeometry(CONFIG.COURT_W + 0.6, 0.5, 0.3), bMat);
+            endB.position.set(0, 0.2, -CONFIG.COURT_L + 5);
+            courtGroup.add(leftB, rightB, endB);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+            sun.position.set(20, 40, 10); sun.castShadow = true;
+            sun.shadow.camera.left = -20; sun.shadow.camera.right = 20; sun.shadow.camera.top = 20; sun.shadow.camera.bottom = -20;
+            sun.shadow.mapSize.set(2048, 2048); scene.add(sun);
+        }
+
+        // --- Players ---
+        const characters = {};
+        function createProPlayer(color, x) {
+            const group = new THREE.Group();
+            const suitMat = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+            const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.7, 4, 8), suitMat);
+            torso.position.y = 0.8; torso.castShadow = true; group.add(torso);
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), skinMat);
+            head.position.y = 1.45; head.castShadow = true; group.add(head);
+            const cap = new THREE.Mesh(new THREE.SphereGeometry(0.21, 16, 16, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshStandardMaterial({color: 0x222222}));
+            cap.position.y = 1.45; group.add(cap);
+            const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.6, 4, 8), suitMat);
+            arm.position.set(0.4, 1.0, 0); arm.rotation.x = Math.PI/4; group.add(arm);
+            group.position.set(x, 0, 6);
+            scene.add(group);
+            return { group, arm };
+        }
+        characters.p1 = createProPlayer(0x3b82f6, -1.2);
+        characters.p2 = createProPlayer(0xef4444, 1.2);
+
+        // --- State ---
+        const state = {
+            playing: false, turn: 'player', phase: 'aim', balls: [], 
+            p1Balls: 4, p2Balls: 4, power: 0, aimAngle: 0, pitch: 0.35, 
+            jackThrown: false, scores: {p1:0, p2:0}, course: 'park'
+        };
+
+        // --- Interaction ---
+        function moveCam() {
+            const char = state.turn === 'player' ? characters.p1 : characters.p2;
+            camera.position.set(char.group.position.x, 2.8, char.group.position.z + 4.5);
+            camera.lookAt(0, 0, -10);
+        }
+
+        let isDrag = false, lastX = 0, lastY = 0, isCharge = false, pDir = 1;
+        const btn = document.getElementById('action-btn');
+        const pitchTrack = document.getElementById('pitch-track');
+        const startOverlay = document.getElementById('start-overlay');
+
+        document.getElementById('play-match-btn').onclick = () => {
+            startOverlay.style.opacity = '0';
+            setTimeout(() => startOverlay.style.display = 'none', 500);
+            state.playing = true;
+        };
+
+        function handleAimStart(x, y) {
+            if (!state.playing || state.phase !== 'aim') return;
+            isDrag = true; lastX = x; lastY = y;
+        }
+
+        function handleAimMove(x, y) {
+            if (!isDrag || state.phase !== 'aim') return;
+            state.aimAngle += (lastX - x) * 0.005; lastX = x;
+            state.aimAngle = Math.max(-0.6, Math.min(0.6, state.aimAngle));
+            const char = characters.p1;
+            camera.position.x = char.group.position.x + Math.sin(state.aimAngle)*4.5;
+            camera.lookAt(0, 0, -10);
+        }
+
+        function handlePitch(y) {
+            const r = pitchTrack.getBoundingClientRect();
+            state.pitch = Math.max(0.1, Math.min(0.8, 1 - (y - r.top) / r.height));
+            document.getElementById('pitch-knob').style.bottom = (state.pitch * 100) + '%';
+        }
+
+        window.addEventListener('mousedown', e => {
+            if(e.target.closest('#footer') || e.target.closest('#course-panel') || e.target.id === 'pitch-track') return;
+            handleAimStart(e.clientX, e.clientY);
+        });
+        window.addEventListener('mousemove', e => handleAimMove(e.clientX, e.clientY));
+        window.addEventListener('mouseup', () => isDrag = false);
+        pitchTrack.onmousedown = (e) => handlePitch(e.clientY);
+
+        window.addEventListener('touchstart', e => {
+            const t = e.touches[0];
+            if(e.target.closest('#footer') || e.target.closest('#course-panel')) return;
+            if(e.target.id === 'pitch-track') { handlePitch(t.clientY); return; }
+            handleAimStart(t.clientX, t.clientY);
+        }, {passive: false});
+
+        window.addEventListener('touchmove', e => {
+            const t = e.touches[0];
+            if (isDrag) { handleAimMove(t.clientX, t.clientY); e.preventDefault(); }
+            if(e.target.id === 'pitch-track') { handlePitch(t.clientY); e.preventDefault(); }
+        }, {passive: false});
+        window.addEventListener('touchend', () => isDrag = false);
+
+        btn.onmousedown = btn.ontouchstart = (e) => {
+            if(state.turn === 'player' && state.phase === 'aim') {
+                isCharge = true; state.phase = 'charge';
+                if(e.type === 'touchstart') e.preventDefault();
+            }
+        };
+        window.onmouseup = window.ontouchend = () => {
+            if(isCharge) { isCharge = false; throwBall(state.power); }
+        };
+
+        // --- Logic Functions ---
+        function updatePhysics(dt) {
+            const court = COURTS[state.course];
+            let moving = false;
+            state.balls.forEach((b, i) => {
+                if (b.stopped) return;
+                moving = true;
+                b.vel.multiplyScalar(court.drag);
+                if (b.mesh.position.y > b.radius) b.vel.y += CONFIG.GRAVITY * dt;
+                else {
+                    if (Math.abs(b.vel.y) > 0.4) b.vel.y *= -court.bounce;
+                    else { b.vel.y = 0; b.mesh.position.y = b.radius; }
+                }
+                b.mesh.position.add(b.vel.clone().multiplyScalar(dt * 10));
+                const hw = CONFIG.COURT_W/2 - b.radius;
+                if (Math.abs(b.mesh.position.x) > hw) { b.mesh.position.x = Math.sign(b.mesh.position.x)*hw; b.vel.x *= -0.5; }
+                if (b.mesh.position.z < -CONFIG.COURT_L + 5 + b.radius) { b.mesh.position.z = -CONFIG.COURT_L + 5 + b.radius; b.vel.z *= -0.5; }
+                if (b.mesh.position.z > 6.5) { b.mesh.position.z = 6.5; b.vel.z *= -0.5; }
+                for(let j=i+1; j<state.balls.length; j++) {
+                    const b2 = state.balls[j];
+                    const d = b.mesh.position.distanceTo(b2.mesh.position);
+                    if(d < b.radius + b2.radius) {
+                        const n = b.mesh.position.clone().sub(b2.mesh.position).normalize();
+                        const vRel = b.vel.clone().sub(b2.vel);
+                        if (vRel.dot(n) < 0) {
+                            const imp = n.multiplyScalar(-(1 + court.bounce) * vRel.dot(n) / 2);
+                            b.vel.add(imp); b2.vel.sub(imp);
+                            b.stopped = b2.stopped = false;
+                        }
+                    }
+                }
+                if (b.vel.length() < 0.04 && b.mesh.position.y <= b.radius + 0.01) { b.stopped = true; b.vel.set(0,0,0); }
+            });
+            return moving;
+        }
+
+        function throwBall(pwr) {
+            const isJack = !state.jackThrown;
+            const thrower = state.turn;
+            const radius = isJack ? CONFIG.JACK_RADIUS : CONFIG.BALL_RADIUS;
+            const mat = isJack ? new THREE.MeshStandardMaterial({color:0xffffff}) : (thrower === 'player' ? new THREE.MeshStandardMaterial({color:0x3b82f6, metalness:0.7, roughness:0.2}) : new THREE.MeshStandardMaterial({color:0xef4444, metalness:0.7, roughness:0.2}));
+            const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 32, 32), mat);
+            mesh.castShadow = true;
+            const char = thrower === 'player' ? characters.p1 : characters.p2;
+            mesh.position.copy(char.group.position).add(new THREE.Vector3(0.4, 1.2, 0));
+            scene.add(mesh);
+            const speed = pwr * 0.48;
+            const vY = speed * state.pitch;
+            const vF = speed * (1 - state.pitch * 0.4);
+            const vel = new THREE.Vector3(Math.sin(state.aimAngle)*vF, vY, -Math.cos(state.aimAngle)*vF);
+            state.balls.push({ mesh, vel, radius, owner: isJack ? 'jack' : (thrower==='player'?'p1':'p2'), stopped: false });
+            state.phase = 'rolling';
+            if (isJack) state.jackThrown = true; else if (thrower === 'player') state.p1Balls--; else state.p2Balls--;
+            let t = 0;
+            const anim = () => { t += 0.2; char.arm.rotation.x = Math.PI/4 - Math.sin(t)*1.8; if(t < Math.PI) requestAnimationFrame(anim); else char.arm.rotation.x = Math.PI/4; };
+            anim();
+            updateUI();
+        }
+
+        function nextTurn() {
+            if (state.p1Balls === 0 && state.p2Balls === 0) { endRound(); return; }
+            const jack = state.balls.find(b => b.owner === 'jack');
+            const p1 = state.balls.filter(b => b.owner === 'p1');
+            const p2 = state.balls.filter(b => b.owner === 'p2');
+            if (p1.length === 0 && p2.length === 0) state.turn = 'player';
+            else {
+                const getBest = (l) => Math.min(...l.map(b => b.mesh.position.distanceTo(jack.mesh.position)));
+                const d1 = p1.length ? getBest(p1) : Infinity;
+                const d2 = p2.length ? getBest(p2) : Infinity;
+                if (state.p1Balls > 0 && state.p2Balls > 0) state.turn = d1 < d2 ? 'cpu' : 'player';
+                else state.turn = state.p1Balls > 0 ? 'player' : 'cpu';
+            }
+            state.phase = 'aim'; state.power = 0;
+            updateUI(); moveCam();
+            if (state.turn === 'cpu') setTimeout(cpuTurn, 1200);
+        }
+
+        function cpuTurn() {
+            const jack = state.balls.find(b => b.owner === 'jack');
+            const target = jack ? jack.mesh.position : new THREE.Vector3(0, 0, -15);
+            const dx = target.x - characters.p2.group.position.x;
+            const dz = target.z - characters.p2.group.position.z;
+            state.aimAngle = Math.atan2(dx, -dz) + (Math.random()-0.5)*0.04;
+            state.pitch = 0.2 + Math.random()*0.3;
+            const dist = Math.sqrt(dx*dx + dz*dz);
+            const pwr = Math.min(100, dist * (2.1 + state.pitch * 1.4) + (Math.random()-0.5)*10);
+            setTimeout(() => throwBall(pwr), 800);
+        }
+
+        function endRound() {
+            state.phase = 'round_end';
+            const jack = state.balls.find(b => b.owner === 'jack');
+            const all = state.balls.filter(b => b.owner !== 'jack').sort((a,b) => a.mesh.position.distanceTo(jack.mesh.position) - b.mesh.position.distanceTo(jack.mesh.position));
+            const winner = all[0].owner;
+            let pts = 0; for(let b of all) { if(b.owner === winner) pts++; else break; }
+            if(winner === 'p1') state.scores.p1 += pts; else state.scores.p2 += pts;
+            showMsg(winner === 'p1' ? "YOU SCORE!" : "CPU SCORES!", `+${pts} Points`);
+            updateUI(); setTimeout(resetRound, 4000);
+        }
+
+        function resetRound() {
+            state.balls.forEach(b => scene.remove(b.mesh)); state.balls = []; state.p1Balls = 4; state.p2Balls = 4; state.jackThrown = false;
+            document.getElementById('round-num').innerText = parseInt(document.getElementById('round-num').innerText)+1;
+            nextTurn();
+        }
+
+        function updateUI() {
+            document.getElementById('score-p1').innerText = state.scores.p1;
+            document.getElementById('score-p2').innerText = state.scores.p2;
+            document.getElementById('header').className = `glass-panel ${state.turn==='player'?'active-p1':'active-p2'}`;
+            document.getElementById('balls-count').innerText = state.turn === 'player' ? state.p1Balls : state.p2Balls;
+            btn.disabled = state.turn === 'cpu' || state.phase === 'rolling';
+        }
+
+        function showMsg(m, s) { const o = document.getElementById('msg-overlay'); document.getElementById('msg-text').innerText=m; o.style.opacity=1; setTimeout(()=>o.style.opacity=0, 3000); }
+
+        window.setCourse = (t) => { state.course=t; buildCourt(t); document.querySelectorAll('.course-btn').forEach(b=>b.classList.remove('active')); event.target.classList.add('active'); };
+        window.onresize = () => { camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight); };
+
+        buildCourt('park'); moveCam(); updateUI();
+        function animate() {
+            requestAnimationFrame(animate);
+            if (isCharge) {
+                state.power += pDir * 2.8;
+                if(state.power > 100 || state.power < 0) pDir *= -1;
+                document.getElementById('power-fill').style.height = state.power + '%';
+            }
+            if (state.phase === 'rolling') {
+                if(!updatePhysics(0.016)) nextTurn();
+                const fast = [...state.balls].sort((a,b) => b.vel.length() - a.vel.length())[0];
+                if(fast && fast.vel.length() > 0.6) {
+                    camera.position.lerp(new THREE.Vector3(fast.mesh.position.x, 4, fast.mesh.position.z + 6), 0.06);
+                    camera.lookAt(fast.mesh.position);
+                }
+            }
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

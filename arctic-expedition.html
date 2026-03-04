@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Arctic Expedition 3D</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Iceberg&family=Roboto:wght@400;700&display=swap');
+
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Roboto', sans-serif; user-select: none; -webkit-user-select: none; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+        }
+
+        /* HUD */
+        #hud-top {
+            display: flex; justify-content: space-between; padding: 20px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8); color: white;
+        }
+        .stat-box { display: flex; flex-direction: column; align-items: center; width: 100px; }
+        .stat-label { font-size: 12px; opacity: 0.8; text-transform: uppercase; margin-bottom: 5px; }
+        .stat-bar-bg { width: 100%; height: 10px; background: rgba(255,255,255,0.2); border-radius: 5px; overflow: hidden; border: 1px solid rgba(255,255,255,0.3); }
+        .stat-fill { height: 100%; width: 100%; transition: width 0.5s; }
+        
+        #temp-fill { background: linear-gradient(to right, #3b82f6, #ef4444); } /* Blue to Red (Cold -> Warm) */
+        #energy-fill { background: linear-gradient(to right, #eab308, #22c55e); }
+
+        #time-display { font-family: 'Iceberg', cursive; font-size: 32px; text-align: center; }
+        #weather-icon { font-size: 24px; }
+
+        /* Inventory / Crafting */
+        #inventory-bar {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.6); padding: 10px; border-radius: 12px;
+            display: flex; gap: 15px; pointer-events: auto; backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .inv-slot {
+            width: 60px; height: 60px; background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.2); border-radius: 8px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: white; font-size: 12px; cursor: pointer; position: relative; transition: 0.2s;
+        }
+        .inv-slot.active { border-color: #facc15; background: rgba(250, 204, 21, 0.1); }
+        .inv-count { position: absolute; top: 2px; right: 5px; font-weight: bold; font-size: 14px; }
+        .inv-icon { font-size: 24px; margin-bottom: 2px; }
+
+        /* Messages */
+        #msg-overlay {
+            position: absolute; top: 30%; width: 100%; text-align: center;
+            color: white; font-family: 'Iceberg', cursive; font-size: 24px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8); opacity: 0; transition: opacity 0.5s;
+        }
+
+        /* Controls (Mobile) */
+        #mobile-controls {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: none;
+        }
+        .joystick-area {
+            position: absolute; bottom: 100px; width: 150px; height: 150px;
+            pointer-events: auto; display: flex; justify-content: center; align-items: center;
+        }
+        #stick-left { left: 30px; }
+        #stick-right { right: 30px; }
+        .stick-base {
+            width: 100px; height: 100px; background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.2); border-radius: 50%; position: relative;
+        }
+        .stick-knob {
+            width: 40px; height: 40px; background: rgba(255,255,255,0.5);
+            border-radius: 50%; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); pointer-events: none;
+        }
+        #interact-btn {
+            position: absolute; bottom: 120px; right: 200px; width: 80px; height: 80px;
+            background: rgba(255, 255, 255, 0.2); border: 2px solid rgba(255,255,255,0.4);
+            border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; pointer-events: auto; backdrop-filter: blur(4px);
+        }
+        #interact-btn:active { background: rgba(255,255,255,0.4); }
+
+        /* Damage Vignette */
+        #damage-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, transparent 50%, rgba(0, 150, 255, 0.0) 100%);
+            pointer-events: none; transition: 0.5s;
+        }
+
+        /* Start Screen */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0f172a; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; color: white; z-index: 100;
+        }
+        h1 { font-family: 'Iceberg', cursive; font-size: 64px; margin: 0; text-shadow: 0 0 20px #3b82f6; }
+        .start-btn {
+            padding: 15px 40px; font-size: 24px; background: #3b82f6; color: white;
+            border: none; border-radius: 8px; margin-top: 40px; cursor: pointer;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); font-weight: bold;
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="start-screen">
+        <h1>ARCTIC EXPEDITION</h1>
+        <p style="opacity: 0.7; letter-spacing: 2px;">SURVIVE THE FROZEN WASTELAND</p>
+        <button class="start-btn" id="play-btn">BEGIN JOURNEY</button>
+    </div>
+
+    <div id="canvas-container"></div>
+    <div id="damage-overlay"></div>
+
+    <div id="ui-layer">
+        <div id="hud-top">
+            <div class="stat-box">
+                <div class="stat-label">Warmth</div>
+                <div class="stat-bar-bg"><div class="stat-fill" id="temp-fill" style="width: 100%"></div></div>
+            </div>
+            <div>
+                <div id="time-display">12:00</div>
+                <div style="text-align:center; opacity:0.7" id="weather-text">Clear Skies</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Energy</div>
+                <div class="stat-bar-bg"><div class="stat-fill" id="energy-fill" style="width: 100%"></div></div>
+            </div>
+        </div>
+
+        <div id="msg-overlay">Gather Wood to build a Campfire</div>
+
+        <div id="inventory-bar">
+            <div class="inv-slot" onclick="craft('campfire')">
+                <div class="inv-icon">🔥</div>
+                <div>Campfire</div>
+                <div style="font-size:10px; opacity:0.7">3 Wood</div>
+            </div>
+            <div class="inv-slot" style="pointer-events:none; border:none; background:transparent;">
+                <div style="width:1px; height:40px; background:rgba(255,255,255,0.2)"></div>
+            </div>
+            <div class="inv-slot" style="cursor:default">
+                <div class="inv-icon">🪵</div>
+                <div>Wood</div>
+                <div class="inv-count" id="count-wood">0</div>
+            </div>
+            <div class="inv-slot" style="cursor:default">
+                <div class="inv-icon">🪨</div>
+                <div>Stone</div>
+                <div class="inv-count" id="count-stone">0</div>
+            </div>
+        </div>
+
+        <div id="mobile-controls">
+            <div class="joystick-area" id="stick-left"><div class="stick-base"><div class="stick-knob" id="knob-l"></div></div></div>
+            <div class="joystick-area" id="stick-right"><div class="stick-base"><div class="stick-knob" id="knob-r"></div></div></div>
+            <div id="interact-btn">USE</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+        import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
+
+        // --- Config ---
+        const CONFIG = {
+            WALK_SPEED: 10,
+            RUN_SPEED: 18,
+            WORLD_SIZE: 2000,
+            CHUNK_SIZE: 100,
+            DAY_DURATION: 300, // Seconds per day
+            TEMP_LOSS_NIGHT: 2.0, // Per sec
+            TEMP_LOSS_DAY: 0.5,
+            TEMP_GAIN_FIRE: 10.0,
+            ENERGY_LOSS: 0.3
+        };
+
+        const state = {
+            playing: false,
+            time: 12 * 60, // Start at noon
+            day: 1,
+            warmth: 100,
+            energy: 100,
+            inventory: { wood: 0, stone: 0, food: 0 },
+            weather: 'clear',
+            input: { fwd: 0, right: 0, rotX: 0, rotY: 0, interact: false }
+        };
+
+        // --- Setup ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.FogExp2(0x87CEEB, 0.005);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // --- Lighting ---
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.3);
+        scene.add(hemiLight);
+        
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        sunLight.position.set(100, 200, 100);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.set(2048, 2048);
+        sunLight.shadow.camera.top = 100;
+        sunLight.shadow.camera.bottom = -100;
+        sunLight.shadow.camera.left = -100;
+        sunLight.shadow.camera.right = 100;
+        scene.add(sunLight);
+
+        // --- World Generation ---
+        const simplex = new SimplexNoise();
+        const textureLoader = new THREE.TextureLoader();
+
+        // Procedural Snow Texture
+        const snowCanvas = document.createElement('canvas');
+        snowCanvas.width = 512; snowCanvas.height = 512;
+        const ctx = snowCanvas.getContext('2d');
+        ctx.fillStyle = '#e0f7fa'; ctx.fillRect(0,0,512,512);
+        // Add noise
+        for(let i=0; i<10000; i++) {
+            ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#b2ebf2';
+            ctx.fillRect(Math.random()*512, Math.random()*512, 2, 2);
+        }
+        const snowTex = new THREE.CanvasTexture(snowCanvas);
+        snowTex.wrapS = snowTex.wrapT = THREE.RepeatWrapping;
+        snowTex.repeat.set(50, 50);
+
+        const groundGeo = new THREE.PlaneGeometry(CONFIG.WORLD_SIZE, CONFIG.WORLD_SIZE, 128, 128);
+        const pos = groundGeo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i);
+            const y = pos.getY(i); // Z in world space
+            // Height map
+            let z = simplex.noise(x/300, y/300) * 20; // Hills
+            z += simplex.noise(x/50, y/50) * 2; // Roughness
+            pos.setZ(i, z);
+        }
+        groundGeo.computeVertexNormals();
+        const groundMat = new THREE.MeshStandardMaterial({ map: snowTex, roughness: 0.8, metalness: 0.1 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // --- Resources (Instanced) ---
+        const resources = [];
+        
+        function createResources() {
+            // Trees (Pine)
+            const treeGeo = new THREE.ConeGeometry(2, 10, 8);
+            const treeMat = new THREE.MeshStandardMaterial({ color: 0x1e3f20 }); // Dark green
+            const trunkGeo = new THREE.CylinderGeometry(0.5, 0.5, 2);
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3e2723 });
+            
+            // Rocks
+            const rockGeo = new THREE.DodecahedronGeometry(1.5, 0);
+            const rockMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
+
+            // Generate
+            for(let i=0; i<300; i++) {
+                const x = (Math.random() - 0.5) * CONFIG.WORLD_SIZE * 0.8;
+                const z = (Math.random() - 0.5) * CONFIG.WORLD_SIZE * 0.8;
+                const y = getHeight(x, z);
+
+                if (Math.random() > 0.3) {
+                    // Tree
+                    const group = new THREE.Group();
+                    const leaves = new THREE.Mesh(treeGeo, treeMat);
+                    leaves.position.y = 6; leaves.castShadow = true;
+                    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+                    trunk.position.y = 1; trunk.castShadow = true;
+                    group.add(trunk, leaves);
+                    group.position.set(x, y, z);
+                    const scale = 0.8 + Math.random() * 0.6;
+                    group.scale.set(scale, scale, scale);
+                    scene.add(group);
+                    resources.push({ type: 'wood', mesh: group, gathered: false });
+                } else {
+                    // Rock
+                    const rock = new THREE.Mesh(rockGeo, rockMat);
+                    rock.position.set(x, y + 1, z);
+                    rock.scale.set(1+Math.random(), 0.8+Math.random(), 1+Math.random());
+                    rock.castShadow = true;
+                    scene.add(rock);
+                    resources.push({ type: 'stone', mesh: rock, gathered: false });
+                }
+            }
+        }
+
+        function getHeight(x, z) {
+            // Simple bilinear interpolation approximation or just re-noise
+            // For perf, re-calc noise is fine since simplex is fast
+            let h = simplex.noise(x/300, -z/300) * 20; 
+            h += simplex.noise(x/50, -z/50) * 2;
+            return h;
+        }
+
+        createResources();
+
+        // --- Structures ---
+        const structures = [];
+        
+        window.craft = function(type) {
+            if (type === 'campfire') {
+                if (state.inventory.wood >= 3) {
+                    state.inventory.wood -= 3;
+                    updateInventory();
+                    placeStructure('campfire');
+                    showMsg("Campfire Built!");
+                } else {
+                    showMsg("Need 3 Wood!");
+                }
+            }
+        };
+
+        function placeStructure(type) {
+            // Place in front of player
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+            dir.y = 0; dir.normalize();
+            
+            const pos = camera.position.clone().add(dir.multiplyScalar(3));
+            pos.y = getHeight(pos.x, pos.z);
+
+            if (type === 'campfire') {
+                const group = new THREE.Group();
+                // Logs
+                const logGeo = new THREE.CylinderGeometry(0.2, 0.2, 1.5);
+                const logMat = new THREE.MeshStandardMaterial({color: 0x3e2723});
+                for(let i=0; i<3; i++) {
+                    const log = new THREE.Mesh(logGeo, logMat);
+                    log.rotation.z = Math.PI/2;
+                    log.rotation.y = (Math.PI*2 / 3) * i;
+                    log.position.y = 0.2;
+                    group.add(log);
+                }
+                
+                // Fire light
+                const light = new THREE.PointLight(0xff6600, 5, 15);
+                light.position.y = 1;
+                light.castShadow = true;
+                group.add(light);
+
+                // Particles (Simple cubes)
+                const fireGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+                const fireMat = new THREE.MeshBasicMaterial({color: 0xffaa00});
+                const particles = [];
+                for(let i=0; i<5; i++) {
+                    const p = new THREE.Mesh(fireGeo, fireMat);
+                    p.userData = { speed: 0.5 + Math.random(), offset: Math.random()*10 };
+                    group.add(p);
+                    particles.push(p);
+                }
+
+                group.position.copy(pos);
+                scene.add(group);
+                structures.push({ type: 'campfire', mesh: group, light: light, particles: particles });
+            }
+        }
+
+        // --- Controls ---
+        const controls = new PointerLockControls(camera, document.body);
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let isMobile = 'ontouchstart' in window;
+
+        // Desktop
+        if (!isMobile) {
+            document.getElementById('play-btn').addEventListener('click', () => {
+                document.getElementById('start-screen').style.display = 'none';
+                controls.lock();
+                state.playing = true;
+            });
+            controls.addEventListener('unlock', () => {
+                if(state.playing) { /* maybe pause? */ }
+            });
+            
+            document.addEventListener('keydown', (e) => {
+                switch(e.code) {
+                    case 'KeyW': moveForward = true; break;
+                    case 'KeyA': moveLeft = true; break;
+                    case 'KeyS': moveBackward = true; break;
+                    case 'KeyD': moveRight = true; break;
+                    case 'KeyE': interact(); break;
+                }
+            });
+            document.addEventListener('keyup', (e) => {
+                switch(e.code) {
+                    case 'KeyW': moveForward = false; break;
+                    case 'KeyA': moveLeft = false; break;
+                    case 'KeyS': moveBackward = false; break;
+                    case 'KeyD': moveRight = false; break;
+                }
+            });
+            document.addEventListener('mousedown', interact);
+        } else {
+            // Mobile
+            document.getElementById('mobile-controls').style.display = 'block';
+            document.getElementById('play-btn').addEventListener('click', () => {
+                document.getElementById('start-screen').style.display = 'none';
+                state.playing = true;
+                // Initialize camera height
+                camera.position.y = 2; // Default height + ground
+            });
+
+            // Virtual Joysticks logic (Simplified)
+            const handleStick = (id, knobId, cb) => {
+                const zone = document.getElementById(id);
+                const knob = document.getElementById(knobId);
+                let touchId = null;
+                let origin = {x:0, y:0};
+
+                zone.addEventListener('touchstart', e => {
+                    e.preventDefault();
+                    const t = e.changedTouches[0];
+                    touchId = t.identifier;
+                    const r = zone.getBoundingClientRect();
+                    origin = { x: r.left + r.width/2, y: r.top + r.height/2 };
+                    update(t.clientX, t.clientY);
+                });
+                
+                zone.addEventListener('touchmove', e => {
+                    e.preventDefault();
+                    for(let i=0; i<e.changedTouches.length; i++) {
+                        if(e.changedTouches[i].identifier === touchId) {
+                            update(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+                        }
+                    }
+                });
+
+                zone.addEventListener('touchend', e => {
+                    e.preventDefault();
+                    knob.style.transform = `translate(-50%, -50%)`;
+                    cb(0, 0);
+                });
+
+                function update(cx, cy) {
+                    let dx = cx - origin.x;
+                    let dy = cy - origin.y;
+                    const dist = Math.min(40, Math.sqrt(dx*dx + dy*dy));
+                    const angle = Math.atan2(dy, dx);
+                    
+                    const kx = Math.cos(angle) * dist;
+                    const ky = Math.sin(angle) * dist;
+                    knob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
+                    
+                    cb(kx/40, ky/40);
+                }
+            };
+
+            handleStick('stick-left', 'knob-l', (x, y) => {
+                state.input.right = x;
+                state.input.fwd = -y;
+            });
+
+            // Right stick rotates camera (Yaw/Pitch)
+            // Just basic Yaw for mobile look
+            handleStick('stick-right', 'knob-r', (x, y) => {
+                state.input.rotY = -x * 0.05;
+                state.input.rotX = -y * 0.05;
+            });
+
+            document.getElementById('interact-btn').addEventListener('touchstart', (e) => { e.preventDefault(); interact(); });
+        }
+
+        // --- Interaction Logic ---
+        const raycaster = new THREE.Raycaster();
+        
+        function interact() {
+            if (!state.playing) return;
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            
+            // Check resources
+            for (let i = 0; i < resources.length; i++) {
+                const res = resources[i];
+                if (res.gathered) continue;
+                
+                // Simple distance check first
+                if (camera.position.distanceTo(res.mesh.position) < 5) {
+                    const intersects = raycaster.intersectObject(res.mesh, true);
+                    if (intersects.length > 0) {
+                        // Harvest
+                        res.gathered = true;
+                        res.mesh.visible = false; // Hide
+                        
+                        if(res.type === 'wood') {
+                            state.inventory.wood++;
+                            showMsg("+1 Wood");
+                        } else {
+                            state.inventory.stone++;
+                            showMsg("+1 Stone");
+                        }
+                        updateInventory();
+                        return; // One at a time
+                    }
+                }
+            }
+        }
+
+        function updateInventory() {
+            document.getElementById('count-wood').innerText = state.inventory.wood;
+            document.getElementById('count-stone').innerText = state.inventory.stone;
+        }
+
+        function showMsg(txt) {
+            const el = document.getElementById('msg-overlay');
+            el.innerText = txt;
+            el.style.opacity = 1;
+            setTimeout(() => el.style.opacity = 0, 2000);
+        }
+
+        // --- Main Loop ---
+        const clock = new THREE.Clock();
+        
+        function updateGame(dt) {
+            // 1. Time & Environment
+            state.time += dt * 10; // Speed up time
+            if (state.time >= 24 * 60) { state.time = 0; state.day++; }
+            
+            const hours = Math.floor(state.time / 60);
+            const minutes = Math.floor(state.time % 60);
+            document.getElementById('time-display').innerText = `${hours.toString().padStart(2,'0')}:${minutes.toString().padStart(2,'0')}`;
+
+            // Day/Night Cycle
+            // Sun movement
+            const theta = ((state.time / (24*60)) * Math.PI * 2) - Math.PI/2;
+            sunLight.position.x = Math.cos(theta) * 200;
+            sunLight.position.y = Math.sin(theta) * 200;
+            
+            // Sky Color
+            const isNight = hours < 6 || hours > 18;
+            const skyColor = new THREE.Color(isNight ? 0x0f172a : 0x87CEEB);
+            scene.background.lerp(skyColor, dt * 0.5);
+            scene.fog.color.copy(scene.background);
+            
+            // Lighting intensity
+            const intensity = Math.max(0, Math.sin(theta));
+            sunLight.intensity = intensity * 1.2;
+            hemiLight.intensity = 0.1 + intensity * 0.4;
+
+            // 2. Player Stats
+            let tempChange = isNight ? -CONFIG.TEMP_LOSS_NIGHT : -CONFIG.TEMP_LOSS_DAY;
+            
+            // Check fire proximity
+            let nearFire = false;
+            structures.forEach(s => {
+                if (s.type === 'campfire') {
+                    if (camera.position.distanceTo(s.mesh.position) < 8) {
+                        tempChange = CONFIG.TEMP_GAIN_FIRE;
+                        nearFire = true;
+                    }
+                    // Animate fire particles
+                    s.particles.forEach(p => {
+                        p.position.y += dt * p.userData.speed;
+                        if(p.position.y > 1.5) p.position.y = 0;
+                        p.rotation.y += dt;
+                    });
+                    // Fire light flicker
+                    s.light.intensity = 4 + Math.sin(Date.now() * 0.01) * 1;
+                }
+            });
+
+            state.warmth += tempChange * dt;
+            state.warmth = Math.min(100, state.warmth);
+            
+            if (state.warmth <= 0) {
+                // Freezing damage
+                document.getElementById('damage-overlay').style.background = `radial-gradient(circle, transparent 20%, rgba(0, 150, 255, 0.6) 100%)`;
+                showMsg("FREEZING!");
+            } else {
+                document.getElementById('damage-overlay').style.background = `radial-gradient(circle, transparent 50%, rgba(0, 150, 255, 0.0) 100%)`;
+            }
+
+            state.energy -= CONFIG.ENERGY_LOSS * dt;
+
+            // Update Bars
+            document.getElementById('temp-fill').style.width = Math.max(0, state.warmth) + '%';
+            document.getElementById('energy-fill').style.width = Math.max(0, state.energy) + '%';
+
+            // 3. Movement
+            const speed = CONFIG.WALK_SPEED * dt;
+            const velocity = new THREE.Vector3();
+            
+            if (isMobile) {
+                // Apply rotation
+                camera.rotation.y += state.input.rotY;
+                // Simple pitch clamp would be good but omitting for brevity
+                
+                // Move based on camera direction
+                const dir = new THREE.Vector3();
+                camera.getWorldDirection(dir);
+                dir.y = 0; dir.normalize();
+                
+                const side = new THREE.Vector3(-dir.z, 0, dir.x);
+                
+                velocity.add(dir.multiplyScalar(state.input.fwd * speed));
+                velocity.add(side.multiplyScalar(state.input.right * speed));
+                
+                camera.position.add(velocity);
+            } else {
+                if (moveForward) controls.moveForward(speed);
+                if (moveBackward) controls.moveForward(-speed);
+                if (moveRight) controls.moveRight(speed);
+                if (moveLeft) controls.moveRight(-speed);
+            }
+
+            // Ground Clamp
+            const y = getHeight(camera.position.x, camera.position.z);
+            camera.position.y = y + 1.8; // Eye height
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (state.playing) {
+                const dt = Math.min(clock.getDelta(), 0.1);
+                updateGame(dt);
+                renderer.render(scene, camera);
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+
+    </script>
+</body>
+</html>

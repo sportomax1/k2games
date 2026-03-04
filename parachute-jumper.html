@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skyfall: Pro Skydiver</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #000; touch-action: none; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 10;
+        }
+        .hud-item { margin-bottom: 15px; }
+        .label { font-size: 10px; text-transform: uppercase; letter-spacing: 3px; opacity: 0.8; }
+        .value { font-size: 28px; font-weight: 900; font-family: monospace; }
+        #chute-status { font-size: 14px; font-weight: bold; padding: 6px 12px; border-radius: 4px; background: rgba(0,0,0,0.5); display: inline-block; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(4px); margin-top: 5px; }
+        
+        #message-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: radial-gradient(circle at center, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.9) 100%);
+            color: white;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            text-align: center;
+            padding: 20px;
+        }
+        h1 { font-size: clamp(40px, 8vw, 100px); margin: 0; font-weight: 900; letter-spacing: -2px; text-transform: uppercase; }
+        .sub-heading { font-size: 16px; margin: 10px 0 30px 0; opacity: 0.6; letter-spacing: 6px; }
+        .instructions { background: rgba(255,255,255,0.05); padding: 25px; border-radius: 15px; margin-bottom: 30px; border: 1px solid rgba(255,255,255,0.1); max-width: 500px; }
+        .instructions p { margin: 10px 0; font-size: 16px; color: #eee; }
+        .key { background: #fff; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: 900; font-size: 13px; }
+        
+        button {
+            background: #ff4757; color: white; border: none; padding: 18px 60px;
+            font-size: 28px; font-weight: 900; border-radius: 100px; cursor: pointer;
+            box-shadow: 0 10px 30px rgba(255, 71, 87, 0.4);
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+        button:hover { transform: scale(1.05); background: #ff6b81; }
+
+        #wind-indicator { position: absolute; bottom: 30px; right: 30px; text-align: center; color: white; }
+        #compass { width: 80px; height: 80px; border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); }
+        #arrow { font-size: 36px; transition: transform 0.5s; }
+
+        #touch-ui { position: absolute; bottom: 0; left: 0; width: 100%; height: 250px; pointer-events: none; display: none; z-index: 50; }
+        #joystick-zone { position: absolute; bottom: 40px; left: 40px; width: 120px; height: 120px; background: rgba(255,255,255,0.1); border-radius: 50%; pointer-events: auto; }
+        #joystick-knob { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; background: rgba(255,255,255,0.4); border-radius: 50%; transform: translate(-50%, -50%); }
+        #action-zone { position: absolute; bottom: 40px; right: 40px; width: 100px; height: 100px; background: #ff4757; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 900; pointer-events: auto; }
+
+        #flare-hint { position: absolute; bottom: 30%; left: 50%; transform: translateX(-50%); color: #fffa65; font-weight: 900; font-size: 40px; text-shadow: 0 0 15px #000; display: none; z-index: 10; font-style: italic; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="ui">
+        <div class="hud-item"><div class="label">Altitude</div><div class="value"><span id="alt-val">3000</span>m</div></div>
+        <div class="hud-item"><div class="label">Speed</div><div class="value"><span id="speed-val">0</span>km/h</div></div>
+        <div id="chute-status">AIRCRAFT EN ROUTE</div>
+    </div>
+    <div id="wind-indicator"><div id="compass"><div id="arrow">↑</div></div><div class="label">Wind</div></div>
+    <div id="flare-hint">FLARE!</div>
+    <div id="touch-ui"><div id="joystick-zone"><div id="joystick-knob"></div></div><div id="action-zone">JUMP</div></div>
+    <div id="message-overlay">
+        <h1>SKYFALL</h1><div class="sub-heading">PRO SKYDIVER EDITION</div>
+        <div class="instructions">
+            <p><span class="key">WASD</span> or <span class="key">ARROWS</span> to steer</p>
+            <p><span class="key">SPACE</span> to Jump / Open Parachute</p>
+            <p><span class="key">S</span> Hold for Flare Landing (Near ground)</p>
+        </div>
+        <button id="start-btn">Jump!</button>
+    </div>
+    <div id="canvas-container"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
+
+        const simplex = new SimplexNoise();
+        const gameState = { 
+            state: 'START', // START, READY_TO_JUMP, FREEFALL, PARACHUTE, LANDED
+            altitude: 3000, 
+            vSpeed: 0, 
+            hVel: new THREE.Vector3(), 
+            wind: new THREE.Vector3((Math.random()-0.5)*15, 0, (Math.random()-0.5)*15),
+            input: { x: 0, z: 0, action: false } 
+        };
+        const CONFIG = { GRAVITY: 9.8, TERMINAL_FREEFALL: 55, TERMINAL_CHUTE: 6, FLARE_SPEED: 2.2, START_ALT: 3000, WORLD_SIZE: 12000 };
+
+        // --- Core Setup ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.FogExp2(0x87CEEB, 0.00015);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 20000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+        scene.add(hemiLight);
+        const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+        sun.position.set(200, 1000, 200);
+        sun.castShadow = true;
+        scene.add(sun);
+
+        // --- Models ---
+
+        // 1. High-Quality Skydiver Model
+        function createSkydiver() {
+            const group = new THREE.Group();
+            
+            // Jumpsuit Material (Fabric look)
+            const suitMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9, metalness: 0.1 });
+            const strapMat = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 1 });
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+            const visorMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 1, roughness: 0.1 });
+            
+            // Torso (Slightly curved)
+            const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.6, 4, 8), suitMat);
+            group.add(torso);
+
+            // Harness Straps
+            const strapL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.7, 0.32), strapMat);
+            strapL.position.set(-0.15, 0, 0);
+            group.add(strapL);
+            const strapR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.7, 0.32), strapMat);
+            strapR.position.set(0.15, 0, 0);
+            group.add(strapR);
+
+            // Helmet & Visor
+            const headGroup = new THREE.Group();
+            const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 20), new THREE.MeshStandardMaterial({color: 0xeeeeee, metalness: 0.5, roughness: 0.2}));
+            headGroup.add(helmet);
+            const visor = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16, 0, Math.PI, 0, Math.PI/1.5), visorMat);
+            visor.rotation.x = -Math.PI/2;
+            visor.position.z = 0.05;
+            headGroup.add(visor);
+            headGroup.position.y = 0.55;
+            group.add(headGroup);
+            
+            // Arms (Detailed sections)
+            function createArm(side) {
+                const arm = new THREE.Group();
+                const bicep = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.3, 4, 8), suitMat);
+                bicep.position.y = -0.15;
+                arm.add(bicep);
+                const forearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.3, 4, 8), suitMat);
+                forearm.position.y = -0.4;
+                arm.add(forearm);
+                const hand = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), strapMat); // Gloves
+                hand.position.y = -0.55;
+                arm.add(hand);
+                arm.position.set(side * 0.35, 0.3, 0);
+                arm.rotation.z = side * Math.PI / 2.5;
+                return arm;
+            }
+            group.add(createArm(-1));
+            group.add(createArm(1));
+
+            // Legs (Detailed sections)
+            function createLeg(side) {
+                const leg = new THREE.Group();
+                const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.4, 4, 8), suitMat);
+                thigh.position.y = -0.2;
+                leg.add(thigh);
+                const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.4, 4, 8), suitMat);
+                shin.position.y = -0.6;
+                leg.add(shin);
+                const boot = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.25), strapMat);
+                boot.position.y = -0.85;
+                leg.add(boot);
+                leg.position.set(side * 0.18, -0.4, 0);
+                return leg;
+            }
+            group.add(createLeg(-1));
+            group.add(createLeg(1));
+
+            // Pro Rig (Detailed Parachute Pack)
+            const pack = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.55, 0.25), new THREE.MeshStandardMaterial({color: 0x111111}));
+            pack.position.set(0, 0, -0.25);
+            group.add(pack);
+
+            return group;
+        }
+        const skydiver = createSkydiver();
+        skydiver.castShadow = true;
+        scene.add(skydiver);
+
+        // 2. Multi-Cell Parafoil Canopy
+        function createParachute() {
+            const group = new THREE.Group();
+            const cells = 7;
+            const cellWidth = 1.2;
+            const canopyMat = new THREE.MeshStandardMaterial({ 
+                color: 0xff3344, 
+                side: THREE.DoubleSide, 
+                roughness: 0.6,
+                metalness: 0.2
+            });
+            
+            // Create cells to simulate the airfoil shape
+            for (let i = 0; i < cells; i++) {
+                const x = (i - (cells-1)/2) * cellWidth;
+                // Top surface (curved)
+                const topGeo = new THREE.BoxGeometry(cellWidth * 0.95, 0.1, 4.5);
+                const cell = new THREE.Mesh(topGeo, canopyMat);
+                cell.position.set(x, 10 + Math.sin(i/cells * Math.PI) * 0.4, 0);
+                cell.rotation.z = (i - (cells-1)/2) * -0.05;
+                group.add(cell);
+                
+                // Bottom surface
+                const bot = new THREE.Mesh(new THREE.BoxGeometry(cellWidth * 0.95, 0.05, 4), canopyMat);
+                bot.position.set(x, 9.6 + Math.sin(i/cells * Math.PI) * 0.4, 0);
+                bot.rotation.z = (i - (cells-1)/2) * -0.05;
+                group.add(bot);
+
+                // Cell walls (Vertical dividers)
+                const wall = new THREE.Mesh(new THREE.PlaneGeometry(4, 0.4), canopyMat);
+                wall.rotation.y = Math.PI/2;
+                wall.position.set(x - cellWidth/2, 9.8 + Math.sin(i/cells * Math.PI) * 0.4, 0);
+                group.add(wall);
+            }
+
+            // High-Detail Rigging Lines
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xdddddd, transparent: true, opacity: 0.8 });
+            for(let i = 0; i < cells; i++) {
+                const x = (i - (cells-1)/2) * cellWidth;
+                const h = 10 + Math.sin(i/cells * Math.PI) * 0.4;
+                // Front and back lines for each cell
+                [[-2, 0.1], [2, 0.1], [-2, -0.1], [2, -0.1]].forEach(pos => {
+                    const points = [
+                        new THREE.Vector3(x + pos[1], h - 0.2, pos[0]),
+                        new THREE.Vector3(0, 0, 0)
+                    ];
+                    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), lineMat));
+                });
+            }
+
+            return group;
+        }
+        const parachute = createParachute();
+        parachute.visible = false;
+        skydiver.add(parachute);
+
+        // 3. Airplane
+        function createPlane() {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 22, 16), mat);
+            body.rotation.z = Math.PI/2;
+            group.add(body);
+            const wings = new THREE.Mesh(new THREE.BoxGeometry(6, 0.3, 30), mat);
+            group.add(wings);
+            const tail = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 0.5), mat);
+            tail.position.set(-10, 2, 0);
+            group.add(tail);
+            const door = new THREE.Mesh(new THREE.PlaneGeometry(2, 3), new THREE.MeshBasicMaterial({color:0x000000, side: THREE.DoubleSide}));
+            door.position.set(2, 0, 2.01);
+            group.add(door);
+            return group;
+        }
+        const airplane = createPlane();
+        scene.add(airplane);
+
+        // --- World ---
+        const terrainGeo = new THREE.PlaneGeometry(CONFIG.WORLD_SIZE, CONFIG.WORLD_SIZE, 128, 128);
+        const vertices = terrainGeo.attributes.position.array;
+        for (let i = 0; i < vertices.length; i += 3) {
+            const x = vertices[i], y = vertices[i + 1];
+            if (Math.sqrt(x*x + y*y) > 400) {
+                vertices[i+2] = simplex.noise(x/1500, y/1500) * 300 + simplex.noise(x/400, y/400) * 50;
+            }
+        }
+        terrainGeo.computeVertexNormals();
+        const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({ color: 0x3d6e3d }));
+        terrain.rotation.x = -Math.PI / 2;
+        terrain.receiveShadow = true;
+        scene.add(terrain);
+
+        const targetGroup = new THREE.Group();
+        [200, 100, 50, 20].forEach((r, i) => {
+            const c = new THREE.Mesh(new THREE.CircleGeometry(r, 64), new THREE.MeshBasicMaterial({ color: i%2==0 ? 0xffffff : 0xff0000 }));
+            c.rotation.x = -Math.PI / 2; c.position.y = 0.5 + i*0.1;
+            targetGroup.add(c);
+        });
+        scene.add(targetGroup);
+
+        // --- Interactions ---
+        const keys = {};
+        window.addEventListener('keydown', e => { 
+            keys[e.key.toLowerCase()] = true; 
+            if (e.key === ' ') handleAction();
+        });
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+        document.getElementById('start-btn').onclick = () => {
+            if(gameState.state === 'START') setupFlight();
+            else handleAction();
+        };
+
+        function handleAction() {
+            if (gameState.state === 'READY_TO_JUMP') jump();
+            else if (gameState.state === 'FREEFALL') deploy();
+        }
+
+        function setupFlight() {
+            gameState.state = 'READY_TO_JUMP';
+            gameState.altitude = CONFIG.START_ALT;
+            airplane.position.set(0, CONFIG.START_ALT, 0);
+            skydiver.position.set(2, CONFIG.START_ALT, 1);
+            skydiver.rotation.set(0, 0, 0);
+            skydiver.visible = false;
+            airplane.visible = true;
+            parachute.visible = false;
+            document.getElementById('message-overlay').style.display = 'none';
+            document.getElementById('chute-status').innerText = "DOOR OPEN - READY TO JUMP";
+            document.getElementById('action-zone').innerText = "JUMP";
+        }
+
+        function jump() {
+            gameState.state = 'FREEFALL';
+            skydiver.visible = true;
+            skydiver.position.set(airplane.position.x + 2, airplane.position.y, airplane.position.z + 2);
+            gameState.vSpeed = 5;
+            gameState.hVel.set(10, 0, 0);
+            document.getElementById('chute-status').innerText = "FREEFALLING";
+            document.getElementById('action-zone').innerText = "DEPLOY";
+        }
+
+        function deploy() {
+            if (gameState.altitude < 100 || gameState.altitude > 2500) return;
+            gameState.state = 'PARACHUTE';
+            parachute.visible = true;
+            document.getElementById('chute-status').innerText = "CANOPY OPEN";
+            document.getElementById('action-zone').innerText = "FLARE";
+        }
+
+        function finish(success, msg) {
+            gameState.state = 'LANDED';
+            const overlay = document.getElementById('message-overlay');
+            overlay.style.display = 'flex';
+            overlay.querySelector('h1').innerText = success ? "CLEAN LANDING" : "CRASHED";
+            overlay.querySelector('h1').style.color = success ? "#2ed573" : "#ff4757";
+            const d = skydiver.position.distanceTo(new THREE.Vector3(0,0,0)).toFixed(1);
+            overlay.querySelector('.sub-heading').innerText = success ? `Distance to target: ${d}m` : msg;
+            overlay.querySelector('button').innerText = "Fly Again";
+        }
+
+        // --- Loop ---
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.1);
+
+            if (gameState.state === 'READY_TO_JUMP') {
+                // Fly the plane in a slow circle
+                const t = Date.now() * 0.0002;
+                airplane.position.set(Math.cos(t) * 1000, CONFIG.START_ALT, Math.sin(t) * 1000);
+                airplane.lookAt(Math.cos(t+0.1)*1000, CONFIG.START_ALT, Math.sin(t+0.1)*1000);
+                // Camera looking down at the plane
+                camera.position.set(airplane.position.x, airplane.position.y + 100, airplane.position.z + 100);
+                camera.lookAt(airplane.position);
+            } 
+            else if (gameState.state === 'FREEFALL' || gameState.state === 'PARACHUTE') {
+                const iX = (keys['a'] || keys['arrowleft'] ? -1 : 0) + (keys['d'] || keys['arrowright'] ? 1 : 0);
+                const iZ = (keys['w'] || keys['arrowup'] ? -1 : 0) + (keys['s'] || keys['arrowdown'] ? 1 : 0);
+                
+                const flaring = (gameState.state === 'PARACHUTE') && (keys['s'] || keys['arrowdown']) && gameState.altitude < 100;
+                document.getElementById('flare-hint').style.display = (gameState.state === 'PARACHUTE' && gameState.altitude < 100) ? 'block' : 'none';
+
+                const targetV = (gameState.state === 'PARACHUTE') ? (flaring ? CONFIG.FLARE_SPEED : CONFIG.TERMINAL_CHUTE) : CONFIG.TERMINAL_FREEFALL;
+                gameState.vSpeed += (targetV > gameState.vSpeed ? CONFIG.GRAVITY : -30) * dt;
+
+                const steerForce = (gameState.state === 'PARACHUTE') ? 15 : 40;
+                gameState.hVel.x += iX * steerForce * dt;
+                gameState.hVel.z += iZ * steerForce * dt;
+                
+                // Wind
+                const windInf = (gameState.state === 'PARACHUTE') ? 1.0 : 0.2;
+                gameState.hVel.addScaledVector(gameState.wind, dt * windInf);
+                gameState.hVel.multiplyScalar(gameState.state === 'PARACHUTE' ? 0.97 : 0.99);
+
+                skydiver.position.y -= gameState.vSpeed * dt;
+                skydiver.position.x += gameState.hVel.x * dt;
+                skydiver.position.z += gameState.hVel.z * dt;
+                gameState.altitude = skydiver.position.y;
+
+                // Rotation
+                if(gameState.state === 'FREEFALL') {
+                    skydiver.rotation.set(-Math.PI/2.5, 0, -iX * 0.5); // Belly down
+                } else {
+                    skydiver.rotation.set(0, Math.atan2(gameState.hVel.x, gameState.hVel.z), -iX * 0.3); // Vertical under chute
+                }
+
+                camera.position.lerp(skydiver.position.clone().add(new THREE.Vector3(0, 10, 15)), 0.1);
+                camera.lookAt(skydiver.position);
+
+                if (gameState.altitude <= 0) {
+                    skydiver.position.y = 0;
+                    if (gameState.state === 'FREEFALL') finish(false, "SPLAT! No parachute.");
+                    else if (gameState.vSpeed > 8) finish(false, "Too fast! Flare for a soft landing.");
+                    else finish(true);
+                }
+            } else if (gameState.state === 'START' || gameState.state === 'LANDED') {
+                const t = Date.now() * 0.0005;
+                camera.position.set(Math.cos(t)*300, 200, Math.sin(t)*300);
+                camera.lookAt(0,0,0);
+            }
+
+            document.getElementById('alt-val').innerText = Math.max(0, Math.floor(gameState.altitude));
+            document.getElementById('speed-val').innerText = Math.floor(gameState.vSpeed * 3.6);
+            document.getElementById('arrow').style.transform = `rotate(${Math.atan2(gameState.wind.x, gameState.wind.z)*(180/Math.PI)+180}deg)`;
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+        animate();
+    </script>
+</body>
+</html>

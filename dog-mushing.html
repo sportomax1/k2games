@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Arctic Mush 3D</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: 'Press Start 2P', cursive; touch-action: none; user-select: none; -webkit-user-select: none; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        
+        #ui {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; color: white; text-shadow: 2px 2px 0 #000;
+        }
+
+        #hud {
+            position: absolute; top: 20px; left: 20px; right: 20px;
+            display: flex; justify-content: space-between; align-items: flex-start;
+        }
+
+        .stat-box { background: rgba(0,0,0,0.5); padding: 15px; border: 4px solid #fff; border-radius: 8px; backdrop-filter: blur(4px); }
+        .label { font-size: 10px; margin-bottom: 8px; text-transform: uppercase; color: #add8e6; }
+        .bar-bg { width: 150px; height: 16px; background: #333; border: 2px solid #fff; position: relative; }
+        #stamina-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4757, #ffff00, #00ff00); transition: width 0.3s; }
+        
+        #score-box { text-align: right; }
+        #dist-val { font-size: 24px; color: #fff; }
+
+        #controls-legend {
+            position: absolute; bottom: 20px; left: 20px;
+            font-size: 10px; line-height: 1.8; color: #eee;
+            background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;
+        }
+
+        /* Touch Controls */
+        #touch-ui {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 200px;
+            display: none; pointer-events: none;
+        }
+        .touch-btn {
+            position: absolute; bottom: 40px; width: 80px; height: 80px;
+            background: rgba(255,255,255,0.15); border: 4px solid #fff; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 24px; pointer-events: auto; backdrop-filter: blur(4px);
+        }
+        #btn-left { left: 30px; }
+        #btn-right { left: 130px; }
+        #btn-mush { right: 30px; width: 100px; height: 100px; font-size: 16px; background: rgba(255, 71, 87, 0.4); border-color: #ff4757; }
+        #btn-mush:active { background: #ff4757; }
+
+        #overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(13, 25, 42, 0.9); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 100; pointer-events: auto;
+            text-align: center; color: white;
+        }
+        h1 { font-size: 40px; margin-bottom: 20px; color: #87CEEB; text-shadow: 4px 4px 0 #000; letter-spacing: -2px; }
+        .instructions { font-size: 12px; line-height: 2.2; margin-bottom: 40px; color: #ccc; }
+        .btn {
+            background: #87CEEB; color: #000; padding: 20px 50px; font-size: 20px; font-family: inherit;
+            font-weight: bold; border: 4px solid #fff; cursor: pointer; border-radius: 0;
+            box-shadow: 6px 6px 0 #000; transition: transform 0.1s;
+        }
+        .btn:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 #000; }
+        .btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #000; }
+
+        #game-over { display: none; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="ui">
+        <div id="hud">
+            <div class="stat-box">
+                <div class="label">ENERGY</div>
+                <div class="bar-bg"><div id="stamina-fill"></div></div>
+            </div>
+            <div class="stat-box" id="score-box">
+                <div class="label">TRAIL</div>
+                <div id="dist-val">0m</div>
+            </div>
+        </div>
+
+        <div id="controls-legend">
+            ◀ ▶ STEER<br>
+            SPACE: MUSH!
+        </div>
+
+        <div id="touch-ui">
+            <div id="btn-left" class="touch-btn">◀</div>
+            <div id="btn-right" class="touch-btn">▶</div>
+            <div id="btn-mush" class="touch-btn">MUSH</div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h1>ARCTIC MUSH 3D</h1>
+        <div class="instructions">
+            GUIDE YOUR TEAM THROUGH THE FROZEN WILDERNESS<br>
+            COLLECT MEAT TO RESTORE ENERGY<br>
+            AVOID TREES & ROCKS<br><br>
+            <span style="color:#87CEEB">CONTROLS: ARROWS + SPACE</span>
+        </div>
+        <button class="btn" id="start-btn">START EXPEDITION</button>
+    </div>
+
+    <div id="game-over" id="overlay" style="position: absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:101; flex-direction:column; align-items:center; justify-content:center; color:white; text-align:center;">
+        <h1 style="color:#ff4757">TRAIL ENDED</h1>
+        <p style="margin-bottom:30px; font-size:14px">DISTANCE: <span id="final-dist">0</span>m</p>
+        <button class="btn" onclick="location.reload()">MUSH AGAIN</button>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
+
+        // --- Configuration ---
+        const CONFIG = {
+            DOG_COUNT: 6,
+            BASE_SPEED: 0.4,
+            MUSH_BOOST: 0.8,
+            STEER_SPEED: 0.15,
+            STAMINA_DRAIN: 0.0008,
+            MUSH_DRAIN: 0.004,
+            WORLD_WIDTH: 22,
+            CHUNK_LENGTH: 120
+        };
+
+        const state = {
+            playing: false,
+            speed: 0,
+            dist: 0,
+            stamina: 1,
+            mushing: false,
+            steer: 0,
+            chunks: [],
+            meat: [],
+            obstacles: []
+        };
+
+        // --- Setup ---
+        const scene = new THREE.Scene();
+        // Fog/Sky gradient simulation
+        scene.background = new THREE.Color(0xaaccff);
+        scene.fog = new THREE.FogExp2(0xaaccff, 0.012);
+
+        const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 7, 11);
+        camera.lookAt(0, 1, -10);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // --- Lighting ---
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444466, 0.6);
+        scene.add(hemiLight);
+        
+        const sun = new THREE.DirectionalLight(0xffffee, 1.2);
+        sun.position.set(50, 100, 50);
+        sun.castShadow = true;
+        sun.shadow.mapSize.set(2048, 2048);
+        sun.shadow.camera.left = -50; sun.shadow.camera.right = 50;
+        sun.shadow.camera.top = 50; sun.shadow.camera.bottom = -50;
+        scene.add(sun);
+
+        // --- Texture Generation ---
+        function createNoiseTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,512,512);
+            
+            // Add blue noise for snow texture
+            for(let i=0; i<50000; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? '#e6f2ff' : '#ffffff';
+                const x = Math.random() * 512;
+                const y = Math.random() * 512;
+                ctx.fillRect(x, y, 2, 2);
+            }
+            // Add tracks
+            ctx.strokeStyle = '#dceeff'; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(200, 0); ctx.lineTo(200, 512); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(312, 0); ctx.lineTo(312, 512); ctx.stroke();
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(4, 4); // Tile it
+            return tex;
+        }
+        const snowTexture = createNoiseTexture();
+
+        // --- Particle System (Snow) ---
+        const snowGeo = new THREE.BufferGeometry();
+        const snowCount = 2000;
+        const snowPos = new Float32Array(snowCount * 3);
+        const snowVel = [];
+        for(let i=0; i<snowCount; i++) {
+            snowPos[i*3] = (Math.random()-0.5) * 100;
+            snowPos[i*3+1] = Math.random() * 40;
+            snowPos[i*3+2] = (Math.random()-0.5) * 100;
+            snowVel.push({x: (Math.random()-0.5)*0.1, y: -Math.random()*0.2 - 0.1, z: (Math.random()-0.5)*0.1});
+        }
+        snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+        const snowMat = new THREE.PointsMaterial({
+            color: 0xffffff, size: 0.3, transparent: true, opacity: 0.8
+        });
+        const snowSystem = new THREE.Points(snowGeo, snowMat);
+        scene.add(snowSystem);
+
+        // --- Models ---
+        function createVoxelDog() {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }); 
+            const grayMat = new THREE.MeshStandardMaterial({ color: 0x999999 });
+            const harnessMat = new THREE.MeshStandardMaterial({ color: 0xff4757 }); // Red harness
+            
+            // Body
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 1.4), mat);
+            body.position.y = 0.7; group.add(body);
+            // Harness
+            const harness = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.75, 0.4), harnessMat);
+            harness.position.y = 0.7; group.add(harness);
+            
+            // Head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat);
+            head.position.set(0, 1.2, -0.8); group.add(head);
+            const snout = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.3), mat);
+            snout.position.set(0, 1.1, -1.2); group.add(snout);
+            const nose = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshStandardMaterial({color:0x000000}));
+            nose.position.set(0, 1.2, -1.35); group.add(nose);
+
+            // Ears
+            const earL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.25, 0.1), grayMat);
+            earL.position.set(-0.2, 1.55, -0.8); group.add(earL);
+            const earR = earL.clone(); earR.position.x = 0.2; group.add(earR);
+            
+            // Tail (Curled)
+            const tail = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.2), grayMat);
+            tail.position.set(0, 1.0, 0.7); 
+            tail.rotation.x = Math.PI/4;
+            group.add(tail);
+
+            // Legs
+            const legGeo = new THREE.BoxGeometry(0.2, 0.7, 0.2);
+            const legs = [];
+            for(let i=0; i<4; i++) {
+                const leg = new THREE.Mesh(legGeo, mat);
+                leg.position.set(i%2==0 ? -0.25 : 0.25, 0.35, i<2 ? -0.5 : 0.5);
+                group.add(leg);
+                legs.push(leg);
+            }
+            group.traverse(c => { if(c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+            return { group, legs };
+        }
+
+        function createSled() {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.8 }); // Wood
+            const steelMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.6, roughness: 0.4 });
+
+            // Runners
+            const runGeo = new THREE.BoxGeometry(0.1, 0.05, 3.5);
+            const r1 = new THREE.Mesh(runGeo, steelMat); r1.position.set(-0.7, 0.025, 0); group.add(r1);
+            const r2 = r1.clone(); r2.position.x = 0.7; group.add(r2);
+            // Basket
+            const base = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.2, 2.5), mat);
+            base.position.y = 0.3; group.add(base);
+            // Handlebar
+            const handleL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.2, 0.1), mat); handleL.position.set(-0.7, 0.7, 1.2); group.add(handleL);
+            const handleR = handleL.clone(); handleR.position.x = 0.7; group.add(handleR);
+            const bar = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.1, 0.1), mat); bar.position.set(0, 1.3, 1.2); group.add(bar);
+            
+            // Musher
+            const skin = new THREE.MeshStandardMaterial({ color: 0xffccaa });
+            const parka = new THREE.MeshStandardMaterial({ color: 0x3b82f6 }); // Blue parka
+            const hood = new THREE.MeshStandardMaterial({ color: 0xeeeeee }); // Fur hood
+            
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.1, 0.5), parka);
+            torso.position.set(0, 1.3, 0.8); group.add(torso);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skin);
+            head.position.set(0, 2.0, 0.8); group.add(head);
+            const hoodMesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), hood);
+            hoodMesh.position.set(0, 2.0, 0.85); group.add(hoodMesh);
+
+            // Supplies in sled
+            const pack = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.6, 1.5), new THREE.MeshStandardMaterial({color: 0x556655}));
+            pack.position.set(0, 0.6, -0.2); group.add(pack);
+
+            group.traverse(c => { if(c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+            return group;
+        }
+
+        const sled = createSled();
+        scene.add(sled);
+
+        // Rigging (Gangline)
+        const ganglineGeo = new THREE.BufferGeometry();
+        const ganglineMat = new THREE.LineBasicMaterial({ color: 0x333333, linewidth: 2 });
+        const gangline = new THREE.Line(ganglineGeo, ganglineMat);
+        sled.add(gangline); // Attach to sled so it moves with it
+
+        const dogTeam = [];
+        for(let i=0; i<CONFIG.DOG_COUNT; i++) {
+            const dog = createVoxelDog();
+            // Staggered formation
+            dog.group.position.set(i%2==0 ? -0.5 : 0.5, 0, -3.5 - Math.floor(i/2)*2.5);
+            scene.add(dog.group);
+            dogTeam.push(dog);
+        }
+
+        function updateRigging() {
+            // Rebuild line geometry each frame to connect sled -> dogs
+            const points = [];
+            // Start at sled front
+            points.push(new THREE.Vector3(0, 0.3, -1.8)); 
+            
+            // Center line down the middle
+            const frontDogZ = dogTeam[dogTeam.length-1].group.position.z; // Local to sled? No, world.
+            // We need points in SLED local space
+            
+            for(let i=0; i<dogTeam.length; i+=2) {
+                // Approximate center point between pair
+                const z = -3.5 - Math.floor(i/2)*2.5; 
+                points.push(new THREE.Vector3(0, 0.3, z));
+            }
+            
+            // Tug lines (Visual only - connecting center line to dogs)
+            // Lines is simple strip, so just main line. 
+            // Better: Just draw main line to lead dogs.
+            // Let's just draw main gangline down the center
+            const lastZ = -3.5 - Math.floor((CONFIG.DOG_COUNT-1)/2)*2.5;
+            ganglineGeo.setFromPoints([
+                new THREE.Vector3(0, 0.3, -1.25),
+                new THREE.Vector3(0, 0.3, lastZ)
+            ]);
+        }
+
+        // --- World Gen ---
+        function createChunk(zOffset) {
+            const group = new THREE.Group();
+            
+            // Snow floor with Noise Texture
+            const ground = new THREE.Mesh(
+                new THREE.PlaneGeometry(CONFIG.WORLD_WIDTH + 50, CONFIG.CHUNK_LENGTH),
+                new THREE.MeshStandardMaterial({ map: snowTexture, roughness: 1 })
+            );
+            ground.rotation.x = -Math.PI/2;
+            ground.receiveShadow = true;
+            group.add(ground);
+
+            // Trees and Obstacles
+            for(let i=0; i<20; i++) {
+                const isObstacle = Math.random() > 0.4;
+                const x = (Math.random()-0.5) * (CONFIG.WORLD_WIDTH + 40);
+                const z = (Math.random()-0.5) * CONFIG.CHUNK_LENGTH;
+                
+                // Keep trail somewhat clear but dangerous
+                if (Math.abs(x) < 5 && isObstacle) { 
+                    const tree = createTree();
+                    tree.position.set(x, 0, z);
+                    group.add(tree);
+                    state.obstacles.push({ mesh: tree, worldZ: z + zOffset });
+                } else if (Math.abs(x) >= 5) {
+                    const tree = createTree();
+                    tree.position.set(x, 0, z);
+                    group.add(tree);
+                }
+            }
+
+            // Meat items
+            for(let i=0; i<2; i++) {
+                const meat = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.4), new THREE.MeshStandardMaterial({color: 0xcc3333}));
+                meat.position.set((Math.random()-0.5)*8, 0.5, (Math.random()-0.5)*CONFIG.CHUNK_LENGTH);
+                // Bone detail
+                const bone = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.15, 0.15), new THREE.MeshStandardMaterial({color: 0xffffff}));
+                meat.add(bone);
+                
+                meat.rotation.y = Math.random();
+                group.add(meat);
+                state.meat.push({ mesh: meat, worldZ: meat.position.z + zOffset });
+            }
+
+            group.position.z = zOffset;
+            scene.add(group);
+            state.chunks.push({ group, zOffset });
+        }
+
+        function createTree() {
+            const g = new THREE.Group();
+            const matTrunk = new THREE.MeshStandardMaterial({color: 0x4a3c31});
+            const matNeedles = new THREE.MeshStandardMaterial({color: 0x1a331a});
+            const matSnow = new THREE.MeshStandardMaterial({color: 0xffffff});
+
+            const trunk = new THREE.Mesh(new THREE.BoxGeometry(0.6, 2, 0.6), matTrunk);
+            trunk.position.y = 1; g.add(trunk);
+
+            // Layered pine
+            for(let i=0; i<3; i++) {
+                const s = 3 - i*0.6;
+                const y = 3 + i*1.5;
+                const leaves = new THREE.Mesh(new THREE.BoxGeometry(s, 1.5, s), matNeedles);
+                leaves.position.y = y;
+                g.add(leaves);
+                
+                // Snow cap
+                const cap = new THREE.Mesh(new THREE.BoxGeometry(s+0.1, 0.2, s+0.1), matSnow);
+                cap.position.y = y + 0.75;
+                g.add(cap);
+            }
+
+            g.traverse(c => { if(c.isMesh) { c.castShadow = true; c.receiveShadow = true; }});
+            return g;
+        }
+
+        // --- Controls ---
+        const keys = {};
+        window.addEventListener('keydown', e => keys[e.code] = true);
+        window.addEventListener('keyup', e => keys[e.code] = false);
+
+        if ('ontouchstart' in window) {
+            document.getElementById('touch-ui').style.display = 'block';
+            const bind = (id, key) => {
+                const el = document.getElementById(id);
+                el.ontouchstart = (e) => { e.preventDefault(); keys[key] = true; };
+                el.ontouchend = () => keys[key] = false;
+            };
+            bind('btn-left', 'ArrowLeft');
+            bind('btn-right', 'ArrowRight');
+            bind('btn-mush', 'Space');
+        }
+
+        document.getElementById('start-btn').onclick = () => {
+            document.getElementById('overlay').style.display = 'none';
+            state.playing = true;
+            for(let i=0; i<6; i++) createChunk(-i * CONFIG.CHUNK_LENGTH);
+        };
+
+        // --- Loop ---
+        const clock = new THREE.Clock();
+        function update() {
+            if (!state.playing) return;
+            const dt = Math.min(clock.getDelta(), 0.1);
+
+            // Speed and Stamina
+            state.mushing = keys['Space'];
+            const targetSpeed = state.mushing && state.stamina > 0 ? CONFIG.BASE_SPEED + CONFIG.MUSH_BOOST : CONFIG.BASE_SPEED;
+            state.speed = THREE.MathUtils.lerp(state.speed, targetSpeed, 0.05);
+            
+            state.stamina -= (state.mushing ? CONFIG.MUSH_DRAIN : CONFIG.STAMINA_DRAIN) * dt * 10;
+            state.stamina = THREE.MathUtils.clamp(state.stamina, 0, 1);
+            if (state.stamina <= 0) {
+                state.playing = false;
+                showGameOver();
+            }
+
+            // Steering (Corrected)
+            const steerDir = (keys['ArrowRight'] ? 1 : 0) - (keys['ArrowLeft'] ? 1 : 0);
+            state.steer = THREE.MathUtils.lerp(state.steer, steerDir * CONFIG.STEER_SPEED, 0.1);
+            sled.position.x += state.steer;
+            sled.position.x = THREE.MathUtils.clamp(sled.position.x, -CONFIG.WORLD_WIDTH/2, CONFIG.WORLD_WIDTH/2);
+            
+            // Tilt sled on turns
+            sled.rotation.y = state.steer * 1.5;
+            sled.rotation.z = -state.steer * 0.5;
+
+            // Move dogs
+            dogTeam.forEach((dog, i) => {
+                const offset = i%2==0 ? -0.5 : 0.5;
+                const targetX = sled.position.x + offset;
+                // Add delay/snake effect to dogs
+                dog.group.position.x = THREE.MathUtils.lerp(dog.group.position.x, targetX, 0.15 - (i*0.01)); 
+                dog.group.rotation.y = sled.rotation.y; // Look into turn
+                
+                // Running Anim
+                const animSpeed = state.speed * 25;
+                dog.legs.forEach((leg, li) => {
+                    leg.rotation.x = Math.sin(Date.now() * 0.01 * animSpeed + (li%2==0?0:Math.PI)) * 0.6;
+                });
+                // Bobbing body
+                dog.group.position.y = Math.abs(Math.sin(Date.now() * 0.01 * animSpeed))*0.1;
+            });
+            updateRigging();
+
+            // Distance & Chunks
+            state.dist += state.speed;
+            state.chunks.forEach(chunk => {
+                chunk.group.position.z = chunk.zOffset + state.dist;
+                if (chunk.group.position.z > CONFIG.CHUNK_LENGTH) {
+                    chunk.zOffset -= CONFIG.CHUNK_LENGTH * 6; // Move to back
+                    // Randomize new chunk logic would go here
+                }
+            });
+
+            // Particles
+            const positions = snowGeo.attributes.position.array;
+            for(let i=0; i<snowCount; i++) {
+                // Move with sled to keep effect local
+                positions[i*3] -= snowVel[i].x; // Wind
+                positions[i*3+1] += snowVel[i].y; // Gravity
+                positions[i*3+2] += state.speed; // Speed effect
+                
+                if (positions[i*3+1] < 0) positions[i*3+1] = 40; // Reset height
+                if (positions[i*3+2] > 20) positions[i*3+2] = -80; // Cycle Z
+            }
+            snowGeo.attributes.position.needsUpdate = true;
+            // Center particles on sled X
+            snowSystem.position.x = sled.position.x;
+
+            // Collision
+            const sledX = sled.position.x;
+            state.meat.forEach(m => {
+                if (!m.gathered) {
+                    const meatZ = m.worldZ + state.dist;
+                    if (Math.abs(meatZ) < 1 && Math.abs(m.mesh.parent.position.x + m.mesh.position.x - sledX) < 1.5) {
+                        m.gathered = true; m.mesh.visible = false;
+                        state.stamina = Math.min(1, state.stamina + 0.3);
+                        // Pickup effect?
+                    }
+                }
+            });
+            state.obstacles.forEach(o => {
+                const obsZ = o.worldZ + state.dist;
+                const obsX = o.mesh.position.x;
+                if (Math.abs(obsZ) < 1 && Math.abs(obsX - sledX) < 1.5) {
+                    state.playing = false; showGameOver();
+                }
+            });
+
+            // Camera Shake
+            const shake = state.speed > CONFIG.BASE_SPEED ? (Math.random()-0.5)*0.05 : 0;
+            camera.position.x = THREE.MathUtils.lerp(camera.position.x, sled.position.x * 0.8, 0.1) + shake;
+            camera.position.y = 7 + shake;
+
+            // UI
+            document.getElementById('stamina-fill').style.width = (state.stamina * 100) + '%';
+            document.getElementById('dist-val').innerText = Math.floor(state.dist) + 'm';
+        }
+
+        function showGameOver() {
+            document.getElementById('final-dist').innerText = Math.floor(state.dist);
+            document.getElementById('game-over').style.display = 'flex';
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            update();
+            renderer.render(scene, camera);
+        }
+
+        window.onresize = () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+
+        animate();
+    </script>
+</body>
+</html>
