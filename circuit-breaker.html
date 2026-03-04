@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Circuit Breaker: Overload</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --bg: #050a10;
+            --grid: #0f1a25;
+            --tile-off: #1a2530;
+            --tile-on: #2a3b4d;
+            --wire-off: #3a4b5c;
+            --wire-on: #00f2ff;
+            --source: #ff0055;
+            --goal: #00ff88;
+            --glow: 0 0 10px;
+        }
+
+        body {
+            margin: 0; padding: 0;
+            background: var(--bg);
+            color: var(--wire-on);
+            font-family: 'Share Tech Mono', monospace;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            touch-action: none;
+        }
+
+        /* BACKGROUND GRID EFFECT */
+        .scanline {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, transparent 50%, rgba(0, 242, 255, 0.02) 50%);
+            background-size: 100% 4px;
+            pointer-events: none; z-index: 0;
+        }
+
+        /* UI HEADER */
+        #hud {
+            width: 100%; max-width: 500px;
+            display: flex; justify-content: space-between; align-items: flex-end;
+            padding: 10px 20px;
+            z-index: 10;
+            border-bottom: 1px solid rgba(0, 242, 255, 0.2);
+            margin-bottom: 20px;
+        }
+
+        .stat-label { font-size: 0.8rem; color: #5a7b8c; }
+        .stat-val { font-size: 1.5rem; text-shadow: var(--glow) var(--wire-on); }
+
+        /* GAME GRID */
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 6px;
+            padding: 10px;
+            background: var(--grid);
+            border: 1px solid rgba(0, 242, 255, 0.1);
+            border-radius: 4px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+            position: relative;
+            z-index: 10;
+        }
+
+        .tile {
+            width: 60px; height: 60px;
+            background: var(--tile-off);
+            position: relative;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: transform 0.15s ease, background 0.2s;
+        }
+
+        .tile.source { box-shadow: inset 0 0 15px rgba(255, 0, 85, 0.3); }
+        .tile.goal { box-shadow: inset 0 0 15px rgba(0, 255, 136, 0.3); }
+        .tile.focused { outline: 2px solid #fff; z-index: 20; }
+
+        /* WIRES */
+        .wire-container {
+            width: 100%; height: 100%;
+            position: absolute; top: 0; left: 0;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .path {
+            position: absolute;
+            background: var(--wire-off);
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+
+        .tile.powered .path {
+            background: var(--wire-on);
+            box-shadow: 0 0 8px var(--wire-on);
+        }
+
+        /* DATA PACKET ANIMATION */
+        .packet {
+            position: absolute;
+            width: 4px; height: 4px;
+            background: #fff;
+            border-radius: 50%;
+            opacity: 0;
+            z-index: 5;
+        }
+        .tile.powered .packet {
+            animation: flow 1s infinite linear;
+            opacity: 1;
+        }
+
+        /* WIRE SHAPES */
+        /* Center Hub */
+        .center { width: 14px; height: 14px; top: 23px; left: 23px; border-radius: 50%; }
+        /* Arms */
+        .arm-n { width: 14px; height: 25px; top: 0; left: 23px; }
+        .arm-e { width: 25px; height: 14px; top: 23px; left: 35px; }
+        .arm-s { width: 14px; height: 25px; top: 35px; left: 23px; }
+        .arm-w { width: 25px; height: 14px; top: 23px; left: 0; }
+
+        /* Special Nodes */
+        .node-marker {
+            position: absolute; top: 15px; left: 15px; width: 30px; height: 30px;
+            border-radius: 50%; border: 3px solid; z-index: 5;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 1.2rem; color: #fff;
+            background: #000;
+        }
+        .node-source { border-color: var(--source); box-shadow: 0 0 10px var(--source); }
+        .node-goal { border-color: var(--goal); box-shadow: 0 0 10px var(--goal); }
+
+        /* OVERLAYS */
+        #overlay {
+            position: absolute; inset: 0;
+            background: rgba(5, 10, 16, 0.95);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+
+        h1 { font-size: 2.5rem; margin: 0 0 10px 0; letter-spacing: -2px; }
+        .subtitle { color: #5a7b8c; margin-bottom: 30px; }
+
+        .btn {
+            background: transparent;
+            color: var(--wire-on);
+            border: 2px solid var(--wire-on);
+            padding: 15px 40px;
+            font-family: inherit; font-size: 1.2rem; font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .btn:hover { background: var(--wire-on); color: #000; box-shadow: 0 0 20px var(--wire-on); }
+
+        .hint { margin-top: 20px; font-size: 0.7rem; opacity: 0.5; }
+
+        @keyframes flow {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        @media (max-width: 400px) {
+            .tile { width: 50px; height: 50px; }
+            /* Adjust internal wire sizes for mobile */
+            .center { width: 10px; height: 10px; top: 20px; left: 20px; }
+            .arm-n { width: 10px; height: 22px; top: 0; left: 20px; }
+            .arm-e { width: 22px; height: 10px; top: 20px; left: 28px; }
+            .arm-s { width: 10px; height: 22px; top: 28px; left: 20px; }
+            .arm-w { width: 22px; height: 10px; top: 20px; left: 0; }
+            .node-marker { top: 10px; left: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="scanline"></div>
+
+<div id="hud">
+    <div>
+        <div class="stat-label">SYSTEM_LEVEL</div>
+        <div class="stat-val" id="level-disp">01</div>
+    </div>
+    <div style="text-align: right;">
+        <div class="stat-label">TIME_REMAINING</div>
+        <div class="stat-val" id="timer-disp">60.0</div>
+    </div>
+</div>
+
+<div id="game-board"></div>
+
+<div id="overlay">
+    <h1 style="color:var(--wire-on); text-shadow:0 0 20px var(--wire-on);">CIRCUIT<br>BREAKER</h1>
+    <div class="subtitle">SECURE CONNECTION REQUIRED</div>
+    <button class="btn" onclick="startGame()">INITIALIZE</button>
+    <div class="hint">ARROWS to Navigate • SPACE to Rotate</div>
+</div>
+
+<script>
+    /* ENGINE */
+    const SIZE = 5;
+    const boardEl = document.getElementById('game-board');
+    const overlay = document.getElementById('overlay');
+    
+    let state = {
+        level: 1,
+        grid: [], // 2D array of tile objects
+        active: false,
+        timer: 60,
+        timerInt: null,
+        focused: 12 // Center index
+    };
+
+    // Neighbors: N, E, S, W (Bitmask: 1, 2, 4, 8)
+    const DIRS = [
+        { dx: 0, dy: -1, bit: 1, opp: 4, css: 'arm-n' }, // N
+        { dx: 1, dy: 0, bit: 2, opp: 8, css: 'arm-e' },  // E
+        { dx: 0, dy: 1, bit: 4, opp: 1, css: 'arm-s' },  // S
+        { dx: -1, dy: 0, bit: 8, opp: 2, css: 'arm-w' }  // W
+    ];
+
+    function startGame() {
+        state.level = 1;
+        state.timer = 60;
+        startLevel();
+    }
+
+    function startLevel() {
+        state.active = true;
+        overlay.style.display = 'none';
+        generateLevel();
+        updateTimerDisplay();
+        
+        if (state.timerInt) clearInterval(state.timerInt);
+        state.timerInt = setInterval(() => {
+            if(!state.active) return;
+            state.timer -= 0.1;
+            updateTimerDisplay();
+            if (state.timer <= 0) gameOver(false);
+        }, 100);
+    }
+
+    /* GENERATION ALGORITHM (Recursive Backtracker Spanning Tree) */
+    function generateLevel() {
+        // 1. Initialize Grid
+        state.grid = [];
+        boardEl.innerHTML = '';
+        
+        for(let y=0; y<SIZE; y++) {
+            for(let x=0; x<SIZE; x++) {
+                state.grid.push({
+                    x, y,
+                    connections: 0, // Bitmask of true connections
+                    rotation: 0, // 0-3
+                    visualRot: 0, // 0, 90, 180, 270
+                    isSource: (x===0 && y===2),
+                    isGoal: (x===4 && y===2),
+                    powered: false,
+                    el: null,
+                    wireEl: null
+                });
+            }
+        }
+
+        // 2. Generate Spanning Tree (Guaranteed Solvability)
+        // Start from Source
+        let stack = [state.grid[10]]; // (0,2) is index 10
+        let visited = new Set(['0,2']);
+
+        while(stack.length > 0) {
+            let current = stack[stack.length - 1];
+            let neighbors = [];
+
+            DIRS.forEach(d => {
+                let nx = current.x + d.dx;
+                let ny = current.y + d.dy;
+                if(nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE) {
+                    if(!visited.has(`${nx},${ny}`)) {
+                        neighbors.push({idx: ny*SIZE+nx, dir: d});
+                    }
+                }
+            });
+
+            if(neighbors.length > 0) {
+                // Choose random neighbor
+                let nextInfo = neighbors[Math.floor(Math.random() * neighbors.length)];
+                let next = state.grid[nextInfo.idx];
+                
+                // Carve path (Connect current to next)
+                current.connections |= nextInfo.dir.bit;
+                next.connections |= nextInfo.dir.opp;
+
+                visited.add(`${next.x},${next.y}`);
+                stack.push(next);
+            } else {
+                stack.pop();
+            }
+        }
+
+        // 3. Add Random Cycles (Optional complexity)
+        // Without this, it's a perfect tree (one path). Adding a few extra connections makes "loops" possible but solvable.
+        let extraConnections = Math.floor(state.level / 2);
+        for(let i=0; i<extraConnections; i++) {
+            let t = state.grid[Math.floor(Math.random() * state.grid.length)];
+            let d = DIRS[Math.floor(Math.random() * 4)];
+            let nx = t.x + d.dx;
+            let ny = t.y + d.dy;
+            if(nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE) {
+                let neighbor = state.grid[ny*SIZE + nx];
+                t.connections |= d.bit;
+                neighbor.connections |= d.opp;
+            }
+        }
+
+        // 4. Scramble Rotations & Render
+        state.grid.forEach((tile, i) => {
+            // Randomize rotation for the puzzle, BUT keep Source/Goal solved
+            if (tile.isSource || tile.isGoal) {
+                tile.rotation = 0; // Start correct
+            } else {
+                tile.rotation = Math.floor(Math.random() * 4);
+            }
+            
+            // Create DOM
+            let el = document.createElement('div');
+            el.className = `tile ${tile.isSource?'source':''} ${tile.isGoal?'goal':''}`;
+            el.onclick = () => { state.focused = i; rotateTile(tile); };
+            
+            // Wire Container
+            let wires = document.createElement('div');
+            wires.className = 'wire-container';
+            tile.wireEl = wires;
+            renderWires(tile); // Render based on CURRENT scrambled state
+
+            el.appendChild(wires);
+
+            // Special Markers
+            if(tile.isSource) {
+                let m = document.createElement('div'); m.className='node-marker node-source'; m.innerHTML='⚡'; el.appendChild(m);
+            }
+            if(tile.isGoal) {
+                let m = document.createElement('div'); m.className='node-marker node-goal'; m.innerHTML='✓'; el.appendChild(m);
+            }
+
+            // Packet effect
+            let p = document.createElement('div'); p.className = 'packet'; wires.appendChild(p);
+
+            tile.el = el;
+            boardEl.appendChild(el);
+        });
+
+        checkPower();
+        updateFocus();
+    }
+
+    // Returns the effective connections of a tile given its current rotation
+    function getEffectiveConnections(tile) {
+        // Shift bits based on rotation.
+        // Rotation 1 (90deg) means North(1) becomes East(2).
+        // So we shift bits LEFT by rotation amount.
+        let base = tile.connections;
+        let rotated = 0;
+        
+        // The original logic generated "connections" assuming 0 rotation.
+        // We actually want the inverse logic for the PUZZLE:
+        // We generated a board. That board shape is fixed.
+        // We rotated the Visuals.
+        // So the "True" connections are what we generated.
+        // Wait, no. Standard Puzzle Logic: The TILE has a shape. Rotating it changes where it points.
+        
+        // RE-THINK: 
+        // 1. We generated `tile.connections` which is the SOLUTION state (0 rotation).
+        // 2. We applied `tile.rotation`.
+        // 3. We need to render the shape rotated by `tile.rotation`.
+        // 4. The `effective` connections are the shape rotated by `tile.rotation`.
+        
+        // To simplify: `tile.connections` holds the SHAPE definition relative to "North is Up".
+        // BUT `tile.connections` was generated in world space.
+        // So we need to "un-rotate" the generated connections to find the generic Shape Mask, then rotate it by current `visualRot`.
+        
+        // ACTUALLY SIMPLER:
+        // Treat `tile.connections` as the "Shape Type" stored in World Space of the solution.
+        // Let's convert that to a Local Space Shape Mask.
+        // Since solution is at rotation 0, Local = World.
+        // Now, we scramble. `tile.visualRot` changes.
+        // Current World Connections = (Local Shape) rotated by (Visual Rot).
+        
+        let shape = tile.connections; // Since we generated it assuming 0 rot is solution.
+        
+        // Rotate the bits
+        // 1->2, 2->4, 4->8, 8->1
+        for(let i=0; i<tile.rotation; i++) {
+            let newMask = 0;
+            if(shape & 1) newMask |= 2;
+            if(shape & 2) newMask |= 4;
+            if(shape & 4) newMask |= 8;
+            if(shape & 8) newMask |= 1;
+            shape = newMask;
+        }
+        return shape;
+    }
+
+    function renderWires(tile) {
+        tile.wireEl.innerHTML = '';
+        tile.wireEl.style.transform = `rotate(0deg)`; // We handle rotation via bitmask, not CSS rotation, to keep lighting consistent
+        
+        // Use the effective connections to draw wires in place
+        let cons = getEffectiveConnections(tile);
+        
+        // Center hub
+        let c = document.createElement('div'); c.className = 'path center'; tile.wireEl.appendChild(c);
+        
+        // Arms
+        DIRS.forEach(d => {
+            if(cons & d.bit) {
+                let arm = document.createElement('div');
+                arm.className = `path ${d.css}`;
+                tile.wireEl.appendChild(arm);
+            }
+        });
+
+        // Packet (re-add)
+        let p = document.createElement('div'); p.className = 'packet'; tile.wireEl.appendChild(p);
+    }
+
+    function rotateTile(tile) {
+        if(!state.active) return;
+        if(tile.isSource || tile.isGoal) return; // Locked
+        
+        tile.rotation = (tile.rotation + 1) % 4;
+        renderWires(tile);
+        checkPower();
+    }
+
+    function checkPower() {
+        // Reset
+        state.grid.forEach(t => {
+            t.powered = false;
+            t.el.classList.remove('powered');
+        });
+
+        // BFS from Source
+        let source = state.grid[10]; // (0,2)
+        source.powered = true;
+        let queue = [source];
+
+        while(queue.length > 0) {
+            let curr = queue.shift();
+            curr.el.classList.add('powered');
+            let currCons = getEffectiveConnections(curr);
+
+            DIRS.forEach(d => {
+                // If current tile outputs this way
+                if(currCons & d.bit) {
+                    let nx = curr.x + d.dx;
+                    let ny = curr.y + d.dy;
+                    if(nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE) {
+                        let next = state.grid[ny*SIZE + nx];
+                        if(!next.powered) {
+                            let nextCons = getEffectiveConnections(next);
+                            // If next tile connects back (Opposite)
+                            if(nextCons & d.opp) {
+                                next.powered = true;
+                                queue.push(next);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Check Win
+        let goal = state.grid[14]; // (4,2)
+        if(goal.powered) {
+            levelComplete();
+        }
+    }
+
+    function levelComplete() {
+        state.active = false;
+        clearInterval(state.timerInt);
+        state.level++;
+        state.timer += 30; // Bonus time
+        
+        setTimeout(() => {
+            startLevel();
+        }, 1000);
+    }
+
+    function gameOver(win) {
+        state.active = false;
+        clearInterval(state.timerInt);
+        overlay.innerHTML = `
+            <h1>SYSTEM HALTED</h1>
+            <div class="subtitle">REACHED LEVEL ${state.level}</div>
+            <button class="btn" onclick="startGame()">REBOOT</button>
+        `;
+        overlay.style.display = 'flex';
+    }
+
+    /* INPUT */
+    function updateFocus() {
+        state.grid.forEach((t, i) => t.el.classList.toggle('focused', i === state.focused));
+    }
+
+    window.addEventListener('keydown', e => {
+        if(!state.active) return;
+        if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+        
+        if(e.key === 'ArrowUp') state.focused = Math.max(0, state.focused - SIZE);
+        if(e.key === 'ArrowDown') state.focused = Math.min(state.grid.length - 1, state.focused + SIZE);
+        if(e.key === 'ArrowLeft') state.focused = Math.max(0, state.focused - 1);
+        if(e.key === 'ArrowRight') state.focused = Math.min(state.grid.length - 1, state.focused + 1);
+        
+        if(e.key === ' ' || e.key === 'Enter') {
+            rotateTile(state.grid[state.focused]);
+        }
+        updateFocus();
+    });
+
+    function updateTimerDisplay() {
+        document.getElementById('timer-disp').innerText = state.timer.toFixed(1);
+        document.getElementById('level-disp').innerText = state.level < 10 ? `0${state.level}` : state.level;
+    }
+
+</script>
+</body>
+</html>

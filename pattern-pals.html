@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pattern Pals | Social Pattern Matching</title>
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --color-red: #ef4444;
+            --color-yellow: #f59e0b;
+            --color-blue: #3b82f6;
+            --primary: #6366f1;
+            --shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            --radius: 16px;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        #game-container {
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .screen { display: none; flex-direction: column; align-items: center; width: 100%; animation: fadeIn 0.3s ease; }
+        .screen.active { display: flex; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        h1 { font-weight: 800; font-size: 2.2rem; color: var(--primary); margin: 0; text-align: center; }
+        .subtitle { color: var(--text-muted); font-size: 1rem; margin-bottom: 20px; text-align: center; }
+
+        /* Card Styling */
+        .sequence-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            width: 100%;
+            margin-bottom: 25px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            aspect-ratio: 2/3;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: transform 0.2s, border 0.3s;
+            border: 3px solid transparent;
+            overflow: hidden;
+            background-image: linear-gradient(135deg, #fff 0%, #f1f5f9 100%);
+        }
+
+        .card.mystery { background: var(--primary); color: white; border-color: rgba(255,255,255,0.2); }
+        .card.mystery .q-mark { font-size: 3rem; font-weight: 900; }
+
+        .card-emoji { font-size: 2rem; position: relative; z-index: 1; margin-top: 10px; }
+        .card-number { font-weight: 900; font-size: 1.2rem; margin-top: 5px; color: #334155; }
+
+        .hat {
+            position: absolute;
+            top: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 25px;
+            height: 25px;
+            z-index: 2;
+        }
+
+        /* Build-a-Guess Selectors */
+        .selector-box {
+            width: 100%;
+            background: white;
+            padding: 15px;
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            margin-bottom: 10px;
+            border: 2px solid transparent;
+        }
+        .selector-box.focused { border-color: var(--primary); background: #fefeff; }
+
+        .selector-label { font-weight: 800; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; display: block; }
+
+        .option-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+        .opt-btn {
+            padding: 8px 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            background: white;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 1.1rem;
+        }
+
+        .opt-btn.active { border-color: var(--primary); background: #eef2ff; transform: translateY(-2px); }
+        .opt-btn.color-circle { width: 40px; height: 40px; border-radius: 50%; padding: 0; }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 18px 32px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            transition: filter 0.2s;
+        }
+
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .pass-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--primary);
+            color: white;
+            z-index: 100;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            padding: 40px; text-align: center;
+        }
+
+        .preview-area { text-align: center; margin: 10px 0; }
+        .preview-card { width: 80px; margin: 5px auto; }
+
+        @media (min-width: 500px) {
+            .sequence-grid { grid-template-columns: repeat(6, 1fr); }
+        }
+
+        .hint { font-size: 0.65rem; opacity: 0.5; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; text-align: center; width: 100%; }
+        
+        /* Reveal specifics */
+        .match-badge {
+            background: var(--primary); color: white; border-radius: 10px;
+            padding: 2px 8px; font-weight: 900; font-size: 0.8rem; margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- SETUP -->
+    <div id="setup-screen" class="screen active">
+        <h1>Pattern Pals</h1>
+        <p class="subtitle">Social pattern prediction</p>
+        
+        <div class="selector-box">
+            <span class="selector-label">Mode</span>
+            <div class="option-row" id="setup-mode">
+                <button class="opt-btn active" data-mode="competitive">Competitive</button>
+                <button class="opt-btn" data-mode="cooperative">Cooperative</button>
+            </div>
+        </div>
+
+        <div class="selector-box">
+            <span class="selector-label">Players: <span id="p-count-val">3</span></span>
+            <input type="range" id="p-count" min="2" max="6" value="3" style="width: 100%;">
+        </div>
+
+        <button class="btn" onclick="startGame()">Start Sequence</button>
+        <div class="hint">Arrows to navigate • Space to confirm</div>
+    </div>
+
+    <!-- PLAY -->
+    <div id="play-screen" class="screen">
+        <div style="width: 100%; display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 10px;">
+            <span id="player-name-display" style="color: var(--primary);">Player 1</span>
+            <span id="round-display">Round 1/5</span>
+        </div>
+
+        <div class="sequence-grid" id="main-sequence"></div>
+
+        <div id="animal-selector" class="selector-box">
+            <span class="selector-label">1. Choose Animal</span>
+            <div class="option-row">
+                <button class="opt-btn" data-type="animal" data-val="dog">🐕</button>
+                <button class="opt-btn" data-type="animal" data-val="cat">🐈</button>
+                <button class="opt-btn" data-type="animal" data-val="duck">🦆</button>
+            </div>
+        </div>
+
+        <div id="color-selector" class="selector-box">
+            <span class="selector-label">2. Choose Hat Color</span>
+            <div class="option-row">
+                <button class="opt-btn color-circle" data-type="color" data-val="red" style="background:var(--color-red)"></button>
+                <button class="opt-btn color-circle" data-type="color" data-val="yellow" style="background:var(--color-yellow)"></button>
+                <button class="opt-btn color-circle" data-type="color" data-val="blue" style="background:var(--color-blue)"></button>
+            </div>
+        </div>
+
+        <div id="number-selector" class="selector-box">
+            <span class="selector-label">3. Choose Number</span>
+            <div class="option-row">
+                <button class="opt-btn" data-type="number" data-val="1">1</button>
+                <button class="opt-btn" data-type="number" data-val="2">2</button>
+                <button class="opt-btn" data-type="number" data-val="3">3</button>
+                <button class="opt-btn" data-type="number" data-val="4">4</button>
+                <button class="opt-btn" data-type="number" data-val="5">5</button>
+            </div>
+        </div>
+
+        <div class="preview-area">
+            <span class="selector-label">Your Guess</span>
+            <div id="guess-preview" class="preview-card"></div>
+        </div>
+
+        <button id="confirm-btn" class="btn" disabled onclick="submitChoice()">Confirm Guess</button>
+        <div class="hint">Arrows/WASD to pick • Space to confirm</div>
+    </div>
+
+    <!-- PASS -->
+    <div id="pass-screen" class="pass-overlay" style="display: none;">
+        <h1 id="pass-msg">Pass to Player 2</h1>
+        <p>Keep your pattern logic secret...</p>
+        <button class="btn" style="background: white; color: var(--primary);" onclick="hidePass()">I'm Ready</button>
+    </div>
+
+    <!-- REVEAL -->
+    <div id="reveal-screen" class="screen">
+        <h1>Reveal</h1>
+        <p class="subtitle">Did our minds sync?</p>
+        <!-- The mystery stays a mystery! -->
+        <div id="actual-card-container" style="width: 100px; margin-bottom: 20px;"></div>
+        
+        <span class="selector-label">Player Guesses</span>
+        <div id="reveal-grid" style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin: 15px 0;"></div>
+
+        <div id="round-feedback" style="text-align: center; font-weight: 800; color: var(--primary); margin-bottom: 20px;"></div>
+
+        <button class="btn" id="next-btn" onclick="nextRound()">Next Round</button>
+    </div>
+
+    <!-- GAME OVER -->
+    <div id="game-over-screen" class="screen">
+        <h1>Leaderboard</h1>
+        <div id="leaderboard" style="width: 100%; margin: 20px 0;"></div>
+        <button class="btn" onclick="location.reload()">New Game</button>
+    </div>
+</div>
+
+<script>
+    const EMOJIS = { dog: '🐕', cat: '🐈', duck: '🦆' };
+    const COLORS = ['red', 'yellow', 'blue'];
+    const NUMBERS = [1, 2, 3, 4, 5];
+
+    let state = {
+        mode: 'competitive',
+        players: [],
+        round: 1,
+        turn: 0,
+        sequence: [], // 6 cards
+        mysteryIdx: 0,
+        guesses: [],
+        currentGuess: { animal: null, color: null, number: null },
+        focusSection: 0 // 0: animal, 1: color, 2: number
+    };
+
+    // SETUP UI
+    document.getElementById('p-count').oninput = (e) => {
+        document.getElementById('p-count-val').innerText = e.target.value;
+    };
+
+    document.querySelectorAll('#setup-mode button').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('#setup-mode button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            state.mode = btn.dataset.mode;
+        };
+    });
+
+    function createCardEl(card, isMystery = false) {
+        const div = document.createElement('div');
+        div.className = `card ${isMystery ? 'mystery' : ''}`;
+        if (isMystery) {
+            div.innerHTML = `<div class="q-mark">?</div>`;
+        } else {
+            div.innerHTML = `
+                <svg class="hat" viewBox="0 0 100 100">
+                    <path d="M50 5 L15 95 L85 95 Z" fill="var(--color-${card.color})" stroke="white" stroke-width="2"/>
+                    <circle cx="50" cy="5" r="8" fill="white"/>
+                </svg>
+                <div class="card-emoji">${EMOJIS[card.animal]}</div>
+                <div class="card-number">${card.number}</div>
+            `;
+        }
+        return div;
+    }
+
+    function startGame() {
+        const count = parseInt(document.getElementById('p-count').value);
+        state.players = Array.from({length: count}, (_, i) => ({ name: `Player ${i+1}`, score: 0 }));
+        state.round = 1;
+        initRound();
+        showScreen('play-screen');
+    }
+
+    function initRound() {
+        state.turn = 0;
+        state.guesses = [];
+        state.mysteryIdx = Math.floor(Math.random() * 6);
+        state.sequence = Array.from({length: 6}, () => ({
+            animal: Object.keys(EMOJIS)[Math.floor(Math.random()*3)],
+            color: COLORS[Math.floor(Math.random()*3)],
+            number: NUMBERS[Math.floor(Math.random()*5)]
+        }));
+        renderPlay();
+    }
+
+    function renderPlay() {
+        const seqGrid = document.getElementById('main-sequence');
+        seqGrid.innerHTML = '';
+        state.sequence.forEach((c, i) => {
+            seqGrid.appendChild(createCardEl(c, i === state.mysteryIdx));
+        });
+
+        document.getElementById('player-name-display').innerText = state.players[state.turn].name;
+        document.getElementById('round-display').innerText = `Round ${state.round}/5`;
+        resetGuess();
+    }
+
+    function resetGuess() {
+        state.currentGuess = { animal: null, color: null, number: null };
+        state.focusSection = 0;
+        document.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('guess-preview').innerHTML = '';
+        document.getElementById('confirm-btn').disabled = true;
+        updateFocusUI();
+    }
+
+    // Selector Logic
+    document.querySelectorAll('.opt-btn').forEach(btn => {
+        btn.onclick = () => {
+            const type = btn.dataset.type;
+            const val = btn.dataset.val;
+            state.currentGuess[type] = val;
+            
+            // UI Visuals
+            document.querySelectorAll(`.opt-btn[data-type="${type}"]`).forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            updatePreview();
+        };
+    });
+
+    function updatePreview() {
+        const g = state.currentGuess;
+        const container = document.getElementById('guess-preview');
+        if (g.animal && g.color && g.number) {
+            container.innerHTML = '';
+            container.appendChild(createCardEl(g));
+            document.getElementById('confirm-btn').disabled = false;
+        }
+    }
+
+    function updateFocusUI() {
+        document.querySelectorAll('.selector-box').forEach((box, i) => {
+            box.classList.toggle('focused', i === state.focusSection);
+        });
+    }
+
+    window.addEventListener('keydown', e => {
+        if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+        
+        const sections = ['animal-selector', 'color-selector', 'number-selector'];
+        const currentBox = document.getElementById(sections[state.focusSection]);
+        const buttons = Array.from(currentBox.querySelectorAll('.opt-btn'));
+        let activeIdx = buttons.findIndex(b => b.classList.contains('active'));
+
+        if(e.key === 'ArrowDown' || e.key === 's') {
+            state.focusSection = (state.focusSection + 1) % 3;
+        } else if(e.key === 'ArrowUp' || e.key === 'w') {
+            state.focusSection = (state.focusSection + 2) % 3;
+        } else if(e.key === 'ArrowRight' || e.key === 'd') {
+            activeIdx = (activeIdx + 1) % buttons.length;
+            buttons[activeIdx].click();
+        } else if(e.key === 'ArrowLeft' || e.key === 'a') {
+            activeIdx = (activeIdx + buttons.length - 1) % buttons.length;
+            buttons[activeIdx].click();
+        } else if(e.key === ' ' || e.key === 'Enter') {
+            if(!document.getElementById('confirm-btn').disabled) submitChoice();
+        }
+        updateFocusUI();
+    });
+
+    function submitChoice() {
+        state.guesses.push({...state.currentGuess});
+        if (state.turn < state.players.length - 1) {
+            state.turn++;
+            showPass();
+        } else {
+            revealResults();
+        }
+    }
+
+    function showPass() {
+        document.getElementById('pass-msg').innerText = `Pass to ${state.players[state.turn].name}`;
+        document.getElementById('pass-screen').style.display = 'flex';
+    }
+
+    function hidePass() {
+        document.getElementById('pass-screen').style.display = 'none';
+        renderPlay();
+    }
+
+    function revealResults() {
+        showScreen('reveal-screen');
+        
+        // Show the Mystery Card (It stays a mystery!)
+        document.getElementById('actual-card-container').innerHTML = '';
+        document.getElementById('actual-card-container').appendChild(createCardEl(null, true));
+
+        const grid = document.getElementById('reveal-grid');
+        grid.innerHTML = '';
+
+        const matchCounts = {};
+        state.guesses.forEach(g => {
+            const key = `${g.animal}-${g.color}-${g.number}`;
+            matchCounts[key] = (matchCounts[key] || 0) + 1;
+        });
+
+        state.players.forEach((p, i) => {
+            const g = state.guesses[i];
+            const wrap = document.createElement('div');
+            wrap.className = 'result-item';
+            wrap.style.padding = '10px';
+            wrap.style.background = 'white';
+            wrap.style.borderRadius = '12px';
+            wrap.style.textAlign = 'center';
+
+            const card = createCardEl(g);
+            card.style.width = '70px';
+            
+            let pts = 0;
+            let matched = false;
+
+            // Scoring Logic
+            if (state.mode === 'competitive') {
+                const matches = matchCounts[`${g.animal}-${g.color}-${g.number}`];
+                if (matches > 1) {
+                    pts = matches - 1;
+                    p.score += pts;
+                    matched = true;
+                }
+            } else {
+                // Cooperative Logic
+                const captainG = state.guesses[0];
+                const isMatch = g.animal === captainG.animal && g.color === captainG.color && g.number === captainG.number;
+                
+                if (i > 0 && isMatch) {
+                    pts = 5; 
+                    p.score += pts;
+                    state.players[0].score += 2; // Captain bonus
+                    matched = true;
+                }
+                if (i === 0 && matchCounts[`${g.animal}-${g.color}-${g.number}`] > 1) {
+                    matched = true; 
+                }
+            }
+
+            if(matched) card.style.borderColor = '#ffd700'; // Gold border for matches
+
+            // Append elements
+            const tag = document.createElement('div');
+            tag.className = 'player-tag';
+            tag.innerText = p.name;
+            wrap.appendChild(tag);
+            wrap.appendChild(card);
+            
+            if (pts > 0) {
+                const badge = document.createElement('div');
+                badge.className = 'match-badge';
+                badge.innerText = `+${pts}`;
+                wrap.appendChild(badge);
+            }
+
+            grid.appendChild(wrap);
+        });
+
+        document.getElementById('round-feedback').innerText = state.mode === 'competitive' 
+            ? "Points for matching minds!" 
+            : "Team points for syncing with the Captain!";
+
+        if (state.round === 5) document.getElementById('next-btn').innerText = "View Final Standings";
+    }
+
+    function nextRound() {
+        if (state.round < 5) {
+            state.round++;
+            initRound();
+            showScreen('play-screen');
+        } else {
+            showGameOver();
+        }
+    }
+
+    function showGameOver() {
+        showScreen('game-over-screen');
+        const board = document.getElementById('leaderboard');
+        board.innerHTML = '';
+        state.players.sort((a,b) => b.score - a.score).forEach((p, i) => {
+            const row = document.createElement('div');
+            row.style.cssText = "display:flex; justify-content:space-between; padding:15px; background:white; margin-bottom:8px; border-radius:12px; font-weight:bold;";
+            row.innerHTML = `<span>${i===0?'🏆':''} ${p.name}</span> <span>${p.score} pts</span>`;
+            board.appendChild(row);
+        });
+    }
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+</script>
+
+</body>
+</html>

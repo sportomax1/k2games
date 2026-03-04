@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Deep Sea Salvage: Abyss</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Righteous&display=swap');
+
+        :root {
+            --ui-bg: rgba(0, 20, 40, 0.9);
+            --ui-border: 1px solid rgba(100, 200, 255, 0.3);
+            --accent: #00f2ff;
+            --gold: #ffd700;
+            --danger: #ff4444;
+        }
+
+        body {
+            margin: 0; padding: 0;
+            background: #000;
+            overflow: hidden;
+            font-family: 'Righteous', cursive;
+            color: white;
+            touch-action: none;
+            user-select: none;
+        }
+
+        canvas { display: block; width: 100%; height: 100vh; }
+
+        /* UI LAYERS */
+        .layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex; flex-direction: column;
+        }
+
+        /* HUD */
+        #hud {
+            padding: 20px;
+            display: flex; justify-content: space-between; align-items: flex-start;
+        }
+
+        .hud-panel {
+            background: var(--ui-bg);
+            border: var(--ui-border);
+            padding: 10px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column; gap: 5px;
+        }
+
+        .stat-label { font-size: 0.7rem; color: #88ccff; letter-spacing: 1px; }
+        .stat-value { font-size: 1.5rem; text-shadow: 0 0 10px var(--accent); }
+        .stat-bar {
+            width: 150px; height: 8px; background: #112; border-radius: 4px; overflow: hidden;
+            margin-top: 5px;
+        }
+        .bar-fill { height: 100%; background: var(--accent); transition: width 0.2s; box-shadow: 0 0 10px var(--accent); }
+        .bar-fill.danger { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
+
+        /* SHOP & MENUS */
+        .menu-overlay {
+            position: absolute; inset: 0;
+            background: rgba(0, 10, 20, 0.95);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+            z-index: 100;
+        }
+
+        h1 { font-size: 3rem; margin: 0 0 10px 0; background: linear-gradient(to bottom, #fff, #00aaff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        h2 { color: var(--gold); margin-bottom: 20px; }
+
+        .shop-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .upgrade-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+            width: 140px;
+        }
+        .upgrade-card:hover { transform: translateY(-5px); background: rgba(255,255,255,0.1); border-color: var(--accent); }
+        .upgrade-card.disabled { opacity: 0.5; cursor: default; transform: none; }
+
+        .icon { font-size: 2rem; margin-bottom: 10px; }
+        .cost { color: var(--gold); font-weight: bold; margin-top: 5px; }
+        
+        .btn {
+            background: linear-gradient(45deg, #0088ff, #00ffaa);
+            border: none; padding: 15px 50px;
+            color: #002244; font-family: inherit; font-size: 1.2rem; font-weight: bold;
+            border-radius: 30px; cursor: pointer;
+            box-shadow: 0 0 20px rgba(0, 255, 170, 0.4);
+            transition: transform 0.1s;
+        }
+        .btn:hover { transform: scale(1.05); }
+        .btn:active { transform: scale(0.95); }
+
+        #controls-hint {
+            position: absolute; bottom: 20px; width: 100%; text-align: center;
+            opacity: 0.6; font-size: 0.8rem; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="layer">
+    <div class="hud-panel">
+        <span class="stat-label">OXYGEN</span>
+        <div class="stat-bar"><div id="oxy-bar" class="bar-fill" style="width: 100%;"></div></div>
+    </div>
+    <div class="hud-panel" style="align-items: flex-end;">
+        <span class="stat-label">FUNDS</span>
+        <span class="stat-value">$<span id="cash-display">0</span></span>
+    </div>
+</div>
+
+<!-- START / SHOP SCREEN -->
+<div id="shop-screen" class="menu-overlay" style="display: flex;">
+    <h1>DEEP SEA SALVAGE</h1>
+    <h2 id="day-display">READY TO DIVE</h2>
+    
+    <div class="shop-grid">
+        <div class="upgrade-card" onclick="buy('speed')">
+            <div class="icon">⚙️</div>
+            <div>Winch Speed</div>
+            <div class="stat-label">LVL <span id="lvl-speed">1</span></div>
+            <div class="cost">$<span id="cost-speed">50</span></div>
+        </div>
+        <div class="upgrade-card" onclick="buy('oxygen')">
+            <div class="icon">🫧</div>
+            <div>Oxygen Tank</div>
+            <div class="stat-label">LVL <span id="lvl-oxygen">1</span></div>
+            <div class="cost">$<span id="cost-oxygen">50</span></div>
+        </div>
+        <div class="upgrade-card" onclick="buy('light')">
+            <div class="icon">💡</div>
+            <div>Lamp Power</div>
+            <div class="stat-label">LVL <span id="lvl-light">1</span></div>
+            <div class="cost">$<span id="cost-light">100</span></div>
+        </div>
+    </div>
+
+    <button class="btn" onclick="startRun()">DIVE!</button>
+</div>
+
+<!-- RESULTS SCREEN -->
+<div id="results-screen" class="menu-overlay">
+    <h1>SURFACED</h1>
+    <h2 id="haul-display">HAUL: $0</h2>
+    <p style="margin-bottom: 30px; opacity: 0.8;">Oxygen Depleted</p>
+    <button class="btn" onclick="openShop()">VISIT SHOP</button>
+</div>
+
+<div id="controls-hint">Arrows / Drag to Move • Space / Tap to Drop</div>
+
+<script>
+/** ENGINE **/
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+let width, height;
+let frames = 0;
+
+// Config
+const CONFIG = {
+    gravity: 0.15,
+    waterLevel: 100,
+    baseOxy: 100,
+    colors: {
+        sky: '#87CEEB',
+        waterTop: '#006994',
+        waterDeep: '#000033'
+    }
+};
+
+// Game State
+let game = {
+    state: 'shop', // shop, playing, results
+    money: 0,
+    depth: 0,
+    runHaul: 0,
+    boat: { x: 0, y: 80, vx: 0, w: 60, h: 25 },
+    claw: { x: 0, y: 0, state: 'idle', len: 50, item: null },
+    oxygen: 100,
+    maxOxygen: 100,
+    entities: [],
+    particles: [],
+    upgrades: {
+        speed: 1,
+        oxygen: 1,
+        light: 1
+    }
+};
+
+const UPGRADES = {
+    speed: { base: 50, mult: 1.5 },
+    oxygen: { base: 50, mult: 1.5 },
+    light: { base: 100, mult: 1.8 }
+};
+
+// Assets (Procedural)
+const TREASURES = [
+    { type: 'coin', val: 10, color: '#ffd700', r: 6 },
+    { type: 'chest', val: 50, color: '#8B4513', r: 12 },
+    { type: 'gem', val: 100, color: '#ff00ff', r: 8 },
+    { type: 'diamond', val: 250, color: '#00ffff', r: 10 },
+    { type: 'ancient', val: 500, color: '#ff4444', r: 15 }
+];
+
+const HAZARDS = [
+    { type: 'jelly', dmg: 10, color: '#ffccff', r: 15, speed: 0.5 },
+    { type: 'shark', dmg: 30, color: '#607d8b', r: 25, speed: 2.0 }
+];
+
+/* INPUT */
+let input = { left: false, right: false, drop: false, mouseX: 0, isDragging: false };
+
+window.addEventListener('keydown', e => {
+    if(e.key === 'ArrowLeft' || e.key === 'a') input.left = true;
+    if(e.key === 'ArrowRight' || e.key === 'd') input.right = true;
+    if(e.key === ' ' || e.key === 'ArrowDown' || e.key === 's') triggerDrop();
+});
+window.addEventListener('keyup', e => {
+    if(e.key === 'ArrowLeft' || e.key === 'a') input.left = false;
+    if(e.key === 'ArrowRight' || e.key === 'd') input.right = false;
+});
+
+canvas.addEventListener('mousedown', e => {
+    input.isDragging = true;
+    updateMouse(e);
+});
+canvas.addEventListener('mousemove', e => {
+    if(input.isDragging) updateMouse(e);
+});
+canvas.addEventListener('mouseup', () => {
+    if(input.isDragging && Math.abs(input.mouseX - game.boat.x) < 10) triggerDrop(); // Tap to drop
+    input.isDragging = false;
+});
+canvas.addEventListener('touchstart', e => {
+    input.isDragging = true;
+    updateMouse(e.touches[0]);
+    e.preventDefault();
+}, {passive: false});
+canvas.addEventListener('touchmove', e => {
+    if(input.isDragging) updateMouse(e.touches[0]);
+    e.preventDefault();
+}, {passive: false});
+canvas.addEventListener('touchend', () => input.isDragging = false);
+
+function updateMouse(e) {
+    const rect = canvas.getBoundingClientRect();
+    input.mouseX = e.clientX - rect.left;
+}
+
+function triggerDrop() {
+    if(game.state === 'playing' && game.claw.state === 'idle') {
+        game.claw.state = 'dropping';
+        spawnParticles(game.boat.x, game.boat.y + 20, 5, '#fff');
+    }
+}
+
+/* LOGIC */
+function init() {
+    resize();
+    window.addEventListener('resize', resize);
+    game.boat.x = width / 2;
+    updateHUD();
+    loop();
+}
+
+function resize() {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+}
+
+function startRun() {
+    document.getElementById('shop-screen').style.display = 'none';
+    game.state = 'playing';
+    game.oxygen = 100 + (game.upgrades.oxygen * 20); // Upgrade logic
+    game.maxOxygen = game.oxygen;
+    game.runHaul = 0;
+    game.entities = [];
+    game.boat.x = width/2;
+    game.boat.vx = 0;
+    
+    // Ensure claw starts at boat
+    game.claw.x = game.boat.x;
+    game.claw.y = game.boat.y + 30;
+    game.claw.state = 'idle';
+    game.claw.item = null;
+    
+    // Generate Field
+    populateOcean();
+}
+
+function populateOcean() {
+    // Zones based on depth
+    for(let y = 300; y < 3000; y += 100) {
+        const difficulty = y / 3000;
+        
+        // Spawn Treasure
+        if(Math.random() < 0.4) {
+            const t = TREASURES[Math.min(TREASURES.length-1, Math.floor(Math.random() * (TREASURES.length * difficulty + 1)))];
+            game.entities.push({
+                x: Math.random() * (width - 40) + 20,
+                y: y + Math.random() * 50,
+                type: 'treasure',
+                ...t
+            });
+        }
+
+        // Spawn Hazard
+        if(Math.random() < (0.1 + difficulty * 0.3)) {
+            const h = HAZARDS[Math.random() > 0.7 ? 1 : 0]; // Sharks rarer
+            game.entities.push({
+                x: Math.random() * width,
+                y: y + Math.random() * 50,
+                type: 'hazard',
+                vx: (Math.random() - 0.5) * h.speed,
+                ...h
+            });
+        }
+    }
+}
+
+function openShop() {
+    document.getElementById('results-screen').style.display = 'none';
+    document.getElementById('shop-screen').style.display = 'flex';
+    game.state = 'shop';
+    updateHUD();
+    updateShopUI();
+}
+
+function buy(type) {
+    const lvl = game.upgrades[type];
+    const cost = Math.floor(UPGRADES[type].base * Math.pow(UPGRADES[type].mult, lvl - 1));
+    
+    if(game.money >= cost) {
+        game.money -= cost;
+        game.upgrades[type]++;
+        // FX
+        spawnParticles(width/2, height/2, 20, varCSS('--accent'));
+        updateHUD();
+        updateShopUI();
+    }
+}
+
+function updateShopUI() {
+    ['speed', 'oxygen', 'light'].forEach(key => {
+        const lvl = game.upgrades[key];
+        const cost = Math.floor(UPGRADES[key].base * Math.pow(UPGRADES[key].mult, lvl - 1));
+        document.getElementById(`lvl-${key}`).innerText = lvl;
+        document.getElementById(`cost-${key}`).innerText = cost;
+        
+        const card = document.querySelector(`[onclick="buy('${key}')"]`);
+        if(game.money < cost) card.classList.add('disabled');
+        else card.classList.remove('disabled');
+    });
+}
+
+function loop() {
+    ctx.clearRect(0, 0, width, height);
+    
+    if(game.state === 'playing') {
+        updatePhysics();
+        drawWorld();
+    } else {
+        // Simple idle waves
+        drawOceanBackground(0);
+        drawBoat(width/2, 80 + Math.sin(frames*0.05)*5);
+    }
+    
+    frames++;
+    requestAnimationFrame(loop);
+}
+
+function updatePhysics() {
+    // Boat Movement
+    if(input.isDragging) {
+        // Direct tracking for mouse/touch
+        const targetX = Math.max(30, Math.min(width - 30, input.mouseX));
+        const dx = targetX - game.boat.x;
+        // Smoothly move towards target (P-controller)
+        game.boat.vx = dx * 0.2; 
+    } else {
+        // Keyboard: Snappier acceleration
+        const ACCEL = 1.5;
+        const DRAG = 0.85;
+        
+        if(input.left) game.boat.vx -= ACCEL;
+        if(input.right) game.boat.vx += ACCEL;
+        game.boat.vx *= DRAG; // Friction
+    }
+    
+    game.boat.x += game.boat.vx;
+    
+    // Hard clamp bounds
+    if (game.boat.x < 30) { game.boat.x = 30; game.boat.vx = 0; }
+    if (game.boat.x > width - 30) { game.boat.x = width - 30; game.boat.vx = 0; }
+
+    // Claw Logic
+    const speed = 5 + (game.upgrades.speed * 1.5);
+    
+    if(game.claw.state === 'idle') {
+        game.claw.x = game.boat.x;
+        game.claw.y = 80 + 30; // attached to boat
+        game.oxygen -= 0.05; // Passive drain
+    } 
+    else if(game.claw.state === 'dropping') {
+        game.claw.y += speed;
+        // Collision with entities
+        checkCollisions();
+        // Bounds or Max Depth
+        if(game.claw.y > 3000) game.claw.state = 'retracting';
+    } 
+    else if(game.claw.state === 'retracting') {
+        game.claw.y -= speed * 0.8; // Slower up
+        if(game.claw.y <= 110) {
+            // Surfaced
+            game.claw.state = 'idle';
+            if(game.claw.item) {
+                // Cash in
+                const val = game.claw.item.val;
+                game.money += val;
+                game.runHaul += val;
+                game.oxygen = Math.min(game.maxOxygen, game.oxygen + 10); // Bonus air on catch
+                spawnFloatingText(`+$${val}`, game.claw.x, 100);
+                spawnParticles(game.claw.x, 100, 10, '#ffd700');
+                game.claw.item = null;
+            }
+        }
+    }
+
+    // Entity Movement
+    game.entities.forEach(e => {
+        if(e.type === 'hazard') {
+            e.x += e.vx;
+            if(e.x < 0 || e.x > width) e.vx *= -1;
+        }
+    });
+
+    // Oxygen
+    if(game.claw.state !== 'idle') game.oxygen -= 0.1;
+    if(game.oxygen <= 0) {
+        endRun();
+    }
+    updateHUD();
+}
+
+function checkCollisions() {
+    for(let i = 0; i < game.entities.length; i++) {
+        const e = game.entities[i];
+        const dist = Math.hypot(e.x - game.claw.x, e.y - game.claw.y);
+        
+        if(dist < e.r + 10) {
+            if(e.type === 'treasure') {
+                game.claw.state = 'retracting';
+                game.claw.item = e;
+                game.entities.splice(i, 1);
+                spawnParticles(e.x, e.y, 8, e.color);
+                return; // Only grab one
+            } else if(e.type === 'hazard') {
+                // Ouch
+                game.oxygen -= e.dmg;
+                game.claw.state = 'retracting'; // Force pull back
+                game.claw.item = null; // Drop anything
+                spawnParticles(e.x, e.y, 15, '#ff0000');
+                spawnFloatingText(`-${e.dmg} OXY`, game.claw.x, game.claw.y, '#f00');
+                return;
+            }
+        }
+    }
+}
+
+function endRun() {
+    game.state = 'results';
+    document.getElementById('results-screen').style.display = 'flex';
+    document.getElementById('haul-display').innerText = `HAUL: $${game.runHaul}`;
+}
+
+/* RENDERING */
+function drawWorld() {
+    // Only scroll down if claw is deep
+    const camY = Math.max(0, game.claw.y - height/2); 
+    
+    ctx.save();
+    ctx.translate(0, -camY);
+
+    drawOceanBackground(camY);
+    
+    // Draw Boat (Always render if near surface, regardless of camera)
+    // The previous logic hid the boat if camY > 200, but we want it visible at start
+    drawBoat(game.boat.x, 80 + Math.sin(frames*0.05)*5);
+
+    // Draw Line
+    ctx.beginPath();
+    ctx.moveTo(game.boat.x, 90);
+    ctx.lineTo(game.claw.x, game.claw.y);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Draw Claw
+    drawClaw(game.claw.x, game.claw.y, game.claw.item);
+
+    // Draw Lighting
+    drawLight(game.claw.x, game.claw.y);
+
+    // Draw Entities
+    game.entities.forEach(e => {
+        // Optimization: only draw if on screen
+        if(e.y > camY - 50 && e.y < camY + height + 50) {
+            drawEntity(e);
+        }
+    });
+
+    // Particles
+    game.particles.forEach((p, i) => {
+        p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1;
+        if(p.life <= 0) game.particles.splice(i, 1);
+    });
+
+    // Floating Text
+    drawFloatingText();
+
+    ctx.restore();
+}
+
+function drawOceanBackground(camY) {
+    // Gradient changes with depth
+    const depthPct = Math.min(1, camY / 2500);
+    const grad = ctx.createLinearGradient(0, camY, 0, camY + height);
+    
+    if(depthPct < 0.3) {
+        grad.addColorStop(0, '#006994');
+        grad.addColorStop(1, '#003366');
+    } else if(depthPct < 0.7) {
+        grad.addColorStop(0, '#003366');
+        grad.addColorStop(1, '#001133');
+    } else {
+        grad.addColorStop(0, '#001133');
+        grad.addColorStop(1, '#000000');
+    }
+    
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, camY, width, height);
+
+    // Bubbles
+    if(frames % 10 === 0) {
+        game.particles.push({
+            x: Math.random() * width, y: camY + height + 10,
+            vx: 0, vy: -2 - Math.random(),
+            life: 2 + Math.random(),
+            color: 'rgba(255,255,255,0.1)', size: 2 + Math.random()*3
+        });
+    }
+}
+
+function drawBoat(x, y) {
+    ctx.fillStyle = '#ffcc00';
+    ctx.beginPath();
+    ctx.moveTo(x - 30, y);
+    ctx.bezierCurveTo(x-30, y+25, x+30, y+25, x+30, y);
+    ctx.fill();
+    
+    // Cabin
+    ctx.fillStyle = '#eee';
+    ctx.fillRect(x - 15, y - 20, 30, 20);
+    ctx.fillStyle = '#aaf';
+    ctx.fillRect(x - 10, y - 15, 20, 10); // Window
+    
+    // Propeller bubbles
+    if(Math.abs(game.boat.vx) > 0.1 && Math.random() > 0.5) {
+        spawnParticles(x - 30, y + 10, 1, 'rgba(255,255,255,0.5)');
+    }
+}
+
+function drawClaw(x, y, holding) {
+    ctx.fillStyle = '#ccc';
+    // Arms
+    ctx.save();
+    ctx.translate(x, y);
+    if(holding) {
+        ctx.rotate(0); // Closed
+    } else {
+        ctx.rotate(Math.sin(frames * 0.1) * 0.2); // Idle sway
+    }
+    
+    // Left pincer
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(-15, 10, -5, 20); ctx.lineTo(0, 10); ctx.fill();
+    // Right pincer
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(15, 10, 5, 20); ctx.lineTo(0, 10); ctx.fill();
+    
+    // Body
+    ctx.fillStyle = '#888';
+    ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI*2); ctx.fill();
+    
+    if(holding) {
+        drawEntity({...holding, x: 0, y: 15});
+    }
+    
+    ctx.restore();
+}
+
+function drawLight(x, y) {
+    // Flashlight effect
+    const radius = 100 + (game.upgrades.light * 30);
+    const grad = ctx.createRadialGradient(x, y, 10, x, y, radius);
+    grad.addColorStop(0, 'rgba(255, 255, 200, 0.4)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    
+    ctx.globalCompositeOperation = 'overlay'; // Additive look
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI*2); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+}
+
+function drawEntity(e) {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    
+    if(e.type === 'treasure') {
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = e.color;
+        ctx.fillStyle = e.color;
+        
+        if(e.val >= 500) { // Ancient
+            ctx.beginPath(); ctx.moveTo(0,-10); ctx.lineTo(10,0); ctx.lineTo(0,10); ctx.lineTo(-10,0); ctx.fill();
+        } else if(e.val >= 100) { // Gem
+            ctx.beginPath(); ctx.moveTo(0,-8); ctx.lineTo(8,0); ctx.lineTo(0,8); ctx.lineTo(-8,0); ctx.fill();
+        } else { // Coin/Chest
+            ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.shadowBlur = 0;
+    } else {
+        // Hazard
+        ctx.scale(e.vx > 0 ? -1 : 1, 1); // Face direction
+        ctx.fillStyle = e.color;
+        
+        if(e.damage >= 30) { // Shark
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 20, 10, 0, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = '#fff'; // Eye
+            ctx.beginPath(); ctx.arc(-10, -2, 2, 0, Math.PI*2); ctx.fill();
+            // Fin
+            ctx.fillStyle = e.color;
+            ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(10, -15); ctx.lineTo(5, -5); ctx.fill();
+        } else { // Jelly
+            ctx.beginPath(); ctx.arc(0, -5, 10, Math.PI, 0); ctx.fill();
+            ctx.strokeStyle = e.color;
+            ctx.beginPath(); ctx.moveTo(-5, -5); ctx.lineTo(-5, 10); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(5, -5); ctx.lineTo(5, 10); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(0, 12); ctx.stroke();
+        }
+    }
+    
+    ctx.restore();
+}
+
+/* UTILS */
+function spawnParticles(x, y, count, color) {
+    for(let i=0; i<count; i++) {
+        game.particles.push({
+            x: x, y: y,
+            vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4,
+            life: 1.0, color: color, size: Math.random()*3
+        });
+    }
+}
+
+let floatingTexts = [];
+function spawnFloatingText(text, x, y, color='#fff') {
+    floatingTexts.push({text, x, y, color, life: 1.0});
+}
+function drawFloatingText() {
+    floatingTexts.forEach((t, i) => {
+        t.y -= 1; t.life -= 0.02;
+        ctx.globalAlpha = t.life;
+        ctx.fillStyle = t.color;
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillText(t.text, t.x, t.y);
+        ctx.globalAlpha = 1;
+        if(t.life <= 0) floatingTexts.splice(i, 1);
+    });
+}
+
+function updateHUD() {
+    document.getElementById('oxy-bar').style.width = `${(game.oxygen / game.maxOxygen) * 100}%`;
+    document.getElementById('oxy-bar').className = game.oxygen < 30 ? 'bar-fill danger' : 'bar-fill';
+    document.getElementById('cash-display').innerText = game.money;
+}
+
+function varCSS(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+window.onload = init;
+</script>
+</body>
+</html>
