@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Paperboy 8-Bit: Deluxe</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        :root {
+            --bg-grass: #4fa136;
+            --road: #4a4744;
+            --sidewalk: #c5bc91;
+            --ui-text: #fff;
+            --arcade-red: #ff3e3e;
+            --arcade-blue: #3e94ff;
+            --arcade-gold: #ffcf40;
+        }
+
+        body {
+            margin: 0; padding: 0;
+            background: #111;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 9/16;
+            max-height: 100vh;
+            background: var(--bg-grass);
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            border: 10px solid #333;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        /* SCANLINE EFFECT */
+        .scanlines {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                        linear-gradient(to right, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+            z-index: 200;
+        }
+
+        /* UI OVERLAYS */
+        .ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 150;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--ui-text);
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+
+        #score { color: var(--arcade-gold); }
+        #lives { color: var(--arcade-red); }
+
+        .screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            text-align: center;
+            z-index: 300;
+            pointer-events: auto;
+        }
+
+        h1 {
+            font-size: 32px;
+            color: var(--arcade-gold);
+            text-shadow: 4px 4px 0 var(--arcade-red);
+            margin-bottom: 20px;
+            animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.05); }
+        }
+
+        p {
+            font-size: 10px;
+            line-height: 20px;
+            color: #aaa;
+            max-width: 85%;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            background: var(--arcade-red);
+            color: #fff;
+            border: 4px solid #fff;
+            padding: 15px 30px;
+            font-family: inherit;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #900;
+            transition: 0.1s;
+        }
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #900;
+        }
+
+        .controls-layer {
+            position: absolute; bottom: 30px; width: 100%;
+            display: flex; justify-content: space-between;
+            padding: 0 30px; box-sizing: border-box;
+            pointer-events: none;
+            z-index: 160;
+        }
+
+        .control-btn {
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.6);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            border-radius: 15px;
+            width: 70px; height: 70px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 8px;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 4px 0 rgba(0,0,0,0.5);
+        }
+        .control-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.5); background: var(--arcade-blue); }
+
+        #feedback-text {
+            position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 20px; font-weight: bold; color: #fff;
+            text-shadow: 3px 3px 0 #000; opacity: 0; pointer-events: none;
+            z-index: 250;
+        }
+
+        .fb-gold { color: var(--arcade-gold) !important; }
+        .fb-green { color: #2ecc71 !important; }
+        .fb-red { color: var(--arcade-red) !important; }
+
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="scanlines"></div>
+    <canvas id="game"></canvas>
+    
+    <div class="ui-layer">
+        <div class="hud-top">
+            <div>SCORE: <span id="score">00000</span></div>
+            <div id="lives">HP: ❤️❤️❤️</div>
+        </div>
+    </div>
+
+    <div id="feedback-text">PERFECT!</div>
+
+    <div class="controls-layer">
+        <div class="control-btn" id="btn-throw-l">THROW<br>LEFT<br>(Z)</div>
+        <div class="control-btn" id="btn-throw-r">THROW<br>RIGHT<br>(X)</div>
+    </div>
+
+    <!-- START SCREEN -->
+    <div id="start-screen" class="screen">
+        <div style="font-size: 10px; color: var(--arcade-blue); margin-bottom: 10px;">K2 GAMES PRESENTS</div>
+        <h1>PAPERBOY<br>DELUXE</h1>
+        <p>RECRUITING NEW DELIVERY PROS!<br><br>• HIT YELLOW HOUSES<br>• DON'T BREAK THE GLASS<br>• WATCH FOR TRAFFIC<br><br>DRAG TO STEER • TAP TO THROW</p>
+        <button class="btn" onclick="startGame()">START ROUTE</button>
+    </div>
+
+    <!-- GAME OVER -->
+    <div id="game-over" class="screen" style="display: none;">
+        <h1 style="color:var(--arcade-red)">GAME OVER</h1>
+        <p>FINAL SCORE: <span id="final-score">0</span></p>
+        <button class="btn" onclick="startGame()">RETRY MISSION</button>
+    </div>
+</div>
+
+<script>
+/** ENGINE **/
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const GAME_W = 320;
+const GAME_H = 568; 
+let scale = 1;
+
+let state = {
+    active: false,
+    score: 0,
+    lives: 3,
+    frame: 0,
+    speed: 3,
+    distance: 0,
+    shake: 0
+};
+
+let player = {
+    x: GAME_W / 2,
+    y: GAME_H - 120,
+    vx: 0,
+    w: 24, h: 36,
+    throwCooldown: 0,
+    pedalFrame: 0,
+    tilt: 0
+};
+
+let entities = []; // Houses, Trees, Cars, Obstacles
+let papers = [];
+let particles = [];
+let floats = [];
+
+/* INPUT */
+let keys = { left: false, right: false };
+
+window.addEventListener('keydown', e => {
+    if(e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
+    if(e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
+    if(e.key === 'z' || e.key === 'q') tryThrow(-1);
+    if(e.key === 'x' || e.key === 'e') tryThrow(1);
+});
+
+window.addEventListener('keyup', e => {
+    if(e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
+    if(e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+});
+
+const container = document.getElementById('game-container');
+container.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if(!state.active) return;
+    const touch = e.touches[0];
+    const rect = container.getBoundingClientRect();
+    const x = (touch.clientX - rect.left) / scale;
+    if(x < player.x - 15) keys.left = true; else keys.left = false;
+    if(x > player.x + 15) keys.right = true; else keys.right = false;
+}, {passive: false});
+
+container.addEventListener('touchend', () => { keys.left = false; keys.right = false; });
+
+const throwL = document.getElementById('btn-throw-l');
+const throwR = document.getElementById('btn-throw-r');
+[throwL, throwR].forEach(btn => {
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); tryThrow(btn === throwL ? -1 : 1); });
+    btn.addEventListener('mousedown', (e) => { e.preventDefault(); tryThrow(btn === throwL ? -1 : 1); });
+});
+
+function resize() {
+    const rect = container.getBoundingClientRect();
+    canvas.width = GAME_W;
+    canvas.height = GAME_H;
+    scale = rect.width / GAME_W;
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ART HELPERS */
+function drawDitheredRect(x, y, w, h, c1, c2) {
+    ctx.fillStyle = c1;
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = c2;
+    for(let i=0; i<w; i+=4) {
+        for(let j=0; j<h; j+=4) {
+            if((i+j)%8 === 0) ctx.fillRect(x+i, y+j, 2, 2);
+        }
+    }
+}
+
+/* GAME LOGIC */
+function startGame() {
+    state.active = true;
+    state.score = 0;
+    state.lives = 3;
+    state.speed = 3.5;
+    state.distance = 0;
+    state.shake = 0;
+    player.x = GAME_W / 2;
+    player.vx = 0;
+    entities = []; papers = []; particles = []; floats = [];
+    
+    // Initial decorations
+    for(let i=0; i<10; i++) spawnDecoration(Math.random() * GAME_H);
+
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('game-over').style.display = 'none';
+    updateHUD();
+    loop();
+}
+
+function tryThrow(dir) {
+    if(!state.active || player.throwCooldown > 0) return;
+    player.throwCooldown = 20;
+    papers.push({
+        x: player.x,
+        y: player.y - 10,
+        vx: dir * 8,
+        vy: -4,
+        rot: 0,
+        active: true
+    });
+}
+
+function spawnWorld() {
+    if(state.distance % 80 === 0) spawnRow();
+    if(state.distance % 40 === 0) spawnDecoration(-50);
+}
+
+function spawnDecoration(y) {
+    const side = Math.random() > 0.5 ? 'left' : 'right';
+    const x = side === 'left' ? Math.random() * 40 : GAME_W - 40 - Math.random() * 40;
+    const type = Math.random() > 0.5 ? 'tree' : 'bush';
+    entities.push({ type, x, y, w: 20, h: 20, layer: 0 });
+}
+
+function spawnRow() {
+    const y = -120;
+    const side = Math.random() > 0.5 ? 'left' : 'right';
+    
+    // House
+    if(Math.random() < 0.7) {
+        const isSub = Math.random() > 0.3;
+        entities.push({
+            type: 'house',
+            x: side === 'left' ? -10 : GAME_W - 70,
+            y: y,
+            w: 80, h: 90,
+            isSub: isSub,
+            hit: false,
+            color: isSub ? '#f1c40f' : '#e67e22',
+            accent: isSub ? '#f39c12' : '#d35400',
+            roof: isSub ? '#2c3e50' : '#34495e',
+            doorX: side === 'left' ? 50 : 10,
+            winX: side === 'left' ? 15 : 55,
+            layer: 1
+        });
+        
+        // Add a mailbox
+        entities.push({
+            type: 'mailbox',
+            x: side === 'left' ? 75 : GAME_W - 95,
+            y: y + 70,
+            w: 12, h: 20,
+            isSub: isSub,
+            layer: 2
+        });
+    }
+
+    // Traffic
+    if(Math.random() < 0.4) {
+        entities.push({ 
+            type: 'car', x: 100 + Math.random() * (GAME_W - 200), y: y - 100, 
+            w: 32, h: 56, vy: 2 + Math.random() * 3, 
+            color: ['#e74c3c','#3498db','#9b59b6','#f39c12'][Math.floor(Math.random()*4)],
+            layer: 2
+        });
+    }
+}
+
+function update() {
+    state.distance++;
+    state.speed = 3.5 + (state.distance / 3000);
+    
+    // Player Physics
+    if(keys.left) player.vx -= 0.8;
+    if(keys.right) player.vx += 0.8;
+    player.vx *= 0.85;
+    player.x += player.vx;
+    player.tilt = player.vx * 2;
+    
+    player.x = Math.max(85, Math.min(GAME_W - 85, player.x));
+    
+    if(player.throwCooldown > 0) player.throwCooldown--;
+    player.pedalFrame += state.speed * 0.05;
+
+    spawnWorld();
+
+    // Entities
+    for(let i = entities.length - 1; i >= 0; i--) {
+        let e = entities[i];
+        if(e.type === 'car') e.y += e.vy;
+        else e.y += state.speed;
+
+        // Collision Obstacles
+        if(e.type !== 'house' && e.type !== 'tree' && e.type !== 'bush' && e.type !== 'mailbox') {
+            if(rectIntersect(player.x - 10, player.y - 10, 20, 20, e.x, e.y, e.w, e.h)) crash();
+        }
+
+        if(e.y > GAME_H + 100) entities.splice(i, 1);
+    }
+
+    // Papers
+    for(let i = papers.length - 1; i >= 0; i--) {
+        let p = papers[i];
+        p.x += p.vx; p.y += p.vy; p.rot += 0.3;
+
+        if(p.active) {
+            for(let e of entities) {
+                if((e.type === 'house' || e.type === 'mailbox') && !e.hit) {
+                    if(rectIntersect(p.x, p.y, 8, 8, e.x, e.y, e.w, e.h)) {
+                        handleDelivery(p, e);
+                        p.active = false;
+                        break;
+                    }
+                }
+            }
+        }
+        if(p.x < -50 || p.x > GAME_W+50 || p.y < -50 || p.y > GAME_H+50) papers.splice(i, 1);
+    }
+
+    updateEffects();
+}
+
+function handleDelivery(paper, target) {
+    target.hit = true;
+    let lx = paper.x - target.x;
+
+    if(target.type === 'mailbox') {
+        if(target.isSub) {
+            score(1000, "MAILBOX!");
+            showFeedback("BULLSEYE!", "fb-gold");
+            state.shake = 5;
+        } else {
+            score(200, "CLINK");
+        }
+        return;
+    }
+
+    // House Logic
+    const doorDist = Math.abs(lx - target.doorX);
+    const winDist = Math.abs(lx - target.winX);
+
+    if(target.isSub) {
+        if(doorDist < 20) {
+            score(500, "PERFECT");
+            showFeedback("PERFECT DELIVERY", "fb-green");
+        } else if (winDist < 20) {
+            score(-200, "CRASH!");
+            spawnParticles(paper.x, paper.y, 15, '#ccffff');
+            showFeedback("WINDOW BROKEN!", "fb-red");
+            state.shake = 10;
+        } else {
+            score(250, "DELIVERED");
+            showFeedback("NICE THROW", "fb-green");
+        }
+    } else {
+        if (winDist < 20) {
+            score(150, "SMASH!");
+            spawnParticles(paper.x, paper.y, 15, '#ccffff');
+            showFeedback("VANDALISM!", "fb-gold");
+            state.shake = 10;
+        } else {
+            score(0, "MISS");
+        }
+    }
+}
+
+function showFeedback(text, cls) {
+    const el = document.getElementById('feedback-text');
+    el.innerText = text;
+    el.className = cls;
+    el.style.opacity = 1;
+    setTimeout(() => el.style.opacity = 0, 1000);
+}
+
+function crash() {
+    state.lives--;
+    updateHUD();
+    state.shake = 20;
+    spawnParticles(player.x, player.y, 30, '#ffcf40');
+    showFeedback("CRASH!", "fb-red");
+    
+    player.x = GAME_W/2; player.vx = 0;
+    entities = entities.filter(e => e.y > player.y + 100 || e.layer === 0);
+    
+    if(state.lives <= 0) {
+        state.active = false;
+        document.getElementById('final-score').innerText = state.score;
+        document.getElementById('game-over').style.display = 'flex';
+    }
+}
+
+function score(pts, label) {
+    state.score += pts;
+    if(state.score < 0) state.score = 0;
+    updateHUD();
+    floats.push({ text: label, x: player.x, y: player.y - 50, life: 1.0, color: pts >= 0 ? '#ffd700' : '#ff4444' });
+}
+
+function updateEffects() {
+    for(let i=floats.length-1; i>=0; i--) { floats[i].y -= 1.5; floats[i].life -= 0.02; if(floats[i].life <= 0) floats.splice(i, 1); }
+    for(let i=particles.length-1; i>=0; i--) { let p = particles[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.04; if(p.life <= 0) particles.splice(i, 1); }
+    if(state.shake > 0) state.shake *= 0.9;
+}
+
+function spawnParticles(x, y, n, c) {
+    for(let i=0; i<n; i++) {
+        particles.push({ x, y, vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6, life: 1.0, color: c });
+    }
+}
+
+function rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) {
+    return x2 < x1 + w1 && x2 + w2 > x1 && y2 < y1 + h1 && y2 + h2 > y1;
+}
+
+function updateHUD() {
+    document.getElementById('score').innerText = state.score.toString().padStart(5, '0');
+    document.getElementById('lives').innerHTML = 'HP: ' + '❤️'.repeat(state.lives);
+}
+
+/* DRAWING */
+function draw() {
+    ctx.save();
+    if(state.shake > 1) ctx.translate((Math.random()-0.5)*state.shake, (Math.random()-0.5)*state.shake);
+
+    // BACKGROUND
+    ctx.fillStyle = '#4fa136';
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    const roadX = 85;
+    const roadW = GAME_W - 170;
+    
+    // Sidewalks
+    ctx.fillStyle = '#c5bc91';
+    ctx.fillRect(roadX - 35, 0, 35, GAME_H);
+    ctx.fillRect(roadX + roadW, 0, 35, GAME_H);
+    
+    // Sidewalk edge shadows
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    ctx.fillRect(roadX - 5, 0, 5, GAME_H);
+    ctx.fillRect(roadX + roadW, 0, 5, GAME_H);
+
+    // Road Texture
+    ctx.fillStyle = '#4a4744';
+    ctx.fillRect(roadX, 0, roadW, GAME_H);
+    
+    // Road Grains
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    const off = (state.distance * state.speed) % 40;
+    for(let i=0; i<20; i++) {
+        const gx = roadX + (Math.sin(i*999)*0.5+0.5) * roadW;
+        const gy = ((i*123) % GAME_H + off) % GAME_H;
+        ctx.fillRect(gx, gy, 2, 2);
+    }
+
+    // Dashed Line
+    ctx.fillStyle = '#f1c40f';
+    const lineOff = (state.distance * state.speed) % 60;
+    for(let y = -60; y < GAME_H; y+=60) ctx.fillRect(GAME_W/2 - 2, y + lineOff, 4, 30);
+
+    // Sort entities by layer
+    entities.sort((a,b) => a.layer - b.layer).forEach(drawEntity);
+    
+    drawPlayer();
+
+    // Papers
+    papers.forEach(p => {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(-6, -4, 12, 8);
+        ctx.fillStyle = '#ddd';
+        ctx.fillRect(-4, -2, 8, 4); // Text lines
+        ctx.restore();
+    });
+
+    // FX
+    ctx.font = '8px "Press Start 2P"'; ctx.textAlign = 'center';
+    floats.forEach(f => {
+        ctx.globalAlpha = f.life;
+        ctx.fillStyle = f.color;
+        ctx.fillText(f.text, f.x, f.y);
+        ctx.globalAlpha = 1;
+    });
+
+    particles.forEach(p => {
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, 3, 3);
+        ctx.globalAlpha = 1;
+    });
+
+    ctx.restore();
+}
+
+function drawEntity(e) {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+
+    if(e.type === 'house') {
+        // Lawn details
+        ctx.fillStyle = '#3d8a2a';
+        ctx.fillRect(-10, 0, e.w+20, e.h);
+        
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.fillRect(5, 15, e.w, e.h);
+
+        // Main Structure
+        ctx.fillStyle = e.color;
+        ctx.fillRect(0, 10, e.w, e.h - 10);
+        
+        // Siding Detail
+        ctx.fillStyle = e.accent;
+        for(let i=20; i<e.h; i+=10) ctx.fillRect(0, i, e.w, 2);
+
+        // Roof
+        ctx.fillStyle = e.roof;
+        ctx.beginPath();
+        ctx.moveTo(-10, 10);
+        ctx.lineTo(e.w/2, -20);
+        ctx.lineTo(e.w+10, 10);
+        ctx.fill();
+        
+        // Roof Trim
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Door with frame
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(e.doorX-2, 48, 24, 34);
+        ctx.fillStyle = '#5d4037';
+        ctx.fillRect(e.doorX, 50, 20, 30);
+        ctx.fillStyle = '#ffd700';
+        ctx.fillRect(e.doorX+15, 65, 3, 3); // Knob
+
+        // Window with shutters
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(e.winX-4, 38, 28, 24); // Shutters
+        ctx.fillStyle = '#85c1e9';
+        ctx.fillRect(e.winX, 40, 20, 20); // Glass
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(e.winX, 40, 20, 20); // Frame
+
+    } else if (e.type === 'mailbox') {
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(4, 10, 4, 10); // Post
+        ctx.fillStyle = e.isSub ? '#f1c40f' : '#95a5a6';
+        ctx.fillRect(0, 0, 12, 10); // Box
+        ctx.fillStyle = '#c0392b';
+        ctx.fillRect(10, 2, 4, 2); // Flag
+
+    } else if (e.type === 'car') {
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(4, 10, e.w, e.h);
+        
+        ctx.fillStyle = e.color;
+        ctx.fillRect(0, 0, e.w, e.h);
+        
+        // Hood
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        ctx.fillRect(0, 0, e.w, 15);
+        
+        // Windshield
+        ctx.fillStyle = '#aed6f1';
+        ctx.fillRect(2, 15, e.w-4, 10);
+        ctx.fillRect(2, 40, e.w-4, 6);
+        
+        // Headlights
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(4, 2, 6, 4);
+        ctx.fillRect(e.w-10, 2, 6, 4);
+
+    } else if (e.type === 'tree') {
+        ctx.fillStyle = '#5d4037';
+        ctx.fillRect(8, 15, 4, 10);
+        ctx.fillStyle = '#27ae60';
+        ctx.beginPath(); ctx.arc(10, 10, 12, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#2ecc71';
+        ctx.beginPath(); ctx.arc(6, 6, 8, 0, Math.PI*2); ctx.fill();
+
+    } else if (e.type === 'bush') {
+        ctx.fillStyle = '#1e8449';
+        ctx.beginPath(); ctx.arc(10, 15, 10, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(18, 15, 8, 0, Math.PI*2); ctx.fill();
+    }
+
+    ctx.restore();
+}
+
+function drawPlayer() {
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(player.tilt * 0.05);
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(-5, 30, 34, 10);
+
+    // Bike
+    ctx.fillStyle = '#e74c3c';
+    ctx.fillRect(10, 10, 4, 25); // Frame
+    ctx.fillRect(0, 15, 24, 3); // Top tube
+    
+    const wheelY = 30 + Math.sin(player.pedalFrame) * 2;
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, wheelY, 6, 12); // Back
+    ctx.fillRect(18, 30 - Math.sin(player.pedalFrame) * 2, 6, 12); // Front
+
+    // Kid
+    ctx.fillStyle = '#3498db';
+    ctx.fillRect(6, 5, 12, 18); // Shirt
+    
+    ctx.fillStyle = '#f1c40f';
+    ctx.fillRect(8, -5, 8, 10); // Head
+    
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(6, -7, 12, 4); // Hat
+    ctx.fillRect(14, -5, 6, 2); // Brim
+
+    // Handlebars
+    ctx.fillStyle = '#7f8c8d';
+    ctx.fillRect(4, 10, 16, 2);
+
+    // Action Arm
+    if(player.throwCooldown > 10) {
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillRect(-8, 8, 10, 4);
+    }
+
+    ctx.restore();
+}
+
+function loop() {
+    if(state.active) {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+    }
+}
+ctx.fillStyle = '#000';
+ctx.fillRect(0, 0, GAME_W, GAME_H);
+</script>
+</body>
+</html>
