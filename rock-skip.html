@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rock Skip 3D Pro - K2 Games</title>
+    <style>
+        :root {
+            --primary: #38bdf8;
+            --accent: #f472b6;
+            --surface: rgba(15, 23, 42, 0.85);
+            --text: #f8fafc;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', system-ui, sans-serif; }
+
+        body {
+            background-color: #000;
+            overflow: hidden;
+            touch-action: none;
+            color: var(--text);
+        }
+
+        #ui {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 2rem;
+            z-index: 10;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stats-card {
+            background: var(--surface);
+            padding: 1rem 1.5rem;
+            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1);
+            min-width: 140px;
+        }
+
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; color: var(--primary); letter-spacing: 1px; font-weight: 700; }
+        .stat-value { font-size: 2rem; font-weight: 900; line-height: 1; margin-top: 0.2rem; }
+
+        .center-hud {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .release-quality {
+            font-size: 3rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            opacity: 0;
+            transition: opacity 0.3s;
+            text-shadow: 0 0 20px rgba(255,255,255,0.5);
+        }
+
+        .instructions {
+            background: var(--surface);
+            padding: 1rem 2rem;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            margin-top: 100px;
+        }
+
+        .flick-area {
+            position: absolute;
+            bottom: 0; left: 0; width: 100%; height: 50%;
+            pointer-events: auto;
+            cursor: crosshair;
+        }
+
+        .visual-hud {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 120px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .meter-container {
+            width: 100%;
+            height: 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .meter-fill {
+            height: 100%;
+            width: 0%;
+            transition: width 0.1s;
+        }
+
+        #power-fill { background: linear-gradient(to right, #38bdf8, #818cf8); }
+        #spin-fill { background: linear-gradient(to right, #f472b6, #db2777); }
+
+        .meter-label { font-size: 0.65rem; font-weight: 800; color: rgba(255,255,255,0.5); text-transform: uppercase; }
+
+        #game-over {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--surface);
+            padding: 3rem;
+            border-radius: 32px;
+            text-align: center;
+            display: none;
+            pointer-events: auto;
+            border: 1px solid var(--primary);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        #game-over h2 { font-size: 2.5rem; font-weight: 900; margin-bottom: 1rem; }
+        #final-stats { font-size: 1.2rem; line-height: 1.6; margin-bottom: 2rem; }
+
+        button {
+            padding: 1rem 3rem;
+            background: var(--primary);
+            border: none;
+            border-radius: 16px;
+            color: white;
+            font-weight: 800;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover { transform: translateY(-2px); }
+
+        .perfect-zone {
+            position: absolute;
+            left: 15%; width: 15%;
+            height: 100%;
+            background: rgba(255,255,255,0.2);
+            border-left: 1px solid white;
+            border-right: 1px solid white;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div class="header">
+            <div class="stats-card">
+                <div class="stat-label">Skips</div>
+                <div class="stat-value" id="skips">0</div>
+            </div>
+            <div class="stats-card">
+                <div class="stat-label">Distance</div>
+                <div class="stat-value"><span id="dist">0</span>m</div>
+            </div>
+        </div>
+        
+        <div class="center-hud">
+            <div id="quality" class="release-quality">Perfect!</div>
+            <div class="instructions" id="hint">
+                <span style="font-weight: 800; color: var(--primary);">SKILL THROW</span><br>
+                Flick upward with speed and a slight curve for spin.<br>
+                <small style="opacity: 0.6;">Try to release at a low angle for max skips.</small>
+            </div>
+        </div>
+
+        <div class="visual-hud" id="v-hud">
+            <div style="width: 100%">
+                <div class="meter-label">Power</div>
+                <div class="meter-container">
+                    <div class="meter-fill" id="power-fill"></div>
+                </div>
+            </div>
+            <div style="width: 100%">
+                <div class="meter-label">Spin</div>
+                <div class="meter-container">
+                    <div class="meter-fill" id="spin-fill"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-over">
+        <h2>Session Ended</h2>
+        <p id="final-stats"></p>
+        <button onclick="resetGame()">Throw Again</button>
+    </div>
+
+    <div class="flick-area" id="flickZone"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { Water } from 'three/addons/objects/Water.js';
+        import { Sky } from 'three/addons/objects/Sky.js';
+
+        // --- Physics Constants ---
+        const GRAVITY = -9.81;
+        const LIFT_COEFF = 0.4;
+        const DRAG_COEFF = 0.05;
+        const SPIN_STABILITY = 0.15;
+        const SKIP_FRICTION = 0.82;
+        const MIN_SKIP_ANGLE = 0.05; // 3 degrees
+        const MAX_SKIP_ANGLE = 0.45; // 25 degrees
+        const OPTIMAL_ANGLE = 0.21; // 12 degrees
+
+        let scene, camera, renderer, water, rock, ripples = [];
+        let rockVelocity = new THREE.Vector3();
+        let rockSpin = 0;
+        let skips = 0, distance = 0;
+        let gameState = 'ready'; // ready, flying, ended
+        let touchStart = { x: 0, y: 0, t: 0 };
+        let points = [];
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0xa5f3fc, 0.002);
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 10000);
+            camera.position.set(0, 6, 25);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // Sky & Sun
+            const sky = new Sky();
+            sky.scale.setScalar(10000);
+            scene.add(sky);
+
+            const sun = new THREE.Vector3();
+            const skyUniforms = sky.material.uniforms;
+            skyUniforms['turbidity'].value = 8;
+            skyUniforms['rayleigh'].value = 3;
+            skyUniforms['mieCoefficient'].value = 0.005;
+            const phi = THREE.MathUtils.degToRad(88);
+            const theta = THREE.MathUtils.degToRad(180);
+            sun.setFromSphericalCoords(1, phi, theta);
+            skyUniforms['sunPosition'].value.copy(sun);
+
+            // Water
+            const waterGeometry = new THREE.PlaneGeometry(10000, 10000);
+            water = new Water(waterGeometry, {
+                textureWidth: 1024,
+                textureHeight: 1024,
+                waterNormals: new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/waternormals.jpg', (t) => t.wrapS = t.wrapT = THREE.RepeatWrapping),
+                sunDirection: sun,
+                sunColor: 0xffffff,
+                waterColor: 0x001e30,
+                distortionScale: 4.5,
+            });
+            water.rotation.x = -Math.PI / 2;
+            scene.add(water);
+
+            // Advanced Rock Graphic
+            const rockGeo = new THREE.IcosahedronGeometry(0.5, 2);
+            rockGeo.scale(1, 0.25, 1);
+            const rockMat = new THREE.MeshStandardMaterial({ 
+                color: 0x475569, 
+                roughness: 0.4, 
+                metalness: 0.1,
+                flatShading: true
+            });
+            rock = new THREE.Mesh(rockGeo, rockMat);
+            rock.position.set(0, 2.5, 12);
+            rock.castShadow = true;
+            scene.add(rock);
+
+            // Lighting
+            scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+            const mainLight = new THREE.DirectionalLight(0xffffff, 2);
+            mainLight.position.set(50, 100, 50);
+            mainLight.castShadow = true;
+            scene.add(mainLight);
+
+            // Event Listeners
+            const zone = document.getElementById('flickZone');
+            zone.addEventListener('mousedown', onStart);
+            zone.addEventListener('touchstart', onStart, {passive:false});
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('touchmove', onMove, {passive:false});
+            window.addEventListener('mouseup', onEnd);
+            window.addEventListener('touchend', onEnd);
+            window.addEventListener('resize', onResize);
+        }
+
+        function onStart(e) {
+            if (gameState !== 'ready') return;
+            const p = e.touches ? e.touches[0] : e;
+            touchStart = { x: p.clientX, y: p.clientY, t: Date.now() };
+            points = [{x: p.clientX, y: p.clientY}];
+            document.getElementById('v-hud').style.opacity = '1';
+        }
+
+        function onMove(e) {
+            if (gameState !== 'ready' || touchStart.t === 0) return;
+            const p = e.touches ? e.touches[0] : e;
+            points.push({x: p.clientX, y: p.clientY});
+            if(points.length > 10) points.shift();
+
+            const dy = touchStart.y - p.clientY;
+            const power = Math.min(100, (dy / 400) * 100);
+            document.getElementById('power-fill').style.width = power + '%';
+
+            // Calculate "Spin" based on lateral curve of flick
+            let totalCurve = 0;
+            for(let i=1; i<points.length; i++) {
+                totalCurve += Math.abs(points[i].x - points[i-1].x);
+            }
+            const spin = Math.min(100, (totalCurve / 150) * 100);
+            document.getElementById('spin-fill').style.width = spin + '%';
+        }
+
+        function onEnd(e) {
+            if (gameState !== 'ready' || touchStart.t === 0) return;
+            const p = e.changedTouches ? e.changedTouches[0] : e;
+            const dt = (Date.now() - touchStart.t) / 1000;
+            const dy = touchStart.y - p.clientY;
+            const dx = p.clientX - touchStart.x;
+
+            if (dy > 30) launch(dx, dy, dt);
+            touchStart.t = 0;
+        }
+
+        function launch(dx, dy, dt) {
+            gameState = 'flying';
+            document.getElementById('hint').style.opacity = '0';
+            document.getElementById('v-hud').style.opacity = '0';
+
+            // Skill conversion
+            const power = Math.min(45, dy / 8);
+            const spinRaw = document.getElementById('spin-fill').style.width;
+            rockSpin = parseFloat(spinRaw) / 2;
+
+            // Angle calculation (Skill check)
+            // Faster flick = lower angle
+            const angleRaw = Math.max(0.05, 0.4 - (dy / 1200)); 
+            
+            rockVelocity.set(dx / 50, Math.sin(angleRaw) * power, -Math.cos(angleRaw) * power);
+            
+            showQuality(angleRaw);
+        }
+
+        function showQuality(angle) {
+            const q = document.getElementById('quality');
+            const diff = Math.abs(angle - OPTIMAL_ANGLE);
+            
+            if (diff < 0.05) { q.textContent = "PERFECT!"; q.style.color = "#fbbf24"; }
+            else if (diff < 0.12) { q.textContent = "Great"; q.style.color = "#34d399"; }
+            else { q.textContent = "Good"; q.style.color = "#f8fafc"; }
+            
+            q.style.opacity = "1";
+            setTimeout(() => q.style.opacity = "0", 1500);
+        }
+
+        function createRipple(x, z, scale = 1) {
+            const geo = new THREE.RingGeometry(0.1, 0.2, 32);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
+            const r = new THREE.Mesh(geo, mat);
+            r.rotation.x = -Math.PI/2;
+            r.position.set(x, 0.02, z);
+            r.scale.set(scale, scale, scale);
+            scene.add(r);
+            ripples.push({ mesh: r, birth: Date.now() });
+        }
+
+        function updatePhysics() {
+            if (gameState !== 'flying') return;
+
+            const dt = 1/60;
+            
+            // Aerodynamics
+            const speed = rockVelocity.length();
+            const lift = LIFT_COEFF * speed * (rockSpin / 50);
+            
+            rockVelocity.y += (GRAVITY + lift) * dt;
+            rockVelocity.x *= (1 - DRAG_COEFF * dt);
+            rockVelocity.z *= (1 - DRAG_COEFF * dt);
+            
+            rock.position.addScaledVector(rockVelocity, dt);
+            rock.rotation.y += rockSpin * 0.2;
+            rock.rotation.z = Math.sin(Date.now()*0.01) * 0.2; // wobble
+
+            // Water Interaction
+            if (rock.position.y <= 0) {
+                handleWaterCollision();
+            }
+
+            // Camera follow (Ultra smooth)
+            camera.position.lerp(new THREE.Vector3(rock.position.x, rock.position.y + 5, rock.position.z + 18), 0.08);
+            camera.lookAt(rock.position.x, 0, rock.position.z - 8);
+
+            distance = Math.floor(Math.abs(rock.position.z - 12));
+            document.getElementById('dist').textContent = distance;
+
+            if (speed < 4 || rock.position.y < -5) endGame();
+        }
+
+        function handleWaterCollision() {
+            const horizontalSpeed = Math.sqrt(rockVelocity.x**2 + rockVelocity.z**2);
+            const verticalSpeed = Math.abs(rockVelocity.y);
+            
+            // The Angle of Attack
+            const angle = Math.atan2(verticalSpeed, horizontalSpeed);
+            
+            // Skillful skip check
+            // High spin stabilizes higher angles
+            const maxAngle = MAX_SKIP_ANGLE + (rockSpin / 200);
+            
+            if (angle < maxAngle && horizontalSpeed > 8) {
+                skips++;
+                document.getElementById('skips').textContent = skips;
+                
+                // Physics Reflection
+                rockVelocity.y = verticalSpeed * SKIP_FRICTION;
+                rockVelocity.z *= SKIP_FRICTION;
+                rockVelocity.x *= SKIP_FRICTION;
+                
+                // Spin loss
+                rockSpin *= 0.9;
+                
+                rock.position.y = 0.05;
+                createRipple(rock.position.x, rock.position.z, 1 + skips*0.2);
+            } else {
+                // Sunk!
+                rockVelocity.multiplyScalar(0.1);
+                createRipple(rock.position.x, rock.position.z, 0.5);
+            }
+        }
+
+        function endGame() {
+            if (gameState === 'ended') return;
+            gameState = 'ended';
+            const over = document.getElementById('game-over');
+            over.style.display = 'block';
+            document.getElementById('final-stats').innerHTML = `
+                <div style="font-weight:900; font-size: 3rem; color: var(--primary);">${distance}m</div>
+                <div style="opacity: 0.6; margin-bottom: 1rem;">Total Distance</div>
+                <div style="font-size: 1.5rem;">${skips} Skips</div>
+            `;
+        }
+
+        window.resetGame = function() {
+            gameState = 'ready';
+            skips = 0; distance = 0;
+            rock.position.set(0, 2.5, 12);
+            rockVelocity.set(0,0,0);
+            camera.position.set(0, 6, 25);
+            document.getElementById('skips').textContent = '0';
+            document.getElementById('dist').textContent = '0';
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('hint').style.opacity = '1';
+        };
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Water & Ripple Animations
+            water.material.uniforms['time'].value += 1.0 / 60.0;
+            
+            ripples.forEach((r, i) => {
+                const age = Date.now() - r.birth;
+                r.mesh.scale.multiplyScalar(1.05);
+                r.mesh.material.opacity = Math.max(0, 0.6 - age/1000);
+                if(r.mesh.material.opacity <= 0) {
+                    scene.remove(r.mesh);
+                    ripples.splice(i, 1);
+                }
+            });
+
+            updatePhysics();
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
