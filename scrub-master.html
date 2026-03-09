@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Scrub Master 3D</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #222; font-family: 'Segoe UI', sans-serif; touch-action: none; user-select: none; }
+        #ui {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+        }
+        .header { text-align: center; color: white; text-shadow: 0 2px 4px black; }
+        .progress-bar-bg {
+            width: 300px; height: 20px; background: rgba(0,0,0,0.5); border-radius: 10px; margin: 10px auto;
+            border: 2px solid rgba(255,255,255,0.2); overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6, #06b6d4);
+            transition: width 0.2s;
+        }
+        .controls {
+            pointer-events: auto; display: flex; justify-content: center; gap: 20px; padding-bottom: 30px;
+        }
+        .btn {
+            background: #fff; color: #222; border: none; padding: 15px 30px; font-size: 1.2rem;
+            font-weight: bold; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-rotate { background: #fbbf24; }
+        .btn-next { background: #22c55e; display: none; }
+        
+        #hero-tag {
+            position: absolute; bottom: 100px; left: 20px; color: white;
+            background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 15px;
+            font-weight: bold; display: flex; align-items: center; gap: 10px;
+            backdrop-filter: blur(5px); pointer-events: none;
+        }
+        .hero-emoji { font-size: 2rem; }
+
+        #cursor {
+            width: 30px; height: 30px; border: 2px solid white; border-radius: 50%;
+            position: absolute; pointer-events: none; transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px cyan; display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div class="header">
+        <h1>SCRUB MASTER</h1>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress"></div></div>
+        <div id="pct">0% CLEAN</div>
+    </div>
+    
+    <div class="controls">
+        <button class="btn btn-rotate" id="rotateBtn">HOLD TO ROTATE</button>
+        <button class="btn btn-next" id="nextBtn">NEXT LEVEL ➔</button>
+    </div>
+</div>
+
+<div id="hero-tag">
+    <div class="hero-emoji" id="hero-emoji">👨‍🔧</div>
+    <div id="hero-name">Power Wash Pro</div>
+</div>
+<div id="cursor"></div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+
+    let scene, camera, renderer, raycaster;
+    let currentObject, dirtMesh, hero, washerGun;
+    let dirtCanvas, dirtCtx, dirtTexture;
+    let isDragging = false;
+    let isRotating = false;
+    let waterParticles = [];
+    let cleanPercent = 0;
+    
+    // Config
+    const TEX_SIZE = 512;
+    const BRUSH_SIZE = 40; 
+
+    function createDirtTexture() {
+        dirtCanvas = document.createElement('canvas');
+        dirtCanvas.width = TEX_SIZE;
+        dirtCanvas.height = TEX_SIZE;
+        dirtCtx = dirtCanvas.getContext('2d');
+        
+        // Fill with dirt (noise pattern)
+        dirtCtx.fillStyle = '#3e2723'; // Dark Brown
+        dirtCtx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
+        
+        // Add noise
+        for(let i=0; i<5000; i++) {
+            dirtCtx.fillStyle = Math.random() > 0.5 ? '#4e342e' : '#2d1b16';
+            const x = Math.random() * TEX_SIZE;
+            const y = Math.random() * TEX_SIZE;
+            const s = Math.random() * 20 + 5;
+            dirtCtx.fillRect(x, y, s, s);
+        }
+
+        dirtTexture = new THREE.CanvasTexture(dirtCanvas);
+        return dirtTexture;
+    }
+
+    function createWasherHero() {
+        hero = new THREE.Group();
+        const skinMat = new THREE.MeshStandardMaterial({color: 0xffdbac});
+        const clothesMat = new THREE.MeshStandardMaterial({color: 0x3b82f6});
+
+        // Body
+        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 1), clothesMat);
+        body.position.y = 1.2;
+        body.castShadow = true;
+        hero.add(body);
+
+        // Head
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.3), skinMat);
+        head.position.y = 2.1;
+        head.castShadow = true;
+        hero.add(head);
+
+        // Arms
+        const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.6), skinMat);
+        armL.position.set(0.5, 1.6, 0.2);
+        armL.rotation.x = -Math.PI/3;
+        hero.add(armL);
+
+        const armR = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.6), skinMat);
+        armR.position.set(-0.5, 1.6, 0.2);
+        armR.rotation.x = -Math.PI/3;
+        hero.add(armR);
+
+        // Gun
+        washerGun = new THREE.Group();
+        const gunBody = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.8), new THREE.MeshStandardMaterial({color: 0x222222}));
+        gunBody.rotation.x = Math.PI/2;
+        washerGun.add(gunBody);
+        const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.4), new THREE.MeshStandardMaterial({color: 0xaaaaaa}));
+        nozzle.position.z = 0.6;
+        nozzle.rotation.x = Math.PI/2;
+        washerGun.add(nozzle);
+        
+        washerGun.position.set(0.4, 1.5, 0.8);
+        hero.add(washerGun);
+
+        hero.position.set(2, 0, 4);
+        hero.rotation.y = -0.5;
+        scene.add(hero);
+    }
+
+    function loadLevel(level) {
+        if(currentObject) { scene.remove(currentObject); }
+
+        const group = new THREE.Group();
+        let geo;
+        
+        if(level === 1) {
+            // TABLE
+            geo = new THREE.BoxGeometry(2.5, 0.2, 1.8);
+            const legGeo = new THREE.BoxGeometry(0.15, 1.2, 0.15);
+            const positions = [[1.1, -0.6, 0.8], [-1.1, -0.6, 0.8], [1.1, -0.6, -0.8], [-1.1, -0.6, -0.8]];
+            positions.forEach(p => {
+                const leg = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({color: 0x4d2926}));
+                leg.position.set(...p);
+                leg.castShadow = true; leg.receiveShadow = true;
+                group.add(leg);
+            });
+        } else if(level === 2) {
+            // CAR
+            geo = new THREE.BoxGeometry(3, 1, 1.5);
+            const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.8, 1.3), new THREE.MeshStandardMaterial({color: 0xffffff}));
+            cabin.position.y = 0.8; cabin.position.x = -0.2;
+            group.add(cabin);
+            const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.3);
+            const wheelMat = new THREE.MeshStandardMaterial({color: 0x111111});
+            [[1.1, -0.4, 0.7], [-1.1, -0.4, 0.7], [1.1, -0.4, -0.7], [-1.1, -0.4, -0.7]].forEach(p => {
+                const w = new THREE.Mesh(wheelGeo, wheelMat);
+                w.rotation.x = Math.PI/2; w.position.set(...p);
+                w.castShadow = true;
+                group.add(w);
+            });
+        } else if(level === 3) {
+            // HOUSE
+            geo = new THREE.BoxGeometry(2.5, 2.5, 2.5);
+            const roof = new THREE.Mesh(new THREE.ConeGeometry(2.2, 1.8, 4), new THREE.MeshStandardMaterial({color: 0x442211}));
+            roof.position.y = 2.1; roof.rotation.y = Math.PI/4;
+            roof.castShadow = true;
+            group.add(roof);
+            const door = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 1.2), new THREE.MeshStandardMaterial({color: 0x331100}));
+            door.position.set(0, 0.6, 1.26);
+            group.add(door);
+        } else {
+            geo = new THREE.TorusKnotGeometry(0.8, 0.3, 100, 16);
+        }
+
+        const color = level === 2 ? 0xef4444 : (level === 1 ? 0x3b82f6 : 0x10b981);
+        const cleanMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.2, metalness: 0.5 });
+        const mesh = new THREE.Mesh(geo, cleanMat);
+        mesh.castShadow = true; mesh.receiveShadow = true;
+        group.add(mesh);
+
+        const dirtTex = createDirtTexture();
+        const dirtMat = new THREE.MeshStandardMaterial({
+            map: dirtTex, transparent: true, roughness: 1, depthWrite: false
+        });
+        dirtMesh = new THREE.Mesh(geo.clone(), dirtMat);
+        dirtMesh.scale.multiplyScalar(1.005);
+        group.add(dirtMesh);
+
+        currentObject = group;
+        currentObject.position.y = level === 1 ? 1.2 : (level === 3 ? 1.25 : (level === 2 ? 0.7 : 1.2));
+        scene.add(group);
+
+        cleanPercent = 0;
+        updateUI();
+        document.getElementById('nextBtn').style.display = 'none';
+    }
+
+    function spawnWater(point) {
+        const nozzlePos = new THREE.Vector3();
+        washerGun.children[1].getWorldPosition(nozzlePos);
+        
+        // Visual line for stream
+        const streamGeo = new THREE.CapsuleGeometry(0.02, nozzlePos.distanceTo(point));
+        const streamMat = new THREE.MeshBasicMaterial({color: 0x88ccff, transparent: true, opacity: 0.4});
+        const stream = new THREE.Mesh(streamGeo, streamMat);
+        
+        const midPoint = new THREE.Vector3().addVectors(nozzlePos, point).multiplyScalar(0.5);
+        stream.position.copy(midPoint);
+        stream.lookAt(point);
+        stream.rotateX(Math.PI/2);
+        scene.add(stream);
+        setTimeout(() => scene.remove(stream), 30);
+
+        // Splash particles
+        for(let i=0; i<8; i++) {
+            const p = new THREE.Mesh(
+                new THREE.SphereGeometry(0.03),
+                new THREE.MeshBasicMaterial({color: 0xaaddff})
+            );
+            p.position.copy(point);
+            p.userData.vel = new THREE.Vector3((Math.random()-0.5)*0.2, Math.random()*0.2, (Math.random()-0.5)*0.2);
+            p.userData.life = 1.0;
+            scene.add(p);
+            waterParticles.push(p);
+        }
+    }
+
+    function checkProgress() {
+        if(Math.random() > 0.1) return; 
+        const imgData = dirtCtx.getImageData(0, 0, TEX_SIZE, TEX_SIZE);
+        const data = imgData.data;
+        let totalAlpha = 0;
+        const step = 20;
+        let count = 0;
+        for(let i = 3; i < data.length; i += 4 * step) {
+            totalAlpha += data[i];
+            count++;
+        }
+        const avgAlpha = totalAlpha / count;
+        const pct = 100 - (avgAlpha / 255 * 100);
+        cleanPercent = Math.min(100, Math.round(pct));
+        updateUI();
+        if(cleanPercent > 95) document.getElementById('nextBtn').style.display = 'block';
+    }
+
+    function updateUI() {
+        document.getElementById('progress').style.width = cleanPercent + '%';
+        document.getElementById('pct').innerText = cleanPercent + '% CLEAN';
+    }
+
+    function clean(uv) {
+        if(!uv) return;
+        const x = Math.floor(uv.x * TEX_SIZE);
+        const y = Math.floor((1 - uv.y) * TEX_SIZE);
+        dirtCtx.globalCompositeOperation = 'destination-out';
+        dirtCtx.beginPath();
+        dirtCtx.arc(x, y, BRUSH_SIZE, 0, Math.PI * 2);
+        dirtCtx.fill();
+        dirtTexture.needsUpdate = true;
+        checkProgress();
+    }
+
+    function onMove(e) {
+        if(isRotating && isDragging) {
+            currentObject.rotation.y += e.movementX * 0.01;
+            currentObject.rotation.x += e.movementY * 0.01;
+        } else if (isDragging) {
+            const mouse = new THREE.Vector2();
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(dirtMesh);
+            if (intersects.length > 0) {
+                clean(intersects[0].uv);
+                spawnWater(intersects[0].point);
+                washerGun.lookAt(intersects[0].point);
+                washerGun.rotateX(Math.PI/2);
+                
+                const cursor = document.getElementById('cursor');
+                cursor.style.display = 'block';
+                cursor.style.left = e.clientX + 'px';
+                cursor.style.top = e.clientY + 'px';
+            }
+        }
+    }
+
+    function setupInputs() {
+        const rotateBtn = document.getElementById('rotateBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        rotateBtn.addEventListener('pointerdown', () => isRotating = true);
+        rotateBtn.addEventListener('pointerup', () => isRotating = false);
+        rotateBtn.addEventListener('pointerleave', () => isRotating = false);
+        nextBtn.addEventListener('click', () => {
+            const lvl = Math.floor(Math.random() * 3) + 1;
+            loadLevel(lvl);
+        });
+        window.addEventListener('pointerdown', (e) => {
+            if(e.target.tagName !== 'CANVAS') return;
+            isDragging = true;
+        });
+        window.addEventListener('pointerup', () => isDragging = false);
+        window.addEventListener('pointermove', onMove);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const time = Date.now() * 0.001;
+        waterParticles.forEach((p, i) => {
+            p.position.add(p.userData.vel);
+            p.userData.vel.y -= 0.01;
+            p.userData.life -= 0.02;
+            p.scale.setScalar(p.userData.life);
+            if(p.userData.life <= 0) {
+                scene.remove(p);
+                waterParticles.splice(i, 1);
+            }
+        });
+        if(hero) {
+            hero.position.y = Math.sin(time * 2) * 0.05;
+            if(isDragging && !isRotating) {
+                hero.rotation.z = THREE.MathUtils.lerp(hero.rotation.z, 0.1, 0.1);
+            } else {
+                hero.rotation.z = THREE.MathUtils.lerp(hero.rotation.z, 0, 0.1);
+            }
+        }
+        if(currentObject && !isDragging) {
+            currentObject.rotation.y += 0.005;
+        }
+        renderer.render(scene, camera);
+    }
+
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 5, 20);
+        camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 3, 8);
+        camera.lookAt(0, 1, 0);
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+        raycaster = new THREE.Raycaster();
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+        scene.add(hemiLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(5, 10, 7);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+        const floor = new THREE.Mesh(
+            new THREE.CircleGeometry(15, 32),
+            new THREE.MeshStandardMaterial({color: 0x555555, roughness: 0.8})
+        );
+        floor.rotation.x = -Math.PI/2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+        createWasherHero();
+        loadLevel(1);
+        setupInputs();
+        window.addEventListener('resize', onResize);
+    }
+
+    function onResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    init();
+    animate();
+</script>
+</body>
+</html>

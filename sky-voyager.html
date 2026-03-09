@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sky Voyager 3D</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: 'Segoe UI', sans-serif; touch-action: none; }
+        #ui {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+        }
+        .hud-top { display: flex; justify-content: space-between; }
+        .stat-card {
+            background: rgba(0, 0, 0, 0.5); color: white; padding: 10px 20px; border-radius: 15px;
+            backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.2);
+            font-weight: bold; text-shadow: 0 2px 4px black;
+        }
+        #controls {
+            pointer-events: auto; display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 20px;
+        }
+        .joystick-area { width: 150px; height: 150px; position: relative; }
+        .joystick-base {
+            width: 120px; height: 120px; background: rgba(255,255,255,0.1); border-radius: 50%;
+            position: absolute; bottom: 0; left: 0; border: 2px solid rgba(255,255,255,0.3);
+        }
+        .joystick-stick {
+            width: 50px; height: 50px; background: rgba(255,255,255,0.8); border-radius: 50%;
+            position: absolute; top: 35px; left: 35px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .throttle-container {
+            width: 60px; height: 200px; background: rgba(0,0,0,0.5); border-radius: 30px;
+            position: relative; overflow: hidden; border: 2px solid rgba(255,255,255,0.2);
+            pointer-events: auto;
+        }
+        .throttle-bar {
+            width: 100%; background: linear-gradient(to top, #ef4444, #eab308, #22c55e);
+            position: absolute; bottom: 0; transition: height 0.1s;
+        }
+        .throttle-handle {
+            width: 100%; height: 40px; background: white; position: absolute; bottom: 0;
+            border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.5); cursor: grab;
+        }
+        #message {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 3rem; color: gold; font-weight: 900; text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            opacity: 0; transition: opacity 0.5s; pointer-events: none; text-align: center;
+        }
+        .instructions {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            color: rgba(255,255,255,0.8); font-size: 0.9rem; text-align: center;
+            background: rgba(0,0,0,0.4); padding: 5px 15px; border-radius: 20px;
+        }
+        @media (min-width: 769px) { 
+            #controls { display: none; } 
+        }
+        @media (max-width: 768px) {
+            .instructions { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div class="hud-top">
+        <div class="stat-card">RELICS: <span id="score">0</span>/10</div>
+        <div class="stat-card">ALT: <span id="alt">0</span>m</div>
+        <div class="stat-card">SPEED: <span id="speed">0</span>kn</div>
+    </div>
+    <div id="message">RELIC FOUND!</div>
+    <div class="instructions">WASD / Arrows to Fly • SHIFT to Boost • SPACE to Brake</div>
+    
+    <div id="controls">
+        <div class="joystick-area">
+            <div class="joystick-base" id="joyBase"><div class="joystick-stick" id="joyStick"></div></div>
+        </div>
+        <div class="throttle-container" id="throttleArea">
+            <div class="throttle-bar" id="throttleFill" style="height: 0%"></div>
+            <div class="throttle-handle" id="throttleHandle"></div>
+        </div>
+    </div>
+</div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
+
+    // Game State
+    let scene, camera, renderer, ship, propeller;
+    let relics = [], clouds = [];
+    let score = 0;
+    const TOTAL_RELICS = 10;
+    
+    // Physics
+    let velocity = new THREE.Vector3();
+    let speed = 0;
+    let maxSpeed = 2.0;
+    let turnSpeed = 0.03;
+    let pitchSpeed = 0.02;
+    let throttle = 0; // 0 to 1
+
+    // Input
+    const keys = { w: false, a: false, s: false, d: false, shift: false, space: false };
+    const joy = { x: 0, y: 0, active: false };
+
+    init();
+    animate();
+
+    function init() {
+        // Scene Setup
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 100, 800);
+
+        // Camera
+        camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.set(0, 10, -20);
+
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xfffaed, 1.2);
+        dirLight.position.set(100, 200, 50);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 500;
+        dirLight.shadow.camera.left = -200;
+        dirLight.shadow.camera.right = 200;
+        dirLight.shadow.camera.top = 200;
+        dirLight.shadow.camera.bottom = -200;
+        scene.add(dirLight);
+
+        // World Generation
+        createOcean();
+        createIslands();
+        createClouds();
+        createShip();
+        setupInput();
+
+        window.addEventListener('resize', onResize);
+    }
+
+    function createShip() {
+        ship = new THREE.Group();
+
+        // Hull
+        const hullGeo = new THREE.CapsuleGeometry(1.5, 6, 8, 16);
+        const hullMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.6 }); // Wood
+        const hull = new THREE.Mesh(hullGeo, hullMat);
+        hull.rotation.x = Math.PI / 2;
+        hull.castShadow = true;
+        ship.add(hull);
+
+        // Balloon
+        const balGeo = new THREE.SphereGeometry(4, 32, 16);
+        const balMat = new THREE.MeshStandardMaterial({ color: 0xfffdd0, roughness: 1.0 }); // Cream
+        const balloon = new THREE.Mesh(balGeo, balMat);
+        balloon.position.y = 5;
+        balloon.scale.set(1, 0.8, 1.5);
+        balloon.castShadow = true;
+        ship.add(balloon);
+
+        // Ropes
+        const ropeMat = new THREE.MeshBasicMaterial({ color: 0x333333 });
+        const ropes = [
+            {x: 1, z: 2}, {x: -1, z: 2}, {x: 1, z: -2}, {x: -1, z: -2}
+        ];
+        ropes.forEach(pos => {
+            const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 5), ropeMat);
+            rope.position.set(pos.x, 2.5, pos.z);
+            // Angle towards center top
+            rope.lookAt(0, 5, 0);
+            ship.add(rope);
+        });
+
+        // Propeller
+        const propGroup = new THREE.Group();
+        const bladeGeo = new THREE.BoxGeometry(4, 0.2, 0.5);
+        const bladeMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.8, roughness: 0.2 });
+        const blade1 = new THREE.Mesh(bladeGeo, bladeMat);
+        const blade2 = new THREE.Mesh(bladeGeo, bladeMat);
+        blade2.rotation.z = Math.PI / 2;
+        propGroup.add(blade1, blade2);
+        propGroup.position.set(0, 0, -3.2);
+        ship.add(propGroup);
+        propeller = propGroup;
+
+        // Wings
+        const wingGeo = new THREE.BoxGeometry(6, 0.2, 2);
+        const wingMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+        const wing = new THREE.Mesh(wingGeo, wingMat);
+        wing.position.y = 0;
+        ship.add(wing);
+
+        ship.position.set(0, 100, 0);
+        scene.add(ship);
+    }
+
+    function createIslands() {
+        const islandGeo = new THREE.DodecahedronGeometry(1, 1); // Low poly look
+        const islandMat = new THREE.MeshStandardMaterial({ 
+            color: 0x4CAF50, 
+            flatShading: true,
+            roughness: 1 
+        });
+        const stoneMat = new THREE.MeshStandardMaterial({ 
+            color: 0x777777, 
+            flatShading: true,
+            roughness: 0.8 
+        });
+
+        for (let i = 0; i < 40; i++) {
+            const islandGroup = new THREE.Group();
+            
+            // Random Position
+            const px = (Math.random() - 0.5) * 2000;
+            const py = 50 + Math.random() * 200;
+            const pz = (Math.random() - 0.5) * 2000;
+            islandGroup.position.set(px, py, pz);
+
+            // Scale
+            const scale = 10 + Math.random() * 40;
+            islandGroup.scale.setScalar(scale);
+
+            // Main Mass
+            const main = new THREE.Mesh(islandGeo, islandMat);
+            main.castShadow = true; main.receiveShadow = true;
+            islandGroup.add(main);
+
+            // Underside (Stone)
+            const under = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.5, 5), stoneMat);
+            under.rotation.x = Math.PI;
+            under.position.y = -0.8;
+            islandGroup.add(under);
+
+            // Decor (Trees/Ruins)
+            if (Math.random() > 0.3) {
+                const tree = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1, 4), new THREE.MeshStandardMaterial({color: 0x228B22}));
+                tree.position.y = 0.9;
+                islandGroup.add(tree);
+            }
+
+            // Relic Placement logic
+            if (i < TOTAL_RELICS) {
+                createRelic(islandGroup);
+            }
+
+            scene.add(islandGroup);
+        }
+    }
+
+    function createRelic(parent) {
+        const geo = new THREE.OctahedronGeometry(0.5);
+        const mat = new THREE.MeshStandardMaterial({ 
+            color: 0xFFD700, 
+            emissive: 0xFFA500,
+            emissiveIntensity: 0.5,
+            metalness: 1,
+            roughness: 0.2
+        });
+        const relic = new THREE.Mesh(geo, mat);
+        relic.position.y = 1.5;
+        
+        // Glow effect light
+        const light = new THREE.PointLight(0xFFA500, 5, 20);
+        light.position.y = 1.5;
+        parent.add(light);
+        
+        parent.add(relic);
+        
+        // Store world position reference for collision
+        relic.userData = { parent: parent, active: true, mesh: relic };
+        relics.push(relic);
+    }
+
+    function createClouds() {
+        const geo = new THREE.SphereGeometry(10, 8, 8);
+        const mat = new THREE.MeshBasicMaterial({ 
+            color: 0xffffff, 
+            transparent: true, 
+            opacity: 0.6 
+        });
+
+        for(let i=0; i<100; i++) {
+            const cloud = new THREE.Mesh(geo, mat);
+            cloud.position.set(
+                (Math.random()-0.5)*3000,
+                200 + Math.random()*100,
+                (Math.random()-0.5)*3000
+            );
+            cloud.scale.set(3 + Math.random()*2, 1 + Math.random(), 2 + Math.random());
+            scene.add(cloud);
+            clouds.push(cloud);
+        }
+    }
+
+    function createOcean() {
+        const geo = new THREE.PlaneGeometry(5000, 5000, 32, 32);
+        const mat = new THREE.MeshStandardMaterial({ 
+            color: 0x1e3a8a, 
+            roughness: 0.1,
+            metalness: 0.1,
+            transparent: true,
+            opacity: 0.9
+        });
+        const ocean = new THREE.Mesh(geo, mat);
+        ocean.rotation.x = -Math.PI/2;
+        ocean.position.y = -50;
+        scene.add(ocean);
+    }
+
+    function setupInput() {
+        // Keyboard
+        document.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if(keys.hasOwnProperty(k) || k === 'arrowup' || k === 'arrowdown' || k === 'arrowleft' || k === 'arrowright') {
+                if(k === 'w' || k === 'arrowup') keys.w = true;
+                if(k === 's' || k === 'arrowdown') keys.s = true;
+                if(k === 'a' || k === 'arrowleft') keys.a = true;
+                if(k === 'd' || k === 'arrowright') keys.d = true;
+                if(k === ' ') keys.space = true;
+                if(e.key === 'Shift') keys.shift = true;
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            if(keys.hasOwnProperty(k) || k === 'arrowup' || k === 'arrowdown' || k === 'arrowleft' || k === 'arrowright') {
+                if(k === 'w' || k === 'arrowup') keys.w = false;
+                if(k === 's' || k === 'arrowdown') keys.s = false;
+                if(k === 'a' || k === 'arrowleft') keys.a = false;
+                if(k === 'd' || k === 'arrowright') keys.d = false;
+                if(k === ' ') keys.space = false;
+                if(e.key === 'Shift') keys.shift = false;
+            }
+        });
+
+        // Touch Joystick
+        const joyBase = document.getElementById('joyBase');
+        const joyStick = document.getElementById('joyStick');
+        
+        joyBase.addEventListener('touchstart', (e) => { e.preventDefault(); joy.active = true; handleJoy(e.touches[0]); }, {passive: false});
+        joyBase.addEventListener('touchmove', (e) => { e.preventDefault(); handleJoy(e.touches[0]); }, {passive: false});
+        joyBase.addEventListener('touchend', (e) => { 
+            e.preventDefault(); joy.active = false; joy.x=0; joy.y=0; 
+            joyStick.style.transform = `translate(0px, 0px)`;
+        });
+
+        function handleJoy(touch) {
+            const rect = joyBase.getBoundingClientRect();
+            const cx = rect.left + rect.width/2;
+            const cy = rect.top + rect.height/2;
+            let dx = touch.clientX - cx;
+            let dy = touch.clientY - cy;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const maxDist = 40;
+            
+            if(dist > maxDist) {
+                dx = (dx/dist) * maxDist;
+                dy = (dy/dist) * maxDist;
+            }
+            
+            joyStick.style.transform = `translate(${dx}px, ${dy}px)`;
+            joy.x = dx / maxDist;
+            joy.y = dy / maxDist;
+        }
+
+        // Touch Throttle
+        const throttleArea = document.getElementById('throttleArea');
+        throttleArea.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const rect = throttleArea.getBoundingClientRect();
+            const y = Math.max(0, Math.min(rect.height, e.touches[0].clientY - rect.top));
+            const pct = 1 - (y / rect.height);
+            throttle = pct;
+        }, {passive: false});
+    }
+
+    function updatePhysics() {
+        // Target Inputs
+        let pitchInput = 0;
+        let yawInput = 0;
+        let targetSpeed = 0;
+
+        // Keyboard Controls
+        if (keys.w) pitchInput = -1;
+        if (keys.s) pitchInput = 1;
+        if (keys.a) yawInput = 1;
+        if (keys.d) yawInput = -1;
+        
+        // Speed Control
+        if (keys.shift) throttle = Math.min(throttle + 0.02, 1);
+        if (keys.space) throttle = Math.max(throttle - 0.05, 0);
+
+        // Mobile Override
+        if (joy.active) {
+            yawInput = -joy.x;
+            pitchInput = joy.y;
+        }
+        
+        // UI Update for Throttle
+        const thFill = document.getElementById('throttleFill');
+        const thHandle = document.getElementById('throttleHandle');
+        if(thFill) {
+            thFill.style.height = (throttle * 100) + '%';
+            thHandle.style.bottom = (throttle * 100) + '%';
+        }
+
+        // Apply Flight Dynamics
+        speed = THREE.MathUtils.lerp(speed, throttle * maxSpeed, 0.02);
+        
+        // Pitch (Up/Down)
+        ship.rotateX(pitchInput * pitchSpeed);
+        
+        // Yaw (Left/Right) - Banking
+        ship.rotateY(yawInput * turnSpeed);
+        ship.rotation.z = THREE.MathUtils.lerp(ship.rotation.z, -yawInput * 0.5, 0.05);
+
+        // Propeller Spin
+        propeller.rotation.z += speed + 0.2;
+
+        // Move Forward
+        ship.translateZ(speed);
+
+        // Auto-level Pitch when neutral
+        if (Math.abs(pitchInput) < 0.1) {
+            // Very slow auto-level
+            // This is complex with quaternions, simple Euler clamp for now
+            if (ship.rotation.x > 0.5) ship.rotation.x = 0.5;
+            if (ship.rotation.x < -0.5) ship.rotation.x = -0.5;
+        }
+
+        // Bounds Check (Floor/Ceiling)
+        if (ship.position.y < 20) ship.position.y = 20;
+        if (ship.position.y > 600) ship.position.y = 600;
+
+        // Update UI HUD
+        document.getElementById('speed').innerText = Math.round(speed * 200);
+        document.getElementById('alt').innerText = Math.round(ship.position.y);
+    }
+
+    function checkCollisions() {
+        relics.forEach(r => {
+            if (!r.userData.active) return;
+            
+            // Get world position of relic
+            const pos = new THREE.Vector3();
+            r.getWorldPosition(pos);
+            
+            if (pos.distanceTo(ship.position) < 15) {
+                // Collect
+                r.userData.active = false;
+                r.userData.parent.remove(r); // Remove visual from its island
+                score++;
+                document.getElementById('score').innerText = score;
+                
+                // Show Message
+                const msg = document.getElementById('message');
+                msg.style.opacity = 1;
+                setTimeout(() => msg.style.opacity = 0, 1500);
+
+                if (score >= TOTAL_RELICS) {
+                    msg.innerText = "ALL RELICS FOUND! YOU WIN!";
+                    msg.style.opacity = 1;
+                }
+            } else {
+                // Animate Relic
+                r.rotation.y += 0.05;
+            }
+        });
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        updatePhysics();
+        checkCollisions();
+
+        // Camera Follow
+        // Calculate offset position behind ship
+        const relativeOffset = new THREE.Vector3(0, 15, -40);
+        const cameraOffset = relativeOffset.applyMatrix4(ship.matrixWorld);
+
+        camera.position.lerp(cameraOffset, 0.1);
+        camera.lookAt(ship.position.x, ship.position.y + 5, ship.position.z);
+
+        renderer.render(scene, camera);
+    }
+
+    function onResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+</script>
+</body>
+</html>
