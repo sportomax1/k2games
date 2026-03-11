@@ -258,32 +258,39 @@
         function update() {
             if (isGameOver) return;
 
-            balls.forEach(b => {
-                b.x += b.vx; b.y += b.vy;
-                if (b.x < 10 || b.x > W - 10) b.vx *= -1;
-                if (b.y < 10 || b.y > H - 10) b.vy *= -1;
+            // Sub-stepping for collision reliability at high speeds
+            const steps = level > 5 ? 2 : 1;
+            for(let step=0; step < steps; step++) {
+                balls.forEach(b => {
+                    b.x += b.vx / steps; b.y += b.vy / steps;
+                    if (b.x < 10 || b.x > W - 10) b.vx *= -1;
+                    if (b.y < 10 || b.y > H - 10) b.vy *= -1;
 
-                areas.forEach(a => {
-                    if (a.filled) {
-                        if (b.x + 8 > a.x && b.x - 8 < a.x + a.w && b.y + 8 > a.y && b.y - 8 < a.y + a.h) {
-                            if (Math.abs(b.x - a.x) < 10 || Math.abs(b.x - (a.x + a.w)) < 10) b.vx *= -1;
-                            else b.vy *= -1;
+                    areas.forEach(a => {
+                        if (a.filled) {
+                            if (b.x + 8 > a.x && b.x - 8 < a.x + a.w && b.y + 8 > a.y && b.y - 8 < a.y + a.h) {
+                                // Better hit side detection
+                                const dx = b.vx > 0 ? (b.x + 8) - a.x : (a.x + a.w) - (b.x - 8);
+                                const dy = b.vy > 0 ? (b.y + 8) - a.y : (a.y + a.h) - (b.y - 8);
+                                if (dx < dy) b.vx *= -1; else b.vy *= -1;
+                            }
                         }
-                    }
-                });
+                    });
 
-                lines.forEach(l => {
-                    if (l.active) {
-                        let hit = false;
-                        if (l.dir === 'h' && Math.abs(b.y - l.y) < 10 && b.x > l.p1 - 5 && b.x < l.p2 + 5) hit = true;
-                        if (l.dir === 'v' && Math.abs(b.x - l.x) < 10 && b.y > l.p1 - 5 && b.y < l.p2 + 5) hit = true;
-                        if (hit) {
-                            l.active = false; lives--; updateUI();
-                            if (lives <= 0) gameOver();
+                    lines.forEach(l => {
+                        if (l.active) {
+                            let hit = false;
+                            const thickness = 6;
+                            if (l.dir === 'h' && Math.abs(b.y - l.y) < (8 + thickness) && b.x > l.p1 - 5 && b.x < l.p2 + 5) hit = true;
+                            if (l.dir === 'v' && Math.abs(b.x - l.x) < (8 + thickness) && b.y > l.p1 - 5 && b.y < l.p2 + 5) hit = true;
+                            if (hit) {
+                                l.active = false; lives--; updateUI();
+                                if (lives <= 0) gameOver();
+                            }
                         }
-                    }
+                    });
                 });
-            });
+            }
 
             lines.forEach(l => {
                 if (l.active) {

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chef Hands 3D: Elite Kitchen - K2 games</title>
+    <style>
+        :root {
+            --bg: #020617;
+            --accent: #f59e0b;
+            --panel: rgba(15, 23, 42, 0.95);
+            --border: rgba(255, 255, 255, 0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            cursor: none;
+        }
+
+        #ui-container {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        /* Pro Ticket Rail */
+        #order-rail {
+            height: 180px;
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border-bottom: 6px solid #334155;
+            display: flex;
+            align-items: flex-start;
+            padding: 15px 50px;
+            gap: 25px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+            position: relative;
+        }
+
+        #order-rail::after {
+            content: '';
+            position: absolute;
+            bottom: -10px; left: 0; right: 0;
+            height: 4px; background: rgba(0,0,0,0.3);
+        }
+
+        .ticket {
+            width: 180px;
+            background: #fffdf0;
+            color: #1e293b;
+            padding: 20px;
+            border-radius: 4px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            font-family: 'Courier New', monospace;
+            transform: rotate(-0.5deg);
+            position: relative;
+            animation: ticketDrop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-top: 15px solid #e2e8f0;
+        }
+        @keyframes ticketDrop { 
+            from { transform: translateY(-120%) rotate(10deg); opacity: 0; } 
+            to { transform: translateY(0) rotate(-0.5deg); opacity: 1; } 
+        }
+
+        .ticket h3 { font-size: 0.9rem; border-bottom: 2px dashed #cbd5e1; margin-bottom: 10px; padding-bottom: 8px; text-transform: uppercase; }
+        .ticket ul { list-style: none; font-size: 0.85rem; font-weight: 900; }
+        .ticket li { margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
+        .ticket li::before { content: '☐'; opacity: 0.3; }
+
+        /* Score Display */
+        #hud-top {
+            position: absolute;
+            top: 200px;
+            right: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .stat-pill {
+            background: var(--panel);
+            backdrop-filter: blur(15px);
+            padding: 12px 25px;
+            border-radius: 50px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+
+        .stat-label { font-size: 0.65rem; text-transform: uppercase; color: #94a3b8; letter-spacing: 2px; font-weight: 800; }
+        .stat-val { font-size: 1.8rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+
+        /* Modern Overlay */
+        #overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(15, 23, 42, 0.9) 0%, rgba(2, 6, 23, 1) 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            text-align: center;
+            transition: 0.5s;
+        }
+        #overlay.hidden { opacity: 0; pointer-events: none; }
+
+        .logo-main { font-size: 6rem; font-weight: 900; font-style: italic; color: white; letter-spacing: -2px; margin-bottom: 0; line-height: 1; }
+        .logo-sub { color: var(--accent); font-size: 1.5rem; letter-spacing: 8px; margin-bottom: 3rem; font-weight: 300; }
+
+        .btn-start {
+            background: white;
+            color: #000;
+            border: none;
+            padding: 1.5rem 5rem;
+            border-radius: 100px;
+            font-weight: 900;
+            font-size: 1.4rem;
+            cursor: pointer;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+            transition: 0.3s;
+        }
+        .btn-start:hover { transform: scale(1.05) translateY(-5px); background: var(--accent); }
+
+        .back-link { position: fixed; bottom: 30px; left: 30px; color: #64748b; text-decoration: none; font-weight: bold; font-size: 0.8rem; z-index: 1100; opacity: 0.5; transition: 0.3s; }
+        .back-link:hover { opacity: 1; color: white; }
+    </style>
+</head>
+<body>
+
+    <a href="index.html" class="back-link">TERMINATE SHIFT</a>
+
+    <div id="ui-container">
+        <div id="order-rail"></div>
+        <div id="hud-top">
+            <div class="stat-pill">
+                <span class="stat-label">Earnings</span>
+                <span id="score-val" class="stat-val">$0</span>
+            </div>
+            <div class="stat-pill">
+                <span class="stat-label">Clock</span>
+                <span id="timer-val" class="stat-val">02:00</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h1 class="logo-main">CHEF HANDS</h1>
+        <p class="logo-sub">PREMIUM 3D</p>
+        <button class="btn-start" onclick="game.start()">CLOCK IN</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        const DATA = {
+            ingredients: {
+                BUN_B:    { id: 'bun_b',   name: 'Bottom Bun', color: 0xd3a15e, h: 0.15, r: 0.65, type: 'cylinder' },
+                PATTY:    { id: 'patty',   name: 'Wagyu Patty',color: 0x4b2c20, h: 0.18, r: 0.6,  type: 'noisy' },
+                CHEESE:   { id: 'cheese',  name: 'Sharp Cheddar', color: 0xffd32a, h: 0.05, r: 0.62, type: 'box' },
+                LETTUCE:  { id: 'lettuce', name: 'Butter Lettuce', color: 0x26de81, h: 0.05, r: 0.7,  type: 'noisy' },
+                TOMATO:   { id: 'tomato',  name: 'Roma Tomato', color: 0xff4757, h: 0.08, r: 0.55, type: 'cylinder' },
+                BUN_T:    { id: 'bun_t',   name: 'Toasted Top', color: 0xd3a15e, h: 0.35, r: 0.65, type: 'dome' }
+            },
+            recipes: [
+                { name: "Classic Burger", items: ['bun_b', 'patty', 'cheese', 'bun_t'], price: 15 },
+                { name: "Double Deluxe", items: ['bun_b', 'patty', 'cheese', 'patty', 'cheese', 'bun_t'], price: 25 },
+                { name: "Garden Stack", items: ['bun_b', 'lettuce', 'tomato', 'lettuce', 'bun_t'], price: 18 },
+                { name: "High Protein", items: ['bun_b', 'patty', 'patty', 'patty', 'cheese', 'bun_t'], price: 30 }
+            ]
+        };
+
+        class EliteKitchen {
+            constructor() {
+                this.initScene();
+                this.initLayout();
+                this.initHands();
+                this.interactables = [];
+                this.currentStack = [];
+                this.order = null;
+                this.score = 0;
+                this.timeLeft = 120;
+                this.active = false;
+
+                this.setupInputs();
+                this.populateStations();
+                this.render();
+            }
+
+            initScene() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x020617);
+                this.camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera.position.set(0, 14, 20);
+                this.camera.lookAt(0, -2, 2);
+
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                document.body.appendChild(this.renderer.domElement);
+
+                this.raycaster = new THREE.Raycaster();
+                this.mouse = new THREE.Vector2();
+
+                // Dynamic Lighting
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+                
+                const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+                keyLight.position.set(5, 15, 10);
+                keyLight.castShadow = true;
+                keyLight.shadow.mapSize.width = 2048;
+                keyLight.shadow.mapSize.height = 2048;
+                this.scene.add(keyLight);
+
+                const rimLight = new THREE.PointLight(0x3b82f6, 0.8, 30);
+                rimLight.position.set(-10, 5, -5);
+                this.scene.add(rimLight);
+            }
+
+            initLayout() {
+                // Elite Stainless Steel Station
+                const counterGeo = new THREE.BoxGeometry(32, 1.2, 16);
+                const counterMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x64748b, 
+                    metalness: 0.9, 
+                    roughness: 0.15,
+                    emissive: 0x000000 
+                });
+                const counter = new THREE.Mesh(counterGeo, counterMat);
+                counter.position.y = -0.6;
+                counter.receiveShadow = true;
+                this.scene.add(counter);
+
+                // Backsplash Wall
+                const wallGeo = new THREE.PlaneGeometry(40, 25);
+                const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
+                const wall = new THREE.Mesh(wallGeo, wallMat);
+                wall.position.set(0, 10, -8);
+                this.scene.add(wall);
+
+                // Professional Work Surface (Wood Inset)
+                const woodGeo = new THREE.BoxGeometry(12, 0.1, 8);
+                const woodMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.8 });
+                const wood = new THREE.Mesh(woodGeo, woodMat);
+                wood.position.set(0, 0.05, 3);
+                wood.receiveShadow = true;
+                this.scene.add(wood);
+
+                // Ceramic Service Plate
+                const plateGeo = new THREE.CylinderGeometry(2.5, 2.3, 0.2, 64);
+                const plateMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1 });
+                this.plate = new THREE.Mesh(plateGeo, plateMat);
+                this.plate.position.set(0, 0.15, 4);
+                this.plate.receiveShadow = true;
+                this.scene.add(this.plate);
+            }
+
+            initHands() {
+                this.handGroup = new THREE.Group();
+                const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, roughness: 0.5 });
+                
+                // Detailed Hand Model
+                const palm = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.45, 1.6), skinMat);
+                palm.castShadow = true;
+                this.handGroup.add(palm);
+
+                // Realistic Fingers
+                const fingerKeys = [0, 1, 2, 3];
+                fingerKeys.forEach(i => {
+                    const finger = new THREE.Group();
+                    const f1 = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.6), skinMat);
+                    f1.rotation.x = Math.PI/2; f1.position.z = -0.3;
+                    const f2 = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.5), skinMat);
+                    f2.rotation.x = Math.PI/2; f2.position.z = -0.8;
+                    finger.add(f1, f2);
+                    finger.position.set(-0.5 + i*0.35, 0, -0.8);
+                    this.handGroup.add(finger);
+                });
+                
+                const thumb = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.7), skinMat);
+                thumb.rotation.z = Math.PI/2;
+                thumb.position.set(0.8, 0, 0.3);
+                this.handGroup.add(thumb);
+
+                const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 12), skinMat);
+                arm.rotation.x = -Math.PI/2; arm.position.z = 7;
+                this.handGroup.add(arm);
+
+                this.handGroup.traverse(c => { if(c.isMesh) c.castShadow = true; c.raycast = () => {}; });
+                this.scene.add(this.handGroup);
+                this.handTarget = new THREE.Vector3(0, 6, 12);
+            }
+
+            setupInputs() {
+                window.onmousemove = (e) => {
+                    this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    
+                    const v = new THREE.Vector3(this.mouse.x, this.mouse.y, 0.5).unproject(this.camera);
+                    const d = v.sub(this.camera.position).normalize();
+                    const dist = -this.camera.position.y / d.y;
+                    const p = this.camera.position.clone().add(d.multiplyScalar(dist - 3));
+                    this.handTarget.copy(p);
+                };
+
+                window.onmousedown = () => {
+                    if(!this.active) return;
+                    this.raycaster.setFromCamera(this.mouse, this.camera);
+                    const hits = this.raycaster.intersectObjects(this.interactables, true);
+                    if(hits.length > 0) {
+                        let o = hits[0].object; while(o.parent && o.parent !== this.scene) o = o.parent;
+                        const d = o.userData;
+                        if(d.type === 'source') this.addToPlate(d.id);
+                        if(d.type === 'bell') this.serve();
+                    }
+                };
+            }
+
+            populateStations() {
+                const keys = ['BUN_B', 'PATTY', 'CHEESE', 'LETTUCE', 'TOMATO', 'BUN_T'];
+                keys.forEach((k, i) => {
+                    const x = -7 + i * 2.8;
+                    const z = -3;
+                    
+                    // Metal Gastronorm Pan
+                    const bin = new THREE.Mesh(
+                        new THREE.BoxGeometry(2.4, 0.8, 2.4), 
+                        new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 1, roughness: 0.1 })
+                    );
+                    bin.position.set(x, 0.4, z);
+                    this.scene.add(bin);
+
+                    const inner = new THREE.Mesh(
+                        new THREE.BoxGeometry(2.2, 0.1, 2.2),
+                        new THREE.MeshStandardMaterial({ color: 0x000000, metalness: 0.5 })
+                    );
+                    inner.position.set(x, 0.8, z);
+                    this.scene.add(inner);
+
+                    const item = this.createIngredientMesh(k);
+                    item.position.set(x, 1.2, z);
+                    item.userData = { type: 'source', id: DATA.ingredients[k].id };
+                    this.scene.add(item);
+                    this.interactables.push(item);
+                });
+
+                // Professional Chrome Service Bell
+                this.bell = new THREE.Group();
+                const bellBase = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.25), new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 1 }));
+                const bellDome = new THREE.Mesh(new THREE.SphereGeometry(0.8, 32, 16, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 1, roughness: 0.05 }));
+                this.bellBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.3), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                this.bellBtn.position.y = 0.8;
+                this.bell.add(bellBase, bellDome, this.bellBtn);
+                this.bell.position.set(9, 0, 4);
+                this.bell.userData = { type: 'bell' };
+                this.scene.add(this.bell);
+                this.interactables.push(this.bell);
+            }
+
+            createIngredientMesh(key) {
+                const d = DATA.ingredients[key];
+                const mat = new THREE.MeshStandardMaterial({ color: d.color, roughness: 0.6 });
+                let mesh;
+                if(d.type === 'cylinder') mesh = new THREE.Mesh(new THREE.CylinderGeometry(d.r, d.r, d.h, 32), mat);
+                else if(d.type === 'box') mesh = new THREE.Mesh(new THREE.BoxGeometry(d.r*1.4, d.h, d.r*1.4), mat);
+                else if(d.type === 'dome') mesh = new THREE.Mesh(new THREE.SphereGeometry(d.r, 32, 16, 0, Math.PI*2, 0, Math.PI/2), mat);
+                else if(d.type === 'noisy') {
+                    const geo = new THREE.CylinderGeometry(d.r, d.r, d.h, 16);
+                    const pos = geo.attributes.position;
+                    for(let i=0; i<pos.count; i++) pos.setY(i, pos.getY(i) + (Math.random()-0.5)*0.12);
+                    mesh = new THREE.Mesh(geo, mat);
+                }
+                mesh.userData = { id: d.id };
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                return mesh;
+            }
+
+            addToPlate(id) {
+                const key = Object.keys(DATA.ingredients).find(k => DATA.ingredients[k].id === id);
+                const mesh = this.createIngredientMesh(key);
+                let currentH = 0.25;
+                this.currentStack.forEach(m => currentH += DATA.ingredients[Object.keys(DATA.ingredients).find(k => DATA.ingredients[k].id === m.userData.id)].h);
+                
+                mesh.position.set(0, currentH + 6, 4);
+                this.scene.add(mesh);
+                this.currentStack.push(mesh);
+                
+                this.animate(mesh.position, { y: currentH + DATA.ingredients[key].h/2 }, 250);
+            }
+
+            serve() {
+                this.animate(this.bellBtn.position, { y: 0.5 }, 50);
+                setTimeout(() => this.animate(this.bellBtn.position, { y: 0.8 }, 100), 100);
+
+                if(!this.order) return;
+                
+                const currentIds = this.currentStack.map(m => m.userData.id);
+                const orderIds = this.order.items;
+
+                if(JSON.stringify(currentIds) === JSON.stringify(orderIds)) {
+                    this.score += this.order.price;
+                    document.getElementById('score-val').innerText = `$${this.score}`;
+                    this.clearPlate();
+                    this.newOrder();
+                } else {
+                    this.clearPlate();
+                }
+            }
+
+            clearPlate() {
+                this.currentStack.forEach(m => this.scene.remove(m));
+                this.currentStack = [];
+            }
+
+            newOrder() {
+                this.order = DATA.recipes[Math.floor(Math.random() * DATA.recipes.length)];
+                const rail = document.getElementById('order-rail');
+                rail.innerHTML = `
+                    <div class="ticket">
+                        <h3>#${Math.floor(Math.random()*900)+100} ${this.order.name}</h3>
+                        <ul>${this.order.items.map(i => `<li>${DATA.ingredients[Object.keys(DATA.ingredients).find(k => DATA.ingredients[k].id === i)].name}</li>`).join('')}</ul>
+                    </div>
+                ` + rail.innerHTML;
+                if(rail.children.length > 5) rail.removeChild(rail.lastChild);
+            }
+
+            animate(obj, target, dur) {
+                const start = { ...obj }, t0 = performance.now();
+                const loop = () => {
+                    const p = Math.min((performance.now() - t0) / dur, 1);
+                    for(let k in target) obj[k] = start[k] + (target[k] - start[k]) * p;
+                    if(p < 1) requestAnimationFrame(loop);
+                }; requestAnimationFrame(loop);
+            }
+
+            start() {
+                this.active = true;
+                document.getElementById('overlay').classList.add('hidden');
+                this.newOrder();
+                this.timerInterval = setInterval(() => {
+                    this.timeLeft--;
+                    const m = Math.floor(this.timeLeft / 60), s = this.timeLeft % 60;
+                    document.getElementById('timer-val').innerText = `${m}:${s.toString().padStart(2, '0')}`;
+                    if(this.timeLeft <= 0) this.gameOver();
+                }, 1000);
+            }
+
+            gameOver() {
+                this.active = false;
+                clearInterval(this.timerInterval);
+                document.getElementById('overlay').classList.remove('hidden');
+                document.querySelector('.logo-main').innerText = "SHIFT OVER";
+                document.querySelector('.logo-sub').innerText = `TOTAL EARNINGS: $${this.score}`;
+            }
+
+            render() {
+                requestAnimationFrame(() => this.render());
+                if(this.handGroup) {
+                    this.handGroup.position.lerp(this.handTarget, 0.18);
+                    this.handGroup.rotation.z = this.mouse.x * 0.45;
+                    this.handGroup.rotation.x = -this.mouse.y * 0.25;
+                }
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        window.game = new EliteKitchen();
+    </script>
+</body>
+</html>

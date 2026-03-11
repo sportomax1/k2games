@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Apollo Lunar Lander - K2 games</title>
+    <style>
+        :root { --bg: #020617; --accent: #22d3ee; --danger: #ef4444; --glass: rgba(15, 23, 42, 0.8); }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; touch-action: none; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', monospace; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        #hud { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; pointer-events: none; z-index: 100; }
+        .stat-card { background: var(--glass); backdrop-filter: blur(10px); padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); min-width: 140px; }
+        .label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.6; letter-spacing: 1px; }
+        .val { font-size: 1.4rem; font-weight: 900; color: var(--accent); }
+        canvas { display: block; width: 100%; height: 100%; background: radial-gradient(circle at center, #0f172a, #020617); }
+        #mobile-controls { position: absolute; bottom: 40px; left: 0; right: 0; display: none; justify-content: space-between; padding: 0 40px; z-index: 100; pointer-events: none; }
+        @media (max-width: 900px) { #mobile-controls { display: flex; } }
+        .m-btn { width: 90px; height: 90px; background: rgba(255,255,255,0.1); border: 3px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; pointer-events: auto; backdrop-filter: blur(10px); }
+        .m-btn:active { background: var(--accent); color: black; }
+        #overlay { position: absolute; inset: 0; background: rgba(2,6,23,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; text-align: center; padding: 20px; }
+        .btn-main { background: var(--accent); color: black; border: none; padding: 15px 60px; border-radius: 50px; font-weight: 900; font-size: 1.2rem; cursor: pointer; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div id="hud">
+        <div class="stat-card"><div class="label">Altitude</div><div id="alt-val" class="val">0</div></div>
+        <div class="stat-card" style="text-align:right"><div class="label">Fuel</div><div id="fuel-val" class="val">1000</div></div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="mobile-controls">
+        <div style="display:flex; gap:15px;"><div class="m-btn" id="m-left">◀</div><div class="m-btn" id="m-right">▶</div></div>
+        <div class="m-btn" id="m-thrust" style="background:var(--danger)">🔥</div>
+    </div>
+    <div id="overlay">
+        <h1 style="font-size:4rem; color:var(--accent); font-style:italic;">MOON LANDER</h1>
+        <p style="opacity:0.7; max-width:400px; line-height:1.6;">Command the Lunar Module. <br>Land softly on the flat pads. <br>Watch your fuel and horizontal velocity!</p>
+        <button class="btn-main" onclick="game.start()">ENGAGE THRUSTERS</button>
+    </div>
+    <script>
+        class MoonLander {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.terrain = []; this.pads = []; 
+                this.resize();
+                this.genTerrain(); // Immediate generation to prevent drawing crashes
+                this.ship = { x: 100, y: 100, vx: 2, vy: 0, rot: 0, fuel: 1000, thrusting: false };
+                this.playing = false; this.keys = {};
+                this.setupInputs();
+                window.onresize = () => this.resize();
+                requestAnimationFrame(() => this.loop());
+            }
+            resize() { 
+                this.width = window.innerWidth; 
+                this.height = window.innerHeight; 
+                this.canvas.width = this.width; 
+                this.canvas.height = this.height; 
+                if(this.terrain.length > 0) this.genTerrain(); 
+            }
+            setupInputs() {
+                window.onkeydown = (e) => this.keys[e.code] = true;
+                window.onkeyup = (e) => this.keys[e.code] = false;
+                const bind = (id, k) => { const el = document.getElementById(id); el.ontouchstart = (e) => { e.preventDefault(); this.keys[k]=true; }; el.ontouchend = () => this.keys[k]=false; };
+                bind('m-left', 'ArrowLeft'); bind('m-right', 'ArrowRight'); bind('m-thrust', 'Space');
+            }
+            genTerrain() {
+                this.terrain = []; this.pads = [];
+                let x = 0, y = this.height * 0.8;
+                while(x < this.width) {
+                    let step = 40 + Math.random()*100;
+                    let nextY = y + (Math.random()-0.5)*150;
+                    nextY = Math.max(this.height*0.5, Math.min(this.height*0.95, nextY));
+                    if(Math.random() < 0.2) { // Landing Pad
+                        this.pads.push({ x1: x, x2: x+step, y: y });
+                        this.terrain.push({ x, y }); x += step; this.terrain.push({ x, y });
+                    } else { this.terrain.push({ x, y }); x += step; y = nextY; }
+                }
+            }
+            start() { this.genTerrain(); this.ship = { x: 50, y: 100, vx: 2, vy: 0, rot: 0, fuel: 1000, thrusting: false }; this.playing = true; document.getElementById('overlay').style.display = 'none'; }
+            update() {
+                if(!this.playing) return;
+                if(this.keys['ArrowLeft']) this.ship.rot -= 0.05;
+                if(this.keys['ArrowRight']) this.ship.rot += 0.05;
+                this.ship.thrusting = this.keys['Space'] && this.ship.fuel > 0;
+                if(this.ship.thrusting) {
+                    this.ship.vx += Math.sin(this.ship.rot) * 0.2;
+                    this.ship.vy -= Math.cos(this.ship.rot) * 0.2;
+                    this.ship.fuel -= 2.5;
+                }
+                this.ship.vy += 0.06; // Moon Gravity
+                this.ship.x += this.ship.vx; this.ship.y += this.ship.vy;
+                
+                if(this.ship.x < 0) this.ship.x = this.width; if(this.ship.x > this.width) this.ship.x = 0;
+
+                let groundY = this.height;
+                for(let i=0; i<this.terrain.length-1; i++) {
+                    if(this.ship.x >= this.terrain[i].x && this.ship.x <= this.terrain[i+1].x) {
+                        const t = (this.ship.x - this.terrain[i].x) / (this.terrain[i+1].x - this.terrain[i].x);
+                        groundY = this.terrain[i].y + t * (this.terrain[i+1].y - this.terrain[i].y);
+                        break;
+                    }
+                }
+
+                if(this.ship.y > groundY - 12) {
+                    const onPad = this.pads.find(p => this.ship.x >= p.x1 && this.ship.x <= p.x2);
+                    const soft = Math.abs(this.ship.vy) < 2.0 && Math.abs(this.ship.vx) < 1.2 && Math.abs(this.ship.rot) < 0.3;
+                    this.endGame(onPad && soft);
+                }
+
+                document.getElementById('alt-val').textContent = Math.max(0, Math.floor(groundY - this.ship.y));
+                document.getElementById('fuel-val').textContent = Math.max(0, Math.floor(this.ship.fuel));
+            }
+            endGame(success) {
+                this.playing = false;
+                const over = document.getElementById('overlay'); over.style.display = 'flex';
+                over.querySelector('h1').textContent = success ? "THE EAGLE HAS LANDED" : "MISSION FAILURE";
+                over.querySelector('p').textContent = success ? "Soft landing successful! One giant leap for mankind." : "Vessel destroyed on impact. Horizontal/Vertical speed too high.";
+            }
+            draw() {
+                if (this.terrain.length === 0) return;
+                const ctx = this.ctx; ctx.clearRect(0,0,this.width,this.height);
+                ctx.fillStyle = '#fff'; for(let i=0; i<50; i++) ctx.fillRect((i*137)%this.width, (i*251)%this.height, 2, 2);
+                ctx.beginPath(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+                ctx.moveTo(this.terrain[0].x, this.terrain[0].y);
+                this.terrain.forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke();
+                ctx.strokeStyle = varColor('--accent'); ctx.lineWidth = 4;
+                this.pads.forEach(p => { ctx.beginPath(); ctx.moveTo(p.x1, p.y); ctx.lineTo(p.x2, p.y); ctx.stroke(); });
+                ctx.save(); ctx.translate(this.ship.x, this.ship.y); ctx.rotate(this.ship.rot);
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(0,-15); ctx.lineTo(10,10); ctx.lineTo(-10,10); ctx.closePath(); ctx.stroke();
+                if(this.ship.thrusting) { ctx.beginPath(); ctx.strokeStyle=varColor('--danger'); ctx.moveTo(-5,10); ctx.lineTo(0,25); ctx.lineTo(5,10); ctx.stroke(); }
+                ctx.restore();
+            }
+            loop() { this.update(); this.draw(); requestAnimationFrame(() => this.loop()); }
+        }
+        function varColor(v) { 
+            if (v.startsWith('var')) {
+                const match = v.match(/\((.*?)\)/);
+                return match ? getComputedStyle(document.documentElement).getPropertyValue(match[1]).trim() : '#fff';
+            }
+            return v; 
+        }
+        window.game = new MoonLander();
+    </script>
+</body>
+</html>

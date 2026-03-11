@@ -241,7 +241,7 @@
     </div>
 
     <script>
-        const NUMBERS = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
+        const NUMBERS = [0, 28, 9, 26, 30, 11, 7, 20, 32, 17, 5, 22, 34, 15, 3, 24, 36, 13, 1, '00', 27, 10, 25, 29, 12, 8, 19, 31, 18, 6, 21, 33, 16, 4, 23, 35, 14, 2];
         const REDS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
 
         class Roulette {
@@ -254,6 +254,7 @@
 
                 this.balance = 1000;
                 this.bets = {};
+                this.history = [];
                 this.selectedChip = 10;
                 this.spinning = false;
                 
@@ -268,6 +269,26 @@
 
             initTable() {
                 const grid = document.getElementById('numbers-grid');
+                grid.innerHTML = '';
+                
+                const zRow = document.createElement('div');
+                zRow.className = 'bet-row';
+                zRow.style.gridColumn = 'span 3';
+                zRow.style.display = 'grid';
+                zRow.style.gridTemplateColumns = '1fr 1fr';
+                zRow.style.gap = '4px';
+                
+                const b0 = document.createElement('div');
+                b0.className = 'bet-spot green'; b0.textContent = '0';
+                b0.onclick = () => this.placeBet('0');
+                
+                const b00 = document.createElement('div');
+                b00.className = 'bet-spot green'; b00.textContent = '00';
+                b00.onclick = () => this.placeBet('00');
+                
+                zRow.appendChild(b0); zRow.appendChild(b00);
+                grid.appendChild(zRow);
+
                 for(let i=1; i<=36; i++) {
                     const div = document.createElement('div');
                     div.className = `bet-spot ${REDS.includes(i) ? 'red' : 'black'}`;
@@ -305,6 +326,13 @@
                 const totalBet = Object.values(this.bets).reduce((a,b)=>a+b, 0);
                 document.getElementById('current-bet').textContent = totalBet;
                 document.getElementById('spin-btn').disabled = this.spinning || totalBet === 0;
+                
+                if (this.history.length > 0 && !this.spinning) {
+                    const histCont = document.getElementById('res-win');
+                    let hStr = '<div style="font-size:0.7rem; margin-top:8px; opacity:0.5; font-weight:normal">HOT: ' + 
+                        this.history.slice(-5).map(n => `<span style="color:${n==='0'||n==='00'?'#4ade80':(REDS.includes(parseInt(n))?'#ef4444':'#fff')}">${n}</span>`).join(' ') + '</div>';
+                    histCont.innerHTML += hStr;
+                }
             }
 
             spin() {
@@ -313,19 +341,19 @@
                 this.updateUI();
                 document.getElementById('result-overlay').style.display = 'none';
 
-                this.velocity = 0.4 + Math.random() * 0.2;
-                this.ballVel = -0.2 - Math.random() * 0.1;
+                this.velocity = 0.5 + Math.random() * 0.4;
+                this.ballVel = -0.3 - Math.random() * 0.2;
                 this.ballRadius = 240;
 
                 const animate = () => {
                     this.angle += this.velocity;
                     this.ballAngle += this.ballVel;
-                    this.velocity *= 0.99;
-                    this.ballVel *= 0.995;
+                    this.velocity *= 0.985;
+                    this.ballVel *= 0.99;
 
-                    if (Math.abs(this.ballVel) < 0.1 && this.ballRadius > 180) this.ballRadius -= 1.5;
+                    if (Math.abs(this.ballVel) < 0.15 && this.ballRadius > 180) this.ballRadius -= 2;
 
-                    if (Math.abs(this.velocity) < 0.001 && Math.abs(this.ballVel) < 0.001 && this.ballRadius <= 180) {
+                    if (Math.abs(this.velocity) < 0.005 && Math.abs(this.ballVel) < 0.005 && this.ballRadius <= 180) {
                         this.finishSpin();
                         return;
                     }
@@ -337,28 +365,30 @@
 
             finishSpin() {
                 this.spinning = false;
-                const normWheel = this.angle % (Math.PI * 2);
-                const normBall = this.ballAngle % (Math.PI * 2);
-                let diff = normBall - normWheel;
-                if (diff < 0) diff += Math.PI * 2;
+                const slice = (Math.PI * 2) / NUMBERS.length;
+                const normWheel = (this.angle % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+                const normBall = (this.ballAngle % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
                 
-                const slice = (Math.PI * 2) / 37;
+                let diff = normBall - normWheel;
+                while (diff < 0) diff += Math.PI * 2;
+                
                 const index = Math.floor(diff / slice);
                 const winningNum = NUMBERS[(NUMBERS.length - index) % NUMBERS.length];
                 
+                this.history.push(winningNum);
                 this.resolveBets(winningNum);
             }
 
             resolveBets(num) {
                 let win = 0;
                 const n = parseInt(num);
-                const color = n === 0 ? 'green' : (REDS.includes(n) ? 'red' : 'black');
+                const color = (num === '0' || num === '00') ? 'green' : (REDS.includes(n) ? 'red' : 'black');
                 
                 Object.entries(this.bets).forEach(([spot, amt]) => {
-                    if (spot === num.toString()) win += amt * 36;
+                    if (spot === num.toString()) win += amt * 35;
                     if (spot === 'RED' && color === 'red') win += amt * 2;
                     if (spot === 'BLACK' && color === 'black') win += amt * 2;
-                    if (n !== 0) {
+                    if (color !== 'green') {
                         if (spot === 'EVEN' && n % 2 === 0) win += amt * 2;
                         if (spot === 'ODD' && n % 2 !== 0) win += amt * 2;
                         if (spot === '1st 12' && n <= 12) win += amt * 3;
@@ -388,25 +418,24 @@
                 ctx.translate(cx, cy);
                 ctx.rotate(this.angle);
 
-                const sliceAngle = (Math.PI * 2) / 37;
+                const sliceAngle = (Math.PI * 2) / NUMBERS.length;
                 NUMBERS.forEach((num, i) => {
                     const a = i * sliceAngle;
                     ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, r, a, a + sliceAngle);
-                    ctx.fillStyle = num === 0 ? '#166534' : (REDS.includes(num) ? '#b91c1c' : '#0f172a');
-                    ctx.fill(); ctx.stroke();
+                    ctx.fillStyle = (num === 0 || num === '00') ? '#166534' : (REDS.includes(num) ? '#b91c1c' : '#0f172a');
+                    ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.stroke();
                     ctx.save(); ctx.rotate(a + sliceAngle/2); ctx.fillStyle = '#fff';
-                    ctx.font = 'bold 16px Arial'; ctx.textAlign = 'right'; ctx.fillText(num, r - 20, 5); ctx.restore();
+                    ctx.font = 'bold 14px Arial'; ctx.textAlign = 'right'; ctx.fillText(num, r - 15, 5); ctx.restore();
                 });
                 
                 ctx.beginPath(); ctx.arc(0, 0, 100, 0, Math.PI*2); ctx.fillStyle = '#fbbf24'; ctx.fill();
-                ctx.beginPath(); ctx.arc(0, 0, 80, 0, Math.PI*2); ctx.fillStyle = '#000'; ctx.fill();
                 ctx.restore();
 
                 ctx.save();
                 ctx.translate(cx, cy);
                 ctx.rotate(this.ballAngle);
                 ctx.beginPath(); ctx.arc(this.ballRadius, 0, 8, 0, Math.PI*2);
-                ctx.fillStyle = '#fff'; ctx.shadowBlur = 5; ctx.shadowColor = 'white'; ctx.fill();
+                ctx.fillStyle = '#fff'; ctx.shadowBlur = 10; ctx.shadowColor = 'white'; ctx.fill();
                 ctx.restore();
                 
                 ctx.fillStyle = '#fbbf24';

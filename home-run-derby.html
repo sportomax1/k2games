@@ -7,229 +7,160 @@
     <style>
         :root {
             --grass: #2e7d32;
+            --grass-light: #388e3c;
             --dirt: #8d6e63;
-            --sky: #818cf8;
+            --sky: #0ea5e9;
             --gold: #fbbf24;
-            --bg: #0f172a;
-            --glass: rgba(15, 23, 42, 0.85);
-            --accent: #fbbf24;
+            --accent: #f59e0b;
+            --glass: rgba(15, 23, 42, 0.8);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
         
         body {
-            background-color: var(--bg);
+            background-color: #020617;
             color: white;
             font-family: 'Segoe UI', system-ui, sans-serif;
             height: 100vh;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
         }
 
-        #game-layout {
+        #game-view {
             flex: 1;
             position: relative;
+            background: linear-gradient(to bottom, #0ea5e9 0%, #7dd3fc 100%);
             display: flex;
             justify-content: center;
             align-items: center;
-            background: radial-gradient(circle at center, #1e293b 0%, #020617 100%);
         }
 
         canvas {
-            background: #000;
             display: block;
-            border-radius: 20px;
-            box-shadow: 0 50px 100px rgba(0,0,0,0.8);
-            width: 90vmin;
-            height: 63vmin; /* 1000:700 ratio */
-            max-width: 1000px;
-            max-height: 700px;
+            max-width: 100%;
+            max-height: 100%;
+            box-shadow: 0 50px 100px rgba(0,0,0,0.5);
+            background: #000;
         }
 
-        /* HUD */
-        #hud {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            right: 20px;
-            display: flex;
-            justify-content: space-between;
-            pointer-events: none;
-            z-index: 50;
+        #ui-layer {
+            position: absolute; inset: 0; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 25px;
+            z-index: 100;
         }
 
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        
         .stat-card {
-            background: var(--glass);
-            backdrop-filter: blur(12px);
-            padding: 12px 24px;
-            border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.1);
-            text-align: center;
-            min-width: 140px;
+            background: var(--glass); backdrop-filter: blur(12px);
+            padding: 12px 25px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);
+            text-align: center; min-width: 130px;
         }
-
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; color: #94a3b8; letter-spacing: 1.5px; font-weight: 900; }
         .stat-val { font-size: 1.8rem; font-weight: 900; color: var(--gold); font-family: monospace; }
-        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
 
         #event-banner {
-            position: absolute;
-            top: 40%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 5rem;
-            font-weight: 900;
-            color: var(--gold);
-            text-shadow: 0 0 30px rgba(0,0,0,0.8);
-            display: none;
-            z-index: 150;
-            pointer-events: none;
-            font-style: italic;
-            text-align: center;
+            position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 7rem; font-weight: 900; font-style: italic; color: #fff;
+            text-shadow: 0 0 40px rgba(251, 191, 36, 0.8), 0 0 80px rgba(0,0,0,0.5); 
+            display: none; z-index: 150;
+            text-align: center; animation: popZoom 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
+        @keyframes popZoom { 0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
 
-        .back-link {
-            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-            color: #94a3b8; text-decoration: none; font-size: 0.8rem; z-index: 100;
+        #mobile-controls {
+            position: absolute; bottom: 40px; left: 0; right: 0;
+            display: none; justify-content: center; z-index: 100;
         }
-
-        /* Controls */
-        #controls {
-            position: absolute; bottom: 30px; width: 100%;
-            display: flex; justify-content: center; padding: 0 40px;
-            pointer-events: none;
-        }
-
+        @media (max-width: 1024px) { #mobile-controls { display: flex; } }
         .swing-btn {
-            width: 100px; height: 100px;
-            background: var(--accent);
-            border: 4px solid white;
-            border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.5rem; color: #000; font-weight: 900;
-            pointer-events: auto; cursor: pointer;
-            box-shadow: 0 10px 25px rgba(251, 191, 36, 0.4);
-            transition: 0.1s;
+            width: 130px; height: 130px; background: var(--gold);
+            border: 8px solid white; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; color: black;
+            font-weight: 900; pointer-events: auto; box-shadow: 0 15px 40px rgba(245, 158, 11, 0.5);
+            font-size: 1.6rem; text-transform: uppercase;
         }
-        .swing-btn:active { transform: scale(0.9); filter: brightness(1.2); }
+        .swing-btn:active { transform: scale(0.85); filter: brightness(1.2); }
 
-        #start-screen {
-            position: absolute; inset: 0;
-            background: rgba(2, 6, 23, 0.95);
+        #overlay {
+            position: absolute; inset: 0; background: rgba(2, 6, 23, 0.95);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 200; text-align: center; padding: 20px;
+            z-index: 1000; text-align: center; padding: 40px;
         }
+        h1 { font-size: 5rem; font-style: italic; font-weight: 900; color: white; line-height: 0.8; margin-bottom: 10px; }
+        h1 span { color: var(--gold); }
 
-        .btn-large {
-            background: #e67e22; color: white; border: none; padding: 1.2rem 3.5rem;
-            border-radius: 50px; font-weight: 800; cursor: pointer; margin-top: 2rem;
-            font-size: 1.4rem; box-shadow: 0 10px 25px rgba(230, 126, 34, 0.4);
+        .btn-start {
+            background: #e67e22; color: white; border: none; padding: 20px 80px;
+            border-radius: 50px; font-weight: 900; font-size: 1.6rem; cursor: pointer;
+            box-shadow: 0 12px 30px rgba(230, 126, 34, 0.5); transition: 0.15s;
         }
+        .btn-start:active { transform: translateY(6px); box-shadow: 0 6px 0 #d35400; }
 
-        @media (max-width: 768px) {
-            .stat-card { padding: 8px 15px; min-width: 100px; }
-            .stat-val { font-size: 1.2rem; }
-            #event-banner { font-size: 3rem; }
-        }
+        .back-link { position: fixed; top: 20px; left: 20px; color: #94a3b8; text-decoration: none; font-weight: bold; font-size: 0.8rem; z-index: 1100; }
     </style>
 </head>
 <body>
-    <nav style="height: 0; overflow: visible;">
-        <a href="index.html" class="back-link">← EXIT HUB</a>
-    </nav>
+    <a href="index.html" class="back-link">← HUB</a>
 
-    <div id="game-layout">
+    <div id="game-view">
         <canvas id="gameCanvas" width="1000" height="700"></canvas>
         
-        <div id="hud">
-            <div class="stat-card">
-                <span class="stat-label">Home Runs</span>
-                <span id="hr-val" class="stat-val">0</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-label">Best Distance</span>
-                <span id="dist-val" class="stat-val">0ft</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-label">Outs Left</span>
-                <span id="outs-val" class="stat-val">10</span>
+        <div id="ui-layer">
+            <div class="hud-top">
+                <div class="stat-card"><div class="stat-label">Grand Slams</div><div id="hr-val" class="stat-val">0</div></div>
+                <div class="stat-card"><div class="stat-label">Longest Bomb</div><div id="dist-val" class="stat-val">0ft</div></div>
+                <div class="stat-card"><div class="stat-label">Strikes Left</div><div id="outs-val" class="stat-val">10</div></div>
             </div>
         </div>
 
-        <div id="event-banner">HOME RUN!</div>
+        <div id="event-banner">MOONSHOT!</div>
 
-        <div id="controls">
+        <div id="mobile-controls">
             <div class="swing-btn" id="btn-swing">SWING</div>
         </div>
 
-        <div id="start-screen">
-            <h1 style="font-size: 4rem; font-style: italic; background: linear-gradient(to bottom, #fff, var(--gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">HOME RUN DERBY</h1>
-            <p style="opacity: 0.7; margin-top: 10px;">Time your swing. Hit moonshots.</p>
-            <p id="final-stats" style="margin-top: 20px; font-weight: bold; color: var(--gold);"></p>
-            <button class="btn-large" id="start-btn" onclick="game.start()">BATTER UP</button>
+        <div id="overlay">
+            <h1>WORLD<span>SERIES</span><br>DERBY</h1>
+            <p style="opacity: 0.7; max-width: 450px; line-height: 1.6; margin-bottom: 40px; margin-top: 25px;">
+                The stadium is electric. The crowd is on their feet. Time your swing perfectly to crush it into the upper deck.
+            </p>
+            <button class="btn-start" onclick="game.start()">STEP UP TO PLATE</button>
         </div>
     </div>
 
     <script>
-        class Derby {
+        class DerbyElite {
             constructor() {
                 this.canvas = document.getElementById('gameCanvas');
                 this.ctx = this.canvas.getContext('2d');
                 this.width = 1000;
                 this.height = 700;
-
-                this.state = 'menu'; // menu, pitching, hit, foul, out
-                this.ball = { x: 500, y: 350, z: 0, vx: 0, vy: 0, vz: 0, active: false };
-                this.bat = { angle: -Math.PI/4, targetAngle: -Math.PI/4, active: false };
-                this.score = { hrs: 0, bestDist: 0, outs: 10 };
-                this.pitcher = { anim: 0, frame: 0 };
-                this.batter = { x: 420, y: 620 };
+                
+                this.state = 'menu'; // menu, pitching, hit, result
+                this.ball = { x: 500, y: 350, vx: 0, vy: 0, z: 0, vz: 0, active: false };
+                this.bat = { angle: -0.8, target: -0.8, active: false };
+                this.score = { hrs: 0, best: 0, outs: 10 };
+                this.shake = 0;
+                this.camZoom = 1;
                 this.particles = [];
-                this.clouds = Array(8).fill(0).map(() => ({ x: Math.random()*1000, y: 50+Math.random()*100, s: 0.2+Math.random()*0.5, w: 100+Math.random()*150 }));
-
-                this.setupControls();
-                this.pollGamepad();
+                this.clouds = Array(8).fill(0).map(() => ({ x: Math.random()*1000, y: 30+Math.random()*120, s: 0.15+Math.random()*0.3 }));
+                
+                this.setupInput();
                 this.loop();
             }
 
-            pollGamepad() {
-                const pads = navigator.getGamepads();
-                if (pads[0]) {
-                    const p = pads[0];
-                    if (p.buttons[0].pressed || p.buttons[7].pressed) {
-                        if (!this.padHandled) {
-                            this.swing();
-                            this.padHandled = true;
-                        }
-                    } else if (p.buttons[9].pressed && this.state === 'menu') {
-                        this.start();
-                    } else {
-                        this.padHandled = false;
-                    }
-                }
-                requestAnimationFrame(() => this.pollGamepad());
-            }
-
-            swing() {
-                if (this.state === 'pitching' && !this.bat.active) {
-                    this.bat.active = true;
-                    this.bat.targetAngle = Math.PI/2;
-                    this.checkHit();
-                }
-            }
-
-            setupControls() {
-                window.onkeydown = (e) => { if (e.code === 'Space') this.swing(); };
-                const btn = document.getElementById('btn-swing');
-                btn.addEventListener('touchstart', (e) => { e.preventDefault(); this.swing(); });
-                btn.onclick = () => this.swing();
+            setupInput() {
+                window.onkeydown = (e) => { if(e.code === 'Space') this.swing(); };
+                document.getElementById('btn-swing').onmousedown = (e) => { e.preventDefault(); this.swing(); };
+                document.getElementById('btn-swing').ontouchstart = (e) => { e.preventDefault(); this.swing(); };
             }
 
             start() {
-                this.score = { hrs: 0, bestDist: 0, outs: 10 };
-                this.state = 'idle';
-                this.isPlaying = true;
-                document.getElementById('start-screen').style.display = 'none';
+                this.score = { hrs: 0, best: 0, outs: 10 };
+                this.state = 'pitching';
+                document.getElementById('overlay').style.display = 'none';
                 this.updateUI();
                 this.newPitch();
             }
@@ -237,179 +168,310 @@
             newPitch() {
                 if (this.score.outs <= 0) return this.gameOver();
                 this.state = 'pitching';
-                this.ball.active = true;
-                this.ball.x = 500;
-                this.ball.y = 350;
-                this.ball.z = 0;
-                this.ball.vx = (Math.random() - 0.5) * 2;
-                this.ball.vy = 8 + Math.random() * 4;
-                this.ball.vz = 0;
+                this.camZoom = 1;
+                this.ball = { 
+                    x: 500, y: 350, z: 0,
+                    vx: (Math.random()-0.5)*3, 
+                    vy: 8 + Math.random()*5,
+                    vz: 0,
+                    active: true 
+                };
                 this.bat.active = false;
-                this.bat.angle = -Math.PI/4;
-                this.bat.targetAngle = -Math.PI/4;
+                this.bat.angle = -0.8;
             }
 
-            checkHit() {
-                // Perfect contact at y=640
+            swing() {
+                if (this.state === 'pitching' && !this.bat.active) {
+                    this.bat.active = true;
+                    this.bat.target = 1.4;
+                    this.checkContact();
+                }
+            }
+
+            checkContact() {
                 const dist = Math.abs(this.ball.y - 640);
-                if (dist < 50 && this.ball.active) {
-                    const timing = 1 - (dist / 50); // 1.0 is perfect
+                if (dist < 65 && this.ball.active) {
+                    const quality = 1 - (dist / 65); // 1.0 is perfect
                     this.state = 'hit';
-                    this.ball.vy = -15 - (timing * 15);
-                    this.ball.vx = (this.ball.x - 500) * 0.5 + (Math.random()-0.5)*10;
-                    this.ball.vz = 5 + timing * 10;
+                    this.ball.vy = -15 - (quality * 25);
+                    this.ball.vx = (this.ball.x - 500) * 1.2 + (Math.random()-0.5)*25;
+                    this.ball.vz = 8 + quality * 20;
                     
-                    if (timing > 0.6) {
-                        const d = Math.floor(350 + timing * 150);
-                        this.triggerEvent("HOME RUN!", d);
+                    if (quality > 0.45) {
+                        const d = Math.floor(390 + quality * 180);
+                        this.score.hrs++;
+                        if(d > this.score.best) this.score.best = d;
+                        this.showBanner(d > 480 ? "UPPER DECK!" : (d > 420 ? "MOONSHOT!" : "GONE!"));
+                        this.shake = 20;
+                        this.camZoom = 1.2;
+                        this.spawnParticles(this.ball.x, this.ball.y, '#fff', 30);
                     } else {
-                        this.triggerEvent("FOUL BALL", 0);
+                        this.showBanner("FOUL BALL");
+                        this.score.outs--;
                     }
-                    this.spawnParticles(this.ball.x, this.ball.y, '#fff', 15);
+                    this.updateUI();
                 }
             }
 
-            triggerEvent(txt, dist) {
+            showBanner(txt) {
                 const el = document.getElementById('event-banner');
-                el.textContent = txt;
-                el.style.display = 'block';
+                el.textContent = txt; el.style.display = 'block';
                 setTimeout(() => el.style.display = 'none', 2000);
-
-                if (dist > 0) {
-                    this.score.hrs++;
-                    if (dist > this.score.bestDist) this.score.bestDist = dist;
-                } else {
-                    this.score.outs--;
-                }
-                this.updateUI();
             }
 
             update() {
                 if (this.state === 'menu') return;
 
-                // Clouds
                 this.clouds.forEach(c => { c.x += c.s; if(c.x > 1100) c.x = -200; });
+                if (this.shake > 0) this.shake *= 0.88;
+                if (this.camZoom > 1) this.camZoom -= 0.005;
 
-                // Ball Physics
                 if (this.ball.active) {
                     this.ball.x += this.ball.vx;
                     this.ball.y += this.ball.vy;
-                    if (this.state === 'hit') {
-                        this.ball.vy += 0.25; // Gravity
-                    }
-
-                    if (this.ball.y > 800 || this.ball.y < -500) {
+                    if(this.state === 'hit') this.ball.vy += 0.35; // Gravity
+                    
+                    if (this.ball.y > 800 || this.ball.y < -800) {
                         this.ball.active = false;
-                        if (this.state === 'pitching') {
-                            this.score.outs--;
-                            this.updateUI();
-                        }
-                        setTimeout(() => this.newPitch(), 1000);
+                        if(this.state === 'pitching') { this.score.outs--; this.updateUI(); }
+                        setTimeout(() => this.newPitch(), 1200);
                     }
                 }
 
-                // Bat Animation
                 if (this.bat.active) {
-                    this.bat.angle += (this.bat.targetAngle - this.bat.angle) * 0.3;
-                    if (Math.abs(this.bat.angle - this.bat.targetAngle) < 0.1) {
-                        this.bat.active = false;
-                    }
+                    this.bat.angle += (this.bat.target - this.bat.angle) * 0.45;
+                    if(Math.abs(this.bat.angle - this.bat.target) < 0.1) this.bat.active = false;
                 }
 
-                // Particles
                 this.particles.forEach((p, i) => {
-                    p.x += p.vx; p.y += p.vy; p.life -= 0.02;
-                    if (p.life <= 0) this.particles.splice(i, 1);
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.025;
+                    if(p.life <= 0) this.particles.splice(i, 1);
                 });
             }
 
             updateUI() {
                 document.getElementById('hr-val').textContent = this.score.hrs;
-                document.getElementById('dist-val').textContent = this.score.bestDist + 'ft';
+                document.getElementById('dist-val').textContent = this.score.best + "ft";
                 document.getElementById('outs-val').textContent = this.score.outs;
             }
 
             spawnParticles(x, y, color, count) {
-                for(let i=0; i<count; i++) {
-                    this.particles.push({ x, y, vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15, life: 1, color });
-                }
+                for(let i=0; i<count; i++) this.particles.push({ x, y, vx: (Math.random()-0.5)*25, vy: (Math.random()-0.5)*25, life: 1, color });
             }
 
             gameOver() {
                 this.state = 'menu';
-                document.getElementById('start-screen').style.display = 'flex';
-                document.getElementById('start-btn').textContent = "REPLAY DERBY";
-                document.getElementById('final-stats').textContent = `SCORE: ${this.score.hrs} HRs • LONG: ${this.score.bestDist}ft`;
+                document.getElementById('overlay').style.display = 'flex';
+                document.querySelector('#overlay h1').innerHTML = "SERIES<span>OVER</span>";
             }
 
             draw() {
                 const ctx = this.ctx;
-                ctx.clearRect(0, 0, this.width, this.height);
-
-                // Sky
-                ctx.fillStyle = '#818cf8'; ctx.fillRect(0, 0, this.width, 400);
-                this.clouds.forEach(c => {
-                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-                    ctx.beginPath(); ctx.ellipse(c.x, c.y, c.w, c.w*0.4, 0, 0, Math.PI*2); ctx.fill();
-                });
-
-                // Grass & Outfield
-                ctx.fillStyle = '#2e7d32'; ctx.beginPath(); ctx.moveTo(0, 400); ctx.lineTo(1000, 400); ctx.lineTo(1000, 700); ctx.lineTo(0, 700); ctx.fill();
+                ctx.save();
                 
+                // Camera focus / Zoom effect
+                ctx.translate(this.width/2, this.height/2);
+                ctx.scale(this.camZoom, this.camZoom);
+                ctx.translate(-this.width/2, -this.height/2);
+
+                if(this.shake > 0.5) ctx.translate((Math.random()-0.5)*this.shake, (Math.random()-0.5)*this.shake);
+                
+                // Sky & Grass
+                const skyGrad = ctx.createLinearGradient(0,0,0,400);
+                skyGrad.addColorStop(0, '#0ea5e9'); skyGrad.addColorStop(1, '#7dd3fc');
+                ctx.fillStyle = skyGrad; ctx.fillRect(0,0,1000,400);
+                ctx.fillStyle = '#166534'; ctx.fillRect(0,400,1000,300);
+                
+                // Draw Stands & Crowd
+                this.drawCrowd(ctx);
+
+                // Mowed stripes
+                ctx.fillStyle = 'rgba(0,0,0,0.06)';
+                for(let i=0; i<10; i++) ctx.fillRect(i*100, 400, 50, 300);
+
+                // Stadium Lights
+                this.drawStadiumLights(ctx);
+
                 // Diamond
                 ctx.fillStyle = '#8d6e63';
-                ctx.beginPath(); ctx.moveTo(500, 680); ctx.lineTo(100, 400); ctx.lineTo(500, 300); ctx.lineTo(900, 400); ctx.closePath(); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(500, 680); ctx.lineTo(150, 400); ctx.lineTo(500, 320); ctx.lineTo(850, 400); ctx.closePath(); ctx.fill();
                 
                 // Outfield Wall
-                ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 10;
-                ctx.beginPath(); ctx.arc(500, 400, 600, Math.PI, Math.PI*2); ctx.stroke();
+                ctx.fillStyle = '#064e3b';
+                ctx.beginPath();
+                ctx.arc(500, 400, 600, Math.PI, Math.PI*2);
+                ctx.lineWidth = 20;
+                ctx.strokeStyle = '#042f2e';
+                ctx.stroke();
+                
+                // Wall Banners
+                ctx.font = 'bold 20px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                for(let a=Math.PI+0.2; a<Math.PI*2-0.2; a+=0.5) {
+                    ctx.save(); ctx.translate(500+Math.cos(a)*600, 400+Math.sin(a)*600); ctx.rotate(a+Math.PI/2);
+                    ctx.fillText("K2 GAMES ARENA", -80, 0); ctx.restore();
+                }
 
-                // Plate
-                ctx.fillStyle = '#fff'; ctx.fillRect(480, 660, 40, 10);
+                // Pitcher & Batter
+                this.drawDetailedMan(485, 360, 0.65, '#ef4444', 'pitcher'); // Pitcher
+                this.drawDetailedMan(430, 620, 1.25, '#3b82f6', 'batter'); // Batter
 
-                // Pitcher
-                ctx.font = '60px Arial';
-                ctx.fillText('👤', 475, 380);
+                // Bat
+                ctx.save();
+                ctx.translate(460, 630);
+                ctx.rotate(this.bat.angle);
+                ctx.fillStyle = '#b45309';
+                ctx.beginPath(); ctx.roundRect(0, -10, 100, 20, 6); ctx.fill();
+                ctx.fillStyle = '#d97706'; ctx.fillRect(0, -10, 100, 4); // Highlight
+                ctx.restore();
+
+                // Ball
+                if (this.ball.active) {
+                    const s = 1 + (Math.abs(this.ball.vy) / 40);
+                    ctx.fillStyle = '#fff';
+                    ctx.shadowBlur = 15; ctx.shadowColor = '#fff';
+                    ctx.beginPath(); ctx.arc(this.ball.x, this.ball.y, 9*s, 0, Math.PI*2); ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
 
                 // Particles
                 this.particles.forEach(p => {
                     ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
-                    ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
                 });
-                ctx.globalAlpha = 1;
 
-                // Ball
-                if (this.ball.active) {
-                    const scale = 1 + (this.ball.y / 700);
-                    ctx.save();
-                    ctx.shadowBlur = 10; ctx.shadowColor = '#fff';
+                ctx.restore();
+            }
+
+            drawStadiumLights(ctx) {
+                const positions = [100, 900];
+                positions.forEach(x => {
+                    ctx.fillStyle = '#1e293b';
+                    ctx.fillRect(x - 5, 50, 10, 350);
                     ctx.fillStyle = '#fff';
-                    ctx.beginPath(); ctx.arc(this.ball.x, this.ball.y, 8 * scale, 0, Math.PI*2); ctx.fill();
-                    ctx.restore();
+                    ctx.shadowBlur = 30; ctx.shadowColor = 'white';
+                    ctx.fillRect(x - 20, 40, 40, 30);
+                    ctx.shadowBlur = 0;
+                });
+            }
+
+            drawCrowd(ctx) {
+                const horizon = 400;
+                const time = Date.now() * 0.005;
+                const isCheering = (this.shake > 0);
+                
+                for (let i = 0; i < 6; i++) {
+                    const r = 620 + i * 25;
+                    const yOffset = i * 12;
+                    
+                    // Stand color
+                    ctx.fillStyle = i % 2 === 0 ? '#1e293b' : '#334155';
+                    ctx.beginPath();
+                    ctx.arc(500, 400 + yOffset, r, Math.PI, Math.PI * 2);
+                    ctx.lineWidth = 22;
+                    ctx.strokeStyle = '#0f172a';
+                    ctx.stroke();
+                    
+                    // People (Dense)
+                    const step = 0.025;
+                    for (let a = Math.PI; a < Math.PI * 2; a += step) {
+                        const px = 500 + Math.cos(a) * r;
+                        const py = 400 + Math.sin(a) * r + yOffset;
+                        
+                        if (py > 0 && py < horizon + 100) {
+                            const jump = isCheering ? Math.abs(Math.sin(time * 6 + a * 20)) * 25 : Math.sin(time * 2 + a * 10) * 4;
+                            
+                            // Shirt
+                            ctx.fillStyle = `hsl(${(a * 2000) % 360}, 60%, 50%)`;
+                            ctx.fillRect(px - 4, py + jump - 6, 8, 10);
+                            // Head
+                            ctx.fillStyle = '#ffdbac';
+                            ctx.beginPath(); ctx.arc(px, py + jump - 10, 5, 0, Math.PI * 2); ctx.fill();
+                            // Arms waving if cheering
+                            if (isCheering) {
+                                ctx.strokeStyle = '#ffdbac';
+                                ctx.lineWidth = 2;
+                                ctx.beginPath();
+                                ctx.moveTo(px - 4, py + jump - 4);
+                                ctx.lineTo(px - 10, py + jump - 15);
+                                ctx.moveTo(px + 4, py + jump - 4);
+                                ctx.lineTo(px + 10, py + jump - 15);
+                                ctx.stroke();
+                            }
+                        }
+                    }
+                }
+            }
+
+            drawDetailedMan(x, y, s, color, type) {
+                const ctx = this.ctx;
+                ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+                
+                const animT = Date.now() * 0.01;
+                const breath = Math.sin(animT) * 2.5;
+
+                // Legs
+                ctx.fillStyle = '#111';
+                ctx.fillRect(-12, -5, 10, 15);
+                ctx.fillRect(6, -5, 10, 15);
+
+                // Torso
+                ctx.fillStyle = color; 
+                ctx.beginPath();
+                ctx.roundRect(-15, -40 + breath, 30, 35, 8);
+                ctx.fill();
+
+                // Belt
+                ctx.fillStyle = '#000';
+                ctx.fillRect(-15, -12 + breath, 30, 4);
+
+                // Arms
+                ctx.strokeStyle = '#ffdbac';
+                ctx.lineWidth = 8;
+                ctx.lineCap = 'round';
+                
+                if (type === 'batter') {
+                    const swing = this.bat.active ? (this.bat.angle * 20) : 0;
+                    ctx.beginPath(); 
+                    ctx.moveTo(-15, -32 + breath); 
+                    ctx.lineTo(20 + swing, -20 + breath); 
+                    ctx.stroke();
+                } else {
+                    const windup = (this.state === 'pitching' && !this.ball.active) ? Math.sin(animT * 4) * 10 : 0;
+                    ctx.beginPath(); 
+                    ctx.moveTo(-15, -32 + breath); 
+                    ctx.lineTo(-22, -10 + breath + windup); 
+                    ctx.stroke();
+                    ctx.beginPath(); 
+                    ctx.moveTo(15, -32 + breath); 
+                    ctx.lineTo(22 + windup, -10 + breath); 
+                    ctx.stroke();
                 }
 
-                // Batter & Bat
-                ctx.save();
-                ctx.translate(this.batter.x, this.batter.y);
-                ctx.font = '80px Arial'; ctx.fillText('👤', -40, 40);
+                // Head
+                ctx.fillStyle = '#ffdbac'; 
+                ctx.beginPath(); 
+                ctx.arc(0, -55 + breath, 16, 0, Math.PI*2); 
+                ctx.fill(); 
                 
-                // Bat
-                ctx.translate(30, 0);
-                ctx.rotate(this.bat.angle);
-                ctx.fillStyle = '#b45309';
-                ctx.beginPath(); ctx.roundRect(0, -10, 80, 12, 5); ctx.fill();
-                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+                // Eyes
+                ctx.fillStyle = '#000';
+                ctx.beginPath(); ctx.arc(-6, -58 + breath, 2.5, 0, Math.PI*2); ctx.arc(6, -58 + breath, 2.5, 0, Math.PI*2); ctx.fill();
+
+                // Cap
+                ctx.fillStyle = color;
+                ctx.beginPath(); ctx.arc(0, -60 + breath, 16, Math.PI, 0); ctx.fill();
+                ctx.fillRect(0, -65 + breath, 25, 6); // Brim
+
                 ctx.restore();
             }
 
             loop() {
-                this.update();
-                this.draw();
+                this.update(); this.draw();
                 requestAnimationFrame(() => this.loop());
             }
         }
 
-        const game = new Derby();
+        window.game = new DerbyElite();
     </script>
 </body>
 </html>

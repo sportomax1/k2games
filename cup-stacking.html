@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Cup Stacking - Speed Stacks</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+            --accent-color: #00ff88;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text-color);
+            user-select: none;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 20px;
+        }
+
+        #timer {
+            font-size: 4rem;
+            font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+            margin-bottom: 10px;
+        }
+
+        #controls-hint {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 0.9rem;
+            color: var(--muted);
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        #status {
+            font-size: 1.2rem;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 20px;
+            border: 1px solid var(--accent-color);
+        }
+
+        #best-time {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 1.2rem;
+            color: var(--accent-color);
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 40px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 30px;
+            border-radius: 10px;
+            max-width: 400px;
+            text-align: center;
+            pointer-events: auto;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background: var(--accent-color);
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+            pointer-events: auto;
+            transition: 0.2s;
+        }
+
+        button.secondary {
+            background: transparent;
+            color: var(--accent-color);
+            border: 1px solid var(--accent-color);
+        }
+
+        button:hover {
+            filter: brightness(1.2);
+            transform: scale(1.05);
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            pointer-events: auto;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div id="controls-hint">Keys: [1] [2] [3]</div>
+        <div id="timer">0.000</div>
+        <div id="status">Ready to Stack!</div>
+        <div id="best-time">Best: --.---</div>
+        
+        <div id="instructions">
+            Click on a pile or use keys 1-3. Complete the 3-3-3 sequence!<br>
+            <small>Up-stack all 3 piles, then Down-stack them.</small>
+            <br>
+            <button id="demo-btn" class="secondary">WATCH DEMO</button>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h1>3D Cup Stacking</h1>
+        <p>Challenge your speed in the 3-3-3 stack.</p>
+        <div class="btn-group">
+            <button id="start-btn">START GAME</button>
+        </div>
+    </div>
+
+    <!-- Three.js Library -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- Game Constants ---
+        const CUP_HEIGHT = 0.8;
+        const CUP_RADIUS_BOTTOM = 0.3;
+        const CUP_RADIUS_TOP = 0.4;
+        const PILE_POSITIONS = [
+            new THREE.Vector3(-2.5, 0, 0),
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(2.5, 0, 0)
+        ];
+
+        // --- Variables ---
+        let scene, camera, renderer, raycaster, mouse;
+        let cups = [];
+        let piles = [
+            { id: 0, count: 3, state: 'stacked', objects: [] },
+            { id: 1, count: 3, state: 'stacked', objects: [] },
+            { id: 2, count: 3, state: 'stacked', objects: [] }
+        ];
+        
+        let gameState = 'waiting'; // waiting, stacking, finished, demo
+        let startTime = 0;
+        let bestTime = Infinity;
+        let timerInterval;
+        let sequencePhase = 'up'; // up, down
+        let hoveredPile = -1;
+
+        const timerEl = document.getElementById('timer');
+        const statusEl = document.getElementById('status');
+        const bestTimeEl = document.getElementById('best-time');
+        const startBtn = document.getElementById('start-btn');
+        const demoBtn = document.getElementById('demo-btn');
+        const overlay = document.getElementById('overlay');
+
+        // --- Initialization ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a1a);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 4, 6);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2(-999, -999);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // Floor/Table
+            const tableGeo = new THREE.BoxGeometry(10, 0.2, 5);
+            const tableMat = new THREE.MeshStandardMaterial({ color: 0x4a3728 });
+            const table = new THREE.Mesh(tableGeo, tableMat);
+            table.position.y = -0.1;
+            table.receiveShadow = true;
+            scene.add(table);
+
+            createCups();
+
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mousedown', onDocumentMouseDown);
+            window.addEventListener('touchstart', onDocumentTouchStart, { passive: false });
+            window.addEventListener('keydown', onKeyDown);
+            
+            startBtn.addEventListener('click', startGame);
+            demoBtn.addEventListener('click', startDemo);
+
+            animate();
+        }
+
+        function createCups() {
+            // Remove old cups if any
+            cups.forEach(c => scene.remove(c));
+            cups = [];
+            piles.forEach(p => p.objects = []);
+
+            const colors = [0xff3333, 0x33ff33, 0x3333ff];
+
+            for (let pIdx = 0; pIdx < 3; pIdx++) {
+                for (let cIdx = 0; cIdx < 3; cIdx++) {
+                    const cupGeo = new THREE.CylinderGeometry(CUP_RADIUS_TOP, CUP_RADIUS_BOTTOM, CUP_HEIGHT, 32, 1, true);
+                    const cupMat = new THREE.MeshStandardMaterial({ 
+                        color: colors[pIdx], 
+                        side: THREE.DoubleSide,
+                        roughness: 0.3,
+                        metalness: 0.1,
+                        emissive: new THREE.Color(0x000000)
+                    });
+                    
+                    const cup = new THREE.Mesh(cupGeo, cupMat);
+                    cup.castShadow = true;
+                    cup.receiveShadow = true;
+                    
+                    // Add a bottom cap
+                    const capGeo = new THREE.CircleGeometry(CUP_RADIUS_BOTTOM, 32);
+                    const cap = new THREE.Mesh(capGeo, cupMat);
+                    cap.rotation.x = -Math.PI / 2;
+                    cap.position.y = -CUP_HEIGHT / 2;
+                    cup.add(cap);
+
+                    // Position in stack
+                    cup.position.copy(PILE_POSITIONS[pIdx]);
+                    cup.position.y = cIdx * 0.05 + CUP_HEIGHT/2; // Slight offset for stacked look
+                    
+                    cup.userData = { pileIndex: pIdx, cupIndex: cIdx };
+                    
+                    scene.add(cup);
+                    cups.push(cup);
+                    piles[pIdx].objects.push(cup);
+                }
+                piles[pIdx].state = 'stacked';
+            }
+        }
+
+        function startGame() {
+            overlay.classList.add('hidden');
+            resetGame();
+        }
+
+        function startDemo() {
+            if (gameState === 'demo') return;
+            overlay.classList.add('hidden');
+            resetGame();
+            gameState = 'demo';
+            statusEl.innerText = 'DEMO MODE';
+            
+            const delay = 400;
+            const sequence = [0, 1, 2, 0, 1, 2]; // Up 0,1,2 then Down 0,1,2
+            
+            sequence.forEach((pIdx, i) => {
+                setTimeout(() => {
+                    if (gameState !== 'demo') return;
+                    interactWithPile(pIdx);
+                }, i * delay + 500);
+            });
+        }
+
+        function resetGame() {
+            gameState = 'waiting';
+            sequencePhase = 'up';
+            startTime = 0;
+            timerEl.innerText = '0.000';
+            statusEl.innerText = 'Ready to Stack!';
+            createCups();
+            if (timerInterval) clearInterval(timerInterval);
+        }
+
+        function updateTimer() {
+            if (gameState === 'demo') return;
+            const now = performance.now();
+            const diff = (now - startTime) / 1000;
+            timerEl.innerText = diff.toFixed(3);
+        }
+
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
+
+        function onKeyDown(event) {
+            if (overlay.classList.contains('hidden')) {
+                if (event.key === '1') interactWithPile(0);
+                if (event.key === '2') interactWithPile(1);
+                if (event.key === '3') interactWithPile(2);
+            }
+        }
+
+        function onDocumentMouseDown(event) {
+            handleInteract();
+        }
+
+        function onDocumentTouchStart(event) {
+            if (event.touches.length > 0) {
+                mouse.x = (event.touches[0].clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
+                handleInteract();
+            }
+        }
+
+        function handleInteract() {
+            if (gameState === 'finished') return;
+            if (gameState === 'demo') {
+                gameState = 'stacking'; // User took over
+                startTime = performance.now();
+            }
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(cups);
+
+            if (intersects.length > 0) {
+                const clickedCup = intersects[0].object;
+                const pileIdx = clickedCup.userData.pileIndex;
+                interactWithPile(pileIdx);
+            }
+        }
+
+        function interactWithPile(idx) {
+            const pile = piles[idx];
+
+            if (gameState === 'waiting') {
+                gameState = 'stacking';
+                startTime = performance.now();
+                timerInterval = setInterval(updateTimer, 10);
+            }
+
+            if (sequencePhase === 'up') {
+                if (pile.state === 'stacked') {
+                    upStack(idx);
+                }
+            } else {
+                if (pile.state === 'unstacked') {
+                    downStack(idx);
+                }
+            }
+
+            checkSequence();
+        }
+
+        function upStack(idx) {
+            const pile = piles[idx];
+            const objs = pile.objects;
+            const basePos = PILE_POSITIONS[idx];
+
+            // 3-cup pyramid
+            animateMove(objs[0], new THREE.Vector3(basePos.x - 0.45, CUP_HEIGHT/2, basePos.z));
+            animateMove(objs[1], new THREE.Vector3(basePos.x + 0.45, CUP_HEIGHT/2, basePos.z));
+            animateMove(objs[2], new THREE.Vector3(basePos.x, CUP_HEIGHT + 0.05 + CUP_HEIGHT/2, basePos.z));
+
+            pile.state = 'unstacked';
+        }
+
+        function downStack(idx) {
+            const pile = piles[idx];
+            const objs = pile.objects;
+            const basePos = PILE_POSITIONS[idx];
+
+            objs.forEach((obj, i) => {
+                animateMove(obj, new THREE.Vector3(basePos.x, i * 0.05 + CUP_HEIGHT/2, basePos.z));
+            });
+
+            pile.state = 'stacked';
+        }
+
+        function animateMove(obj, targetPos) {
+            const startPos = obj.position.clone();
+            const duration = 150;
+            const startTime = performance.now();
+
+            function update() {
+                const now = performance.now();
+                const progress = Math.min((now - startTime) / duration, 1);
+                const ease = 1 - (1 - progress) * (1 - progress);
+                obj.position.lerpVectors(startPos, targetPos, ease);
+                if (progress < 1) requestAnimationFrame(update);
+            }
+            requestAnimationFrame(update);
+        }
+
+        function checkSequence() {
+            const allUnstacked = piles.every(p => p.state === 'unstacked');
+            const allStacked = piles.every(p => p.state === 'stacked');
+
+            if (sequencePhase === 'up' && allUnstacked) {
+                sequencePhase = 'down';
+                statusEl.innerText = 'Now Down-Stack!';
+            } else if (sequencePhase === 'down' && allStacked) {
+                finishGame();
+            }
+        }
+
+        function finishGame() {
+            if (gameState === 'demo') {
+                setTimeout(resetGame, 2000);
+                statusEl.innerText = 'Demo Complete!';
+                return;
+            }
+
+            gameState = 'finished';
+            clearInterval(timerInterval);
+            const finalTime = parseFloat(timerEl.innerText);
+            statusEl.innerText = 'Finished!';
+            
+            if (finalTime < bestTime) {
+                bestTime = finalTime;
+                bestTimeEl.innerText = `Best: ${bestTime.toFixed(3)}`;
+            }
+
+            setTimeout(() => {
+                overlay.classList.remove('hidden');
+                document.querySelector('#overlay h1').innerText = `Time: ${finalTime.toFixed(3)}s`;
+                startBtn.innerText = 'TRY AGAIN';
+            }, 1000);
+        }
+
+        function updateHover() {
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(cups);
+            let currentHover = -1;
+            
+            if (intersects.length > 0) {
+                currentHover = intersects[0].object.userData.pileIndex;
+            }
+
+            piles.forEach((p, i) => {
+                p.objects.forEach(obj => {
+                    if (i === currentHover) {
+                        obj.material.emissive.setHex(0x333333);
+                    } else {
+                        obj.material.emissive.setHex(0x000000);
+                    }
+                });
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            updateHover();
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>

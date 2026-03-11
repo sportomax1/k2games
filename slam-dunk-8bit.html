@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>8-BIT SLAM DUNK - K2 Games</title>
+    <style>
+        @font-face {
+            font-family: 'Pixel';
+            src: url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        }
+
+        :root {
+            --bg: #000;
+            --primary: #ff4500;
+            --secondary: #ffd700;
+            --court: #8b4513;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background: var(--bg);
+            color: #fff;
+            font-family: 'Press Start 2P', cursive;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 400px;
+            border: 8px solid #333;
+            background: #1a1a1a;
+            image-rendering: pixelated;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            pointer-events: none;
+            font-size: 20px;
+            text-shadow: 4px 4px 0 #000;
+        }
+
+        .score-box { text-align: center; }
+        .score-val { color: var(--secondary); margin-top: 10px; }
+
+        #mobile-controls {
+            position: fixed; bottom: 20px; width: 100%;
+            display: none; justify-content: space-between; padding: 0 40px;
+            z-index: 100;
+        }
+        @media (max-width: 900px) {
+            #game-container { width: 95vw; height: 50vh; }
+            #mobile-controls { display: flex; }
+        }
+
+        .m-btn {
+            width: 80px; height: 80px; background: rgba(255,255,255,0.2);
+            border: 4px solid #fff; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-family: inherit;
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.8);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1000; text-align: center;
+        }
+
+        .btn-start {
+            padding: 20px 40px; background: var(--primary); color: #fff;
+            border: none; cursor: pointer; font-family: inherit; font-size: 18px;
+            box-shadow: 6px 6px 0 #8b0000;
+        }
+        .btn-start:active { transform: translate(3px, 3px); box-shadow: 3px 3px 0 #8b0000; }
+
+        .back-link { position: fixed; top: 10px; left: 10px; font-size: 10px; color: #666; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">< BACK TO VAULT</a>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <div id="ui">
+            <div class="score-box">P1<div id="p1-score" class="score-val">0</div></div>
+            <div id="timer">2:00</div>
+            <div class="score-box">CPU<div id="ai-score" class="score-val">0</div></div>
+        </div>
+        <div id="overlay">
+            <h1 style="color:var(--primary); font-size: 32px; margin-bottom: 20px;">8-BIT<br>SLAM DUNK</h1>
+            <p style="font-size: 10px; margin-bottom: 30px; line-height: 2;">ARROWS: MOVE & JUMP<br>SPACE: DUNK / SHOOT</p>
+            <button class="btn-start" onclick="game.start()">START GAME</button>
+        </div>
+    </div>
+
+    <div id="mobile-controls">
+        <div style="display:flex; gap:10px;">
+            <div class="m-btn" id="m-left">L</div>
+            <div class="m-btn" id="m-right">R</div>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <div class="m-btn" id="m-jump" style="background:var(--secondary); color:#000;">JUMP</div>
+            <div class="m-btn" id="m-action" style="background:var(--primary)">DUNK</div>
+        </div>
+    </div>
+
+    <script>
+        class SlamDunk8Bit {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 800;
+                this.height = 400;
+                
+                this.p1 = { x: 100, y: 300, vx: 0, vy: 0, w: 32, h: 48, color: '#3b82f6', jumping: false, hasBall: true, state: 'idle' };
+                this.ai = { x: 650, y: 300, vx: 0, vy: 0, w: 32, h: 48, color: '#ef4444', jumping: false, hasBall: false, state: 'idle' };
+                this.ball = { x: 0, y: 0, vx: 0, vy: 0, r: 8, state: 'held', owner: 'p1' };
+                this.hoop = { x: 750, y: 150, w: 40, h: 5 };
+                
+                this.gravity = 0.6;
+                this.friction = 0.85;
+                this.scores = { p1: 0, ai: 0 };
+                this.timeLeft = 120;
+                this.playing = false;
+                this.keys = {};
+
+                this.setupInputs();
+                this.loop();
+            }
+
+            setupInputs() {
+                window.onkeydown = (e) => this.keys[e.code] = true;
+                window.onkeyup = (e) => this.keys[e.code] = false;
+
+                const bind = (id, k) => {
+                    const el = document.getElementById(id);
+                    el.ontouchstart = (e) => { e.preventDefault(); this.keys[k] = true; };
+                    el.ontouchend = () => this.keys[k] = false;
+                };
+                bind('m-left', 'ArrowLeft'); bind('m-right', 'ArrowRight');
+                bind('m-jump', 'ArrowUp'); bind('m-action', 'Space');
+            }
+
+            start() {
+                this.playing = true;
+                this.scores = { p1: 0, ai: 0 };
+                this.timeLeft = 120;
+                document.getElementById('overlay').style.display = 'none';
+            }
+
+            update() {
+                if (!this.playing) return;
+
+                this.timeLeft -= 1/60;
+                if(this.timeLeft <= 0) this.gameOver();
+
+                // Player Logic
+                if (this.p1.state === 'dunking') {
+                    this.p1.x += (this.hoop.x - 20 - this.p1.x) * 0.15;
+                    this.p1.y += (this.hoop.y - 20 - this.p1.y) * 0.15;
+                    if (Math.hypot(this.p1.x - (this.hoop.x - 20), this.p1.y - (this.hoop.y - 20)) < 5) {
+                        this.scorePoint('p1');
+                        this.p1.state = 'idle';
+                        this.p1.vy = 2;
+                    }
+                } else {
+                    if (this.keys['ArrowLeft']) this.p1.vx -= 1;
+                    if (this.keys['ArrowRight']) this.p1.vx += 1;
+                    if (this.keys['ArrowUp'] && !this.p1.jumping) {
+                        this.p1.vy = -12;
+                        this.p1.jumping = true;
+                    }
+
+                    this.p1.vx *= this.friction;
+                    this.p1.x += this.p1.vx;
+                    this.p1.vy += this.gravity;
+                    this.p1.y += this.p1.vy;
+
+                    if (this.p1.y >= 300) {
+                        this.p1.y = 300;
+                        this.p1.vy = 0;
+                        this.p1.jumping = false;
+                    }
+
+                    // Dunk Trigger
+                    if (this.keys['Space'] && this.p1.hasBall && this.p1.jumping && this.p1.x > 600) {
+                        this.p1.state = 'dunking';
+                    } else if (this.keys['Space'] && this.p1.hasBall) {
+                        this.shoot('p1');
+                    }
+                }
+
+                // AI Logic (Simple)
+                if (this.ai.hasBall) {
+                    if (this.ai.x > 150) this.ai.vx -= 0.5;
+                    if (Math.random() < 0.02 && !this.ai.jumping) { this.ai.vy = -12; this.ai.jumping = true; }
+                } else {
+                    if (this.p1.x > this.ai.x) this.ai.vx += 0.5;
+                    else this.ai.vx -= 0.5;
+                }
+                this.ai.vx *= this.friction;
+                this.ai.x += this.ai.vx;
+                this.ai.vy += this.gravity;
+                this.ai.y += this.ai.vy;
+                if (this.ai.y >= 300) { this.ai.y = 300; this.ai.vy = 0; this.ai.jumping = false; }
+
+                // Ball Handling
+                if (this.p1.state === 'dunking') {
+                    this.ball.x = this.p1.x + 20;
+                    this.ball.y = this.p1.y;
+                } else if (this.ball.state === 'held') {
+                    const owner = this.ball.owner === 'p1' ? this.p1 : this.ai;
+                    this.ball.x = owner.x + (this.ball.owner === 'p1' ? 20 : -10);
+                    this.ball.y = owner.y + 10 + Math.sin(Date.now()*0.01)*5;
+                } else {
+                    this.ball.x += this.ball.vx;
+                    this.ball.y += this.ball.vy;
+                    this.ball.vy += this.gravity;
+
+                    // Floor bounce
+                    if (this.ball.y > 340) {
+                        this.ball.y = 340;
+                        this.ball.vy *= -0.6;
+                    }
+
+                    // Collision with players
+                    [this.p1, this.ai].forEach(p => {
+                        if (p.state !== 'dunking' && Math.hypot(this.ball.x - p.x, this.ball.y - p.y) < 30) {
+                            this.ball.state = 'held';
+                            this.ball.owner = p === this.p1 ? 'p1' : 'ai';
+                            p.hasBall = true;
+                            this.ball.vx = 0; this.ball.vy = 0;
+                        }
+                    });
+
+                    // Hoop check
+                    if (this.ball.vy > 0 && Math.abs(this.ball.x - this.hoop.x) < 20 && Math.abs(this.ball.y - this.hoop.y) < 10) {
+                        this.scorePoint(this.ball.lastOwner);
+                    }
+                }
+
+                // Constrain
+                [this.p1, this.ai].forEach(p => p.x = Math.max(0, Math.min(770, p.x)));
+
+                this.updateUI();
+            }
+
+            shoot(owner) {
+                this.ball.state = 'air';
+                this.ball.lastOwner = owner;
+                const dir = owner === 'p1' ? 1 : -1;
+                this.ball.vx = 10 * dir;
+                this.ball.vy = -10;
+                if (owner === 'p1') this.p1.hasBall = false; else this.ai.hasBall = false;
+                this.ball.owner = null;
+            }
+
+            scorePoint(owner) {
+                if(!owner) return;
+                this.scores[owner]++;
+                this.ball.x = 400; this.ball.y = 100;
+                this.ball.vx = 0; this.ball.vy = 0;
+                this.ball.state = 'air';
+                this.ball.owner = null;
+                this.p1.hasBall = false;
+                this.ai.hasBall = false;
+            }
+
+            updateUI() {
+                document.getElementById('p1-score').textContent = this.scores.p1;
+                document.getElementById('ai-score').textContent = this.scores.ai;
+                const m = Math.floor(this.timeLeft / 60);
+                const s = Math.floor(this.timeLeft % 60).toString().padStart(2, '0');
+                document.getElementById('timer').textContent = `${m}:${s}`;
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Court
+                ctx.fillStyle = '#8b4513';
+                ctx.fillRect(0, 350, this.width, 50);
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(0, 350, this.width, 2);
+
+                // Hoop
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.hoop.x + 15, this.hoop.y - 100, 5, 250);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(this.hoop.x - 10, this.hoop.y - 40, 50, 40);
+                ctx.strokeStyle = 'red';
+                ctx.strokeRect(this.hoop.x, this.hoop.y, 30, 5);
+
+                // Players (8-bit style)
+                this.drawPlayer(this.p1);
+                this.drawPlayer(this.ai);
+
+                // Ball
+                ctx.fillStyle = '#ff8c00';
+                ctx.beginPath();
+                ctx.arc(this.ball.x, this.ball.y, this.ball.r, 0, Math.PI*2);
+                ctx.fill();
+                ctx.strokeStyle = '#000';
+                ctx.stroke();
+            }
+
+            drawPlayer(p) {
+                const ctx = this.ctx;
+                ctx.fillStyle = p.color;
+                // Head
+                ctx.fillRect(p.x + 8, p.y - 16, 16, 16);
+                // Body
+                ctx.fillRect(p.x, p.y, 32, 32);
+                // Eyes
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(p.x + 12, p.y - 12, 4, 4);
+                ctx.fillRect(p.x + 20, p.y - 12, 4, 4);
+            }
+
+            gameOver() {
+                this.playing = false;
+                const over = document.getElementById('overlay');
+                over.style.display = 'flex';
+                over.querySelector('h1').textContent = this.scores.p1 > this.scores.ai ? "YOU WIN!" : "GAME OVER";
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        const game = new SlamDunk8Bit();
+    </script>
+</body>
+</html>

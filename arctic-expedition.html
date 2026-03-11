@@ -530,7 +530,7 @@
         
         function updateGame(dt) {
             // 1. Time & Environment
-            state.time += dt * 10; // Speed up time
+            state.time += dt * 10;
             if (state.time >= 24 * 60) { state.time = 0; state.day++; }
             
             const hours = Math.floor(state.time / 60);
@@ -538,18 +538,15 @@
             document.getElementById('time-display').innerText = `${hours.toString().padStart(2,'0')}:${minutes.toString().padStart(2,'0')}`;
 
             // Day/Night Cycle
-            // Sun movement
             const theta = ((state.time / (24*60)) * Math.PI * 2) - Math.PI/2;
             sunLight.position.x = Math.cos(theta) * 200;
             sunLight.position.y = Math.sin(theta) * 200;
             
-            // Sky Color
             const isNight = hours < 6 || hours > 18;
             const skyColor = new THREE.Color(isNight ? 0x0f172a : 0x87CEEB);
             scene.background.lerp(skyColor, dt * 0.5);
             scene.fog.color.copy(scene.background);
             
-            // Lighting intensity
             const intensity = Math.max(0, Math.sin(theta));
             sunLight.intensity = intensity * 1.2;
             hemiLight.intensity = 0.1 + intensity * 0.4;
@@ -557,7 +554,6 @@
             // 2. Player Stats
             let tempChange = isNight ? -CONFIG.TEMP_LOSS_NIGHT : -CONFIG.TEMP_LOSS_DAY;
             
-            // Check fire proximity
             let nearFire = false;
             structures.forEach(s => {
                 if (s.type === 'campfire') {
@@ -565,13 +561,11 @@
                         tempChange = CONFIG.TEMP_GAIN_FIRE;
                         nearFire = true;
                     }
-                    // Animate fire particles
                     s.particles.forEach(p => {
                         p.position.y += dt * p.userData.speed;
                         if(p.position.y > 1.5) p.position.y = 0;
                         p.rotation.y += dt;
                     });
-                    // Fire light flicker
                     s.light.intensity = 4 + Math.sin(Date.now() * 0.01) * 1;
                 }
             });
@@ -580,7 +574,6 @@
             state.warmth = Math.min(100, state.warmth);
             
             if (state.warmth <= 0) {
-                // Freezing damage
                 document.getElementById('damage-overlay').style.background = `radial-gradient(circle, transparent 20%, rgba(0, 150, 255, 0.6) 100%)`;
                 showMsg("FREEZING!");
             } else {
@@ -589,7 +582,6 @@
 
             state.energy -= CONFIG.ENERGY_LOSS * dt;
 
-            // Update Bars
             document.getElementById('temp-fill').style.width = Math.max(0, state.warmth) + '%';
             document.getElementById('energy-fill').style.width = Math.max(0, state.energy) + '%';
 
@@ -598,13 +590,14 @@
             const velocity = new THREE.Vector3();
             
             if (isMobile) {
-                // Apply rotation
+                // Apply rotation smoothly
                 camera.rotation.y += state.input.rotY;
-                // Simple pitch clamp would be good but omitting for brevity
+                camera.rotation.x = Math.max(-Math.PI/3, Math.min(Math.PI/3, camera.rotation.x + state.input.rotX));
+                camera.rotation.order = 'YXZ';
                 
                 // Move based on camera direction
-                const dir = new THREE.Vector3();
-                camera.getWorldDirection(dir);
+                const dir = new THREE.Vector3(0, 0, -1);
+                dir.applyQuaternion(camera.quaternion);
                 dir.y = 0; dir.normalize();
                 
                 const side = new THREE.Vector3(-dir.z, 0, dir.x);
@@ -620,9 +613,12 @@
                 if (moveLeft) controls.moveRight(-speed);
             }
 
-            // Ground Clamp
+            // Boundary and Ground Clamp
+            camera.position.x = Math.max(-CONFIG.WORLD_SIZE/2 + 10, Math.min(CONFIG.WORLD_SIZE/2 - 10, camera.position.x));
+            camera.position.z = Math.max(-CONFIG.WORLD_SIZE/2 + 10, Math.min(CONFIG.WORLD_SIZE/2 - 10, camera.position.z));
+
             const y = getHeight(camera.position.x, camera.position.z);
-            camera.position.y = y + 1.8; // Eye height
+            camera.position.y = y + 1.8;
         }
 
         function animate() {

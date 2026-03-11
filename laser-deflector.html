@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Laser Deflector: Prism Puzzles - K2 Games</title>
+    <style>
+        :root {
+            --bg: #020617;
+            --panel: #1e293b;
+            --laser: #ef4444;
+            --laser-glow: rgba(239, 68, 68, 0.6);
+            --accent: #22d3ee;
+            --text: #f8fafc;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; touch-action: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        nav {
+            padding: 1rem 2rem;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo { font-weight: 900; font-size: 1.5rem; color: var(--accent); letter-spacing: -1px; }
+        .back-link { color: #94a3b8; text-decoration: none; font-weight: bold; font-size: 0.8rem; }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        canvas {
+            background: #000;
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(34, 211, 238, 0.1);
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .stat-card {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .label { font-size: 0.6rem; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px; }
+        .val { font-size: 1.2rem; font-weight: 900; color: var(--accent); }
+
+        #level-complete {
+            position: absolute;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .win-title { font-size: 3rem; font-weight: 900; color: var(--accent); font-style: italic; }
+        .btn-next {
+            margin-top: 2rem;
+            padding: 1rem 3rem;
+            background: var(--accent);
+            color: black;
+            border: none;
+            border-radius: 50px;
+            font-weight: 900;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        #start-screen {
+            position: absolute;
+            inset: 0;
+            background: var(--bg);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .desc { max-width: 400px; opacity: 0.7; margin: 1rem 0 2rem; line-height: 1.6; }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="logo">LASER DEFLECTOR</div>
+        <a href="index.html" class="back-link">← VAULT</a>
+    </nav>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui-overlay">
+            <div class="stat-card">
+                <div class="label">Current Level</div>
+                <div id="lvl-val" class="val">1</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Rotations</div>
+                <div id="rot-val" class="val">0</div>
+            </div>
+        </div>
+
+        <div id="level-complete">
+            <div class="win-title">LEVEL CLEAR</div>
+            <p style="margin-top: 1rem; opacity: 0.8;">Optics path successfully established.</p>
+            <button class="btn-next" onclick="game.nextLevel()">INITIALIZE NEXT</button>
+        </div>
+
+        <div id="start-screen">
+            <h1 style="font-size: 4rem; color: var(--accent);">PRISM<span>LOGIC</span></h1>
+            <p class="desc">Rotate the deflectors to guide the high-energy laser to the receiver core. Avoid obstacles and minimize moves.</p>
+            <button class="btn-next" onclick="game.start()">ENGAGE SYSTEM</button>
+        </div>
+    </div>
+
+    <script>
+        const LEVELS = [
+            { source: { x: 1, y: 4, dir: { x: 1, y: 0 } }, target: { x: 8, y: 4 }, mirrors: [{ x: 4, y: 4, rot: 0 }], blocks: [] },
+            { source: { x: 1, y: 1, dir: { x: 1, y: 0 } }, target: { x: 8, y: 8 }, mirrors: [{ x: 8, y: 1, rot: 0 }, { x: 1, y: 8, rot: 0 }], blocks: [{ x: 4, y: 4 }] },
+            { source: { x: 0, y: 0, dir: { x: 0, y: 1 } }, target: { x: 9, y: 9 }, mirrors: [{ x: 0, y: 9, rot: 0 }, { x: 5, y: 9, rot: 0 }, { x: 5, y: 5, rot: 0 }, { x: 9, y: 5, rot: 0 }], blocks: [{ x: 2, y: 2 }, { x: 7, y: 7 }] },
+            { source: { x: 4, y: 0, dir: { x: 0, y: 1 } }, target: { x: 4, y: 9 }, mirrors: [{ x: 4, y: 5, rot: 45 }], blocks: [{ x: 4, y: 4 }, { x: 4, y: 6 }] },
+            { source: { x: 1, y: 1, dir: { x: 0, y: 1 } }, target: { x: 1, y: 2 }, mirrors: [{ x: 1, y: 8, rot: 0 }, { x: 8, y: 8, rot: 0 }, { x: 8, y: 2, rot: 0 }], blocks: [] },
+            { source: { x: 0, y: 5, dir: { x: 1, y: 0 } }, target: { x: 9, y: 5 }, mirrors: [{ x: 2, y: 5, rot: 45 }, { x: 2, y: 2, rot: 45 }, { x: 7, y: 2, rot: 45 }, { x: 7, y: 5, rot: 45 }], blocks: [{ x: 5, y: 5 }] },
+            { source: { x: 5, y: 0, dir: { x: 0, y: 1 } }, target: { x: 0, y: 9 }, mirrors: [{ x: 5, y: 5, rot: 0 }, { x: 9, y: 5, rot: 0 }, { x: 9, y: 9, rot: 0 }], blocks: [{ x: 2, y: 7 }] },
+            { source: { x: 1, y: 1, dir: { x: 1, y: 0 } }, target: { x: 5, y: 5 }, mirrors: [{ x: 8, y: 1, rot: 0 }, { x: 8, y: 8, rot: 0 }, { x: 1, y: 8, rot: 0 }, { x: 1, y: 5, rot: 0 }], blocks: [] },
+            { source: { x: 9, y: 0, dir: { x: -1, y: 0 } }, target: { x: 0, y: 9 }, mirrors: [{ x: 5, y: 0, rot: 45 }, { x: 5, y: 5, rot: 45 }, { x: 2, y: 5, rot: 45 }, { x: 2, y: 9, rot: 45 }], blocks: [] },
+            { source: { x: 4, y: 4, dir: { x: 0, y: -1 } }, target: { x: 4, y: 5 }, mirrors: [{ x: 4, y: 1, rot: 0 }, { x: 1, y: 1, rot: 0 }, { x: 1, y: 8, rot: 0 }, { x: 8, y: 8, rot: 0 }, { x: 8, y: 1, rot: 0 }], blocks: [] },
+            { source: { x: 0, y: 0, dir: { x: 1, y: 0 } }, target: { x: 1, y: 0 }, mirrors: [{ x: 9, y: 0, rot: 0 }, { x: 9, y: 9, rot: 0 }, { x: 0, y: 9, rot: 0 }, { x: 0, y: 1, rot: 0 }, { x: 1, y: 1, rot: 0 }], blocks: [] },
+            { source: { x: 2, y: 2, dir: { x: 0, y: 1 } }, target: { x: 7, y: 7 }, mirrors: [{ x: 2, y: 7, rot: 0 }, { x: 5, y: 7, rot: 0 }, { x: 5, y: 2, rot: 0 }, { x: 8, y: 2, rot: 0 }, { x: 8, y: 7, rot: 0 }], blocks: [] },
+            { source: { x: 5, y: 5, dir: { x: 1, y: 1 } }, target: { x: 0, y: 0 }, mirrors: [{ x: 8, y: 8, rot: 0 }, { x: 8, y: 2, rot: 0 }, { x: 2, y: 2, rot: 0 }], blocks: [{ x: 4, y: 4 }] },
+            { source: { x: 1, y: 9, dir: { x: 0, y: -1 } }, target: { x: 9, y: 1 }, mirrors: [{ x: 1, y: 1, rot: 0 }, { x: 5, y: 1, rot: 0 }, { x: 5, y: 5, rot: 0 }, { x: 9, y: 5, rot: 0 }], blocks: [{ x: 3, y: 3 }] },
+            { source: { x: 0, y: 0, dir: { x: 1, y: 1 } }, target: { x: 5, y: 5 }, mirrors: [{ x: 9, y: 9, rot: 0 }, { x: 9, y: 0, rot: 0 }, { x: 0, y: 9, rot: 0 }], blocks: [{ x: 4, y: 4 }, { x: 6, y: 6 }] },
+            // Advanced Levels 16-50
+            { source: { x: 0, y: 0, dir: { x: 1, y: 0 } }, target: { x: 0, y: 1 }, mirrors: [{ x: 9, y: 0, rot: 0 }, { x: 9, y: 9, rot: 0 }, { x: 0, y: 9, rot: 0 }, { x: 0, y: 1, rot: 0 }], blocks: [{x:5,y:5}] },
+            { source: { x: 4, y: 4, dir: { x: 1, y: 0 } }, target: { x: 5, y: 4 }, mirrors: [{ x: 8, y: 4, rot: 0 }, { x: 8, y: 8, rot: 0 }, { x: 1, y: 8, rot: 0 }, { x: 1, y: 1, rot: 0 }, { x: 5, y: 1, rot: 0 }], blocks: [] },
+            { source: { x: 2, y: 2, dir: { x: 0, y: 1 } }, target: { x: 2, y: 3 }, mirrors: [{ x: 2, y: 8, rot: 0 }, { x: 8, y: 8, rot: 0 }, { x: 8, y: 2, rot: 0 }, { x: 2, y: 2, rot: 45 }], blocks: [] },
+            { source: { x: 0, y: 9, dir: { x: 1, y: 0 } }, target: { x: 9, y: 0 }, mirrors: [{ x: 5, y: 9, rot: 0 }, { x: 5, y: 5, rot: 0 }, { x: 9, y: 5, rot: 0 }], blocks: [{x:7,y:7}] },
+            { source: { x: 5, y: 5, dir: { x: -1, y: 0 } }, target: { x: 6, y: 5 }, mirrors: [{ x: 1, y: 5, rot: 0 }, { x: 1, y: 1, rot: 0 }, { x: 8, y: 1, rot: 0 }, { x: 8, y: 8, rot: 0 }, { x: 6, y: 8, rot: 0 }], blocks: [] },
+            { source: { x: 1, y: 1, dir: { x: 1, y: 0 } }, target: { x: 8, y: 1 }, mirrors: [{ x: 4, y: 1, rot: 45 }, { x: 4, y: 4, rot: 45 }], blocks: [{x:4,y:2}] },
+            { source: { x: 0, y: 0, dir: { x: 0, y: 1 } }, target: { x: 9, y: 0 }, mirrors: [{ x: 0, y: 5, rot: 0 }, { x: 9, y: 5, rot: 0 }], blocks: [{x:4,y:5}] },
+            { source: { x: 9, y: 9, dir: { x: -1, y: 0 } }, target: { x: 0, y: 0 }, mirrors: [{ x: 5, y: 9, rot: 0 }, { x: 5, y: 0, rot: 0 }], blocks: [{x:5,y:5}] },
+            { source: { x: 2, y: 7, dir: { x: 0, y: -1 } }, target: { x: 7, y: 2 }, mirrors: [{ x: 2, y: 2, rot: 0 }, { x: 7, y: 7, rot: 0 }], blocks: [{x:4,y:4}] },
+            { source: { x: 4, y: 0, dir: { x: 0, y: 1 } }, target: { x: 4, y: 1 }, mirrors: [{ x: 4, y: 8, rot: 0 }, { x: 8, y: 8, rot: 0 }, { x: 8, y: 1, rot: 0 }, { x: 4, y: 1, rot: 45 }], blocks: [] },
+            { source: { x: 1, y: 4, dir: { x: 1, y: 0 } }, target: { x: 1, y: 5 }, mirrors: [{ x: 8, y: 4, rot: 0 }, { x: 8, y: 5, rot: 0 }], blocks: [{x:4,y:4}] },
+            { source: { x: 5, y: 0, dir: { x: 0, y: 1 } }, target: { x: 5, y: 9 }, mirrors: [{ x: 5, y: 4, rot: 45 }], blocks: [{x:5,y:3},{x:5,y:5}] },
+            { source: { x: 0, y: 2, dir: { x: 1, y: 0 } }, target: { x: 9, y: 7 }, mirrors: [{ x: 5, y: 2, rot: 0 }, { x: 5, y: 7, rot: 0 }], blocks: [] },
+            { source: { x: 8, y: 1, dir: { x: -1, y: 0 } }, target: { x: 1, y: 8 }, mirrors: [{ x: 1, y: 1, rot: 0 }, { x: 8, y: 8, rot: 0 }], blocks: [{x:4,y:4}] },
+            { source: { x: 4, y: 4, dir: { x: 0, y: 1 } }, target: { x: 4, y: 3 }, mirrors: [{ x: 4, y: 7, rot: 0 }, { x: 7, y: 7, rot: 0 }, { x: 7, y: 3, rot: 0 }], blocks: [] },
+            { source: { x: 1, y: 1, dir: { x: 0, y: 1 } }, target: { x: 8, y: 8 }, mirrors: [{ x: 1, y: 8, rot: 0 }, { x: 4, y: 8, rot: 0 }, { x: 4, y: 4, rot: 0 }, { x: 8, y: 4, rot: 0 }], blocks: [] },
+            { source: { x: 9, y: 0, dir: { x: 0, y: 1 } }, target: { x: 0, y: 9 }, mirrors: [{ x: 9, y: 5, rot: 0 }, { x: 0, y: 5, rot: 0 }], blocks: [{x:5,y:5}] },
+            { source: { x: 2, y: 2, dir: { x: 1, y: 0 } }, target: { x: 7, y: 7 }, mirrors: [{ x: 7, y: 2, rot: 0 }, { x: 7, y: 5, rot: 0 }, { x: 2, y: 5, rot: 0 }, { x: 2, y: 7, rot: 0 }], blocks: [] },
+            { source: { x: 0, y: 5, dir: { x: 1, y: 0 } }, target: { x: 5, y: 0 }, mirrors: [{ x: 5, y: 5, rot: 0 }], blocks: [{x:2,y:2}] },
+            { source: { x: 4, y: 9, dir: { x: 0, y: -1 } }, target: { x: 4, y: 0 }, mirrors: [{ x: 4, y: 5, rot: 45 }], blocks: [{x:3,y:5},{x:5,y:5}] },
+            { source: { x: 1, y: 8, dir: { x: 1, y: 0 } }, target: { x: 8, y: 1 }, mirrors: [{ x: 8, y: 8, rot: 0 }, { x: 8, y: 4, rot: 0 }, { x: 1, y: 4, rot: 0 }, { x: 1, y: 1, rot: 0 }], blocks: [] },
+            { source: { x: 5, y: 2, dir: { x: 0, y: 1 } }, target: { x: 2, y: 5 }, mirrors: [{ x: 5, y: 5, rot: 0 }], blocks: [] },
+            { source: { x: 0, y: 0, dir: { x: 1, y: 1 } }, target: { x: 9, y: 9 }, mirrors: [{ x: 4, y: 4, rot: 0 }, { x: 6, y: 6, rot: 0 }], blocks: [] },
+            { source: { x: 9, y: 5, dir: { x: -1, y: 0 } }, target: { x: 0, y: 5 }, mirrors: [{ x: 5, y: 5, rot: 45 }], blocks: [{x:5,y:4},{x:5,y:6}] },
+            { source: { x: 2, y: 0, dir: { x: 0, y: 1 } }, target: { x: 7, y: 9 }, mirrors: [{ x: 2, y: 5, rot: 0 }, { x: 7, y: 5, rot: 0 }], blocks: [] },
+            { source: { x: 1, y: 1, dir: { x: 1, y: 0 } }, target: { x: 1, y: 2 }, mirrors: [{ x: 9, y: 1, rot: 0 }, { x: 9, y: 9, rot: 0 }, { x: 1, y: 9, rot: 0 }], blocks: [{x:5,y:5}] },
+            { source: { x: 5, y: 8, dir: { x: 0, y: -1 } }, target: { x: 8, y: 5 }, mirrors: [{ x: 5, y: 5, rot: 0 }], blocks: [] },
+            { source: { x: 0, y: 9, dir: { x: 0, y: -1 } }, target: { x: 9, y: 0 }, mirrors: [{ x: 0, y: 0, rot: 0 }, { x: 9, y: 9, rot: 0 }], blocks: [{x:4,y:4}] },
+            { source: { x: 4, y: 4, dir: { x: 1, y: 1 } }, target: { x: 0, y: 0 }, mirrors: [{ x: 2, y: 2, rot: 0 }], blocks: [] },
+            { source: { x: 7, y: 1, dir: { x: 0, y: 1 } }, target: { x: 1, y: 7 }, mirrors: [{ x: 7, y: 7, rot: 0 }, { x: 1, y: 1, rot: 0 }], blocks: [] },
+            { source: { x: 0, y: 0, dir: { x: 1, y: 0 } }, target: { x: 0, y: 9 }, mirrors: [{ x: 9, y: 0, rot: 0 }, { x: 9, y: 9, rot: 0 }], blocks: [] },
+            { source: { x: 5, y: 5, dir: { x: 0, y: 1 } }, target: { x: 5, y: 4 }, mirrors: [{ x: 5, y: 9, rot: 0 }, { x: 9, y: 9, rot: 0 }, { x: 9, y: 0, rot: 0 }, { x: 5, y: 0, rot: 0 }], blocks: [] },
+            { source: { x: 1, y: 1, dir: { x: 1, y: 1 } }, target: { x: 8, y: 8 }, mirrors: [{ x: 4, y: 4, rot: 45 }], blocks: [] },
+            { source: { x: 9, y: 0, dir: { x: -1, y: 1 } }, target: { x: 0, y: 9 }, mirrors: [{ x: 5, y: 5, rot: 0 }], blocks: [] },
+            { source: { x: 0, y: 5, dir: { x: 1, y: 0 } }, target: { x: 9, y: 5 }, mirrors: [{ x: 3, y: 5, rot: 0 }, { x: 3, y: 2, rot: 0 }, { x: 6, y: 2, rot: 0 }, { x: 6, y: 5, rot: 0 }], blocks: [{x:4,y:2},{x:5,y:2}] }
+        ];
+
+        class LaserDeflector {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.gridSize = 10;
+                this.cellSize = 60;
+                this.canvas.width = this.gridSize * this.cellSize;
+                this.canvas.height = this.gridSize * this.cellSize;
+
+                this.levelIdx = 0;
+                this.rotations = 0;
+                this.won = false;
+                this.beamPath = [];
+
+                this.setupInput();
+            }
+
+            setupInput() {
+                const handleInput = (e) => {
+                    if (this.won) return;
+                    const rect = this.canvas.getBoundingClientRect();
+                    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                    
+                    const x = Math.floor((clientX - rect.left) / (rect.width / this.gridSize));
+                    const y = Math.floor((clientY - rect.top) / (rect.height / this.gridSize));
+
+                    const mirror = this.level.mirrors.find(m => m.x === x && m.y === y);
+                    if (mirror) {
+                        mirror.rot = (mirror.rot + 45) % 360;
+                        this.rotations++;
+                        this.calculateLaser();
+                        this.draw();
+                    }
+                };
+
+                this.canvas.onmousedown = handleInput;
+                this.canvas.ontouchstart = (e) => { e.preventDefault(); handleInput(e); };
+            }
+
+            start() {
+                document.getElementById('start-screen').style.display = 'none';
+                this.loadLevel(0);
+            }
+
+            loadLevel(idx) {
+                this.levelIdx = idx;
+                this.level = JSON.parse(JSON.stringify(LEVELS[idx % LEVELS.length]));
+                this.rotations = 0;
+                this.won = false;
+                document.getElementById('level-complete').style.display = 'none';
+                document.getElementById('lvl-val').textContent = idx + 1;
+                this.calculateLaser();
+                this.draw();
+            }
+
+            nextLevel() {
+                this.loadLevel(this.levelIdx + 1);
+            }
+
+            calculateLaser() {
+                this.beamPath = [];
+                let curr = { 
+                    x: this.level.source.x * this.cellSize + this.cellSize/2, 
+                    y: this.level.source.y * this.cellSize + this.cellSize/2 
+                };
+                let dir = { ...this.level.source.dir };
+                this.beamPath.push({ ...curr });
+
+                const maxSteps = 20;
+                for (let i = 0; i < maxSteps; i++) {
+                    let nextX = curr.x + dir.x * 1000;
+                    let nextY = curr.y + dir.y * 1000;
+                    let hit = null;
+                    let minDist = Infinity;
+
+                    // Check Mirrors
+                    this.level.mirrors.forEach(m => {
+                        const mx = m.x * this.cellSize + this.cellSize/2;
+                        const my = m.y * this.cellSize + this.cellSize/2;
+                        
+                        const d = this.lineIntersectCircle(curr, { x: nextX, y: nextY }, { x: mx, y: my }, 20);
+                        if (d && d < minDist && d > 1) {
+                            minDist = d;
+                            hit = { type: 'mirror', obj: m, pos: { x: curr.x + dir.x * d, y: curr.y + dir.y * d } };
+                        }
+                    });
+
+                    // Check Blocks
+                    this.level.blocks.forEach(b => {
+                        const bx = b.x * this.cellSize + this.cellSize/2;
+                        const by = b.y * this.cellSize + this.cellSize/2;
+                        const d = this.lineIntersectCircle(curr, { x: nextX, y: nextY }, { x: bx, y: by }, 25);
+                        if (d && d < minDist && d > 1) {
+                            minDist = d;
+                            hit = { type: 'block', pos: { x: curr.x + dir.x * d, y: curr.y + dir.y * d } };
+                        }
+                    });
+
+                    // Check Target
+                    const tx = this.level.target.x * this.cellSize + this.cellSize/2;
+                    const ty = this.level.target.y * this.cellSize + this.cellSize/2;
+                    const dTarget = this.lineIntersectCircle(curr, { x: nextX, y: nextY }, { x: tx, y: ty }, 20);
+                    if (dTarget && dTarget < minDist && dTarget > 1) {
+                        this.beamPath.push({ x: tx, y: ty });
+                        this.win();
+                        return;
+                    }
+
+                    if (hit) {
+                        this.beamPath.push(hit.pos);
+                        if (hit.type === 'mirror') {
+                            // Reflection Logic
+                            const normalAngle = (hit.obj.rot + 90) * (Math.PI / 180);
+                            const normal = { x: Math.cos(normalAngle), y: Math.sin(normalAngle) };
+                            const dot = dir.x * normal.x + dir.y * normal.y;
+                            dir.x = dir.x - 2 * dot * normal.x;
+                            dir.y = dir.y - 2 * dot * normal.y;
+                            curr = hit.pos;
+                        } else break;
+                    } else {
+                        // Edge of screen
+                        this.beamPath.push({ x: nextX, y: nextY });
+                        break;
+                    }
+                }
+            }
+
+            lineIntersectCircle(p1, p2, center, r) {
+                const d = { x: p2.x - p1.x, y: p2.y - p1.y };
+                const f = { x: p1.x - center.x, y: p1.y - center.y };
+                const a = d.x * d.x + d.y * d.y;
+                const b = 2 * (f.x * d.x + f.y * d.y);
+                const c = (f.x * f.x + f.y * f.y) - r * r;
+                let discriminant = b * b - 4 * a * c;
+                if (discriminant < 0) return null;
+                discriminant = Math.sqrt(discriminant);
+                const t1 = (-b - discriminant) / (2 * a);
+                const t2 = (-b + discriminant) / (2 * a);
+                if (t1 >= 0 && t1 <= 1) return t1 * Math.sqrt(a);
+                return null;
+            }
+
+            win() {
+                this.won = true;
+                setTimeout(() => {
+                    document.getElementById('level-complete').style.display = 'flex';
+                }, 500);
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Grid
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                for (let i = 0; i <= this.gridSize; i++) {
+                    ctx.beginPath(); ctx.moveTo(i * this.cellSize, 0); ctx.lineTo(i * this.cellSize, this.canvas.height); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, i * this.cellSize); ctx.lineTo(this.canvas.width, i * this.cellSize); ctx.stroke();
+                }
+
+                // Laser Beam
+                if (this.beamPath.length > 1) {
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = 'red';
+                    ctx.strokeStyle = '#ef4444';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(this.beamPath[0].x, this.beamPath[0].y);
+                    for (let i = 1; i < this.beamPath.length; i++) ctx.lineTo(this.beamPath[i].x, this.beamPath[i].y);
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                }
+
+                // Source
+                const sx = this.level.source.x * this.cellSize + this.cellSize/2;
+                const sy = this.level.source.y * this.cellSize + this.cellSize/2;
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath(); ctx.arc(sx, sy, 15, 0, Math.PI*2); ctx.fill();
+
+                // Target
+                const tx = this.level.target.x * this.cellSize + this.cellSize/2;
+                const ty = this.level.target.y * this.cellSize + this.cellSize/2;
+                ctx.strokeStyle = this.won ? '#4ade80' : '#22d3ee';
+                ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.arc(tx, ty, 20, 0, Math.PI*2); ctx.stroke();
+                ctx.fillStyle = this.won ? '#4ade80' : 'transparent';
+                ctx.beginPath(); ctx.arc(tx, ty, 10, 0, Math.PI*2); ctx.fill();
+
+                // Mirrors
+                this.level.mirrors.forEach(m => {
+                    ctx.save();
+                    ctx.translate(m.x * this.cellSize + this.cellSize/2, m.y * this.cellSize + this.cellSize/2);
+                    ctx.rotate(m.rot * Math.PI / 180);
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillRect(-25, -5, 50, 10);
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(-25, -5, 50, 2);
+                    ctx.restore();
+                });
+
+                // Blocks
+                this.level.blocks.forEach(b => {
+                    ctx.fillStyle = '#334155';
+                    ctx.fillRect(b.x * this.cellSize + 10, b.y * this.cellSize + 10, this.cellSize - 20, this.cellSize - 20);
+                });
+
+                document.getElementById('rot-val').textContent = this.rotations;
+            }
+        }
+
+        const game = new LaserDeflector();
+    </script>
+</body>
+</html>

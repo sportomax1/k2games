@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Drone Delivery Ace - K2 Games</title>
+    <style>
+        :root {
+            --neon-blue: #22d3ee;
+            --neon-pink: #f472b6;
+            --neon-yellow: #fbbf24;
+            --panel: rgba(15, 23, 42, 0.9);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background: #020617;
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #ui-layer {
+            position: absolute; inset: 0;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        /* HUD Top */
+        #hud-top {
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stat-card {
+            background: var(--panel);
+            backdrop-filter: blur(10px);
+            padding: 12px 24px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            text-align: right;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .label { font-size: 0.6rem; text-transform: uppercase; color: #94a3b8; letter-spacing: 2px; }
+        .val { font-size: 1.8rem; font-weight: 900; color: var(--neon-blue); font-family: monospace; }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            position: absolute; bottom: 40px; left: 0; right: 0;
+            display: none; justify-content: space-between; padding: 0 40px;
+            pointer-events: none;
+        }
+        @media (max-width: 1024px) { #mobile-controls { display: flex; } }
+
+        .joy-base {
+            width: 140px; height: 140px;
+            background: rgba(255,255,255,0.05);
+            border: 3px solid rgba(255,255,255,0.2);
+            border-radius: 50%;
+            position: relative;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+        }
+
+        .joy-thumb {
+            width: 60px; height: 60px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
+
+        /* Overlay */
+        #overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1000; text-align: center; padding: 40px;
+        }
+
+        .logo-main { font-size: 4rem; font-weight: 900; font-style: italic; color: white; line-height: 0.8; margin-bottom: 10px; }
+        .logo-main span { color: var(--neon-pink); }
+
+        .btn-start {
+            background: var(--neon-blue);
+            color: #000;
+            border: none;
+            padding: 1.2rem 5rem;
+            border-radius: 100px;
+            font-weight: 900;
+            font-size: 1.5rem;
+            cursor: pointer;
+            margin-top: 2rem;
+            box-shadow: 0 10px 25px rgba(34, 211, 238, 0.4);
+        }
+
+        #msg-popup {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: var(--neon-pink); color: white; padding: 10px 30px;
+            border-radius: 50px; font-weight: 900; display: none; z-index: 200;
+        }
+
+        .back-link { position: fixed; top: 20px; left: 20px; color: #94a3b8; text-decoration: none; font-weight: bold; font-size: 0.8rem; z-index: 1100; }
+    </style>
+</head>
+<body>
+
+    <a href="index.html" class="back-link">← EXIT MISSION</a>
+
+    <div id="ui-layer">
+        <div id="hud-top">
+            <div class="stat-card" style="text-align: left;">
+                <div class="label">Altimeter</div>
+                <div id="alt-val" class="val">0m</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Earnings</div>
+                <div id="score-val" class="val">$0</div>
+            </div>
+        </div>
+
+        <div id="msg-popup">DELIVERY COMPLETE!</div>
+
+        <div id="mobile-controls">
+            <div class="joy-base" id="joy-left"><div class="joy-thumb" id="thumb-left"></div></div>
+            <div class="joy-base" id="joy-right"><div class="joy-thumb" id="thumb-right"></div></div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h1 class="logo-main">DRONE<span>ACE</span></h1>
+        <p style="opacity: 0.7; max-width: 450px; line-height: 1.6;">Precision delivery simulator. Pilot your quadcopter through the city, avoid obstacles, and land safely to earn credits.</p>
+        <button class="btn-start" onclick="game.start()">ENGAGE MOTORS</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        class DroneAce {
+            constructor() {
+                this.initEngine();
+                this.initCity();
+                this.initDrone();
+                this.setupInputs();
+                
+                this.state = 'menu';
+                this.score = 0;
+                this.package = null;
+                this.targetPad = null;
+                
+                this.loop();
+            }
+
+            initEngine() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x020617);
+                this.scene.fog = new THREE.FogExp2(0x020617, 0.015);
+                
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                document.body.appendChild(this.renderer.domElement);
+
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+                const sun = new THREE.DirectionalLight(0xffffff, 1);
+                sun.position.set(50, 100, 50);
+                sun.castShadow = true;
+                sun.shadow.camera.left = -100; sun.shadow.camera.right = 100;
+                sun.shadow.camera.top = 100; sun.shadow.camera.bottom = -100;
+                this.scene.add(sun);
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            initCity() {
+                const citySize = 400;
+                const ground = new THREE.Mesh(
+                    new THREE.PlaneGeometry( citySize, citySize ),
+                    new THREE.MeshStandardMaterial({ color: 0x0f172a })
+                );
+                ground.rotation.x = -Math.PI/2;
+                ground.receiveShadow = true;
+                this.scene.add(ground);
+
+                // Buildings
+                const buildMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
+                for(let i=0; i<80; i++) {
+                    const w = 10 + Math.random()*15;
+                    const h = 20 + Math.random()*60;
+                    const d = 10 + Math.random()*15;
+                    const building = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), buildMat);
+                    building.position.set(
+                        (Math.random()-0.5) * citySize * 0.8,
+                        h/2,
+                        (Math.random()-0.5) * citySize * 0.8
+                    );
+                    building.castShadow = true;
+                    building.receiveShadow = true;
+                    this.scene.add(building);
+                    
+                    // Neon windows
+                    if(Math.random() > 0.5) {
+                        const neon = new THREE.Mesh(
+                            new THREE.BoxGeometry(w+0.2, 2, d+0.2),
+                            new THREE.MeshBasicMaterial({ color: Math.random() > 0.5 ? 0x22d3ee : 0xf472b6 })
+                        );
+                        neon.position.copy(building.position);
+                        neon.position.y = Math.random() * h;
+                        this.scene.add(neon);
+                    }
+                }
+
+                this.pads = [];
+                for(let i=0; i<5; i++) this.createPad();
+            }
+
+            createPad() {
+                const pad = new THREE.Group();
+                const ring = new THREE.Mesh(
+                    new THREE.RingGeometry(3, 4, 32),
+                    new THREE.MeshBasicMaterial({ color: 0xfbbf24, side: THREE.DoubleSide })
+                );
+                ring.rotation.x = -Math.PI/2;
+                pad.add(ring);
+                
+                const x = (Math.random()-0.5)*300;
+                const z = (Math.random()-0.5)*300;
+                pad.position.set(x, 0.1, z);
+                this.scene.add(pad);
+                this.pads.push(pad);
+            }
+
+            initDrone() {
+                this.drone = new THREE.Group();
+                this.dronePhys = {
+                    pos: new THREE.Vector3(0, 50, 0),
+                    vel: new THREE.Vector3(),
+                    rot: new THREE.Euler(),
+                    thrust: 0,
+                    tilt: new THREE.Vector2()
+                };
+
+                const body = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.5, 0.4, 1.5),
+                    new THREE.MeshStandardMaterial({ color: 0x22d3ee, metalness: 0.8, roughness: 0.2 })
+                );
+                this.drone.add(body);
+
+                // Arms & Rotors
+                const armGeo = new THREE.BoxGeometry(3, 0.1, 0.1);
+                const arm1 = new THREE.Mesh(armGeo, body.material);
+                arm1.rotation.y = Math.PI/4;
+                const arm2 = new THREE.Mesh(armGeo, body.material);
+                arm2.rotation.y = -Math.PI/4;
+                this.drone.add(arm1, arm2);
+
+                this.rotors = [];
+                for(let i=0; i<4; i++) {
+                    const rotor = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.8, 0.8, 0.05, 16),
+                        new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 })
+                    );
+                    const angle = (i/4) * Math.PI * 2 + Math.PI/4;
+                    rotor.position.set(Math.cos(angle)*1.5, 0.2, Math.sin(angle)*1.5);
+                    this.drone.add(rotor);
+                    this.rotors.push(rotor);
+                }
+
+                this.scene.add(this.drone);
+            }
+
+            setupInputs() {
+                this.keys = {};
+                window.onkeydown = (e) => this.keys[e.code] = true;
+                window.onkeyup = (e) => this.keys[e.code] = false;
+
+                this.joys = {
+                    left: { active: false, x: 0, y: 0 },
+                    right: { active: false, x: 0, y: 0 }
+                };
+
+                const setupJoy = (id, side) => {
+                    const base = document.getElementById(id);
+                    const thumb = document.getElementById(id.replace('joy', 'thumb'));
+                    
+                    base.addEventListener('touchstart', (e) => {
+                        this.joys[side].active = true;
+                        e.preventDefault();
+                    });
+
+                    window.addEventListener('touchmove', (e) => {
+                        if(!this.joys[side].active) return;
+                        const touch = Array.from(e.touches).find(t => {
+                            const r = base.getBoundingClientRect();
+                            return t.clientX > r.left - 50 && t.clientX < r.right + 50;
+                        });
+                        if(!touch) return;
+
+                        const r = base.getBoundingClientRect();
+                        const dx = touch.clientX - (r.left + r.width/2);
+                        const dy = touch.clientY - (r.top + r.height/2);
+                        const dist = Math.min(50, Math.hypot(dx, dy));
+                        const a = Math.atan2(dy, dx);
+                        
+                        this.joys[side].x = (Math.cos(a)*dist)/50;
+                        this.joys[side].y = (Math.sin(a)*dist)/50;
+                        thumb.style.transform = `translate(calc(-50% + ${Math.cos(a)*dist}px), calc(-50% + ${Math.sin(a)*dist}px))`;
+                    });
+
+                    window.addEventListener('touchend', () => {
+                        this.joys[side].active = false;
+                        this.joys[side].x = 0; this.joys[side].y = 0;
+                        thumb.style.transform = 'translate(-50%, -50%)';
+                    });
+                };
+
+                setupJoy('joy-left', 'left');
+                setupJoy('joy-right', 'right');
+            }
+
+            start() {
+                this.state = 'playing';
+                this.score = 0;
+                this.dronePhys.pos.set(0, 50, 0);
+                this.dronePhys.vel.set(0, 0, 0);
+                document.getElementById('overlay').style.display = 'none';
+                this.spawnMission();
+            }
+
+            spawnMission() {
+                // Randomly pick a destination pad
+                this.targetPad = this.pads[Math.floor(Math.random()*this.pads.length)];
+                this.targetPad.children[0].material.color.set(0x22d3ee); // Glow cyan
+            }
+
+            update(dt) {
+                if(this.state !== 'playing') return;
+
+                // --- Inputs to Forces ---
+                let thrustInput = 0;
+                let turnInput = 0;
+                let pitchInput = 0;
+                let rollInput = 0;
+
+                if(this.keys['Space'] || this.keys['KeyW']) thrustInput = 1;
+                if(this.keys['ShiftLeft'] || this.keys['KeyS']) thrustInput = -1;
+                if(this.keys['ArrowUp']) pitchInput = -1;
+                if(this.keys['ArrowDown']) pitchInput = 1;
+                if(this.keys['ArrowLeft']) rollInput = -1;
+                if(this.keys['ArrowRight']) rollInput = 1;
+                if(this.keys['KeyA']) turnInput = 1;
+                if(this.keys['KeyD']) turnInput = -1;
+
+                if(this.joys.left.active) {
+                    thrustInput = -this.joys.left.y;
+                    turnInput = -this.joys.left.x;
+                }
+                if(this.joys.right.active) {
+                    pitchInput = this.joys.right.y;
+                    rollInput = this.joys.right.x;
+                }
+
+                // Physics constants
+                const GRAVITY = 15;
+                const THRUST_POWER = 35;
+                const TILT_SPEED = 2.5;
+                const DRAG = 0.98;
+
+                // Vertical
+                this.dronePhys.vel.y += (thrustInput * THRUST_POWER - GRAVITY) * dt;
+                
+                // Rotation & Tilt
+                this.dronePhys.rot.y += turnInput * 2 * dt;
+                this.dronePhys.tilt.x = THREE.MathUtils.lerp(this.dronePhys.tilt.x, pitchInput * 0.4, 0.1);
+                this.dronePhys.tilt.y = THREE.MathUtils.lerp(this.dronePhys.tilt.y, rollInput * 0.4, 0.1);
+
+                // Horizontal movement based on tilt
+                const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0,1,0), this.dronePhys.rot.y);
+                const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0,1,0), this.dronePhys.rot.y);
+                
+                this.dronePhys.vel.add(forward.multiplyScalar(-this.dronePhys.tilt.x * 50 * dt));
+                this.dronePhys.vel.add(right.multiplyScalar(this.dronePhys.tilt.y * 50 * dt));
+
+                // Apply Vel
+                this.dronePhys.vel.multiplyScalar(DRAG);
+                this.dronePhys.pos.add(this.dronePhys.vel.clone().multiplyScalar(dt));
+
+                // Ground Clamp
+                if(this.dronePhys.pos.y < 0.5) {
+                    this.dronePhys.pos.y = 0.5;
+                    if(this.dronePhys.vel.y < -5) this.crash();
+                    this.dronePhys.vel.y = 0;
+                    
+                    // Check Landing
+                    if(this.targetPad && this.dronePhys.pos.distanceTo(this.targetPad.position) < 4) {
+                        this.completeMission();
+                    }
+                }
+
+                // Visual Update
+                this.drone.position.copy(this.dronePhys.pos);
+                this.drone.rotation.y = this.dronePhys.rot.y;
+                this.drone.rotation.x = this.dronePhys.tilt.x;
+                this.drone.rotation.z = -this.dronePhys.tilt.y;
+
+                this.rotors.forEach(r => r.rotation.y += 0.5);
+
+                // Camera follow
+                const camOffset = new THREE.Vector3(0, 5, 15).applyAxisAngle(new THREE.Vector3(0,1,0), this.dronePhys.rot.y);
+                this.camera.position.lerp(this.dronePhys.pos.clone().add(camOffset), 0.1);
+                this.camera.lookAt(this.dronePhys.pos);
+
+                // UI
+                document.getElementById('alt-val').innerText = Math.floor(this.dronePhys.pos.y) + 'm';
+            }
+
+            completeMission() {
+                this.score += 50;
+                document.getElementById('score-val').innerText = '$' + this.score;
+                this.targetPad.children[0].material.color.set(0xfbbf24);
+                this.targetPad = null;
+                this.spawnMission();
+                
+                const popup = document.getElementById('msg-popup');
+                popup.style.display = 'block';
+                setTimeout(() => popup.style.display = 'none', 2000);
+            }
+
+            crash() {
+                this.state = 'menu';
+                document.getElementById('overlay').style.display = 'flex';
+                document.querySelector('.logo-main').innerHTML = "DRONE<span>CRASH</span>";
+            }
+
+            loop() {
+                this.update(0.016);
+                this.renderer.render(this.scene, this.camera);
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        window.game = new DroneAce();
+    </script>
+</body>
+</html>

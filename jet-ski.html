@@ -44,6 +44,20 @@
             background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 200;
             font-weight: bold; font-size: 0.8rem; backdrop-filter: blur(5px); pointer-events: auto;
         }
+        #mobile-controls {
+            position: absolute; bottom: 40px; left: 0; right: 0; height: 150px;
+            display: none; pointer-events: none; justify-content: space-between; padding: 0 40px;
+        }
+        .joystick-zone {
+            width: 120px; height: 120px; background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.3); border-radius: 50%;
+            pointer-events: auto; display: flex; align-items: center; justify-content: center;
+        }
+        .joystick-stick {
+            width: 50px; height: 50px; background: rgba(255,255,255,0.8);
+            border-radius: 50%; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        @media (max-width: 768px) { #mobile-controls { display: flex; } }
     </style>
 </head>
 <body>
@@ -60,6 +74,11 @@
                 <div id="progress-val" class="stat-val">0%</div>
             </div>
         </div>
+    </div>
+
+    <div id="mobile-controls">
+        <div class="joystick-zone" id="joy-left"><div class="joystick-stick" id="stick-left"></div></div>
+        <div class="joystick-zone" id="joy-right"><div class="joystick-stick" id="stick-right"></div></div>
     </div>
 
     <div id="overlay">
@@ -278,11 +297,14 @@
                 this.playerGroup.position.z = this.zPos;
 
                 const waterH = this.getWaterHeight(this.playerGroup.position.x, this.playerGroup.position.z);
-                this.playerGroup.position.y = THREE.MathUtils.lerp(this.playerGroup.position.y, waterH, 0.2);
+                // Constraint: Stay ON or ABOVE water, never dip below surface
+                const targetY = Math.max(waterH, this.playerGroup.position.y);
+                this.playerGroup.position.y = THREE.MathUtils.lerp(this.playerGroup.position.y, targetY, 0.2);
                 
+                // Tilt based on speed and water surface
                 this.playerGroup.rotation.z = -this.steering * 0.8;
                 this.playerGroup.rotation.y = -this.steering * 0.4;
-                this.playerGroup.rotation.x = (this.playerGroup.position.y - waterH) * 0.2;
+                this.playerGroup.rotation.x = THREE.MathUtils.lerp(this.playerGroup.rotation.x, (this.playerGroup.position.y - waterH) * 0.1, 0.1);
 
                 if(this.speed > 20) {
                     for(let i=0; i<Math.floor(this.speed/15); i++) this.spawnSplash();

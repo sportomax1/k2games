@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pac-Man Elite - K2 games</title>
+    <title>Pac-Man Elite: Neon Grid - K2 games</title>
     <style>
         :root {
             --bg: #020617;
@@ -14,6 +14,7 @@
             --ghost-cyan: #22d3ee;
             --ghost-orange: #fb923c;
             --blue: #3b82f6;
+            --grid: rgba(59, 130, 246, 0.15);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
@@ -25,122 +26,59 @@
             height: 100dvh;
             width: 100%;
             overflow: hidden;
-            position: fixed;
             display: flex;
             flex-direction: column;
         }
 
+        #hud {
+            width: 100%; padding: 15px 25px;
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--panel); border-bottom: 1px solid rgba(255,255,255,0.1);
+            z-index: 100;
+        }
+
+        .stat-val { font-size: 1.2rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.6; }
+
         #game-container {
-            flex: 1;
-            position: relative;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            flex: 1; position: relative; width: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
             background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
         }
 
         canvas {
-            background: #000;
-            border: 4px solid var(--blue);
-            border-radius: 8px;
-            box-shadow: 0 0 30px rgba(59, 130, 246, 0.2);
-            max-width: 95vw;
-            max-height: 70vh;
-            object-fit: contain;
+            background: #000; border: 4px solid var(--blue); border-radius: 8px;
+            box-shadow: 0 0 40px rgba(59, 130, 246, 0.3);
+            max-width: 95vw; max-height: 70vh; object-fit: contain;
         }
 
-        /* HUD */
-        #hud {
-            width: 100%;
-            padding: 15px 25px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: var(--panel);
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            z-index: 100;
-        }
-
-        .stat-group { display: flex; flex-direction: column; }
-        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.6; }
-        .stat-val { font-size: 1.2rem; font-weight: 900; color: var(--accent); font-family: monospace; }
-
-        /* Mobile Controls */
         #mobile-controls {
-            position: absolute;
-            bottom: 30px;
-            left: 0;
-            right: 0;
-            display: none;
-            justify-content: center;
-            padding: 0 20px;
-            z-index: 100;
-            pointer-events: none;
+            position: absolute; bottom: 30px; left: 0; right: 0;
+            display: none; justify-content: center; z-index: 100; pointer-events: none;
         }
-
         @media (max-width: 900px) { #mobile-controls { display: flex; } }
 
-        .dpad {
-            display: grid;
-            grid-template-columns: repeat(3, 65px);
-            grid-template-rows: repeat(3, 65px);
-            gap: 10px;
-            pointer-events: auto;
-        }
-
-        .ctrl-btn {
-            background: rgba(255,255,255,0.1);
-            border: 2px solid rgba(255,255,255,0.2);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            backdrop-filter: blur(10px);
-            transition: 0.1s;
-        }
+        .dpad { display: grid; grid-template-columns: repeat(3, 65px); grid-template-rows: repeat(3, 65px); gap: 10px; pointer-events: auto; }
+        .ctrl-btn { background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; backdrop-filter: blur(10px); }
         .ctrl-btn:active { background: var(--accent); color: black; transform: scale(0.9); }
-
-        .back-hub {
-            position: absolute; top: 15px; left: 15px; color: #94a3b8; text-decoration: none;
-            font-weight: bold; font-size: 0.8rem; z-index: 200;
-        }
 
         #overlay {
             position: absolute; inset: 0; background: rgba(2, 6, 23, 0.95);
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             z-index: 1000; backdrop-filter: blur(15px); text-align: center;
         }
-
-        .btn-large {
-            background: var(--accent); color: black; border: none; padding: 1rem 3rem;
-            border-radius: 50px; font-weight: 900; cursor: pointer; margin-top: 2rem;
-            font-size: 1.2rem; box-shadow: 0 10px 25px rgba(251, 191, 36, 0.3);
-        }
+        .btn-large { background: var(--accent); color: black; border: none; padding: 1rem 3rem; border-radius: 50px; font-weight: 900; cursor: pointer; font-size: 1.2rem; }
     </style>
 </head>
 <body>
     <div id="hud">
-        <div class="stat-group">
-            <span class="stat-label">Score</span>
-            <span id="score-val" class="stat-val">0</span>
-        </div>
-        <div class="stat-group" style="align-items: center;">
-            <span class="stat-label">Lives</span>
-            <span id="lives-val" class="stat-val">❤️❤️❤️</span>
-        </div>
-        <div class="stat-group" style="align-items: flex-end;">
-            <span class="stat-label">Level</span>
-            <span id="level-val" class="stat-val">1</span>
-        </div>
+        <div class="stat-group"><span class="stat-label">Score</span><span id="score-val" class="stat-val">0</span></div>
+        <div class="stat-group" style="align-items: center;"><span class="stat-label">Lives</span><span id="lives-val" class="stat-val">❤️❤️❤️</span></div>
+        <div class="stat-group" style="align-items: flex-end;"><span class="stat-label">Level</span><span id="level-val" class="stat-val">1</span></div>
     </div>
 
     <div id="game-container">
-        <a href="index.html" class="back-hub">← HUB</a>
         <canvas id="gameCanvas"></canvas>
-
         <div id="mobile-controls">
             <div class="dpad">
                 <div></div><div class="ctrl-btn" id="up">▲</div><div></div>
@@ -148,11 +86,10 @@
                 <div></div><div class="ctrl-btn" id="down">▼</div><div></div>
             </div>
         </div>
-
         <div id="overlay">
-            <h1 style="font-size: 4rem; font-style: italic; font-weight: 900; color: var(--accent);">PAC-MAN</h1>
-            <p style="opacity: 0.7; letter-spacing: 2px; font-weight: 800;">ELITE ARCADE EDITION</p>
-            <button class="btn-large" onclick="game.start()">START GAME</button>
+            <h1 style="font-size: 4rem; color: var(--accent);">PAC-MAN</h1>
+            <p id="over-msg" style="opacity: 0.7; font-weight: 800;">NEON GRID EDITION</p>
+            <button class="btn-large" onclick="game.start()">START MISSION</button>
         </div>
     </div>
 
@@ -161,221 +98,127 @@
             constructor() {
                 this.canvas = document.getElementById('gameCanvas');
                 this.ctx = this.canvas.getContext('2d');
-                this.cellSize = 20;
-                this.cols = 28;
-                this.rows = 31;
+                this.cellSize = 24;
+                this.cols = 19; this.rows = 21;
                 this.canvas.width = this.cols * this.cellSize;
                 this.canvas.height = this.rows * this.cellSize;
 
                 this.maze = [
-                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-                    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1],
-                    [1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1],
-                    [1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1],
-                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-                    [1,0,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,0,1],
-                    [1,0,0,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,0,0,1],
-                    [1,1,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,1,1],
-                    [0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,1,0,0,0,0,0],
-                    [1,1,1,1,1,1,0,1,1,0,1,1,1,0,0,1,1,1,0,1,1,0,1,1,1,1,1,1],
-                    [0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],
-                    [1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1],
-                    [0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,1,0,0,0,0,0],
-                    [1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1],
-                    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1],
-                    [1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1],
-                    [1,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1],
-                    [1,1,0,1,1,0,1,1,0,1,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0,1,1,1],
-                    [1,0,0,0,0,0,1,1,0,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,0,0,1],
-                    [1,0,1,1,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,1,1,0,1],
-                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+                    [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                    [1,0,1,1,0,1,0,1,1,1,1,1,0,1,0,1,1,0,1],
+                    [1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+                    [1,1,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,1,1],
+                    [0,0,0,1,0,1,0,0,0,0,0,0,0,1,0,1,0,0,0],
+                    [1,1,1,1,0,1,0,1,1,0,1,1,0,1,0,1,1,1,1],
+                    [0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0],
+                    [1,1,1,1,0,1,0,1,1,1,1,1,0,1,0,1,1,1,1],
+                    [0,0,0,1,0,1,0,0,0,0,0,0,0,1,0,1,0,0,0],
+                    [1,1,1,1,0,1,0,1,1,1,1,1,0,1,0,1,1,1,1],
+                    [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+                    [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+                    [1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+                    [1,1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,1],
+                    [1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+                    [1,0,1,1,1,1,1,1,0,1,0,1,1,1,1,1,1,0,1],
+                    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
                 ];
 
-                this.score = 0;
-                this.lives = 3;
-                this.level = 1;
-                this.powerMode = 0;
-                this.isPlaying = false;
-                this.dots = [];
-                this.pellets = [];
-
-                this.player = { x: 14, y: 23, dir: 'right', nextDir: 'right', speed: 0.15, mouth: 0, mouthDir: 1 };
+                this.score = 0; this.lives = 3; this.level = 1; this.power = 0; this.isPlaying = false;
+                this.dots = []; // Initialize empty array first
+                this.player = { x: 9, y: 15, dir: 'right', next: 'right', speed: 0.12, mouth: 0, md: 1 };
                 this.ghosts = [
-                    { x: 13, y: 11, dir: 'left', color: 'var(--ghost-red)', speed: 0.1 },
-                    { x: 14, y: 11, dir: 'up', color: 'var(--ghost-pink)', speed: 0.1 },
-                    { x: 15, y: 11, dir: 'right', color: 'var(--ghost-cyan)', speed: 0.1 },
-                    { x: 14, y: 12, dir: 'down', color: 'var(--ghost-orange)', speed: 0.1 }
+                    { x: 9, y: 9, dir: 'up', color: 'var(--ghost-red)', s: 0.08 },
+                    { x: 8, y: 9, dir: 'left', color: 'var(--ghost-pink)', s: 0.08 },
+                    { x: 10, y: 9, dir: 'right', color: 'var(--ghost-cyan)', s: 0.08 }
                 ];
-
+                this.spawnDots(); // Populate dots immediately
                 this.setupControls();
                 this.loop();
             }
 
             setupControls() {
-                const setDir = (d) => this.player.nextDir = d;
+                const set = (d) => this.player.next = d;
                 window.onkeydown = (e) => {
-                    if (e.key === 'ArrowUp') setDir('up');
-                    if (e.key === 'ArrowDown') setDir('down');
-                    if (e.key === 'ArrowLeft') setDir('left');
-                    if (e.key === 'ArrowRight') setDir('right');
+                    if(e.key.includes('Up')) set('up'); if(e.key.includes('Down')) set('down');
+                    if(e.key.includes('Left')) set('left'); if(e.key.includes('Right')) set('right');
                 };
-
-                const bind = (id, d) => {
-                    const el = document.getElementById(id);
-                    el.ontouchstart = (e) => { e.preventDefault(); setDir(d); };
-                };
-                bind('up', 'up'); bind('down', 'down'); bind('left', 'left'); bind('right', 'right');
-
-                // Gamepad polling
-                const poll = () => {
-                    const pads = navigator.getGamepads();
-                    if (pads[0]) {
-                        const p = pads[0], ax = p.axes[0], ay = p.axes[1], b = p.buttons;
-                        if (ay < -0.5 || b[12].pressed) setDir('up');
-                        else if (ay > 0.5 || b[13].pressed) setDir('down');
-                        else if (ax < -0.5 || b[14].pressed) setDir('left');
-                        else if (ax > 0.5 || b[15].pressed) setDir('right');
-                        if (b[9].pressed && !this.isPlaying) this.start();
-                    }
-                    requestAnimationFrame(poll);
-                };
-                poll();
+                ['up','down','left','right'].forEach(d => {
+                    const el = document.getElementById(d);
+                    if(el) el.ontouchstart = (e) => { e.preventDefault(); set(d); };
+                });
             }
 
-            start() {
-                this.score = 0; this.lives = 3; this.level = 1;
-                this.spawnItems();
-                this.resetPositions();
-                this.isPlaying = true;
-                document.getElementById('overlay').style.display = 'none';
-            }
-
-            spawnItems() {
-                this.dots = []; this.pellets = [{x:1, y:1}, {x:26, y:1}, {x:1, y:20}, {x:26, y:20}];
-                for(let y=0; y<this.maze.length; y++) {
-                    for(let x=0; x<this.maze[y].length; x++) {
-                        if(this.maze[y][x] === 0) {
-                            if(!this.pellets.some(p => p.x === x && p.y === y)) this.dots.push({x, y});
-                        }
-                    }
-                }
-            }
-
-            resetPositions() {
-                this.player.x = 14; this.player.y = 20;
-                this.player.dir = 'right'; this.player.nextDir = 'right';
-                this.ghosts.forEach((g, i) => { g.x = 13 + (i%3); g.y = 11; g.dir = ['up','down','left','right'][i]; });
-            }
-
-            canMove(x, y, dir) {
-                let nx = x, ny = y;
-                if(dir === 'up') ny -= 1; else if(dir === 'down') ny += 1;
-                else if(dir === 'left') nx -= 1; else if(dir === 'right') nx += 1;
-                if(nx < 0 || nx >= this.cols) return true; // Wrap zones
-                const ty = Math.floor(ny), tx = Math.floor(nx);
-                return this.maze[ty] && this.maze[ty][tx] !== 1;
-            }
+            start() { this.score = 0; this.lives = 3; this.spawnDots(); this.reset(); this.isPlaying = true; document.getElementById('overlay').style.display = 'none'; }
+            spawnDots() { this.dots = []; this.maze.forEach((r,y) => r.forEach((c,x) => { if(c===0) this.dots.push({x,y}); })); }
+            reset() { this.player.x = 9; this.player.y = 15; this.ghosts.forEach((g,i) => { g.x = 9+(i-1); g.y = 9; }); }
 
             update() {
                 if(!this.isPlaying) return;
+                const can = (x,y,d) => {
+                    let nx=x, ny=y; if(d==='up') ny-=1; else if(d==='down') ny+=1; else if(d==='left') nx-=1; else if(d==='right') nx+=1;
+                    if(nx<0 || nx>=this.cols) return true;
+                    return this.maze[Math.round(ny)] && this.maze[Math.round(ny)][Math.round(nx)] !== 1;
+                };
 
-                // Player
-                if(this.canMove(this.player.x, this.player.y, this.player.nextDir)) this.player.dir = this.player.nextDir;
-                if(this.canMove(this.player.x, this.player.y, this.player.dir)) {
-                    if(this.player.dir === 'up') this.player.y -= this.player.speed;
-                    else if(this.player.dir === 'down') this.player.y += this.player.speed;
-                    else if(this.player.dir === 'left') this.player.x -= this.player.speed;
-                    else if(this.player.dir === 'right') this.player.x += this.player.speed;
+                if(can(this.player.x, this.player.y, this.player.next)) this.player.dir = this.player.next;
+                if(can(this.player.x, this.player.y, this.player.dir)) {
+                    if(this.player.dir==='up') this.player.y-=this.player.speed; else if(this.player.dir==='down') this.player.y+=this.player.speed;
+                    else if(this.player.dir==='left') this.player.x-=this.player.speed; else if(this.player.dir==='right') this.player.x+=this.player.speed;
                 }
-                if(this.player.x < 0) this.player.x = this.cols-1; if(this.player.x >= this.cols) this.player.x = 0;
+                if(this.player.x<0) this.player.x=this.cols-1; if(this.player.x>=this.cols) this.player.x=0;
+                this.player.mouth += this.player.md * 0.15; if(this.player.mouth > 0.8 || this.player.mouth < 0) this.player.md *= -1;
 
-                this.player.mouth += this.player.mouthDir * 0.15;
-                if(this.player.mouth > 0.6 || this.player.mouth < 0) this.player.mouthDir *= -1;
-
-                // Ghosts
                 this.ghosts.forEach(g => {
-                    const s = (this.powerMode > 0 ? 0.05 : 0.1) + (this.level * 0.005);
-                    if(this.canMove(g.x, g.y, g.dir)) {
-                        if(g.dir === 'up') g.y -= s; else if(g.dir === 'down') g.y += s;
-                        else if(g.dir === 'left') g.x -= s; else if(g.dir === 'right') g.x += s;
-                    } else {
-                        g.dir = ['up','down','left','right'][Math.floor(Math.random()*4)];
-                    }
-                    if(g.x < 0) g.x = this.cols-1; if(g.x >= this.cols) g.x = 0;
+                    if(can(g.x, g.y, g.dir)) {
+                        if(g.dir==='up') g.y-=g.s; else if(g.dir==='down') g.y+=g.s; else if(g.dir==='left') g.x-=g.s; else if(g.dir==='right') g.x+=g.s;
+                    } else g.dir = ['up','down','left','right'][Math.floor(Math.random()*4)];
+                    if(Math.hypot(this.player.x-g.x, this.player.y-g.y) < 0.8) { this.lives--; if(this.lives<=0) this.isPlaying=false; else this.reset(); }
                 });
 
-                if(this.powerMode > 0) this.powerMode--;
-
-                // Collisions
-                this.dots.forEach((d, i) => { if(Math.hypot(this.player.x-d.x, this.player.y-d.y) < 0.5) { this.dots.splice(i, 1); this.score += 10; }});
-                this.pellets.forEach((p, i) => { if(Math.hypot(this.player.x-p.x, this.player.y-p.y) < 0.5) { this.pellets.splice(i, 1); this.score += 50; this.powerMode = 400; }});
-                
-                this.ghosts.forEach(g => {
-                    if(Math.hypot(this.player.x-g.x, this.player.y-g.y) < 0.7) {
-                        if(this.powerMode > 0) { this.score += 200; g.x = 14; g.y = 11; }
-                        else { this.lives--; if(this.lives <= 0) this.end(); else this.resetPositions(); }
-                    }
-                });
-
-                if(this.dots.length === 0 && this.isPlaying) { this.level++; this.spawnItems(); this.resetPositions(); }
+                this.dots.forEach((d,i) => { if(Math.hypot(this.player.x-d.x, this.player.y-d.y)<0.5){ this.dots.splice(i,1); this.score+=10; }});
+                if(this.dots.length===0){ this.level++; this.spawnDots(); this.reset(); }
                 this.updateUI();
             }
 
-            updateUI() {
-                document.getElementById('score-val').textContent = this.score;
-                document.getElementById('lives-val').textContent = "❤️".repeat(this.lives);
-                document.getElementById('level-val').textContent = this.level;
-            }
-
-            end() {
-                this.isPlaying = false;
-                document.getElementById('overlay').style.display = 'flex';
-                document.getElementById('overlay').querySelector('h1').textContent = "GAME OVER";
-                document.getElementById('overlay').querySelector('p').textContent = `SCORE: ${this.score}`;
-            }
+            updateUI() { document.getElementById('score-val').textContent = this.score; document.getElementById('lives-val').textContent = '❤️'.repeat(this.lives); if(!this.isPlaying && this.lives <= 0) document.getElementById('overlay').style.display='flex'; }
 
             draw() {
-                const ctx = this.ctx;
-                ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                const ctx = this.ctx; ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+                
+                // Neon Grid
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.15)'; ctx.lineWidth = 1;
+                for(let i=0; i<=this.cols; i++) { ctx.beginPath(); ctx.moveTo(i*this.cellSize, 0); ctx.lineTo(i*this.cellSize, this.canvas.height); ctx.stroke(); }
+                for(let i=0; i<=this.rows; i++) { ctx.beginPath(); ctx.moveTo(0, i*this.cellSize); ctx.lineTo(this.canvas.width, i*this.cellSize); ctx.stroke(); }
 
-                // Walls
-                ctx.fillStyle = varColor('--blue');
-                this.maze.forEach((row, y) => row.forEach((cell, x) => {
-                    if(cell === 1) ctx.fillRect(x*this.cellSize, y*this.cellSize, this.cellSize, this.cellSize);
+                this.maze.forEach((r,y) => r.forEach((c,x) => {
+                    if(c===1) {
+                        ctx.fillStyle = '#1e3a8a'; ctx.fillRect(x*this.cellSize+2, y*this.cellSize+2, this.cellSize-4, this.cellSize-4);
+                        ctx.strokeStyle = '#3b82f6'; ctx.strokeRect(x*this.cellSize+2, y*this.cellSize+2, this.cellSize-4, this.cellSize-4);
+                    }
                 }));
 
-                // Dots/Pellets
-                ctx.fillStyle = varColor('--accent');
-                if (this.dots) this.dots.forEach(d => { ctx.beginPath(); ctx.arc((d.x+0.5)*this.cellSize, (d.y+0.5)*this.cellSize, 2, 0, Math.PI*2); ctx.fill(); });
-                if (this.pellets) this.pellets.forEach(p => { ctx.beginPath(); ctx.arc((p.x+0.5)*this.cellSize, (p.y+0.5)*this.cellSize, 6, 0, Math.PI*2); ctx.fill(); });
+                ctx.fillStyle = '#fbbf24'; 
+                if(this.dots) this.dots.forEach(d => { ctx.beginPath(); ctx.arc((d.x+0.5)*this.cellSize, (d.y+0.5)*this.cellSize, 2, 0, Math.PI*2); ctx.fill(); });
 
-                // Player
                 const px = (this.player.x+0.5)*this.cellSize, py = (this.player.y+0.5)*this.cellSize;
-                ctx.fillStyle = varColor('--accent');
-                ctx.beginPath();
-                let sa=0, ea=Math.PI*2;
-                if(this.player.dir === 'right') { sa = this.player.mouth; ea = Math.PI*2 - this.player.mouth; }
-                else if(this.player.dir === 'left') { sa = Math.PI + this.player.mouth; ea = Math.PI - this.player.mouth; }
-                else if(this.player.dir === 'up') { sa = Math.PI*1.5 + this.player.mouth; ea = Math.PI*0.5 - this.player.mouth; }
-                else if(this.player.dir === 'down') { sa = Math.PI*0.5 + this.player.mouth; ea = Math.PI*1.5 - this.player.mouth; }
-                ctx.arc(px, py, 9, sa, ea); ctx.lineTo(px, py); ctx.fill();
+                ctx.save(); ctx.translate(px, py);
+                const rot = {right:0, left:Math.PI, up:-Math.PI/2, down:Math.PI/2}[this.player.dir];
+                ctx.rotate(rot); ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0, 10, this.player.mouth, Math.PI*2-this.player.mouth); ctx.fill(); ctx.restore();
 
-                // Ghosts
                 this.ghosts.forEach(g => {
-                    ctx.fillStyle = this.powerMode > 0 ? '#fff' : varColor(g.color);
                     const gx = (g.x+0.5)*this.cellSize, gy = (g.y+0.5)*this.cellSize;
-                    ctx.beginPath(); ctx.arc(gx, gy-4, 9, Math.PI, 0); ctx.lineTo(gx+9, gy+9); ctx.lineTo(gx-9, gy+9); ctx.fill();
-                    // Eyes
-                    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(gx-4, gy-4, 2, 0, Math.PI*2); ctx.arc(gx+4, gy-4, 2, 0, Math.PI*2); ctx.fill();
+                    const cMatch = g.color.match(/\((.*?)\)/);
+                    ctx.fillStyle = cMatch ? getComputedStyle(document.documentElement).getPropertyValue(cMatch[1]) : g.color;
+                    ctx.beginPath(); ctx.arc(gx, gy-2, 10, Math.PI, 0); ctx.lineTo(gx+10, gy+10); ctx.lineTo(gx-10, gy+10); ctx.fill();
                 });
             }
-
             loop() { this.update(); this.draw(); requestAnimationFrame(() => this.loop()); }
         }
-
-        function varColor(v) { return v.startsWith('var') ? getComputedStyle(document.documentElement).getPropertyValue(v.match(/\((.*?)\)/)[1]) : v; }
-        const game = new PacMan();
+        window.game = new PacMan();
     </script>
 </body>
 </html>
