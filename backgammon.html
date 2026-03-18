@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backgammon Pro</title>
+    <style>
+        :root {
+            --bg: #1a1a1a;
+            --board-bg: #4a3728;
+            --point-light: #d2b48c;
+            --point-dark: #8b4513;
+            --white-piece: #f0f0f0;
+            --black-piece: #222;
+            --accent: #f59e0b;
+            --valid-target: rgba(74, 222, 128, 0.6);
+            --blocked-point: rgba(239, 68, 68, 0.3);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+        }
+
+        .header { text-align: center; margin-bottom: 0.5rem; }
+        .header h1 { font-size: 2rem; color: var(--accent); }
+
+        .player-indicator {
+            background: var(--board-bg);
+            padding: 0.5rem 1.5rem;
+            border-radius: 2rem;
+            margin-bottom: 1rem;
+            border: 2px solid var(--accent);
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .color-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(0,0,0,0.3); }
+        .color-dot.white { background: var(--white-piece); }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .dice-area {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            background: rgba(0,0,0,0.4);
+            padding: 0.8rem 1.5rem;
+            border-radius: 2rem;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .die {
+            width: 45px;
+            height: 45px;
+            background: white;
+            color: black;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            font-weight: 800;
+            box-shadow: 0 4px 0 #ccc;
+        }
+        .die.used { opacity: 0.2; transform: scale(0.9); }
+
+        .board-wrapper {
+            position: relative;
+            background: var(--board-bg);
+            padding: 15px;
+            border: 15px solid #2d1e12;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+            width: 100%;
+            aspect-ratio: 1.6/1;
+            display: grid;
+            grid-template-columns: 1fr 50px 1fr;
+            gap: 10px;
+        }
+
+        .side { display: grid; grid-template-rows: 1fr 1fr; gap: 40px; }
+        .quadrant { display: grid; grid-template-columns: repeat(6, 1fr); position: relative; }
+
+        .point {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .point::before {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            z-index: 1;
+        }
+        .point.top::before { top: 0; border-top: 160px solid var(--p-color); }
+        .point.bottom::before { bottom: 0; border-bottom: 160px solid var(--p-color); }
+        .point.light { --p-color: var(--point-light); }
+        .point.dark { --p-color: var(--point-dark); }
+
+        /* VALID MOVE HIGHLIGHT */
+        .point.can-target {
+            filter: brightness(1.2);
+        }
+        .point.can-target::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--valid-target);
+            z-index: 5;
+            animation: pulse 1.5s infinite;
+            clip-path: polygon(50% 50%, 0% 100%, 100% 100%); /* Adjusted via class below */
+        }
+        .point.top.can-target::after { clip-path: polygon(0 0, 100% 0, 50% 100%); }
+        .point.bottom.can-target::after { clip-path: polygon(50% 0, 0 100%, 100% 100%); }
+
+        /* BLOCKED POINT FEEDBACK */
+        .point.blocked:hover::after {
+            content: '✕';
+            position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #ef4444; font-size: 2rem; font-weight: 900; z-index: 60;
+        }
+
+        @keyframes pulse { 0% { opacity: 0.2; } 50% { opacity: 0.6; } 100% { opacity: 0.2; } }
+
+        .checkers {
+            position: absolute;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+        }
+        .point.top .checkers { top: 5px; flex-direction: column; }
+        .point.bottom .checkers { bottom: 5px; flex-direction: column-reverse; }
+
+        .checker {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            margin-bottom: -18px;
+            border: 2px solid rgba(0,0,0,0.2);
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+            transition: 0.2s;
+        }
+        .checker.white { background: radial-gradient(circle at 35% 35%, #fff, #bbb); }
+        .checker.black { background: radial-gradient(circle at 35% 35%, #555, #111); }
+        .checker.selected { transform: scale(1.2) translateY(5px); border-color: var(--accent); box-shadow: 0 0 20px var(--accent); z-index: 100; }
+
+        .bar { background: #33261a; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; border-radius: 4px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        .status { font-size: 1.1rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+
+        .controls { display: flex; gap: 1rem; margin-top: 1rem; }
+        button {
+            padding: 0.8rem 1.8rem;
+            border-radius: 0.6rem;
+            border: none;
+            background: #333;
+            color: white;
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.2s;
+            text-transform: uppercase;
+        }
+        button:hover { background: #444; transform: translateY(-2px); }
+        button.primary { background: var(--accent); color: black; }
+
+        .off-board {
+            position: absolute;
+            right: -70px;
+            top: 0;
+            height: 100%;
+            width: 55px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .off-checker { width: 100%; height: 8px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.2); margin-bottom: 2px; }
+
+        @media (max-width: 950px) { .board-wrapper { width: 95vw; } .checker { width: 30px; height: 30px; } }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>BACKGAMMON PRO</h1>
+    </div>
+
+    <div class="player-indicator">
+        YOU ARE: <div class="color-dot white"></div> WHITE
+    </div>
+
+    <div class="game-container">
+        <div class="dice-area">
+            <div id="status" class="status">Roll Dice</div>
+            <div id="dice" style="display: flex; gap: 10px;"></div>
+            <button id="roll-btn" class="primary" onclick="rollDice()">Roll</button>
+        </div>
+
+        <div class="board-wrapper">
+            <div class="side">
+                <div class="quadrant" id="quad-0"></div>
+                <div class="quadrant" id="quad-3"></div>
+            </div>
+            <div class="bar">
+                <div id="bar-white" class="checkers" style="position:relative"></div>
+                <div id="bar-black" class="checkers" style="position:relative"></div>
+            </div>
+            <div class="side">
+                <div class="quadrant" id="quad-1"></div>
+                <div class="quadrant" id="quad-2"></div>
+            </div>
+            <div class="off-board">
+                <div id="off-white"></div>
+                <div id="off-black" style="display:flex; flex-direction:column-reverse;"></div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="resetGame()">New Game</button>
+            <a href="index.html" style="text-decoration: none;"><button type="button">Vault</button></a>
+        </div>
+    </div>
+
+    <script>
+        const WHITE = 1, BLACK = -1;
+        let state = {
+            points: Array(24).fill(0).map(() => ({ count: 0, color: 0 })),
+            bar: { [WHITE]: 0, [BLACK]: 0 },
+            off: { [WHITE]: 0, [BLACK]: 0 },
+            turn: WHITE,
+            dice: [],
+            selected: null,
+            validTargets: []
+        };
+
+        function init() {
+            state.points = Array(24).fill(0).map(() => ({ count: 0, color: 0 }));
+            const set = (i, n, c) => state.points[i] = { count: n, color: c };
+            set(0, 2, WHITE); set(11, 5, WHITE); set(16, 3, WHITE); set(18, 5, WHITE);
+            set(23, 2, BLACK); set(12, 5, BLACK); set(7, 3, BLACK); set(5, 5, BLACK);
+            state.bar = { [WHITE]: 0, [BLACK]: 0 }; state.off = { [WHITE]: 0, [BLACK]: 0 };
+            state.turn = WHITE; state.dice = []; state.selected = null; state.validTargets = [];
+            render();
+        }
+
+        function render() {
+            const quads = [0,1,2,3].map(i => document.getElementById(`quad-${i}`));
+            quads.forEach(q => q.innerHTML = '');
+            const layout = [
+                { q: 0, range: [12,17], top: true }, { q: 1, range: [18,23], top: true },
+                { q: 2, range: [5,0], top: false }, { q: 3, range: [11,6], top: false }
+            ];
+            layout.forEach(m => {
+                const step = m.range[0] < m.range[1] ? 1 : -1;
+                for (let i = m.range[0]; step > 0 ? i <= m.range[1] : i >= m.range[1]; i += step) {
+                    const p = state.points[i];
+                    const el = document.createElement('div');
+                    el.className = `point ${m.top ? 'top' : 'bottom'} ${i % 2 === 0 ? 'dark' : 'light'}`;
+                    
+                    if (state.validTargets.includes(i)) el.classList.add('can-target');
+                    else if (state.selected !== null && state.points[i].color === BLACK && state.points[i].count >= 2) el.classList.add('blocked');
+
+                    const checks = document.createElement('div');
+                    checks.className = 'checkers';
+                    for (let c = 0; c < p.count; c++) {
+                        const ck = document.createElement('div');
+                        ck.className = `checker ${p.color === WHITE ? 'white' : 'black'}`;
+                        if (state.selected === i && c === p.count - 1) ck.classList.add('selected');
+                        checks.appendChild(ck);
+                    }
+                    el.appendChild(checks);
+                    el.onclick = () => handlePointClick(i);
+                    quads[m.q].appendChild(el);
+                }
+            });
+            renderBar('bar-white', WHITE); renderBar('bar-black', BLACK);
+            document.getElementById('dice').innerHTML = state.dice.map(d => `<div class="die ${d.used ? 'used' : ''}">${d.val}</div>`).join('');
+            document.getElementById('roll-btn').style.display = state.dice.length === 0 ? 'block' : 'none';
+            document.getElementById('status').textContent = state.turn === WHITE ? "Your Turn" : "AI thinking...";
+            document.getElementById('off-white').innerHTML = Array(state.off[WHITE]).fill('<div class="off-checker white"></div>').join('');
+            document.getElementById('off-black').innerHTML = Array(state.off[BLACK]).fill('<div class="off-checker black"></div>').join('');
+        }
+
+        function renderBar(id, color) {
+            const el = document.getElementById(id); el.innerHTML = '';
+            for (let i = 0; i < state.bar[color]; i++) {
+                const ck = document.createElement('div');
+                ck.className = `checker ${color === WHITE ? 'white' : 'black'}`;
+                if (state.selected === `bar-${color}` && i === state.bar[color] - 1) ck.classList.add('selected');
+                el.appendChild(ck);
+            }
+            el.onclick = () => handleBarClick(color);
+        }
+
+        function rollDice() {
+            if (state.dice.length > 0) return;
+            const r = () => Math.floor(Math.random()*6)+1;
+            const d1 = r(), d2 = r();
+            state.dice = d1 === d2 ? Array(4).fill({val:d1, used:false}) : [{val:d1, used:false}, {val:d2, used:false}];
+            render(); if (state.turn === BLACK) setTimeout(aiPlay, 800);
+        }
+
+        function handlePointClick(i) {
+            if (state.turn !== WHITE) return;
+            if (state.selected === null) {
+                if (state.bar[WHITE] > 0) return;
+                if (state.points[i].color === WHITE) select(i);
+            } else if (state.selected === i) deselect();
+            else if (state.validTargets.includes(i)) executeMove(state.selected, i);
+            else if (state.points[i].color === WHITE) select(i);
+        }
+
+        function handleBarClick(c) { if (state.turn === WHITE && c === WHITE && state.bar[WHITE] > 0) select(`bar-${WHITE}`); }
+
+        function select(idx) {
+            state.selected = idx; state.validTargets = [];
+            const moves = state.dice.filter(d => !d.used).map(d => d.val);
+            const start = idx === `bar-${WHITE}` ? -1 : idx;
+            [...new Set(moves)].forEach(m => {
+                const to = start + m;
+                if (to < 24 && (state.points[to].count <= 1 || state.points[to].color === WHITE)) state.validTargets.push(to);
+            });
+            render();
+        }
+
+        function deselect() { state.selected = null; state.validTargets = []; render(); }
+
+        function executeMove(from, to) {
+            const start = from === `bar-${WHITE}` ? -1 : from;
+            const dist = to - start;
+            const die = state.dice.find(d => !d.used && d.val === dist);
+            if (!die) return;
+            if (from === `bar-${WHITE}`) state.bar[WHITE]--;
+            else { state.points[from].count--; if (state.points[from].count === 0) state.points[from].color = 0; }
+            if (state.points[to].count === 1 && state.points[to].color === BLACK) { state.bar[BLACK]++; state.points[to].count = 0; }
+            state.points[to].count++; state.points[to].color = WHITE;
+            die.used = true; deselect();
+            if (state.dice.every(d => d.used)) { state.dice = []; state.turn = BLACK; setTimeout(aiPlay, 800); }
+        }
+
+        function aiPlay() {
+            if (state.dice.length === 0) { rollDice(); return; }
+            let move = null;
+            for (let d of state.dice.filter(v => !v.used)) {
+                if (state.bar[BLACK] > 0) {
+                    const to = 23 - (d.val - 1);
+                    if (state.points[to].count <= 1 || state.points[to].color === BLACK) { move = {f: `bar-${BLACK}`, t: to, d}; break; }
+                } else {
+                    for (let i = 23; i >= 0; i--) {
+                        if (state.points[i].color === BLACK) {
+                            const to = i - d.val;
+                            if (to >= 0 && (state.points[to].count <= 1 || state.points[i].color === BLACK)) { move = {f: i, t: to, d}; break; }
+                        }
+                    }
+                }
+                if (move) break;
+            }
+            if (move) {
+                if (move.f === `bar-${BLACK}`) state.bar[BLACK]--;
+                else { state.points[move.f].count--; if (state.points[move.f].count === 0) state.points[move.f].color = 0; }
+                if (state.points[move.t].count === 1 && state.points[move.t].color === WHITE) { state.bar[WHITE]++; state.points[move.t].count = 0; }
+                state.points[move.t].count++; state.points[move.t].color = BLACK;
+                move.d.used = true; render(); setTimeout(aiPlay, 800);
+            } else { state.dice = []; state.turn = WHITE; render(); }
+        }
+
+        function resetGame() { init(); }
+        init();
+    </script>
+</body>
+</html>

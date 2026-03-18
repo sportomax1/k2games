@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Craps Elite</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --felt: #065f46;
+            --felt-dark: #064e3b;
+            --border: #3d2b1f;
+            --text: #f8fafc;
+            --accent: #f59e0b;
+            --die-bg: #ffffff;
+            --die-dot: #1a1a1a;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+            overflow-x: hidden;
+        }
+
+        .header { text-align: center; margin-bottom: 0.5rem; }
+        .header h1 { font-size: 2.5rem; background: linear-gradient(to right, #818cf8, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        .bank { font-size: 1.5rem; font-weight: 800; color: var(--accent); margin-bottom: 1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+
+        .craps-table {
+            position: relative;
+            width: 100%;
+            max-width: 900px;
+            height: 450px;
+            background: var(--felt);
+            border: 15px solid var(--border);
+            border-radius: 40px;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.5), 0 20px 50px rgba(0,0,0,0.8);
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            padding: 20px;
+            gap: 10px;
+        }
+
+        .bet-area {
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+            text-align: center;
+            position: relative;
+        }
+        .bet-area:hover { background: rgba(255,255,255,0.1); border-color: var(--accent); }
+        .bet-area.active { background: rgba(245, 158, 11, 0.2); border-color: var(--accent); box-shadow: 0 0 15px var(--accent); }
+        
+        .bet-label { font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.8); pointer-events: none; }
+        .bet-amount { font-size: 1.2rem; font-weight: 900; color: var(--accent); margin-top: 5px; pointer-events: none; }
+
+        .center-board { display: grid; grid-template-rows: 1fr 1fr; gap: 10px; }
+        .numbers-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+        .num-box { border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px; position: relative; }
+        .num-box.point-marker::after {
+            content: 'ON';
+            position: absolute;
+            top: -15px;
+            background: white;
+            color: black;
+            font-size: 0.6rem;
+            font-weight: 900;
+            padding: 2px 6px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        .dice-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            gap: 20px;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .die {
+            width: 60px;
+            height: 60px;
+            background: var(--die-bg);
+            border-radius: 10px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            padding: 8px;
+            box-shadow: 4px 4px 10px rgba(0,0,0,0.4);
+            transition: 0.1s;
+        }
+        .die.rolling { animation: shake 0.1s infinite; }
+        .dot { width: 8px; height: 8px; background: var(--die-dot); border-radius: 50%; align-self: center; justify-self: center; visibility: hidden; }
+        .dot.visible { visibility: visible; }
+
+        @keyframes shake {
+            0% { transform: translate(2px, 2px) rotate(0deg); }
+            50% { transform: translate(-2px, -2px) rotate(5deg); }
+            100% { transform: translate(2px, -2px) rotate(-5deg); }
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-top: 20px;
+            background: #1e293b;
+            padding: 1.2rem;
+            border-radius: 1.2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        button {
+            padding: 0.8rem 1.5rem;
+            border-radius: 0.6rem;
+            border: none;
+            background: #334155;
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+            text-transform: uppercase;
+        }
+        button:hover:not(:disabled) { transform: translateY(-2px); background: #475569; }
+        button.primary { background: linear-gradient(135deg, var(--accent), #d97706); color: black; }
+        button:disabled { opacity: 0.3; }
+
+        .game-status {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--accent);
+            height: 1.5rem;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 800px) {
+            .craps-table { height: auto; grid-template-columns: 1fr; padding-bottom: 40px; }
+            .center-board { order: -1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header"><h1>CRAPS ELITE</h1></div>
+    <div class="bank">CHIPS: $<span id="balance">1000</span></div>
+    <div id="game-status" class="game-status">Place Your Bets</div>
+
+    <div class="craps-table">
+        <!-- Pass Line -->
+        <div class="bet-area" id="bet-pass" onclick="placeBet('pass')">
+            <div class="bet-label">Pass Line</div>
+            <div class="bet-amount" id="amt-pass">$0</div>
+        </div>
+
+        <!-- Center Numbers / Field -->
+        <div class="center-board">
+            <div class="numbers-row">
+                <div class="num-box" id="box-4"><span class="bet-label">4</span></div>
+                <div class="num-box" id="box-5"><span class="bet-label">5</span></div>
+                <div class="num-box" id="box-6"><span class="bet-label">6</span></div>
+                <div class="num-box" id="box-8"><span class="bet-label">8</span></div>
+                <div class="num-box" id="box-9"><span class="bet-label">9</span></div>
+                <div class="num-box" id="box-10"><span class="bet-label">10</span></div>
+            </div>
+            <div class="bet-area" id="bet-field" onclick="placeBet('field')">
+                <div class="bet-label">Field<br><small>(2,3,4,9,10,11,12)</small></div>
+                <div class="bet-amount" id="amt-field">$0</div>
+            </div>
+        </div>
+
+        <!-- Don't Pass -->
+        <div class="bet-area" id="bet-dontpass" onclick="placeBet('dontpass')">
+            <div class="bet-label">Don't Pass</div>
+            <div class="bet-amount" id="amt-dontpass">$0</div>
+        </div>
+
+        <!-- Dice -->
+        <div class="dice-display" id="dice-container">
+            <div class="die" id="die1"></div>
+            <div class="die" id="die2"></div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button onclick="clearBets()">Clear Bets</button>
+        <button id="roll-btn" class="primary" onclick="rollDice()">Roll Dice</button>
+        <a href="index.html" style="text-decoration: none;"><button type="button">Vault</button></a>
+    </div>
+
+    <script>
+        let balance = 1000;
+        let bets = { pass: 0, dontpass: 0, field: 0 };
+        let point = null;
+        let isRolling = false;
+
+        const dotLayouts = {
+            1: [4],
+            2: [0, 8],
+            3: [0, 4, 8],
+            4: [0, 2, 6, 8],
+            5: [0, 2, 4, 6, 8],
+            6: [0, 2, 3, 5, 6, 8]
+        };
+
+        function renderDie(id, val) {
+            const el = document.getElementById(id);
+            el.innerHTML = '';
+            for (let i = 0; i < 9; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'dot' + (dotLayouts[val].includes(i) ? ' visible' : '');
+                el.appendChild(dot);
+            }
+        }
+
+        function placeBet(type) {
+            if (isRolling) return;
+            if (balance < 25) { alert("Not enough chips!"); return; }
+            bets[type] += 25;
+            balance -= 25;
+            updateUI();
+        }
+
+        function clearBets() {
+            if (isRolling) return;
+            balance += (bets.pass + bets.dontpass + bets.field);
+            bets = { pass: 0, dontpass: 0, field: 0 };
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('balance').textContent = balance;
+            document.getElementById('amt-pass').textContent = '$' + bets.pass;
+            document.getElementById('amt-dontpass').textContent = '$' + bets.dontpass;
+            document.getElementById('amt-field').textContent = '$' + bets.field;
+
+            // Update Point markers
+            document.querySelectorAll('.num-box').forEach(box => box.classList.remove('point-marker'));
+            if (point) {
+                document.getElementById('box-' + point).classList.add('point-marker');
+            }
+        }
+
+        async function rollDice() {
+            if (isRolling) return;
+            if (bets.pass === 0 && bets.dontpass === 0 && bets.field === 0 && !point) {
+                alert("Place a bet first!"); return;
+            }
+
+            isRolling = true;
+            document.getElementById('roll-btn').disabled = true;
+            document.getElementById('game-status').textContent = "Rolling...";
+
+            const die1El = document.getElementById('die1');
+            const die2El = document.getElementById('die2');
+            die1El.classList.add('rolling');
+            die2El.classList.add('rolling');
+
+            await new Promise(r => setTimeout(r, 1000));
+
+            die1El.classList.remove('rolling');
+            die2El.classList.remove('rolling');
+
+            const d1 = Math.floor(Math.random() * 6) + 1;
+            const d2 = Math.floor(Math.random() * 6) + 1;
+            const total = d1 + d2;
+
+            renderDie('die1', d1);
+            renderDie('die2', d2);
+
+            resolveRoll(total);
+            isRolling = false;
+            document.getElementById('roll-btn').disabled = false;
+            updateUI();
+        }
+
+        function resolveRoll(val) {
+            const statusEl = document.getElementById('game-status');
+            let resultMsg = "Rolled " + val + ". ";
+            let winnings = 0;
+
+            // Resolve Field Bet (always happens)
+            if (bets.field > 0) {
+                if ([2, 3, 4, 9, 10, 11, 12].includes(val)) {
+                    let mult = (val === 2 || val === 12) ? 3 : 2; // 2:1 or 3:1
+                    winnings += bets.field * mult;
+                    resultMsg += "Field Wins! ";
+                }
+                bets.field = 0; // Field bets are one-roll
+            }
+
+            if (point === null) {
+                // Come-out Roll
+                if (val === 7 || val === 11) {
+                    winnings += bets.pass * 2;
+                    bets.pass = 0;
+                    bets.dontpass = 0;
+                    resultMsg += "Natural! Pass Wins.";
+                } else if (val === 2 || val === 3 || val === 12) {
+                    winnings += bets.dontpass * 2;
+                    bets.pass = 0;
+                    bets.dontpass = 0;
+                    resultMsg += "Craps! Pass Loses.";
+                } else {
+                    point = val;
+                    resultMsg += "Point is " + point;
+                }
+            } else {
+                // Point established
+                if (val === point) {
+                    winnings += bets.pass * 2;
+                    bets.pass = 0;
+                    bets.dontpass = 0;
+                    point = null;
+                    resultMsg += "Point Made! Pass Wins.";
+                } else if (val === 7) {
+                    winnings += bets.dontpass * 2;
+                    bets.pass = 0;
+                    bets.dontpass = 0;
+                    point = null;
+                    resultMsg += "Seven Out! Pass Loses.";
+                } else {
+                    resultMsg += "Roll Again.";
+                }
+            }
+
+            balance += winnings;
+            statusEl.textContent = resultMsg;
+        }
+
+        renderDie('die1', 1);
+        renderDie('die2', 1);
+        updateUI();
+    </script>
+</body>
+</html>

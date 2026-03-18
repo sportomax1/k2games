@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>8-Bit Top-Down Farm Sim</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pixel-size: 4px;
+            --bg-color: #388e3c; /* Darker grass */
+            --grass-color: #4caf50;
+            --dirt-color: #795548;
+            --dirt-dark: #5d4037;
+            --ui-bg: #f5f5f5;
+            --ui-border: #212121;
+            --text-color: #000;
+            --accent-color: #ffca28;
+            --plot-size: 80px;
+        }
+
+        * {
+            box-sizing: border-box;
+            image-rendering: pixelated;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(#2e7d32 10%, transparent 10%),
+                radial-gradient(#2e7d32 10%, transparent 10%);
+            background-size: 32px 32px;
+            background-position: 0 0, 16px 16px;
+            font-family: 'Press Start 2P', cursive;
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Layout */
+        #game-screen {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 600px;
+            height: 100%;
+            background-color: var(--grass-color);
+            background-image: 
+                linear-gradient(45deg, rgba(0,0,0,0.05) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.05) 75%, rgba(0,0,0,0.05)),
+                linear-gradient(45deg, rgba(0,0,0,0.05) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.05) 75%, rgba(0,0,0,0.05));
+            background-size: 16px 16px;
+            background-position: 0 0, 8px 8px;
+            position: relative;
+            border: 8px solid #1b5e20;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* Top HUD */
+        #hud {
+            background-color: var(--ui-bg);
+            border-bottom: 4px solid var(--ui-border);
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .hud-stat {
+            font-size: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        /* Farm Grid */
+        #farm-area {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #grid-container {
+            display: grid;
+            grid-template-columns: repeat(4, var(--plot-size));
+            grid-template-rows: repeat(4, var(--plot-size));
+            gap: 4px;
+            background-color: #2e7d32; /* Grid lines */
+            padding: 4px;
+            position: relative;
+        }
+
+        .plot {
+            width: var(--plot-size);
+            height: var(--plot-size);
+            background-color: var(--dirt-color);
+            background-image: 
+                linear-gradient(var(--dirt-dark) 2px, transparent 2px),
+                linear-gradient(90deg, var(--dirt-dark) 2px, transparent 2px);
+            background-size: 16px 16px;
+            position: relative;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.1s, background-color 0.2s;
+            border: 2px solid rgba(0,0,0,0.2);
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        .plot:hover {
+            transform: scale(1.05);
+            z-index: 5;
+            background-color: #8d6e63;
+        }
+
+        .plot.locked {
+            background-color: #3e2723;
+            opacity: 0.8;
+            color: #fff;
+            font-size: 8px;
+            text-align: center;
+        }
+
+        .plot.plowed {
+            background-image: 
+                linear-gradient(90deg, transparent 50%, rgba(0,0,0,0.1) 50%),
+                linear-gradient(transparent 50%, rgba(0,0,0,0.1) 50%);
+            background-size: 8px 8px;
+        }
+
+        /* Farmer Character */
+        #farmer {
+            width: 32px;
+            height: 32px;
+            position: absolute;
+            z-index: 50;
+            transition: left 0.3s linear, top 0.3s linear;
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Top-Down Farmer Sprite (Simple CSS) */
+        .farmer-sprite {
+            width: 24px;
+            height: 24px;
+            background-color: #2196f3; /* Blue shirt */
+            border: 3px solid #000;
+            border-radius: 4px;
+            position: relative;
+        }
+
+        .farmer-sprite::before { /* Head/Hat */
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 14px;
+            height: 14px;
+            background-color: #ffeb3b; /* Straw hat */
+            border: 2px solid #000;
+        }
+
+        .walking {
+            animation: walk-bob 0.15s infinite alternate;
+        }
+
+        @keyframes walk-bob {
+            from { transform: scale(1); }
+            to { transform: scale(1.1) translateY(-2px); }
+        }
+
+        /* Plant Visuals */
+        .plant {
+            font-size: 24px;
+            position: absolute;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .sprout {
+            font-size: 14px;
+            filter: hue-rotate(90deg);
+        }
+
+        .bubble {
+            position: absolute;
+            top: -15px;
+            background: #fff;
+            border: 2px solid #000;
+            padding: 2px 4px;
+            font-size: 6px;
+            white-space: nowrap;
+            z-index: 20;
+        }
+
+        /* Shop UI */
+        #shop {
+            background-color: var(--ui-bg);
+            border-top: 4px solid var(--ui-border);
+            padding: 10px;
+            z-index: 100;
+        }
+
+        .shop-header {
+            font-size: 10px;
+            margin-bottom: 8px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        #seed-list {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+        }
+
+        .seed-btn {
+            background: #fff;
+            border: 3px solid var(--ui-border);
+            padding: 8px;
+            min-width: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            font-family: 'Press Start 2P';
+            font-size: 8px;
+        }
+
+        .seed-btn.selected {
+            background: var(--accent-color);
+            border-color: #000;
+        }
+
+        .seed-btn:active {
+            transform: translateY(2px);
+        }
+
+        /* Notifications */
+        #msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #000;
+            color: #fff;
+            padding: 10px;
+            font-size: 8px;
+            border: 2px solid #fff;
+            display: none;
+            z-index: 500;
+            text-align: center;
+        }
+
+        /* Instructions */
+        #footer-info {
+            background-color: #2e7d32;
+            color: #fff;
+            font-size: 6px;
+            padding: 4px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-screen">
+        <!-- HUD -->
+        <div id="hud">
+            <div class="hud-stat">
+                <span>COINS</span>
+                <span id="coins">$50</span>
+            </div>
+            <div class="hud-stat" style="text-align: center;">
+                <a href="index.html" style="text-decoration: none; font-size: 8px; color: var(--ui-border); border: 2px solid var(--ui-border); padding: 4px; background: #ddd;">VAULT</a>
+            </div>
+            <div class="hud-stat" style="text-align: right;">
+                <span>HARVESTS</span>
+                <span id="harvests">0</span>
+            </div>
+        </div>
+
+        <!-- FARM AREA -->
+        <div id="farm-area">
+            <div id="grid-container">
+                <!-- Plots will be here -->
+            </div>
+            <div id="farmer">
+                <div class="farmer-sprite"></div>
+            </div>
+        </div>
+
+        <!-- SHOP -->
+        <div id="shop">
+            <div class="shop-header">Select Seed to Plant</div>
+            <div id="seed-list">
+                <!-- Seed buttons here -->
+            </div>
+        </div>
+
+        <div id="footer-info">
+            CLICK PLOT TO INTERACT | PLOTS GROW WHEN WATERED
+        </div>
+
+        <div id="msg"></div>
+    </div>
+
+    <script>
+        const SEEDS = {
+            'Carrot': { cost: 5, time: 5000, yield: 12, icon: '🥕' },
+            'Corn': { cost: 10, time: 8000, yield: 25, icon: '🌽' },
+            'Rose': { cost: 20, time: 12000, yield: 50, icon: '🌹' },
+            'Pumpkin': { cost: 40, time: 20000, yield: 110, icon: '🎃' },
+            'Sunflower': { cost: 75, time: 30000, yield: 220, icon: '🌻' }
+        };
+
+        const PLOT_COSTS = [0,0,0,0, 20,40,60,80, 150,250,350,500, 1000,1500,2000,5000];
+
+        let state = {
+            coins: 50,
+            harvests: 0,
+            selectedSeed: 'Carrot',
+            plots: [],
+            farmerPos: 0,
+            isMoving: false
+        };
+
+        const gridEl = document.getElementById('grid-container');
+        const seedListEl = document.getElementById('seed-list');
+        const farmerEl = document.getElementById('farmer');
+        const coinsEl = document.getElementById('coins');
+        const harvestsEl = document.getElementById('harvests');
+        const msgEl = document.getElementById('msg');
+
+        function init() {
+            load();
+            renderShop();
+            renderGrid();
+            updateFarmerPos(state.farmerPos, false);
+            updateUI();
+        }
+
+        function renderShop() {
+            seedListEl.innerHTML = '';
+            Object.keys(SEEDS).forEach(name => {
+                const s = SEEDS[name];
+                const btn = document.createElement('div');
+                btn.className = `seed-btn ${state.selectedSeed === name ? 'selected' : ''}`;
+                btn.innerHTML = `<span>${s.icon}</span><span>${name}</span><span>$${s.cost}</span>`;
+                btn.onclick = () => {
+                    state.selectedSeed = name;
+                    renderShop();
+                };
+                seedListEl.appendChild(btn);
+            });
+        }
+
+        function renderGrid() {
+            gridEl.innerHTML = '';
+            for (let i = 0; i < 16; i++) {
+                if (!state.plots[i]) {
+                    state.plots[i] = {
+                        locked: i >= 4,
+                        status: 'empty', // empty, planted, mature
+                        seed: null,
+                        startTime: 0,
+                        watered: false
+                    };
+                }
+                const p = state.plots[i];
+                const plotDiv = document.createElement('div');
+                plotDiv.id = `plot-${i}`;
+                plotDiv.className = `plot ${p.locked ? 'locked' : 'plowed'}`;
+                
+                if (p.locked) {
+                    plotDiv.innerHTML = `LOCKED<br>$${PLOT_COSTS[i]}`;
+                } else if (p.status !== 'empty') {
+                    const plant = document.createElement('div');
+                    plant.className = 'plant';
+                    if (p.status === 'mature') {
+                        plant.innerText = SEEDS[p.seed].icon;
+                        const b = document.createElement('div');
+                        b.className = 'bubble';
+                        b.innerText = 'READY!';
+                        plotDiv.appendChild(b);
+                    } else {
+                        plant.innerText = '🌱';
+                        plant.classList.add('sprout');
+                        if (!p.watered) {
+                            const b = document.createElement('div');
+                            b.className = 'bubble';
+                            b.innerText = 'DRY';
+                            plotDiv.appendChild(b);
+                        }
+                    }
+                    plotDiv.appendChild(plant);
+                }
+
+                plotDiv.onclick = () => interact(i);
+                gridEl.appendChild(plotDiv);
+            }
+        }
+
+        async function interact(idx) {
+            if (state.isMoving) return;
+
+            // 1. Walk to plot
+            await walkTo(idx);
+
+            const p = state.plots[idx];
+
+            if (p.locked) {
+                const cost = PLOT_COSTS[idx];
+                if (state.coins >= cost) {
+                    state.coins -= cost;
+                    p.locked = false;
+                    notify("PLOT UNLOCKED!");
+                } else notify("NEED MORE COINS!");
+            } else if (p.status === 'empty') {
+                const seed = SEEDS[state.selectedSeed];
+                if (state.coins >= seed.cost) {
+                    state.coins -= seed.cost;
+                    p.status = 'planted';
+                    p.seed = state.selectedSeed;
+                    p.watered = false;
+                    notify(`PLANTED ${state.selectedSeed}`);
+                } else notify("NEED MORE COINS!");
+            } else if (p.status === 'planted' && !p.watered) {
+                p.watered = true;
+                p.startTime = Date.now();
+                notify("WATERED!");
+                startGrowth(idx);
+            } else if (p.status === 'mature') {
+                const yieldVal = SEEDS[p.seed].yield;
+                state.coins += yieldVal;
+                state.harvests++;
+                notify(`HARVESTED $${yieldVal}`);
+                p.status = 'empty';
+                p.seed = null;
+                p.watered = false;
+            }
+
+            save();
+            renderGrid();
+            updateUI();
+        }
+
+        function walkTo(targetIdx) {
+            return new Promise(resolve => {
+                state.isMoving = true;
+                farmerEl.classList.add('walking');
+                
+                updateFarmerPos(targetIdx, true);
+
+                setTimeout(() => {
+                    state.isMoving = false;
+                    state.farmerPos = targetIdx;
+                    farmerEl.classList.remove('walking');
+                    resolve();
+                }, 300);
+            });
+        }
+
+        function updateFarmerPos(idx, animate) {
+            const row = Math.floor(idx / 4);
+            const col = idx % 4;
+            
+            // Calculate absolute position within grid-container
+            // Plot size is 80px + 4px gap
+            const left = col * 84 + (80 / 2) - 16; // Center 32px farmer in 80px plot
+            const top = row * 84 + (80 / 2) - 16;
+            
+            farmerEl.style.left = `${left + 4}px`; // +4 for grid padding
+            farmerEl.style.top = `${top + 4}px`;
+        }
+
+        function startGrowth(idx) {
+            const p = state.plots[idx];
+            const growTime = SEEDS[p.seed].time;
+            setTimeout(() => {
+                if (p.status === 'planted' && p.watered) {
+                    p.status = 'mature';
+                    renderGrid();
+                    save();
+                }
+            }, growTime);
+        }
+
+        function updateUI() {
+            coinsEl.innerText = `$${state.coins}`;
+            harvestsEl.innerText = state.harvests;
+        }
+
+        function notify(text) {
+            msgEl.innerText = text;
+            msgEl.style.display = 'block';
+            setTimeout(() => msgEl.style.display = 'none', 1500);
+        }
+
+        function save() {
+            localStorage.setItem('8bitFarmSave_TopDown', JSON.stringify(state));
+        }
+
+        function load() {
+            const saved = localStorage.getItem('8bitFarmSave_TopDown');
+            if (saved) {
+                const s = JSON.parse(saved);
+                state = s;
+                // Resume growth for watered plants
+                state.plots.forEach((p, i) => {
+                    if (p.status === 'planted' && p.watered) {
+                        const elapsed = Date.now() - p.startTime;
+                        const remaining = Math.max(0, SEEDS[p.seed].time - elapsed);
+                        setTimeout(() => {
+                            if (p.status === 'planted' && p.watered) {
+                                p.status = 'mature';
+                                renderGrid();
+                                save();
+                            }
+                        }, remaining);
+                    }
+                });
+            }
+        }
+
+        init();
+
+        // KEYBOARD CONTROLS
+        window.addEventListener('keydown', (e) => {
+            if (state.isMoving) return;
+
+            let newPos = state.farmerPos;
+            const key = e.key.toLowerCase();
+
+            if (key === 'arrowup' || key === 'w') {
+                if (newPos >= 4) newPos -= 4;
+            } else if (key === 'arrowdown' || key === 's') {
+                if (newPos <= 11) newPos += 4;
+            } else if (key === 'arrowleft' || key === 'a') {
+                if (newPos % 4 !== 0) newPos -= 1;
+            } else if (key === 'arrowright' || key === 'd') {
+                if (newPos % 4 !== 3) newPos += 1;
+            } else if (e.code === 'Space' || key === 'enter') {
+                e.preventDefault();
+                interact(state.farmerPos);
+                return;
+            }
+
+            if (newPos !== state.farmerPos) {
+                walkTo(newPos);
+            }
+        });
+
+        // Prevent scrolling with arrows/space
+        window.addEventListener('keydown', function(e) {
+            if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) {
+                e.preventDefault();
+            }
+        }, false);
+    </script>
+</body>
+</html>

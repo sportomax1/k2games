@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reversi Elite</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --felt: #14532d;
+            --felt-border: #064e3b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --accent: #f59e0b;
+            --valid-bg: rgba(74, 222, 128, 0.15);
+            --valid-border: #4ade80;
+            --invalid-bg: rgba(239, 68, 68, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+        }
+
+        .header { text-align: center; margin-bottom: 1rem; }
+        .header h1 { font-size: 2.5rem; background: linear-gradient(to right, #818cf8, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        .config-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            background: var(--surface);
+            padding: 0.8rem 1.5rem;
+            border-radius: 1rem;
+            align-items: center;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .config-bar select {
+            background: var(--bg);
+            color: white;
+            border: 1px solid var(--muted);
+            padding: 0.4rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .game-info {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 1rem;
+            background: var(--surface);
+            padding: 1rem 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .score-box { text-align: center; }
+        .score-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; }
+        .score-value { font-size: 2rem; font-weight: 800; }
+
+        .current-turn { margin-bottom: 1rem; font-weight: 600; color: var(--accent); height: 1.5rem; }
+
+        .board-container {
+            background-color: var(--felt-border);
+            border: 10px solid var(--felt-border);
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            width: 100%;
+            max-width: 550px;
+            aspect-ratio: 1/1;
+            display: grid;
+            overflow: hidden;
+        }
+
+        .cell {
+            background-color: var(--felt);
+            border: 1px solid rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+            transition: background-color 0.2s;
+        }
+
+        /* VALID MOVE STYLING */
+        .cell.valid-move {
+            background-color: var(--valid-bg);
+            box-shadow: inset 0 0 10px var(--valid-bg);
+        }
+        .cell.valid-move::after {
+            content: '';
+            width: 20%;
+            height: 20%;
+            background-color: var(--valid-border);
+            border-radius: 50%;
+            box-shadow: 0 0 15px var(--valid-border);
+            animation: pulse 1.5s infinite;
+        }
+
+        /* INVALID MOVE HOVER */
+        .cell:not(.valid-move):not(:has(.piece)):hover {
+            background-color: var(--invalid-bg);
+        }
+        .cell:not(.valid-move):not(:has(.piece)):hover::before {
+            content: '✕';
+            color: rgba(239, 68, 68, 0.4);
+            font-size: 1.2rem;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.6; }
+            50% { transform: scale(1.4); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.6; }
+        }
+
+        .piece {
+            width: 85%;
+            height: 85%;
+            border-radius: 50%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            position: absolute;
+            z-index: 10;
+        }
+
+        .piece.black { background: radial-gradient(circle at 30% 30%, #555, #000); }
+        .piece.white { background: radial-gradient(circle at 30% 30%, #fff, #bbb); }
+
+        .controls { margin-top: 1.5rem; display: flex; gap: 1rem; }
+        button {
+            padding: 0.8rem 1.5rem;
+            border-radius: 0.5rem;
+            border: none;
+            background: var(--surface);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        button:hover { background: #2d3748; transform: translateY(-2px); }
+        button.primary { background: var(--accent); color: #1a1a1a; }
+
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: 0.3s;
+        }
+        .overlay.active { opacity: 1; pointer-events: all; }
+
+        @media (max-width: 500px) { .board-container { max-width: 95vw; } }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>REVERSI ELITE</h1>
+    </div>
+
+    <div class="config-bar">
+        <label>Board Size:</label>
+        <select id="size-select" onchange="resetGame()">
+            <option value="4">4 x 4 (Quick)</option>
+            <option value="6">6 x 6</option>
+            <option value="8" selected>8 x 8 (Classic)</option>
+            <option value="10">10 x 10 (Large)</option>
+        </select>
+    </div>
+
+    <div class="game-info">
+        <div class="score-box">
+            <div class="score-label">Black (You)</div>
+            <div id="black-score" class="score-value">2</div>
+        </div>
+        <div class="score-box">
+            <div class="score-label">White (AI)</div>
+            <div id="white-score" class="score-value">2</div>
+        </div>
+    </div>
+
+    <div id="status" class="current-turn">Your Turn</div>
+
+    <div class="board-container" id="board"></div>
+
+    <div class="controls">
+        <button onclick="resetGame()">Reset Game</button>
+        <a href="index.html" style="text-decoration: none;"><button type="button">The Vault</button></a>
+    </div>
+
+    <div id="overlay" class="overlay">
+        <h2 id="winner-text" style="font-size: 3.5rem; margin-bottom: 1rem; font-weight: 900;">White Wins!</h2>
+        <div style="font-size: 1.8rem; color: var(--muted); margin-bottom: 2.5rem;" id="final-score">60 - 4</div>
+        <button class="primary" style="padding: 1.2rem 3rem; font-size: 1.2rem;" onclick="resetGame()">Play Again</button>
+    </div>
+
+    <script>
+        const EMPTY = 0, BLACK = 1, WHITE = 2;
+        let size = 8, board = [], turn = BLACK, isGameOver = false, isAIProcessing = false;
+
+        const boardEl = document.getElementById('board'), blackScoreEl = document.getElementById('black-score'), whiteScoreEl = document.getElementById('white-score'), statusEl = document.getElementById('status'), sizeSelect = document.getElementById('size-select'), overlay = document.getElementById('overlay');
+
+        function init() {
+            size = parseInt(sizeSelect.value);
+            board = Array(size).fill().map(() => Array(size).fill(EMPTY));
+            const mid = size / 2;
+            board[mid-1][mid-1] = WHITE; board[mid-1][mid] = BLACK; board[mid][mid-1] = BLACK; board[mid][mid] = WHITE;
+            turn = BLACK; isGameOver = false; isAIProcessing = false;
+            overlay.classList.remove('active');
+            boardEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+            boardEl.style.gridTemplateRows = `repeat(${size}, 1fr)`;
+            render();
+        }
+
+        function render() {
+            boardEl.innerHTML = '';
+            let bS = 0, wS = 0;
+            const validMoves = getValidMoves(turn);
+
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    if (!isAIProcessing && turn === BLACK && validMoves.some(m => m.r === r && m.c === c)) {
+                        cell.classList.add('valid-move');
+                    }
+                    if (board[r][c] !== EMPTY) {
+                        const piece = document.createElement('div');
+                        piece.className = `piece ${board[r][c] === BLACK ? 'black' : 'white'}`;
+                        cell.appendChild(piece);
+                        if (board[r][c] === BLACK) bS++; else wS++;
+                    }
+                    cell.onclick = () => handleCellClick(r, c);
+                    boardEl.appendChild(cell);
+                }
+            }
+            blackScoreEl.textContent = bS; whiteScoreEl.textContent = wS;
+            statusEl.textContent = turn === BLACK ? "Your Turn" : "AI Thinking...";
+
+            if (validMoves.length === 0 && !isGameOver) {
+                if (getValidMoves(3 - turn).length === 0) gameOver();
+                else {
+                    statusEl.textContent = "No moves! Passing...";
+                    setTimeout(() => { turn = 3 - turn; render(); if (turn === WHITE) aiMove(); }, 1000);
+                }
+            }
+        }
+
+        function handleCellClick(r, c) {
+            if (isGameOver || turn !== BLACK || isAIProcessing) return;
+            const flips = getFlips(r, c, turn);
+            if (flips.length > 0) makeMove(r, c, turn, flips);
+        }
+
+        function makeMove(r, c, p, flips) {
+            board[r][c] = p; flips.forEach(f => { board[f.r][f.c] = p; });
+            turn = 3 - p; render();
+            if (!isGameOver && turn === WHITE) aiMove();
+        }
+
+        function getFlips(r, c, p) {
+            if (board[r][c] !== EMPTY) return [];
+            let flips = [];
+            const dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+            for (const [dr, dc] of dirs) {
+                let temp = []; let cr = r + dr, cc = c + dc;
+                while (cr>=0 && cr<size && cc>=0 && cc<size && board[cr][cc] === 3-p) { temp.push({r: cr, c: cc}); cr += dr; cc += dc; }
+                if (cr>=0 && cr<size && cc>=0 && cc<size && board[cr][cc] === p) flips = flips.concat(temp);
+            }
+            return flips;
+        }
+
+        function getValidMoves(p) {
+            const moves = [];
+            for (let r=0; r<size; r++) for (let c=0; c<size; c++) if (getFlips(r, c, p).length > 0) moves.push({r, c});
+            return moves;
+        }
+
+        function aiMove() {
+            isAIProcessing = true;
+            setTimeout(() => {
+                const moves = getValidMoves(WHITE);
+                if (moves.length === 0) { isAIProcessing = false; render(); return; }
+                let bestMove = moves[0], maxScore = -Infinity;
+                moves.forEach(m => {
+                    const flips = getFlips(m.r, m.c, WHITE);
+                    let score = flips.length;
+                    if ((m.r===0||m.r===size-1) && (m.c===0||m.c===size-1)) score += 50;
+                    else if (m.r===0 || m.r===size-1 || m.c===0 || m.c===size-1) score += 10;
+                    if (score > maxScore) { maxScore = score; bestMove = m; }
+                });
+                isAIProcessing = false;
+                makeMove(bestMove.r, bestMove.c, WHITE, getFlips(bestMove.r, bestMove.c, WHITE));
+            }, 800);
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            let b=0, w=0; board.forEach(row => row.forEach(c => { if(c===BLACK) b++; if(c===WHITE) w++; }));
+            document.getElementById('winner-text').textContent = b>w ? "You Win!" : (w>b ? "White Wins!" : "Draw!");
+            document.getElementById('final-score').textContent = `${b} - ${w}`;
+            overlay.classList.add('active');
+        }
+
+        function resetGame() { init(); }
+        init();
+    </script>
+</body>
+</html>
