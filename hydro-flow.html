@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hydro-Flow: Pressure - K2 Games</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --water: #60a5fa;
+            --error: #ef4444;
+            --border: rgba(255,255,255,0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            background-image: radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0, transparent 50%);
+        }
+
+        #game-container {
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .header { margin-bottom: 1.5rem; }
+        .header h1 { font-size: 2.5rem; font-weight: 900; background: linear-gradient(to right, #60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        #pressure-bar-container {
+            width: 100%; height: 20px; background: rgba(0,0,0,0.3); border-radius: 10px; margin: 1rem 0;
+            overflow: hidden; border: 1px solid var(--border);
+        }
+        #pressure-bar { width: 0%; height: 100%; background: var(--primary); transition: width 0.1s linear; }
+        #pressure-bar.danger { background: var(--error); box-shadow: 0 0 15px var(--error); }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 6px;
+            background: var(--surface);
+            padding: 12px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .cell {
+            aspect-ratio: 1;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+            transition: 0.2s;
+            overflow: hidden;
+            border: 1px solid transparent;
+        }
+
+        .cell.weak { border-color: rgba(239, 68, 68, 0.3); animation: flash 1s infinite; }
+        .cell.clogged { background: #334155; }
+        .cell.clogged svg { opacity: 0.2; filter: grayscale(1); }
+
+        @keyframes flash {
+            0%, 100% { background: rgba(239, 68, 68, 0.05); }
+            50% { background: rgba(239, 68, 68, 0.2); }
+        }
+
+        .pipe {
+            width: 100%; height: 100%;
+            stroke: #475569; stroke-width: 12; fill: none;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .pipe.filled { stroke: var(--water); filter: drop-shadow(0 0 5px var(--water)); }
+        .cell.weak.filled .pipe { stroke: var(--error); }
+
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.95);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; text-align: center; padding: 2rem;
+        }
+        #overlay.active { display: flex; }
+
+        .btn {
+            background: var(--primary); color: white; border: none;
+            padding: 1rem 2rem; border-radius: 12px; font-weight: 700;
+            cursor: pointer; font-size: 1.2rem; transition: 0.3s; margin-top: 1rem;
+        }
+        .btn:hover { transform: scale(1.05); filter: brightness(1.1); }
+        .btn.retry { background: var(--error); }
+
+        .hint { color: #94a3b8; font-size: 0.85rem; margin-top: 1rem; line-height: 1.4; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div class="header">
+            <h1>Hydro-Flow</h1>
+            <div id="pressure-bar-container">
+                <div id="pressure-bar"></div>
+            </div>
+            <div style="font-size: 0.9rem; color: #94a3b8;">Level: <span id="level-val">1</span></div>
+        </div>
+
+        <div id="grid"></div>
+
+        <div class="hint">
+            ⚠️ <b>Red pipes</b> are weak! Clear the path before they burst.<br>
+            🛠️ <b>Grey pipes</b> are clogged! Double-click to clear them.
+        </div>
+        <a href="index.html" style="margin-top: 2rem; display: block; color: #64748b; text-decoration: none; font-size: 0.8rem;">← Back to Vault</a>
+    </div>
+
+    <div id="overlay">
+        <h2 id="overlay-title" style="font-size: 3rem; margin-bottom: 1rem;">BURST!</h2>
+        <p id="overlay-sub" style="color: #94a3b8; margin-bottom: 2rem;"></p>
+        <div id="overlay-actions"></div>
+    </div>
+
+    <script>
+        const GRID_SIZE = 6;
+        const gridEl = document.getElementById('grid');
+        const pressureBar = document.getElementById('pressure-bar');
+        const levelVal = document.getElementById('level-val');
+        const overlay = document.getElementById('overlay');
+
+        let level = 1;
+        let grid = [];
+        let gameActive = false;
+        let pressure = 0;
+        let pressureLimit = 100;
+
+        function initLevel() {
+            grid = [];
+            gridEl.innerHTML = '';
+            gameActive = true;
+            pressure = 0;
+            overlay.classList.remove('active');
+            levelVal.textContent = level;
+            updatePressureUI();
+
+            for (let r = 0; r < GRID_SIZE; r++) {
+                grid[r] = [];
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    let type = Math.floor(Math.random() * 3) + 1;
+                    let rotation = Math.floor(Math.random() * 4);
+                    let weak = Math.random() < 0.15;
+                    let clogged = Math.random() < 0.1;
+
+                    // Force source and drain
+                    if (r === GRID_SIZE - 1 && c === 0) { type = 1; rotation = 0; weak = false; clogged = false; }
+                    if (r === 0 && c === GRID_SIZE - 1) { type = 1; rotation = 0; weak = false; clogged = false; }
+
+                    grid[r][c] = { type, rotation, weak, clogged, filled: false };
+                    
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    if (weak) cell.classList.add('weak');
+                    if (clogged) cell.classList.add('clogged');
+                    if (r === GRID_SIZE - 1 && c === 0) cell.style.background = '#1e3a8a';
+                    if (r === 0 && c === GRID_SIZE - 1) cell.style.background = '#1e3a8a';
+                    
+                    cell.onclick = () => rotatePipe(r, c, cell);
+                    cell.ondblclick = () => clearClog(r, c, cell);
+                    cell.innerHTML = getPipeSVG(type, rotation);
+                    gridEl.appendChild(cell);
+                }
+            }
+            checkFlow();
+        }
+
+        function getPipeSVG(type, rotation) {
+            let path = "";
+            if (type === 1) path = "M 50 0 L 50 100";
+            if (type === 2) path = "M 50 100 Q 50 50 100 50";
+            if (type === 3) path = "M 0 50 L 100 50 M 50 50 L 50 0";
+            return `<svg class="pipe" viewBox="0 0 100 100" style="transform: rotate(${rotation * 90}deg)"><path d="${path}" /></svg>`;
+        }
+
+        function rotatePipe(r, c, el) {
+            if (!gameActive || grid[r][c].clogged) return;
+            
+            // Penalty for rotating a filled pipe
+            if (grid[r][c].filled) {
+                pressure += 15;
+                updatePressureUI();
+            }
+
+            grid[r][c].rotation = (grid[r][c].rotation + 1) % 4;
+            el.querySelector('.pipe').style.transform = `rotate(${grid[r][c].rotation * 90}deg)`;
+            checkFlow();
+        }
+
+        function clearClog(r, c, el) {
+            if (!gameActive || !grid[r][c].clogged) return;
+            grid[r][c].clogged = false;
+            el.classList.remove('clogged');
+            checkFlow();
+        }
+
+        function getConnections(r, c) {
+            const { type, rotation, clogged } = grid[r][c];
+            if (clogged) return [false, false, false, false];
+            let conn = [];
+            if (type === 1) {
+                if (rotation % 2 === 0) conn = [true, false, true, false];
+                else conn = [false, true, false, true];
+            } else if (type === 2) {
+                if (rotation === 0) conn = [false, true, true, false];
+                if (rotation === 1) conn = [false, false, true, true];
+                if (rotation === 2) conn = [true, false, false, true];
+                if (rotation === 3) conn = [true, true, false, false];
+            } else if (type === 3) {
+                if (rotation === 0) conn = [true, true, false, true];
+                if (rotation === 1) conn = [true, true, true, false];
+                if (rotation === 2) conn = [false, true, true, true];
+                if (rotation === 3) conn = [true, false, true, true];
+            }
+            return conn;
+        }
+
+        function checkFlow() {
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    grid[r][c].filled = false;
+                    gridEl.children[r * GRID_SIZE + c].querySelector('.pipe').classList.remove('filled');
+                }
+            }
+
+            let queue = [{ r: GRID_SIZE - 1, c: 0 }];
+            grid[GRID_SIZE - 1][0].filled = true;
+
+            while (queue.length > 0) {
+                let { r, c } = queue.shift();
+                gridEl.children[r * GRID_SIZE + c].querySelector('.pipe').classList.add('filled');
+
+                if (r === 0 && c === GRID_SIZE - 1) {
+                    win();
+                    return;
+                }
+
+                const conn = getConnections(r, c);
+                const neighbors = [{ dr: -1, dc: 0, from: 2 }, { dr: 0, dc: 1, from: 3 }, { dr: 1, dc: 0, from: 0 }, { dr: 0, dc: -1, from: 1 }];
+
+                neighbors.forEach((n, i) => {
+                    if (conn[i]) {
+                        const nr = r + n.dr, nc = c + n.dc;
+                        if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE && !grid[nr][nc].filled) {
+                            if (getConnections(nr, nc)[n.from]) {
+                                grid[nr][nc].filled = true;
+                                queue.push({ r: nr, c: nc });
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function updatePressureUI() {
+            pressureBar.style.width = `${Math.min(100, pressure)}%`;
+            if (pressure > 70) pressureBar.classList.add('danger');
+            else pressureBar.classList.remove('danger');
+            if (pressure >= 100) gameOver("The system burst from too many leaks!");
+        }
+
+        function gameLoop() {
+            if (!gameActive) return;
+
+            // Pressure builds if water is sitting in weak pipes
+            let weakAndFilled = 0;
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    if (grid[r][c].weak && grid[r][c].filled) weakAndFilled++;
+                }
+            }
+            
+            if (weakAndFilled > 0) {
+                pressure += 0.2 * weakAndFilled;
+                updatePressureUI();
+            } else {
+                pressure = Math.max(0, pressure - 0.05);
+                updatePressureUI();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function win() {
+            gameActive = false;
+            document.getElementById('overlay-title').textContent = "SYSTEM SEALED";
+            document.getElementById('overlay-title').style.color = "#10b981";
+            document.getElementById('overlay-sub').textContent = "Pressure stabilized. Level complete.";
+            document.getElementById('overlay-actions').innerHTML = `<button class="btn" onclick="nextLevel()">Next Level</button>`;
+            overlay.classList.add('active');
+        }
+
+        function gameOver(reason) {
+            gameActive = false;
+            document.getElementById('overlay-title').textContent = "BURST!";
+            document.getElementById('overlay-title').style.color = "#ef4444";
+            document.getElementById('overlay-sub').textContent = reason;
+            document.getElementById('overlay-actions').innerHTML = `<button class="btn retry" onclick="initLevel()">Retry</button>`;
+            overlay.classList.add('active');
+        }
+
+        function nextLevel() { level++; initLevel(); gameLoop(); }
+        initLevel();
+        gameLoop();
+    </script>
+</body>
+</html>

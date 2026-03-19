@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emoji Recall - K2 Games</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --secondary: #8b5cf6;
+            --accent: #f59e0b;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-image: radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.1) 0, transparent 50%),
+                              radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.05) 0, transparent 50%);
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            max-width: 600px;
+            padding: 2rem;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .screen.active { display: flex; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 { font-size: 3rem; margin-bottom: 1rem; background: linear-gradient(to right, #818cf8, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900; }
+        p { color: var(--muted); margin-bottom: 2rem; line-height: 1.6; }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            padding: 1rem 2.5rem;
+            font-size: 1.2rem;
+            font-weight: 700;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: 0.3s;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5); }
+        .btn:active { transform: translateY(0); }
+
+        #flash-zone {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .emoji-item {
+            position: absolute;
+            font-size: 3rem;
+            user-select: none;
+            transition: transform 5s linear;
+        }
+
+        #countdown { font-size: 8rem; font-weight: 900; color: var(--accent); text-shadow: 0 0 30px rgba(245, 158, 11, 0.4); }
+
+        .question-emoji { font-size: 5rem; margin: 1rem 0; animation: pulse 2s infinite; }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+            margin-top: 2rem;
+            width: 100%;
+        }
+
+        .option-btn {
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
+            padding: 1rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .option-btn:hover { background: var(--primary); border-color: var(--primary); }
+
+        .result-title { font-size: 2.5rem; font-weight: 800; margin-bottom: 1rem; }
+        .result-title.success { color: var(--success); }
+        .result-title.fail { color: var(--error); }
+        
+        .score-info { font-size: 1.2rem; margin-bottom: 2rem; }
+        .score-info b { color: var(--accent); font-size: 1.5rem; }
+
+        .back-link { margin-top: 2rem; color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: 0.3s; }
+        .back-link:hover { color: white; }
+
+        /* Background floating elements */
+        .bg-element {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            background: var(--primary);
+            filter: blur(100px);
+            opacity: 0.1;
+            border-radius: 50%;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-element" style="top: 10%; left: 10%;"></div>
+    <div class="bg-element" style="bottom: 10%; right: 10%; background: var(--accent);"></div>
+
+    <div id="game-container">
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen active">
+            <h1>Emoji Recall</h1>
+            <p>Test your visual memory! A flurry of emojis will appear for 5 seconds. Watch closely, then tell us how many of a specific emoji you saw.</p>
+            <button class="btn" onclick="startGame()">Start Challenge</button>
+            <a href="index.html" class="back-link">← Back to Vault</a>
+        </div>
+
+        <!-- Countdown Screen -->
+        <div id="countdown-screen" class="screen">
+            <div id="countdown">3</div>
+        </div>
+
+        <!-- Flash Screen (Overlayed) -->
+        <div id="flash-zone"></div>
+
+        <!-- Question Screen -->
+        <div id="question-screen" class="screen">
+            <h2>How many did you see?</h2>
+            <div id="target-emoji" class="question-emoji">🍎</div>
+            <div class="options-grid" id="options-grid">
+                <!-- Options 0-11 -->
+            </div>
+        </div>
+
+        <!-- Result Screen -->
+        <div id="result-screen" class="screen">
+            <div id="result-status" class="result-title">Perfect!</div>
+            <div class="score-info" id="score-text">You correctly spotted all 5 apples.</div>
+            <button class="btn" onclick="startGame()">Play Again</button>
+            <a href="index.html" class="back-link">← Back to Vault</a>
+        </div>
+    </div>
+
+    <script>
+        const emojiPool = ['🍎', '🍌', '🍒', '🍇', '🍉', '🍍', '🍑', '🥝', '🍓', '🍋', '🍊', '🥑', '🍆', '🥦', '🥕', '🌽', '🌮', '🍕', '🍩', '🍪', '🍨', '🧁', '⚽', '🏀', '🎮', '🧩', '🚀', '🌈', '🔥', '💎', '⭐', '🎈', '👻', '🤖', '🐶', '🦊', '🦉', '🦋'];
+        
+        let currentLevelEmojiCounts = {};
+        let targetEmoji = '';
+        let targetCount = 0;
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function startGame() {
+            showScreen('countdown-screen');
+            let count = 3;
+            const cdDisplay = document.getElementById('countdown');
+            cdDisplay.textContent = count;
+            
+            const timer = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    cdDisplay.textContent = count;
+                } else if (count === 0) {
+                    cdDisplay.textContent = 'GO!';
+                } else {
+                    clearInterval(timer);
+                    startFlash();
+                }
+            }, 1000);
+        }
+
+        function startFlash() {
+            // Hide all screens during flash
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            const zone = document.getElementById('flash-zone');
+            zone.innerHTML = '';
+            currentLevelEmojiCounts = {};
+
+            // Select 4-6 emoji types
+            const typesCount = 4 + Math.floor(Math.random() * 3);
+            const selectedEmojis = [];
+            const tempPool = [...emojiPool];
+            for (let i = 0; i < typesCount; i++) {
+                const idx = Math.floor(Math.random() * tempPool.length);
+                selectedEmojis.push(tempPool.splice(idx, 1)[0]);
+            }
+
+            // Spawn emojis
+            selectedEmojis.forEach(emoji => {
+                const count = 1 + Math.floor(Math.random() * 7); // 1-7 of each
+                currentLevelEmojiCounts[emoji] = count;
+                
+                for (let i = 0; i < count; i++) {
+                    const el = document.createElement('div');
+                    el.className = 'emoji-item';
+                    el.textContent = emoji;
+                    
+                    // Random start position
+                    const startX = Math.random() * (window.innerWidth - 60);
+                    const startY = Math.random() * (window.innerHeight - 60);
+                    el.style.left = startX + 'px';
+                    el.style.top = startY + 'px';
+                    
+                    zone.appendChild(el);
+
+                    // Animate movement
+                    setTimeout(() => {
+                        const endX = Math.random() * (window.innerWidth - 60);
+                        const endY = Math.random() * (window.innerHeight - 60);
+                        el.style.transform = `translate(${endX - startX}px, ${endY - startY}px) rotate(${Math.random() * 360}deg)`;
+                    }, 50);
+                }
+            });
+
+            // After 5 seconds, clear and ask question
+            setTimeout(() => {
+                zone.innerHTML = '';
+                askQuestion(selectedEmojis);
+            }, 5000);
+        }
+
+        function askQuestion(emojisShown) {
+            targetEmoji = emojisShown[Math.floor(Math.random() * emojisShown.length)];
+            targetCount = currentLevelEmojiCounts[targetEmoji];
+            
+            document.getElementById('target-emoji').textContent = targetEmoji;
+            
+            const grid = document.getElementById('options-grid');
+            grid.innerHTML = '';
+            
+            // Create options 0 through 11
+            for (let i = 0; i <= 11; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.textContent = i;
+                btn.onclick = () => checkAnswer(i);
+                grid.appendChild(btn);
+            }
+            
+            showScreen('question-screen');
+        }
+
+        function checkAnswer(guess) {
+            const status = document.getElementById('result-status');
+            const text = document.getElementById('score-text');
+            
+            if (guess === targetCount) {
+                status.textContent = 'Correct!';
+                status.className = 'result-title success';
+                text.innerHTML = `Great memory! You correctly identified all <b>${targetCount}</b> ${targetEmoji}.`;
+            } else {
+                status.textContent = 'Not quite!';
+                status.className = 'result-title fail';
+                text.innerHTML = `There were actually <b>${targetCount}</b> ${targetEmoji}. You guessed ${guess}.`;
+            }
+            
+            showScreen('result-screen');
+        }
+    </script>
+</body>
+</html>

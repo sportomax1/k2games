@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wind-Sail - K2 Games</title>
+    <style>
+        :root {
+            --water: #0ea5e9;
+            --bg: #0c4a6e;
+            --accent: #f59e0b;
+            --text: #f8fafc;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #game-canvas {
+            background-color: var(--water);
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(255,255,255,0.1) 0%, transparent 80%),
+                url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 50 Q 25 40 50 50 Q 75 60 100 50' fill='none' stroke='white' stroke-opacity='0.05'/%3E%3C/svg%3E");
+            display: block;
+            box-shadow: 0 0 50px rgba(0,0,0,0.3);
+            cursor: crosshair;
+        }
+
+        #ui {
+            position: absolute; top: 20px; left: 20px;
+            pointer-events: none;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 1rem;
+            border-radius: 12px;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .stat { margin-bottom: 0.5rem; font-weight: 700; }
+        .stat span { color: var(--accent); }
+
+        #wind-indicator {
+            position: absolute; top: 20px; right: 20px;
+            width: 80px; height: 80px;
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+
+        #wind-arrow {
+            width: 4px; height: 40px;
+            background: var(--accent);
+            position: relative;
+            transition: transform 0.5s ease;
+        }
+        #wind-arrow::after {
+            content: '';
+            position: absolute; top: -10px; left: -8px;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 15px solid var(--accent);
+        }
+
+        #overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(12, 74, 110, 0.9);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; z-index: 10;
+        }
+        #overlay.active { display: flex; }
+
+        .btn {
+            background: var(--accent); color: white; border: none;
+            padding: 1rem 2.5rem; border-radius: 12px; font-weight: 700;
+            cursor: pointer; font-size: 1.2rem; transition: 0.3s; margin-top: 1rem;
+            pointer-events: all;
+        }
+        .btn:hover { transform: scale(1.05); filter: brightness(1.1); }
+
+        .controls-hint {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.4); padding: 0.5rem 1rem; border-radius: 20px;
+            font-size: 0.8rem; color: #cbd5e1;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div class="stat">Buoys: <span id="buoy-count">0/5</span></div>
+        <div class="stat">Speed: <span id="speed-val">0</span> knots</div>
+    </div>
+
+    <div id="wind-indicator">
+        <div id="wind-arrow"></div>
+    </div>
+
+    <canvas id="game-canvas"></canvas>
+
+    <div class="controls-hint">
+        WASD / Arrows to Steering & Sail Trim | Reach all buoys!
+    </div>
+
+    <div id="overlay">
+        <h1 style="font-size: 3rem; margin-bottom: 1rem;">COURSE CLEAR!</h1>
+        <p id="final-time" style="font-size: 1.5rem; color: #cbd5e1; margin-bottom: 2rem;"></p>
+        <button class="btn" onclick="resetGame()">Sail Again</button>
+        <a href="index.html" style="margin-top: 2rem; color: #94a3b8; text-decoration: none;">← Back to Vault</a>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const windArrow = document.getElementById('wind-arrow');
+        const buoyCountEl = document.getElementById('buoy-count');
+        const speedValEl = document.getElementById('speed-val');
+        const overlay = document.getElementById('overlay');
+
+        const WIDTH = 800;
+        const HEIGHT = 600;
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+
+        let boat = {
+            x: WIDTH / 2,
+            y: HEIGHT / 2,
+            angle: 0,
+            sailAngle: 0, // Relative to boat
+            speed: 0,
+            targetSailAngle: 0
+        };
+
+        let wind = {
+            angle: Math.PI, // 180 deg (North)
+            strength: 5,
+            targetAngle: Math.PI
+        };
+
+        let buoys = [];
+        let collectedBuoys = 0;
+        let startTime;
+        let gameActive = false;
+        let keys = {};
+
+        function init() {
+            boat.x = WIDTH / 2;
+            boat.y = HEIGHT / 2;
+            boat.angle = 0;
+            boat.sailAngle = 0;
+            boat.speed = 0;
+            collectedBuoys = 0;
+            buoyCountEl.textContent = `0/5`;
+            
+            spawnBuoys();
+            startTime = Date.now();
+            gameActive = true;
+            overlay.classList.remove('active');
+            requestAnimationFrame(loop);
+        }
+
+        function spawnBuoys() {
+            buoys = [];
+            for (let i = 0; i < 5; i++) {
+                buoys.push({
+                    x: 50 + Math.random() * (WIDTH - 100),
+                    y: 50 + Math.random() * (HEIGHT - 100),
+                    active: true
+                });
+            }
+        }
+
+        function loop() {
+            if (!gameActive) return;
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function update() {
+            // Wind changes (Slower and less frequent)
+            if (Math.random() < 0.001) {
+                wind.targetAngle = Math.random() * Math.PI * 2;
+            }
+            // Much smoother interpolation
+            let diff = normalizeAngle(wind.targetAngle - wind.angle);
+            wind.angle += diff * 0.005;
+            windArrow.style.transform = `rotate(${wind.angle}rad)`;
+
+            // Controls
+            if (keys['ArrowLeft'] || keys['a']) boat.angle -= 0.04;
+            if (keys['ArrowRight'] || keys['d']) boat.angle += 0.04;
+            
+            // Sail Trim (Relative to boat)
+            if (keys['ArrowUp'] || keys['w']) boat.targetSailAngle = Math.max(-Math.PI/2, boat.targetSailAngle - 0.05);
+            if (keys['ArrowDown'] || keys['s']) boat.targetSailAngle = Math.min(Math.PI/2, boat.targetSailAngle + 0.05);
+            
+            boat.sailAngle += (boat.targetSailAngle - boat.sailAngle) * 0.1;
+
+            // Physics: Power comes from (Wind Angle - (Boat Angle + Sail Angle))
+            const worldSailAngle = boat.angle + boat.sailAngle;
+            let windRelAngle = Math.abs(normalizeAngle(wind.angle - worldSailAngle));
+            
+            // Ideal sail angle is roughly halfway between boat and wind
+            // But we simplify: Power = sin(angle to wind) * alignment
+            let boatToWind = Math.abs(normalizeAngle(wind.angle - boat.angle));
+            
+            // "No-Go Zone" (luffing) if facing directly into wind
+            let power = 0;
+            if (boatToWind > 0.4) { // Not facing wind directly
+                // Power is maximized when sail is angled to catch the wind
+                let idealSail = normalizeAngle(wind.angle - boat.angle) / 2;
+                let trimError = Math.abs(boat.sailAngle - idealSail);
+                power = Math.max(0, (1 - trimError) * wind.strength * 0.05);
+            }
+
+            boat.speed += (power - boat.speed * 0.05);
+            boat.x += Math.cos(boat.angle) * boat.speed;
+            boat.y += Math.sin(boat.angle) * boat.speed;
+
+            // Bounds
+            if (boat.x < 0) boat.x = WIDTH;
+            if (boat.x > WIDTH) boat.x = 0;
+            if (boat.y < 0) boat.y = HEIGHT;
+            if (boat.y > HEIGHT) boat.y = 0;
+
+            speedValEl.textContent = (boat.speed * 10).toFixed(1);
+
+            // Buoy collision
+            buoys.forEach(b => {
+                if (b.active) {
+                    let dist = Math.hypot(boat.x - b.x, boat.y - b.y);
+                    if (dist < 30) {
+                        b.active = false;
+                        collectedBuoys++;
+                        buoyCountEl.textContent = `${collectedBuoys}/5`;
+                        if (collectedBuoys >= 5) win();
+                    }
+                }
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+            // Draw Water Ripples
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.lineWidth = 2;
+            for(let i=0; i<10; i++) {
+                ctx.beginPath();
+                ctx.arc(WIDTH/2, HEIGHT/2, (Date.now()/20 + i*100) % 800, 0, Math.PI*2);
+                ctx.stroke();
+            }
+
+            // Draw Buoys
+            buoys.forEach(b => {
+                if (!b.active) return;
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 8, 0, Math.PI*2);
+                ctx.fill();
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Bobbing animation
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                ctx.beginPath();
+                ctx.ellipse(b.x, b.y + 12, 12, 4, 0, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            // Draw Boat
+            ctx.save();
+            ctx.translate(boat.x, boat.y);
+            ctx.rotate(boat.angle);
+
+            // Hull
+            ctx.fillStyle = '#f8fafc';
+            ctx.beginPath();
+            ctx.moveTo(25, 0);
+            ctx.quadraticCurveTo(15, 12, -15, 12);
+            ctx.lineTo(-15, -12);
+            ctx.quadraticCurveTo(15, -12, 25, 0);
+            ctx.fill();
+            ctx.strokeStyle = '#475569';
+            ctx.stroke();
+
+            // Mast
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(-5, -2, 10, 4);
+
+            // Sail
+            ctx.save();
+            ctx.rotate(boat.sailAngle);
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-30, 0);
+            ctx.quadraticCurveTo(-15, -5, 0, 0);
+            ctx.fill();
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.restore();
+        }
+
+        function normalizeAngle(a) {
+            while (a > Math.PI) a -= Math.PI * 2;
+            while (a < -Math.PI) a += Math.PI * 2;
+            return a;
+        }
+
+        function win() {
+            gameActive = false;
+            overlay.classList.add('active');
+            let time = ((Date.now() - startTime) / 1000).toFixed(1);
+            document.getElementById('final-time').textContent = `Course completed in ${time} seconds.`;
+        }
+
+        function resetGame() {
+            init();
+        }
+
+        window.addEventListener('keydown', e => keys[e.key] = true);
+        window.addEventListener('keyup', e => keys[e.key] = false);
+
+        init();
+    </script>
+</body>
+</html>
