@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATC Terminal 7 - Intuitive Radar</title>
+    <style>
+        :root {
+            --primary: #22c55e;
+            --bg: #050505;
+            --surface: #0a0a0a;
+            --text: #22c55e;
+            --danger: #ef4444;
+            --muted: #166534;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            padding: 0.8rem 2rem;
+            background: #000;
+            border-bottom: 2px solid var(--muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .back-btn { color: var(--text); text-decoration: none; font-weight: 800; border: 1px solid var(--muted); padding: 2px 10px; }
+        .back-btn:hover { background: var(--muted); color: #fff; }
+
+        .main-container {
+            flex: 1;
+            display: flex;
+            position: relative;
+        }
+
+        #radar-container {
+            flex: 1;
+            position: relative;
+            background: radial-gradient(circle, #0a1a0a 0%, #000 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        #sidebar {
+            width: 340px;
+            background: #000;
+            border-left: 2px solid var(--muted);
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            gap: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .panel {
+            border: 1px solid var(--muted);
+            padding: 1rem;
+            border-radius: 4px;
+            background: rgba(34, 197, 94, 0.02);
+        }
+
+        .panel-title {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-bottom: 0.8rem;
+            text-transform: uppercase;
+            font-weight: 900;
+            border-bottom: 1px solid var(--muted);
+            padding-bottom: 4px;
+        }
+
+        .plane-details { display: flex; flex-direction: column; gap: 0.5rem; }
+        .callsign { font-size: 1.4rem; font-weight: 900; color: #fff; }
+        .stat-row { display: flex; justify-content: space-between; font-size: 0.9rem; }
+
+        .control-group { margin-top: 1rem; }
+        label { display: block; font-size: 0.7rem; margin-bottom: 0.4rem; color: var(--muted); }
+        input[type="range"] { width: 100%; accent-color: var(--primary); }
+
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1rem; }
+        button {
+            background: transparent; border: 1px solid var(--primary);
+            color: var(--primary); padding: 0.6rem; cursor: pointer;
+            font-family: inherit; font-size: 0.75rem; font-weight: 800;
+            transition: 0.2s;
+        }
+        button:hover { background: var(--muted); color: #fff; }
+        button:disabled { opacity: 0.2; cursor: not-allowed; }
+
+        #briefing-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+            padding: 2rem;
+        }
+
+        .briefing-content {
+            max-width: 600px;
+            border: 2px solid var(--primary);
+            padding: 2rem;
+            background: #000;
+            box-shadow: 0 0 50px rgba(34, 197, 94, 0.2);
+        }
+
+        .briefing-content h2 { margin-bottom: 1rem; text-decoration: underline; }
+        .briefing-content p { margin-bottom: 1rem; line-height: 1.6; }
+        .briefing-content ul { margin-bottom: 2rem; padding-left: 1.5rem; }
+        .briefing-content li { margin-bottom: 0.5rem; }
+
+        .alert-box {
+            color: var(--danger); font-weight: 900; text-align: center;
+            padding: 0.5rem; border: 1px solid var(--danger);
+            margin-top: 1rem; animation: blink 0.8s infinite;
+        }
+
+        @keyframes blink { 50% { opacity: 0; } }
+
+        @media (max-width: 900px) {
+            .main-container { flex-direction: column; }
+            #sidebar { width: 100%; height: 300px; border-left: none; border-top: 2px solid var(--muted); }
+        }
+    </style>
+</head>
+<body>
+    <div id="briefing-overlay">
+        <div class="briefing-content">
+            <h2>SHIFT BRIEFING: SECTOR 07</h2>
+            <p>Welcome, Controller. Your objective is to manage Terminal Airspace safely.</p>
+            <ul>
+                <li><b>ARRIVALS</b>: Guide planes to the central white runway. They must be below <b>2000ft</b> and aligned with the runway heading (090 or 270) to land.</li>
+                <li><b>DEPARTURES</b>: Clear them for takeoff. Once airborne, guide them out of the sector.</li>
+                <li><b>SEPARATION</b>: Maintain at least <b>1000ft</b> altitude difference or <b>50 units</b> lateral distance.</li>
+                <li><b>CONTROLS</b>: Click a plane to issue commands. Use sliders for vectoring.</li>
+            </ul>
+            <button onclick="document.getElementById('briefing-overlay').style.display='none'" style="width: 100%; padding: 1rem;">ACCEPT DUTY</button>
+        </div>
+    </div>
+
+    <header>
+        <a href="index.html" class="back-btn">EXIT TERMINAL</a>
+        <h1 style="font-size: 1rem; letter-spacing: 4px;">ATC RADAR // SECTOR 07</h1>
+        <div id="utc-clock">00:00:00 UTC</div>
+    </header>
+
+    <div class="main-container">
+        <div id="radar-container">
+            <canvas id="radarCanvas"></canvas>
+        </div>
+
+        <div id="sidebar">
+            <div class="panel">
+                <div class="panel-title">Active Aircraft</div>
+                <div id="no-selection" style="color: var(--muted); font-style: italic; font-size: 0.8rem;">Click a track on radar...</div>
+                <div id="active-controls" style="display: none;">
+                    <div class="plane-details">
+                        <div class="callsign" id="callsign-val">FLIGHT 000</div>
+                        <div class="stat-row"><span>ALTITUDE</span><span id="alt-val">0</span> FT</div>
+                        <div class="stat-row"><span>HEADING</span><span id="hdg-val">000</span>°</div>
+                        <div class="stat-row"><span>STATUS</span><span id="status-val">EN ROUTE</span></div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Target Heading: <span id="thdg-val">000</span>°</label>
+                        <input type="range" id="target-hdg" min="0" max="359" value="0">
+                    </div>
+                    <div class="control-group">
+                        <label>Target Altitude: <span id="talt-val">0</span> FT</label>
+                        <input type="range" id="target-alt" min="1000" max="12000" step="1000" value="5000">
+                    </div>
+
+                    <div class="btn-grid">
+                        <button id="btn-land">CLEARED LAND</button>
+                        <button id="btn-takeoff">CLEARED T/O</button>
+                        <button id="btn-hold">HOLD POS</button>
+                        <button id="btn-ils">VECTOR FINAL</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">Operations Summary</div>
+                <div class="stat-row"><span>Landed</span><span id="count-landed">0</span></div>
+                <div class="stat-row"><span>Departed</span><span id="count-departed">0</span></div>
+                <div id="collision-alert" class="alert-box" style="display: none;">CONFLICT</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('radarCanvas');
+        const ctx = canvas.getContext('2d');
+        const utcClock = document.getElementById('utc-clock');
+        const controls = document.getElementById('active-controls');
+        const noSel = document.getElementById('no-selection');
+        const altEl = document.getElementById('alt-val');
+        const hdgEl = document.getElementById('hdg-val');
+        const statusEl = document.getElementById('status-val');
+        
+        let width, height, centerX, centerY, radius;
+        let planes = [];
+        let selectedPlane = null;
+        let scanAngle = 0;
+        let counts = { landed: 0, departed: 0 };
+
+        class Plane {
+            constructor(isArrival = true) {
+                this.id = Math.random().toString(36).substr(2, 4).toUpperCase();
+                this.callsign = ['AA','DL','UA','SW','BA','LH'][Math.floor(Math.random()*6)] + Math.floor(100+Math.random()*900);
+                this.isArrival = isArrival;
+                this.history = [];
+                this.reset();
+            }
+
+            reset() {
+                if (this.isArrival) {
+                    const side = Math.floor(Math.random() * 4);
+                    if (side === 0) { this.x = Math.random()*width; this.y = -20; }
+                    else if (side === 1) { this.x = width+20; this.y = Math.random()*height; }
+                    else if (side === 2) { this.x = Math.random()*width; this.y = height+20; }
+                    else { this.x = -20; this.y = Math.random()*height; }
+                    this.altitude = 7000 + Math.floor(Math.random()*5)*1000;
+                    this.targetAltitude = this.altitude;
+                    this.heading = Math.atan2(centerY - this.y, centerX - this.x) * (180/Math.PI);
+                    this.targetHeading = this.heading;
+                    this.state = 'EN ROUTE';
+                } else {
+                    this.x = centerX; this.y = centerY;
+                    this.altitude = 0; this.targetAltitude = 0;
+                    this.heading = 270; this.targetHeading = 270;
+                    this.state = 'ON GROUND';
+                }
+                this.speed = 1.3;
+            }
+
+            update() {
+                this.history.push({x: this.x, y: this.y});
+                if (this.history.length > 30) this.history.shift();
+
+                // Physics
+                let hdgDiff = (this.targetHeading - this.heading + 360) % 360;
+                if (hdgDiff > 180) hdgDiff -= 360;
+                this.heading += hdgDiff * 0.03;
+
+                if (this.altitude < this.targetAltitude) this.altitude += 10;
+                if (this.altitude > this.targetAltitude) this.altitude -= 10;
+
+                if (this.state !== 'ON GROUND' && this.state !== 'LANDED') {
+                    const r = this.heading * (Math.PI/180);
+                    this.x += Math.cos(r) * this.speed;
+                    this.y += Math.sin(r) * this.speed;
+                }
+
+                // Landing Logic
+                if (this.state === 'LANDING') {
+                    const d = Math.sqrt((this.x - centerX)**2 + (this.y - centerY)**2);
+                    const angleOk = Math.abs(this.heading % 180 - 90) < 10 || Math.abs(this.heading % 180 - 270) < 10;
+                    if (d < 20 && this.altitude < 1500) {
+                        this.state = 'LANDED';
+                        counts.landed++;
+                        document.getElementById('count-landed').textContent = counts.landed;
+                        setTimeout(() => this.remove(), 2000);
+                    }
+                }
+            }
+
+            remove() {
+                planes = planes.filter(p => p !== this);
+                if (selectedPlane === this) deselect();
+            }
+
+            draw() {
+                const isSelected = selectedPlane === this;
+                
+                // Trail
+                ctx.beginPath();
+                ctx.strokeStyle = isSelected ? 'rgba(255,255,255,0.2)' : 'rgba(34, 197, 94, 0.1)';
+                this.history.forEach((h, i) => { if (i===0) ctx.moveTo(h.x,h.y); else ctx.lineTo(h.x,h.y); });
+                ctx.stroke();
+
+                // Heading Vector
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(34, 197, 94, 0.3)';
+                const r = this.heading * (Math.PI/180);
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + Math.cos(r)*40, this.y + Math.sin(r)*40);
+                ctx.stroke();
+
+                // Icon
+                ctx.fillStyle = isSelected ? '#fff' : 'var(--primary)';
+                ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
+
+                // Data Block
+                ctx.font = '10px Courier';
+                ctx.fillText(this.callsign, this.x + 10, this.y - 10);
+                ctx.fillText(`${Math.floor(this.altitude/100)}`, this.x + 10, this.y + 2);
+            }
+        }
+
+        function init() {
+            resize();
+            animate();
+            setInterval(() => { if (planes.length < 7) planes.push(new Plane(Math.random()>0.3)); }, 5000);
+        }
+
+        function resize() {
+            width = canvas.parentElement.clientWidth;
+            height = canvas.parentElement.clientHeight;
+            canvas.width = width * window.devicePixelRatio;
+            canvas.height = height * window.devicePixelRatio;
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            centerX = width/2; centerY = height/2; radius = Math.min(centerX, centerY) - 20;
+        }
+
+        function drawRadar() {
+            ctx.strokeStyle = '#166534'; ctx.lineWidth = 1;
+            for (let i=1; i<=4; i++) { ctx.beginPath(); ctx.arc(centerX, centerY, (radius/4)*i, 0, Math.PI*2); ctx.stroke(); }
+            
+            // ILS / Approach Corridor
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.05)';
+            ctx.fillRect(centerX - radius, centerY - 15, radius*2, 30);
+            
+            // Runway
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(centerX-40, centerY); ctx.lineTo(centerX+40, centerY); ctx.stroke();
+
+            // Sweep
+            scanAngle += 0.025;
+            const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+            grad.addColorStop(0, 'rgba(34, 197, 94, 0.2)'); grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, scanAngle, scanAngle+0.4); ctx.fill();
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            drawRadar();
+
+            let conflict = false;
+            planes.forEach(p => {
+                p.update(); p.draw();
+                planes.forEach(o => {
+                    if (p===o) return;
+                    const d = Math.sqrt((p.x-o.x)**2 + (p.y-o.y)**2);
+                    if (d < 50 && Math.abs(p.altitude-o.altitude) < 1000) conflict = true;
+                });
+            });
+
+            document.getElementById('collision-alert').style.display = conflict ? 'block' : 'none';
+            utcClock.textContent = new Date().toISOString().split('T')[1].split('.')[0] + ' UTC';
+            
+            if (selectedPlane) {
+                altEl.textContent = selectedPlane.altitude;
+                hdgEl.textContent = Math.floor(selectedPlane.heading).toString().padStart(3, '0');
+                statusEl.textContent = selectedPlane.state;
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        function select(p) {
+            selectedPlane = p;
+            noSel.style.display = 'none';
+            controls.style.display = 'block';
+            document.getElementById('callsign-val').textContent = p.callsign;
+            document.getElementById('target-hdg').value = p.targetHeading;
+            document.getElementById('target-alt').value = p.targetAltitude;
+            document.getElementById('thdg-val').textContent = Math.floor(p.targetHeading).toString().padStart(3,'0');
+            document.getElementById('talt-val').textContent = p.targetAltitude;
+            
+            document.getElementById('btn-land').disabled = !p.isArrival;
+            document.getElementById('btn-takeoff').disabled = p.state !== 'ON GROUND';
+        }
+
+        function deselect() { selectedPlane = null; noSel.style.display = 'block'; controls.style.display = 'none'; }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+            let found = false;
+            planes.forEach(p => { if (Math.sqrt((x-p.x)**2 + (y-p.y)**2) < 20) { select(p); found = true; } });
+            if (!found) deselect();
+        });
+
+        document.getElementById('target-hdg').addEventListener('input', (e) => {
+            if (selectedPlane) {
+                selectedPlane.targetHeading = parseInt(e.target.value);
+                document.getElementById('thdg-val').textContent = e.target.value.padStart(3,'0');
+            }
+        });
+
+        document.getElementById('target-alt').addEventListener('input', (e) => {
+            if (selectedPlane) {
+                selectedPlane.targetAltitude = parseInt(e.target.value);
+                document.getElementById('talt-val').textContent = e.target.value;
+            }
+        });
+
+        document.getElementById('btn-land').addEventListener('click', () => {
+            if (selectedPlane) {
+                selectedPlane.state = 'LANDING';
+                selectedPlane.targetAltitude = 1000;
+                selectedPlane.targetHeading = selectedPlane.x < centerX ? 0 : 180;
+            }
+        });
+
+        document.getElementById('btn-takeoff').addEventListener('click', () => {
+            if (selectedPlane) {
+                selectedPlane.state = 'EN ROUTE';
+                selectedPlane.targetAltitude = 5000;
+                counts.departed++;
+                document.getElementById('count-departed').textContent = counts.departed;
+            }
+        });
+
+        document.getElementById('btn-hold').addEventListener('click', () => {
+            if (selectedPlane) {
+                selectedPlane.targetHeading = (selectedPlane.heading + 90) % 360;
+                selectedPlane.state = 'HOLDING';
+            }
+        });
+
+        document.getElementById('btn-ils').addEventListener('click', () => {
+            if (selectedPlane) {
+                selectedPlane.targetHeading = selectedPlane.x < centerX ? 0 : 180;
+                selectedPlane.targetAltitude = 2000;
+            }
+        });
+
+        window.addEventListener('resize', resize);
+        init();
+    </script>
+</body>
+</html>

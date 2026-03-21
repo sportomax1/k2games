@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Coordinator - Showcase Edition</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --bg: #0f172a;
+            --road: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --green: #10b981;
+            --red: #ef4444;
+            --yellow: #f59e0b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            padding: 1rem 2rem;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .back-btn { color: var(--text); text-decoration: none; font-weight: 600; opacity: 0.7; }
+        .back-btn:hover { opacity: 1; }
+
+        .main-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+        }
+
+        canvas {
+            border-radius: 12px;
+            box-shadow: 0 0 100px rgba(0,0,0,0.5);
+            background-color: #111;
+        }
+
+        .ui-panel {
+            position: absolute;
+            top: 2rem;
+            left: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            pointer-events: none;
+        }
+
+        .stat-card {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-width: 160px;
+        }
+
+        .label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; font-weight: 800; }
+        .value { font-size: 1.5rem; font-weight: 900; }
+
+        .controls {
+            position: absolute;
+            bottom: 2rem;
+            right: 2rem;
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            z-index: 100;
+        }
+
+        .ctrl-group { display: flex; flex-direction: column; gap: 0.2rem; }
+        .ctrl-group label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; font-weight: 800; }
+        input[type="range"] { width: 160px; accent-color: var(--primary); }
+
+        .btn {
+            background: var(--primary); color: white; border: none; padding: 0.6rem; border-radius: 6px;
+            font-size: 0.75rem; font-weight: 800; cursor: pointer; text-transform: uppercase;
+            transition: 0.2s;
+        }
+        .btn:hover { filter: brightness(1.1); }
+
+        .help-tip {
+            position: absolute;
+            bottom: 2rem;
+            left: 2rem;
+            font-size: 0.85rem;
+            color: var(--muted);
+            background: rgba(0,0,0,0.5);
+            padding: 0.8rem 1.2rem;
+            border-radius: 30px;
+            max-width: 300px;
+            line-height: 1.4;
+        }
+
+        @keyframes blink { 50% { opacity: 0.3; } }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="index.html" class="back-btn">← EXIT</a>
+        <h1 style="font-size: 1.2rem; letter-spacing: 2px; font-weight: 900;">INTERSECTION_PRO V1.0</h1>
+        <div style="color: var(--green); font-weight: 800; display: flex; align-items: center; gap: 0.5rem;">
+            <div style="width: 10px; height: 10px; background: var(--green); border-radius: 50%; animation: blink 1s infinite;"></div>
+            LIVE_FEED
+        </div>
+    </header>
+
+    <div class="main-container">
+        <canvas id="trafficCanvas"></canvas>
+
+        <div class="ui-panel">
+            <div class="stat-card">
+                <div class="label">Driver Satisfaction</div>
+                <div class="value" id="satisfaction-val" style="color: var(--green);">100%</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Throughput</div>
+                <div class="value" id="flow-val">0</div>
+            </div>
+        </div>
+
+        <div class="help-tip">
+            Click the <b>Road Center</b> to toggle the overhead gantry lights. Keep the traffic moving!
+        </div>
+
+        <div class="controls">
+            <div class="ctrl-group">
+                <label>Traffic Density</label>
+                <input type="range" id="spawn-rate" min="1" max="10" value="5">
+            </div>
+            <div class="ctrl-group">
+                <label>Sim Speed</label>
+                <input type="range" id="sim-speed" min="1" max="4" step="0.1" value="2.0">
+            </div>
+            <button class="btn" id="reset-btn">Reset Simulation</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('trafficCanvas');
+        const ctx = canvas.getContext('2d');
+        const satEl = document.getElementById('satisfaction-val');
+        const flowEl = document.getElementById('flow-val');
+
+        let width, height;
+        let cars = [];
+        let totalHappy = 0;
+        let totalFinished = 0;
+        
+        // true = North/South Green, false = East/West Green
+        let lightState = true;
+        let transitionState = 'green'; // green, yellow
+        let transitionTimer = 0;
+
+        const ROAD_WIDTH = 160;
+        const CAR_SIZE = { w: 32, h: 60 };
+        const STOP_LINE_OFFSET = ROAD_WIDTH / 2 + 20;
+
+        class Car {
+            constructor(dir) {
+                this.dir = dir; // N, S, E, W
+                this.reset();
+            }
+
+            reset() {
+                this.color = `hsl(${Math.random() * 360}, 65%, 55%)`;
+                this.speed = 0;
+                this.maxSpeed = Math.random() * 0.5 + 1.5;
+                this.accel = 0.05;
+                this.decel = 0.1;
+                this.patience = 100;
+                this.state = 'driving';
+                this.braking = false;
+
+                const margin = 100;
+                if (this.dir === 'S') { this.x = width/2 - ROAD_WIDTH/4; this.y = -margin; this.targetY = height/2 - STOP_LINE_OFFSET; }
+                if (this.dir === 'N') { this.x = width/2 + ROAD_WIDTH/4; this.y = height + margin; this.targetY = height/2 + STOP_LINE_OFFSET; }
+                if (this.dir === 'E') { this.x = -margin; this.y = height/2 + ROAD_WIDTH/4; this.targetX = width/2 - STOP_LINE_OFFSET; }
+                if (this.dir === 'W') { this.x = width + margin; this.y = height/2 - ROAD_WIDTH/4; this.targetX = width/2 + STOP_LINE_OFFSET; }
+            }
+
+            update(simSpeed) {
+                const s = simSpeed;
+                let shouldStop = false;
+
+                // Light Check
+                const isNS = this.dir === 'N' || this.dir === 'S';
+                const isEW = this.dir === 'E' || this.dir === 'W';
+                
+                const currentGreen = isNS ? lightState : !lightState;
+                const isYellow = transitionState === 'yellow';
+
+                if (!currentGreen) {
+                    if (this.dir === 'S' && this.y < this.targetY && this.y + 100 > this.targetY) shouldStop = true;
+                    if (this.dir === 'N' && this.y > this.targetY && this.y - 100 < this.targetY) shouldStop = true;
+                    if (this.dir === 'E' && this.x < this.targetX && this.x + 100 > this.targetX) shouldStop = true;
+                    if (this.dir === 'W' && this.x > this.targetX && this.x - 100 < this.targetX) shouldStop = true;
+                }
+
+                // Distance to car in front
+                for (let other of cars) {
+                    if (other === this || other.state === 'finished') continue;
+                    if (other.dir !== this.dir) continue;
+                    const d = Math.sqrt((this.x - other.x)**2 + (this.y - other.y)**2);
+                    if (d < 100) {
+                        if (this.dir === 'S' && other.y > this.y) shouldStop = true;
+                        if (this.dir === 'N' && other.y < this.y) shouldStop = true;
+                        if (this.dir === 'E' && other.x > this.x) shouldStop = true;
+                        if (this.dir === 'W' && other.x < this.x) shouldStop = true;
+                    }
+                }
+
+                if (shouldStop) {
+                    this.speed = Math.max(0, this.speed - this.decel * s);
+                    this.braking = this.speed > 0;
+                    this.patience -= 0.1;
+                } else {
+                    this.speed = Math.min(this.maxSpeed, this.speed + this.accel * s);
+                    this.braking = false;
+                }
+
+                const moveStep = this.speed * s;
+                if (this.dir === 'S') this.y += moveStep;
+                if (this.dir === 'N') this.y -= moveStep;
+                if (this.dir === 'E') this.x += moveStep;
+                if (this.dir === 'W') this.x -= moveStep;
+
+                if (this.x < -200 || this.x > width + 200 || this.y < -200 || this.y > height + 200) {
+                    this.finish();
+                }
+            }
+
+            finish() {
+                if (this.state !== 'finished') {
+                    this.state = 'finished';
+                    totalFinished++;
+                    if (this.patience > 50) totalHappy++;
+                    satEl.textContent = Math.floor((totalHappy / totalFinished) * 100) + '%';
+                    flowEl.textContent = totalFinished;
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                if (this.dir === 'N') ctx.rotate(Math.PI);
+                if (this.dir === 'E') ctx.rotate(-Math.PI/2);
+                if (this.dir === 'W') ctx.rotate(Math.PI/2);
+
+                // Body
+                ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.roundRect(-CAR_SIZE.w/2, -CAR_SIZE.h/2, CAR_SIZE.w, CAR_SIZE.h, 6); ctx.fill();
+
+                // Windows
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(-CAR_SIZE.w/2 + 4, -10, CAR_SIZE.w - 8, 25);
+
+                // Brake Lights
+                if (this.braking) {
+                    ctx.fillStyle = '#ff0000';
+                    ctx.shadowBlur = 15; ctx.shadowColor = '#ff0000';
+                    ctx.fillRect(-CAR_SIZE.w/2, -CAR_SIZE.h/2, 8, 5);
+                    ctx.fillRect(CAR_SIZE.w/2 - 8, -CAR_SIZE.h/2, 8, 5);
+                    ctx.shadowBlur = 0;
+                } else {
+                    ctx.fillStyle = '#550000';
+                    ctx.fillRect(-CAR_SIZE.w/2, -CAR_SIZE.h/2, 8, 5);
+                    ctx.fillRect(CAR_SIZE.w/2 - 8, -CAR_SIZE.h/2, 8, 5);
+                }
+
+                // Headlights
+                ctx.fillStyle = '#ffffaa';
+                ctx.fillRect(-CAR_SIZE.w/2 + 4, CAR_SIZE.h/2 - 5, 8, 5);
+                ctx.fillRect(CAR_SIZE.w/2 - 12, CAR_SIZE.h/2 - 5, 8, 5);
+
+                // Sentiment
+                if (this.speed < 0.1) {
+                    ctx.font = '16px Arial'; ctx.textAlign = 'center';
+                    let emoji = this.patience > 70 ? '😐' : (this.patience > 30 ? '😠' : '😡');
+                    ctx.fillText(emoji, 0, 10);
+                }
+
+                ctx.restore();
+            }
+        }
+
+        function init() {
+            resize();
+            animate();
+            setInterval(() => {
+                const rate = parseInt(document.getElementById('spawn-rate').value);
+                if (Math.random() * 10 < rate) {
+                    const dirs = ['N', 'S', 'E', 'W'];
+                    cars.push(new Car(dirs[Math.floor(Math.random()*4)]));
+                }
+            }, 800);
+        }
+
+        function resize() {
+            width = Math.min(900, window.innerWidth - 40);
+            height = Math.min(750, window.innerHeight - 160);
+            canvas.width = width * window.devicePixelRatio;
+            canvas.height = height * window.devicePixelRatio;
+            canvas.style.width = width + 'px'; canvas.style.height = height + 'px';
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+
+        function drawEnvironment() {
+            // Asphalt
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(width/2 - ROAD_WIDTH/2, 0, ROAD_WIDTH, height);
+            ctx.fillRect(0, height/2 - ROAD_WIDTH/2, width, ROAD_WIDTH);
+
+            // Lane Markings
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.setLineDash([20, 20]);
+            ctx.beginPath(); ctx.moveTo(width/2, 0); ctx.lineTo(width/2, height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, height/2); ctx.lineTo(width, height/2); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Stop Lines
+            ctx.fillStyle = '#fff';
+            // S Line
+            ctx.fillRect(width/2 - ROAD_WIDTH/2, height/2 + STOP_LINE_OFFSET - 5, ROAD_WIDTH/2, 10);
+            // N Line
+            ctx.fillRect(width/2, height/2 - STOP_LINE_OFFSET - 5, ROAD_WIDTH/2, 10);
+            // E Line
+            ctx.fillRect(width/2 + STOP_LINE_OFFSET - 5, height/2, 10, ROAD_WIDTH/2);
+            // W Line
+            ctx.fillRect(width/2 - STOP_LINE_OFFSET - 5, height/2 - ROAD_WIDTH/2, 10, ROAD_WIDTH/2);
+
+            // Gantry Structures
+            ctx.strokeStyle = '#334155'; ctx.lineWidth = 8;
+            const gOffset = ROAD_WIDTH / 2 + 40;
+            
+            // Draw arms hanging OVER the road
+            ctx.beginPath(); ctx.moveTo(width/2 - gOffset, height/2 - gOffset); ctx.lineTo(width/2 + gOffset, height/2 - gOffset); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(width/2 - gOffset, height/2 + gOffset); ctx.lineTo(width/2 + gOffset, height/2 + gOffset); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(width/2 - gOffset, height/2 - gOffset); ctx.lineTo(width/2 - gOffset, height/2 + gOffset); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(width/2 + gOffset, height/2 - gOffset); ctx.lineTo(width/2 + gOffset, height/2 + gOffset); ctx.stroke();
+
+            // Hanging Lights
+            const nsColor = lightState ? (transitionState === 'yellow' ? varToHex('--yellow') : varToHex('--green')) : varToHex('--red');
+            const ewColor = !lightState ? (transitionState === 'yellow' ? varToHex('--yellow') : varToHex('--green')) : varToHex('--red');
+
+            drawSignal(width/2 + ROAD_WIDTH/4, height/2 - gOffset, nsColor, 'S');
+            drawSignal(width/2 - ROAD_WIDTH/4, height/2 + gOffset, nsColor, 'N');
+            drawSignal(width/2 - gOffset, height/2 + ROAD_WIDTH/4, ewColor, 'E');
+            drawSignal(width/2 + gOffset, height/2 - ROAD_WIDTH/4, ewColor, 'W');
+        }
+
+        function drawSignal(x, y, color, facing) {
+            ctx.fillStyle = '#111';
+            const w = (facing === 'N' || facing === 'S') ? 30 : 15;
+            const h = (facing === 'N' || facing === 'S') ? 15 : 30;
+            ctx.fillRect(x - w/2, y - h/2, w, h);
+            
+            ctx.fillStyle = color;
+            ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 20; ctx.shadowColor = color; ctx.stroke(); ctx.shadowBlur = 0;
+        }
+
+        function varToHex(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            drawEnvironment();
+
+            const simSpeed = parseFloat(document.getElementById('sim-speed').value);
+            
+            // Transition Logic
+            if (transitionTimer > 0) {
+                transitionTimer -= 16; // approx ms
+                if (transitionTimer <= 0) {
+                    transitionState = 'green';
+                    lightState = !lightState;
+                }
+            }
+
+            cars = cars.filter(car => {
+                if (car.state === 'finished') return false;
+                car.update(simSpeed);
+                car.draw();
+                return true;
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        canvas.addEventListener('mousedown', () => {
+            if (transitionTimer <= 0) {
+                transitionState = 'yellow';
+                transitionTimer = 1500; // 1.5s yellow light
+            }
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            cars = []; totalHappy = 0; totalFinished = 0;
+            satEl.textContent = '100%'; flowEl.textContent = '0';
+        });
+
+        window.addEventListener('resize', resize);
+        init();
+    </script>
+</body>
+</html>

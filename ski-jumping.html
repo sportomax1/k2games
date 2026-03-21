@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ski Jumping Pro - Alpine Masters</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --accent: #f59e0b;
+            --bg: #f8fafc;
+            --snow: #ffffff;
+            --sky: #bae6fd;
+            --text: #1e293b;
+            --danger: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            user-select: none;
+        }
+
+        header {
+            padding: 0.8rem 1.5rem;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .back-btn { color: var(--text); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+
+        .game-container {
+            flex: 1;
+            position: relative;
+            background: linear-gradient(to bottom, #7dd3fc 0%, #e0f2fe 100%);
+            overflow: hidden;
+        }
+
+        canvas { width: 100%; height: 100%; display: block; }
+
+        #hud {
+            position: absolute; top: 1rem; left: 1rem; right: 1rem;
+            display: flex; justify-content: space-between; pointer-events: none; z-index: 10;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 0.6rem 1rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; color: #64748b; font-weight: 800; }
+        .stat-value { font-size: 1.2rem; font-weight: 900; color: var(--primary); }
+
+        #touch-controls {
+            position: absolute; bottom: 2rem; left: 0; width: 100%;
+            display: flex; justify-content: space-around; align-items: center;
+            padding: 0 1rem; pointer-events: none; z-index: 50;
+        }
+
+        .control-btn {
+            width: 80px; height: 80px;
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(5px);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; color: white;
+            pointer-events: auto;
+            transition: 0.1s;
+        }
+        .control-btn:active { transform: scale(0.9); background: rgba(255, 255, 255, 0.5); }
+
+        #main-action-btn { width: 100px; height: 100px; background: rgba(59, 130, 246, 0.7); font-weight: 900; font-size: 1rem; text-transform: uppercase; }
+
+        #prompt-overlay {
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; pointer-events: none; z-index: 60;
+        }
+        #prompt-text {
+            font-size: 2rem; font-weight: 900; color: white; text-shadow: 0 0 20px rgba(0,0,0,0.5);
+            text-transform: uppercase; letter-spacing: 2px;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+
+        #result-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.9);
+            display: none; align-items: center; justify-content: center; z-index: 200;
+        }
+
+        .result-card {
+            background: white; padding: 2.5rem; border-radius: 20px; text-align: center; width: 90%; max-width: 350px;
+        }
+
+        .btn-retry {
+            width: 100%; background: var(--primary); color: white; border: none;
+            padding: 1rem; border-radius: 10px; font-weight: 800; font-size: 1.1rem;
+            cursor: pointer; margin-top: 1.5rem;
+        }
+
+        #keyboard-hint {
+            position: absolute; top: 5rem; left: 1rem;
+            background: rgba(0,0,0,0.3); color: white;
+            padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.7rem;
+            pointer-events: none; z-index: 10;
+        }
+
+        @media (min-width: 800px) { #touch-controls { display: none; } }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="index.html" class="back-btn">← THE VAULT</a>
+        <h1 style="font-size: 1.1rem; font-weight: 900; letter-spacing: 1px;">SKI JUMPING PRO</h1>
+        <div style="font-size: 0.7rem; font-weight: 800; color: var(--primary);">ALPINE SERIES</div>
+    </header>
+
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="hud">
+            <div class="stat-card">
+                <div class="stat-label">Wind</div>
+                <div class="stat-value" id="wind-val">0.0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Velocity</div>
+                <div class="stat-value" id="speed-val">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Distance</div>
+                <div class="stat-value" id="dist-val">0.0m</div>
+            </div>
+        </div>
+
+        <div id="keyboard-hint">
+            [SPACE] Action | [ARROWS] Tilt Body
+        </div>
+
+        <div id="prompt-overlay">
+            <div id="prompt-text">Click to START</div>
+        </div>
+
+        <div id="touch-controls">
+            <div class="control-btn" id="btn-left">◀</div>
+            <div class="control-btn" id="main-action-btn">PUSH</div>
+            <div class="control-btn" id="btn-right">▶</div>
+        </div>
+
+        <div id="result-overlay">
+            <div class="result-card">
+                <h2 id="res-status" style="font-size: 2rem; margin-bottom: 1rem;">LANDED!</h2>
+                <div style="font-size: 1rem; margin-bottom: 0.5rem;">Distance: <b id="res-dist">0.0</b>m</div>
+                <div style="font-size: 1rem; margin-bottom: 1.5rem;">Style Score: <b id="res-style">0.0</b></div>
+                <div style="font-size: 1.5rem; border-top: 1px solid #eee; padding-top: 1rem;">Total: <b id="res-total">0.0</b></div>
+                <button class="btn-retry" onclick="resetGame()">NEXT JUMP</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const promptEl = document.getElementById('prompt-text');
+        const mainBtn = document.getElementById('main-action-btn');
+        const resultOverlay = document.getElementById('result-overlay');
+
+        let width, height;
+        let gameState = 'idle'; 
+        let cameraX = 0, cameraY = 0;
+        let speed = 0, distance = 0, style = 0;
+        let wind = { speed: 0 };
+        let snowParticles = [];
+
+        let jumper = {
+            x: 0, y: 0, vx: 0, vy: 0,
+            rotation: 0.5, targetRotation: 0.5,
+            leaning: 0 
+        };
+
+        const RAMP_START = { x: 200, y: 300 };
+        const RAMP_LENGTH = 1000;
+        const TAKEOFF_X = RAMP_START.x + RAMP_LENGTH;
+        const TAKEOFF_Y = RAMP_START.y + 500;
+        const SLOPE_ANGLE = 0.61; // approx 35 degrees (tan 0.7)
+
+        function init() {
+            resize();
+            resetGame();
+            animate();
+        }
+
+        function resetGame() {
+            gameState = 'idle';
+            cameraX = 0; cameraY = 0; speed = 0; distance = 0;
+            wind.speed = (Math.random() * 8 - 4).toFixed(1);
+            document.getElementById('wind-val').textContent = (wind.speed > 0 ? '▶ ' : '◀ ') + Math.abs(wind.speed);
+            
+            jumper.x = RAMP_START.x; jumper.y = RAMP_START.y;
+            jumper.vx = 0; jumper.vy = 0; jumper.rotation = 0.5; jumper.targetRotation = 0.5;
+            
+            snowParticles = [];
+            resultOverlay.style.display = 'none';
+            promptEl.textContent = "TAP PUSH";
+            mainBtn.textContent = "PUSH";
+        }
+
+        function resize() {
+            width = canvas.parentElement.clientWidth;
+            height = canvas.parentElement.clientHeight;
+            canvas.width = width * window.devicePixelRatio;
+            canvas.height = height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+
+        function handleAction() {
+            if (gameState === 'idle') {
+                gameState = 'descent';
+                promptEl.textContent = "";
+                mainBtn.textContent = "JUMP";
+            } else if (gameState === 'descent') {
+                const distToEdge = TAKEOFF_X - jumper.x;
+                if (distToEdge < 150) {
+                    gameState = 'flight';
+                    jumper.vy = -12; 
+                    jumper.vx += 4;
+                    mainBtn.textContent = "LAND";
+                    promptEl.textContent = "TILT!";
+                    setTimeout(() => promptEl.textContent = "", 1000);
+                }
+            } else if (gameState === 'flight') {
+                // Stabilize for landing
+                jumper.targetRotation = SLOPE_ANGLE;
+            }
+        }
+
+        function spawnSnow(x, y, vx, vy) {
+            for(let i=0; i<3; i++) {
+                snowParticles.push({
+                    x, y, 
+                    vx: vx + (Math.random()-0.5)*2, 
+                    vy: vy + (Math.random()-0.5)*2, 
+                    life: 1.0
+                });
+            }
+        }
+
+        function update() {
+            if (gameState === 'descent') {
+                jumper.vx += 0.25;
+                jumper.x += jumper.vx;
+                jumper.y = RAMP_START.y + (jumper.x - RAMP_START.x) * 0.5;
+                speed = Math.floor(jumper.vx * 4);
+                spawnSnow(jumper.x, jumper.y, -jumper.vx*0.5, -2);
+                
+                if (jumper.x >= TAKEOFF_X) {
+                    gameState = 'flight';
+                    jumper.vy = -3;
+                    mainBtn.textContent = "LAND";
+                }
+            } else if (gameState === 'flight') {
+                const gravity = 0.18;
+                // Lift: leaning back (negative rotation) increases lift
+                const lift = Math.max(0, (SLOPE_ANGLE - jumper.rotation) * 0.2) * (jumper.vx * 0.1);
+                jumper.vy += (gravity - lift);
+                jumper.vx += (wind.speed * 0.015) + (jumper.rotation * 0.01);
+                
+                jumper.x += jumper.vx;
+                jumper.y += jumper.vy;
+
+                if (jumper.leaning !== 0) jumper.targetRotation += jumper.leaning * 0.06;
+                jumper.targetRotation = Math.max(-1.0, Math.min(1.2, jumper.targetRotation));
+                jumper.rotation += (jumper.targetRotation - jumper.rotation) * 0.1;
+
+                distance = ((jumper.x - TAKEOFF_X) / 10).toFixed(1);
+                speed = Math.floor(Math.sqrt(jumper.vx**2 + jumper.vy**2) * 4);
+
+                // Landing check
+                const slopeY = TAKEOFF_Y + 200 + (jumper.x - TAKEOFF_X) * 0.7;
+                if (jumper.y >= slopeY) {
+                    jumper.y = slopeY;
+                    finishJump();
+                }
+            } else if (gameState === 'landed') {
+                jumper.vx *= 0.985;
+                jumper.x += jumper.vx;
+                jumper.y = TAKEOFF_Y + 200 + (jumper.x - TAKEOFF_X) * 0.7;
+                jumper.rotation = SLOPE_ANGLE;
+                spawnSnow(jumper.x, jumper.y, -jumper.vx*0.3, -3);
+            }
+
+            snowParticles.forEach(p => {
+                p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+            });
+            snowParticles = snowParticles.filter(p => p.life > 0);
+
+            cameraX += (jumper.x - cameraX - width * 0.3) * 0.15;
+            cameraY += (jumper.y - cameraY - height * 0.6) * 0.15;
+
+            document.getElementById('speed-val').textContent = speed;
+            document.getElementById('dist-val').textContent = distance + 'm';
+        }
+
+        function finishJump() {
+            const angleDiff = Math.abs(jumper.rotation - SLOPE_ANGLE);
+            
+            // KEY FIX: Primary success is based on angle alignment to the mountain slope
+            if (angleDiff < 0.45) {
+                gameState = 'landed';
+                style = (20 - angleDiff * 25 - Math.abs(jumper.vy)*0.5).toFixed(1);
+                showResults("CLEAN LANDING!", true);
+            } else {
+                gameState = 'crashed';
+                style = 0;
+                showResults("WIPEOUT!", false);
+            }
+        }
+
+        function showResults(status, ok) {
+            document.getElementById('res-status').textContent = status;
+            document.getElementById('res-status').style.color = ok ? 'var(--primary)' : 'var(--danger)';
+            document.getElementById('res-dist').textContent = distance;
+            document.getElementById('res-style').textContent = style;
+            document.getElementById('res-total').textContent = (parseFloat(distance) + parseFloat(style)).toFixed(1);
+            resultOverlay.style.display = 'flex';
+        }
+
+        function drawBackground() {
+            // Far Mountains
+            ctx.fillStyle = '#bae6fd';
+            for (let layer=0; layer<3; layer++) {
+                const scroll = cameraX * (0.1 + layer*0.1);
+                ctx.beginPath();
+                ctx.moveTo(0, height);
+                for (let i=-100; i<width+100; i+=100) {
+                    const x = i;
+                    const h = 200 + layer*100 + Math.sin((x+scroll)*0.002)*100;
+                    ctx.lineTo(x, height - h);
+                }
+                ctx.lineTo(width, height);
+                ctx.globalAlpha = 0.3 + layer*0.2;
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            drawBackground();
+            
+            ctx.save();
+            ctx.translate(-cameraX, -cameraY);
+            
+            // Draw Mountain/Slope (Persistent environment)
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.moveTo(TAKEOFF_X, TAKEOFF_Y + 200);
+            ctx.lineTo(TAKEOFF_X + 10000, TAKEOFF_Y + 200 + 7000);
+            ctx.lineTo(TAKEOFF_X + 10000, TAKEOFF_Y + 10000);
+            ctx.lineTo(TAKEOFF_X, TAKEOFF_Y + 10000);
+            ctx.closePath();
+            ctx.fill();
+
+            // Ramp
+            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 15; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(RAMP_START.x, RAMP_START.y); ctx.lineTo(TAKEOFF_X, TAKEOFF_Y); ctx.stroke();
+            
+            // Particles
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            snowParticles.forEach(p => {
+                ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill();
+            });
+
+            // Jumper
+            ctx.save();
+            ctx.translate(jumper.x, jumper.y);
+            ctx.rotate(jumper.rotation);
+            // Ideal landing ghost (visual aid)
+            if(gameState === 'flight') {
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.2)'; ctx.lineWidth = 2;
+                ctx.strokeRect(-25, -5, 50, 10);
+            }
+            // Skis
+            ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(-35, 0); ctx.lineTo(35, 0); ctx.stroke();
+            // Body
+            ctx.fillStyle = '#3b82f6';
+            ctx.fillRect(-8, -30, 16, 35);
+            ctx.beginPath(); ctx.arc(0, -35, 10, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+
+            ctx.restore();
+        }
+
+        function animate() {
+            update();
+            draw();
+            requestAnimationFrame(animate);
+        }
+
+        // Action Handlers
+        const startAction = (e) => { if(e) e.preventDefault(); handleAction(); };
+        const tiltLeft = (e) => { if(e) e.preventDefault(); jumper.leaning = -1; };
+        const tiltRight = (e) => { if(e) e.preventDefault(); jumper.leaning = 1; };
+        const stopTilt = (e) => { if(e) e.preventDefault(); jumper.leaning = 0; };
+
+        // Keyboard
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') startAction();
+            if (e.code === 'ArrowLeft') tiltLeft();
+            if (e.code === 'ArrowRight') tiltRight();
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') stopTilt();
+        });
+
+        // Touch Buttons
+        mainBtn.addEventListener('touchstart', startAction);
+        document.getElementById('btn-left').addEventListener('touchstart', tiltLeft);
+        document.getElementById('btn-left').addEventListener('touchend', stopTilt);
+        document.getElementById('btn-right').addEventListener('touchstart', tiltRight);
+        document.getElementById('btn-right').addEventListener('touchend', stopTilt);
+
+        // Global fallback
+        canvas.addEventListener('mousedown', () => { if(gameState === 'idle') startAction(); });
+
+        window.addEventListener('resize', resize);
+        init();
+    </script>
+</body>
+</html>
