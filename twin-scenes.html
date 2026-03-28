@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twin Scenes - Environment Quest</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --bg: #0f172a;
+            --text: #f8fafc;
+            --accent: #f59e0b;
+            --panel: #1e293b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        header {
+            width: 100%;
+            padding: 15px;
+            text-align: center;
+            background: var(--panel);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            margin-bottom: 20px;
+            border-bottom: 2px solid #334155;
+        }
+
+        .theme-title {
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-size: 0.9rem;
+            margin-top: 5px;
+            font-weight: 800;
+        }
+
+        .game-info {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 10px;
+            font-weight: 700;
+            color: #94a3b8;
+        }
+
+        #canvas-container {
+            display: flex;
+            gap: 20px;
+            max-width: 98vw;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            background: #334155;
+            padding: 6px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            border: 2px solid #475569;
+        }
+
+        canvas {
+            display: block;
+            border-radius: 10px;
+            cursor: pointer;
+            background: #000;
+        }
+
+        .controls {
+            margin: 20px;
+            display: flex;
+            gap: 15px;
+        }
+
+        button {
+            padding: 12px 28px;
+            border-radius: 12px;
+            border: none;
+            background: var(--primary);
+            color: white;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:hover { transform: translateY(-2px); filter: brightness(1.1); }
+        button.secondary { background: #475569; }
+
+        #status-msg {
+            margin-top: 10px;
+            font-weight: 800;
+            height: 24px;
+            font-size: 1.2rem;
+        }
+
+        .difference-marker {
+            position: absolute;
+            border: 4px solid var(--accent);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: pulse 0.8s infinite alternate;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.6);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.5; }
+            100% { transform: scale(1.1); opacity: 1; }
+        }
+
+        @media (max-width: 1000px) {
+            #canvas-container { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>TWIN SCENES</h1>
+    <div id="theme-display" class="theme-title">Theme: Loading...</div>
+    <div class="game-info">
+        <span id="diff-counter">FOUND: 0/7</span>
+        <span id="timer">TIME: 0s</span>
+    </div>
+    <div id="status-msg"></div>
+</header>
+
+<div id="canvas-container">
+    <div class="canvas-wrapper" id="wrapper-a">
+        <canvas id="canvas-a"></canvas>
+    </div>
+    <div class="canvas-wrapper" id="wrapper-b">
+        <canvas id="canvas-b"></canvas>
+    </div>
+</div>
+
+<div class="controls">
+    <button id="new-game-btn">Random Scene</button>
+    <button id="hint-btn" class="secondary">Hint</button>
+</div>
+
+<script>
+(function() {
+    const canvasA = document.getElementById('canvas-a');
+    const canvasB = document.getElementById('canvas-b');
+    const ctxA = canvasA.getContext('2d');
+    const ctxB = canvasB.getContext('2d');
+    const diffCounter = document.getElementById('diff-counter');
+    const timerEl = document.getElementById('timer');
+    const statusMsg = document.getElementById('status-msg');
+    const themeDisplay = document.getElementById('theme-display');
+    const newGameBtn = document.getElementById('new-game-btn');
+    const hintBtn = document.getElementById('hint-btn');
+
+    let objects = [];
+    let differences = [];
+    let foundIndices = new Set();
+    let startTime = 0;
+    let timerInterval = null;
+    let currentTheme = null;
+    let canvasSize = { w: 480, h: 480 };
+
+    const THEMES = [
+        { name: 'SUNNY BEACH', sky: ['#0ea5e9', '#38bdf8'], ground: ['#fde047', '#eab308'], horizon: 0.6, objects: ['wave', 'umbrella', 'palm'], emojis: ['🦀', '🏝️', '🐚', '🍹', '🏄'] },
+        { name: 'URBAN ROAD', sky: ['#1e293b', '#334155'], ground: ['#1e293b', '#0f172a'], horizon: 0.7, objects: ['road', 'lamp', 'sign', 'building'], emojis: ['🚦', '🏎️', '🏍️', '🚕', '🚓'] },
+        { name: 'DEEP SPACE', sky: ['#020617', '#0f172a'], ground: ['#020617', '#0f172a'], horizon: 1.0, objects: ['star', 'planet', 'rocket'], emojis: ['🛸', '👨‍🚀', '👾', '🌍', '🛰️'] },
+        { name: 'PINE FOREST', sky: ['#0ea5e9', '#38bdf8'], ground: ['#15803d', '#166534'], horizon: 0.6, objects: ['pine', 'pond', 'flower'], emojis: ['🐕', '🏸', '🧺', '🚲', '🦋'] },
+        { name: 'MOUNTAIN CAMP', sky: ['#1e293b', '#334155'], ground: ['#475569', '#64748b'], horizon: 0.6, objects: ['mountain', 'pine', 'tent', 'fire'], emojis: ['🏔️', '🐻', '🌲', '🐺', '🎒'] },
+        { name: 'DESERT OASIS', sky: ['#ea580c', '#fb923c'], ground: ['#b45309', '#92400e'], horizon: 0.6, objects: ['cactus', 'dune', 'pyramid'], emojis: ['🐫', '🌵', '☀️', '🏺'] },
+        { name: 'SNOWY PEAK', sky: ['#e2e8f0', '#cbd5e1'], ground: ['#f8fafc', '#ffffff'], horizon: 0.6, objects: ['pine', 'snowman', 'mountain'], emojis: ['❄️', '🏂', '🐧', '🧣'] },
+        { name: 'UNDERWATER', sky: ['#0c4a6e', '#0369a1'], ground: ['#083344', '#155e75'], horizon: 0.0, objects: ['coral', 'seaweed', 'fish_shape'], emojis: ['🐙', '🐡', '🦈', '🐚', '🦐'] },
+        { name: 'VINTAGE FARM', sky: ['#bae6fd', '#7dd3fc'], ground: ['#3f6212', '#4d7c0f'], horizon: 0.6, objects: ['barn', 'fence', 'hay'], emojis: ['🐄', '🐷', '🚜', '🐔', '🌽'] },
+        { name: 'CITY BUILD', sky: ['#64748b', '#94a3b8'], ground: ['#451a03', '#2d1a10'], horizon: 0.7, objects: ['crane', 'cone', 'building'], emojis: ['🏗️', '🚧', '👷', '🔩', '🧱'] }
+    ];
+
+    class SceneObject {
+        constructor(type, x, y, size, color, theme, layer) {
+            this.type = type; this.x = x; this.y = y; this.size = size; this.color = color;
+            this.layer = layer; // 0: Background, 1: Mid, 2: Foreground
+            this.rotation = Math.random() * 0.4 - 0.2;
+            this.emoji = theme.emojis[Math.floor(Math.random() * theme.emojis.length)];
+            this.isEmoji = (type === 'emoji' || (Math.random() < 0.3 && !['mountain', 'road', 'pond'].includes(type)));
+        }
+
+        draw(ctx) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.rotation);
+            ctx.fillStyle = this.color;
+            ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+            ctx.lineWidth = 2;
+
+            const s = this.size;
+
+            if (this.isEmoji) {
+                ctx.font = `${s}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(this.emoji, 0, 0);
+                ctx.restore();
+                return;
+            }
+
+            switch(this.type) {
+                case 'wave':
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-s,0); ctx.bezierCurveTo(-s/2, -s/4, s/2, s/4, s, 0); ctx.stroke(); break;
+                case 'umbrella':
+                    ctx.fillStyle = '#64748b'; ctx.fillRect(-2, -s/2, 4, s/2); ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(0, -s/2, s/1.5, Math.PI, 0); ctx.fill(); ctx.stroke(); break;
+                case 'palm':
+                    ctx.fillStyle = '#78350f'; ctx.fillRect(-s/12, 0, s/6, s); ctx.fillStyle = '#16a34a';
+                    for(let i=0; i<5; i++) { ctx.rotate(Math.PI*2/5); ctx.beginPath(); ctx.ellipse(s/2, 0, s/2, s/10, 0, 0, Math.PI*2); ctx.fill(); } break;
+                case 'road':
+                    ctx.fillStyle = '#334155'; ctx.fillRect(-s*4, -s/4, s*8, s/2); ctx.fillStyle = '#fde047'; ctx.fillRect(-s*4, -2, s*8, 4); break;
+                case 'lamp':
+                    ctx.fillStyle = '#64748b'; ctx.fillRect(-2, -s, 4, s); ctx.fillStyle = '#fef08a'; ctx.beginPath(); ctx.arc(0, -s, 10, 0, Math.PI*2); ctx.fill(); break;
+                case 'building':
+                    ctx.fillRect(-s/2, -s*1.2, s, s*1.2); ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                    for(let i=0; i<3; i++) for(let j=0; j<2; j++) ctx.fillRect(-s/2.5 + j*s/2.2, -s*1.1 + i*s/3, s/5, s/8); break;
+                case 'star':
+                    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0, s/8, 0, Math.PI*2); ctx.fill(); break;
+                case 'planet':
+                    ctx.beginPath(); ctx.arc(0,0, s/2, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.beginPath(); ctx.ellipse(0,0, s*0.8, s/4, 0.2, 0, Math.PI*2); ctx.stroke(); break;
+                case 'rocket':
+                    ctx.fillRect(-s/4, -s/2, s/2, s); ctx.beginPath(); ctx.moveTo(-s/4, -s/2); ctx.lineTo(0, -s); ctx.lineTo(s/4, -s/2); ctx.fill(); break;
+                case 'pine':
+                    ctx.fillStyle = '#451a03'; ctx.fillRect(-s/10, 0, s/5, s/3); ctx.fillStyle = this.color;
+                    for(let i=0; i<3; i++) { ctx.beginPath(); ctx.moveTo(0, -s + i*s/4); ctx.lineTo(s/2 - i*s/12, -s/4 + i*s/4); ctx.lineTo(-s/2 + i*s/12, -s/4 + i*s/4); ctx.closePath(); ctx.fill(); } break;
+                case 'flower':
+                    ctx.fillStyle = '#16a34a'; ctx.fillRect(-1, 0, 2, s/2); ctx.fillStyle = this.color;
+                    for(let i=0; i<5; i++) { ctx.rotate(Math.PI*2/5); ctx.beginPath(); ctx.ellipse(s/4, 0, s/4, s/10, 0, 0, Math.PI*2); ctx.fill(); } break;
+                case 'mountain':
+                    ctx.fillStyle = '#475569'; ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(0, -s); ctx.lineTo(s, 0); ctx.fill();
+                    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(-s/3.5, -s/1.4); ctx.lineTo(0, -s); ctx.lineTo(s/3.5, -s/1.4); ctx.fill(); break;
+                case 'tent':
+                    ctx.fillStyle = this.color; ctx.beginPath(); ctx.moveTo(-s/2, 0); ctx.lineTo(0, -s/2); ctx.lineTo(s/2, 0); ctx.fill(); ctx.stroke(); break;
+                case 'fire':
+                    ctx.fillStyle = '#f97316'; ctx.beginPath(); ctx.arc(0,0, s/3, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(0,-s/5, s/4, 0, Math.PI*2); ctx.fill(); break;
+                case 'cactus':
+                    ctx.fillRect(-s/12, -s, s/6, s); ctx.fillRect(-s/2, -s/1.5, s/2, s/10); ctx.fillRect(s/12, -s/2, s/2, s/10); break;
+                case 'dune':
+                    ctx.beginPath(); ctx.ellipse(0,0, s, s/3, 0, Math.PI, 0); ctx.fill(); break;
+                case 'pyramid':
+                    ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(0, -s); ctx.lineTo(s, 0); ctx.fill(); ctx.stroke(); break;
+                case 'snowman':
+                    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0, s/3, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(0, -s/2.5, s/5, 0, Math.PI*2); ctx.fill(); break;
+                case 'coral':
+                    ctx.lineWidth = 4; ctx.strokeStyle = this.color; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, -s); ctx.moveTo(-s/4, -s/2); ctx.lineTo(s/4, -s/2); ctx.stroke(); break;
+                case 'seaweed':
+                    ctx.strokeStyle = '#10b981'; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(s/4, -s/2, -s/4, -s/2, 0, -s); ctx.stroke(); break;
+                case 'fish_shape':
+                    ctx.beginPath(); ctx.ellipse(0,0, s/2, s/4, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.moveTo(-s/2, 0); ctx.lineTo(-s/1.5, -s/4); ctx.lineTo(-s/1.5, s/4); ctx.fill(); break;
+                case 'barn':
+                    ctx.fillRect(-s/2, -s/2, s, s/2); ctx.beginPath(); ctx.moveTo(-s/2, -s/2); ctx.lineTo(0, -s); ctx.lineTo(s/2, -s/2); ctx.fill(); break;
+                case 'fence':
+                    for(let i=0; i<3; i++) ctx.fillRect(-s/2 + i*s/3, -s/2, s/12, s/2); ctx.fillRect(-s/2, -s/3, s, s/10); break;
+                case 'crane':
+                    ctx.fillStyle = '#f59e0b'; ctx.fillRect(-s/10, -s, s/5, s); ctx.fillRect(-s/10, -s, s, s/12); break;
+                case 'cone':
+                    ctx.fillStyle = '#f97316'; ctx.beginPath(); ctx.moveTo(-s/4, 0); ctx.lineTo(0, -s/2); ctx.lineTo(s/4, 0); ctx.fill(); break;
+                case 'pond':
+                    ctx.fillStyle = '#38bdf8'; ctx.beginPath(); ctx.ellipse(0,0, s, s/2, 0, 0, Math.PI*2); ctx.fill(); break;
+                default: ctx.fillRect(-s/2, -s/2, s, s);
+            }
+            ctx.restore();
+        }
+    }
+
+    function checkOverlap(x, y, size, existing) {
+        for(let obj of existing) {
+            const dx = x - obj.x;
+            const dy = y - obj.y;
+            const minDist = (size + obj.size) * 0.6; // Allow some overlap but not much
+            if (Math.sqrt(dx*dx + dy*dy) < minDist) return true;
+        }
+        return false;
+    }
+
+    function generateScene() {
+        objects = []; differences = []; foundIndices.clear();
+        currentTheme = THEMES[Math.floor(Math.random() * THEMES.length)];
+        themeDisplay.innerText = `Theme: ${currentTheme.name}`;
+        
+        const w = canvasSize.w, h = canvasSize.h;
+        const horizon = currentTheme.horizon * h;
+
+        // Populate Objects with layers
+        const targetCount = 20;
+        let attempts = 0;
+        while(objects.length < targetCount && attempts < 100) {
+            attempts++;
+            const type = currentTheme.objects[Math.floor(Math.random() * currentTheme.objects.length)];
+            let x = 40 + Math.random() * (w - 80);
+            let y = 0;
+            let layer = 1;
+            let size = 30 + Math.random() * 25;
+            let color = ['#ef4444', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'][Math.floor(Math.random()*6)];
+
+            // Theme/Type specific placement
+            if (type === 'mountain') { 
+                y = horizon; layer = 0; size = 100 + Math.random()*80; color = '#475569'; 
+            } else if (type === 'star') { 
+                y = Math.random() * horizon * 0.8; layer = 0; size = 12; color = '#fff';
+            } else if (type === 'wave') { 
+                y = horizon + (Math.random() * (h - horizon)); layer = 1; size = 40;
+            } else if (type === 'cloud') {
+                y = 50 + Math.random() * horizon * 0.5; layer = 0; size = 50;
+            } else if (type === 'road') {
+                x = w/2; y = h * 0.85; layer = 1; size = 40;
+            } else if (type === 'building' || type === 'barn') {
+                y = horizon + 20; layer = 1; size = 60; color = '#334155';
+            } else if (type === 'flower' || type === 'fence' || type === 'pond') {
+                y = horizon + (Math.random() * (h - horizon - 40)) + 20; layer = 2; size = 25;
+            } else {
+                // Default ground placement
+                y = horizon + (Math.random() * (h - horizon - 60)) + 30;
+                layer = (y < horizon + (h-horizon)*0.5) ? 1 : 2;
+            }
+
+            if (!checkOverlap(x, y, size, objects)) {
+                objects.push(new SceneObject(type, x, y, size, color, currentTheme, layer));
+            }
+        }
+
+        // Sort by layer for drawing order
+        objects.sort((a, b) => a.layer - b.layer || a.y - b.y);
+
+        // Create 7 differences
+        let indices = Array.from({length: objects.length}, (_, i) => i);
+        indices.sort(() => Math.random() - 0.5);
+        for(let i=0; i<7; i++) {
+            let idx = indices[i];
+            let mutation = { index: idx, type: '' };
+            let obj = objects[idx];
+            const r = Math.random();
+            if (r < 0.25) mutation.type = 'missing';
+            else if (r < 0.5) mutation.type = 'color';
+            else if (r < 0.75) mutation.type = 'move';
+            else mutation.type = 'rotation';
+            differences.push(mutation);
+        }
+        render();
+        startTimer();
+    }
+
+    function render() {
+        if (window.innerWidth < 1000) canvasSize = { w: window.innerWidth - 60, h: Math.min(window.innerWidth - 60, 480) };
+        else canvasSize = { w: 480, h: 480 };
+        canvasA.width = canvasB.width = canvasSize.w;
+        canvasA.height = canvasB.height = canvasSize.h;
+
+        const drawScene = (ctx, isB) => {
+            const h = canvasSize.h;
+            const w = canvasSize.w;
+            const horizon = currentTheme.horizon * h;
+
+            // Background Gradient
+            const skyGrad = ctx.createLinearGradient(0,0,0,horizon);
+            skyGrad.addColorStop(0, currentTheme.sky[0]);
+            skyGrad.addColorStop(1, currentTheme.sky[1]);
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, w, horizon);
+
+            const groundGrad = ctx.createLinearGradient(0,horizon,0,h);
+            groundGrad.addColorStop(0, currentTheme.ground[0]);
+            groundGrad.addColorStop(1, currentTheme.ground[1]);
+            ctx.fillStyle = groundGrad;
+            ctx.fillRect(0, horizon, w, h - horizon);
+
+            // Special Theme backgrounds
+            if (currentTheme.name === 'SUNNY BEACH') {
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                ctx.beginPath(); ctx.ellipse(w*0.8, horizon, w*0.3, 10, 0, 0, Math.PI*2); ctx.fill(); // Shoreline
+            }
+
+            objects.forEach((obj, idx) => {
+                const diff = isB ? differences.find(d => d.index === idx) : null;
+                if (diff && diff.type === 'missing') return;
+                ctx.save();
+                const oX = obj.x, oY = obj.y, oC = obj.color, oR = obj.rotation;
+                if (diff) {
+                    if (diff.type === 'color') obj.color = (oC === '#fff' ? '#f59e0b' : '#fff');
+                    if (diff.type === 'move') { obj.x += 25; obj.y += 10; }
+                    if (diff.type === 'rotation') obj.rotation += 0.8;
+                }
+                obj.draw(ctx);
+                obj.x = oX; obj.y = oY; obj.color = oC; obj.rotation = oR;
+                ctx.restore();
+            });
+        };
+        drawScene(ctxA, false); drawScene(ctxB, true);
+        diffCounter.innerText = `FOUND: ${foundIndices.size}/7`;
+        document.querySelectorAll('.difference-marker').forEach(m => m.remove());
+        foundIndices.forEach(idx => {
+            const obj = objects[differences[idx].index];
+            createMarker(obj.x, obj.y, obj.size, 'wrapper-a');
+            createMarker(obj.x, obj.y, obj.size, 'wrapper-b');
+        });
+    }
+
+    function createMarker(x, y, size, parentId) {
+        const marker = document.createElement('div');
+        marker.className = 'difference-marker';
+        const s = Math.max(size * 1.5, 55);
+        marker.style.width = s + 'px'; marker.style.height = s + 'px';
+        marker.style.left = (x - s/2) + 'px'; marker.style.top = (y - s/2) + 'px';
+        document.getElementById(parentId).appendChild(marker);
+    }
+
+    function checkClick(e) {
+        const rect = e.target.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        differences.forEach((diff, idx) => {
+            if (foundIndices.has(idx)) return;
+            const obj = objects[diff.index];
+            if (Math.sqrt((mx-obj.x)**2 + (my-obj.y)**2) < Math.max(obj.size, 45)) {
+                foundIndices.add(idx); render(); if (foundIndices.size === 7) win();
+            }
+        });
+    }
+
+    function win() {
+        if (timerInterval) clearInterval(timerInterval);
+        statusMsg.innerText = "SCENE CLEAR! 🏆"; statusMsg.style.color = "#10b981";
+    }
+
+    function startTimer() {
+        startTime = Date.now(); if (timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            timerEl.innerText = `TIME: ${Math.floor((Date.now() - startTime) / 1000)}s`;
+        }, 1000);
+    }
+
+    canvasA.addEventListener('mousedown', checkClick);
+    canvasB.addEventListener('mousedown', checkClick);
+    newGameBtn.addEventListener('click', generateScene);
+    hintBtn.addEventListener('click', () => {
+        const rem = differences.findIndex((_, i) => !foundIndices.has(i));
+        if (rem !== -1) { foundIndices.add(rem); render(); if (foundIndices.size === 7) win(); }
+    });
+    window.addEventListener('resize', () => render());
+    generateScene();
+})();
+</script>
+
+</body>
+</html>

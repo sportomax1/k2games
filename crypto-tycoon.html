@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto-Tycoon | Terminal Simulation</title>
+    <!-- React & Babel CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0c0d0e;
+            --surface-color: #161b22;
+            --text-primary: #e6edf3;
+            --text-secondary: #7d8590;
+            --accent-green: #3fb950;
+            --accent-red: #f85149;
+            --border-color: #30363d;
+            --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 14px;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+        }
+
+        #root {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Layout */
+        .header {
+            height: 50px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 1.5rem;
+            justify-content: space-between;
+            background: var(--surface-color);
+        }
+
+        .main-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 280px 1fr 320px;
+            overflow: hidden;
+        }
+
+        /* Panels */
+        .panel {
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: bold;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            background: rgba(255,255,255,0.02);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Market List */
+        .asset-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .asset-row {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .asset-row:hover { background: rgba(255,255,255,0.05); }
+        .asset-row.selected { background: rgba(58, 185, 80, 0.1); border-left: 3px solid var(--accent-green); }
+
+        .price-up { color: var(--accent-green); }
+        .price-down { color: var(--accent-red); }
+
+        /* Chart Area */
+        .chart-area {
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            gap: 1rem;
+        }
+
+        .chart-canvas-container {
+            flex: 1;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
+            position: relative;
+        }
+
+        canvas { width: 100%; height: 100%; display: block; }
+
+        /* Order Book / Mining */
+        .trading-panel {
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            border-radius: 4px;
+        }
+
+        .btn {
+            padding: 0.6rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-weight: bold;
+            text-transform: uppercase;
+            width: 100%;
+        }
+
+        .btn-buy { background: var(--accent-green); color: white; }
+        .btn-sell { background: var(--accent-red); color: white; }
+        .btn-upgrade { background: transparent; border: 1px solid var(--accent-green); color: var(--accent-green); }
+        .btn-upgrade:hover { background: var(--accent-green); color: white; }
+
+        .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* News Ticker */
+        .footer {
+            height: 40px;
+            border-top: 1px solid var(--border-color);
+            background: var(--surface-color);
+            display: flex;
+            align-items: center;
+            padding: 0 1rem;
+            overflow: hidden;
+        }
+
+        .news-label {
+            color: var(--accent-green);
+            font-weight: bold;
+            margin-right: 1rem;
+            white-space: nowrap;
+        }
+
+        .news-content {
+            white-space: nowrap;
+            animation: ticker 30s linear infinite;
+        }
+
+        @keyframes ticker {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+
+        @keyframes flash-green {
+            0% { background: rgba(63, 185, 80, 0.3); }
+            100% { background: transparent; }
+        }
+
+        @keyframes flash-red {
+            0% { background: rgba(248, 81, 73, 0.3); }
+            100% { background: transparent; }
+        }
+
+        .flash-g { animation: flash-green 0.5s ease-out; }
+        .flash-r { animation: flash-red 0.5s ease-out; }
+
+        @media (max-width: 1000px) {
+            .main-container { grid-template-columns: 200px 1fr; }
+            .panel:nth-child(3) { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        const ASSETS_INIT = [
+            { id: 'BTC', name: 'SatoshiGold', price: 50000, volatility: 0.02, trend: 0 },
+            { id: 'ETH', name: 'EtherVoid', price: 3000, volatility: 0.04, trend: 0 },
+            { id: 'DOGE', name: 'MoonByte', price: 0.5, volatility: 0.15, trend: 0 },
+            { id: 'LUNA', name: 'TerraCrash', price: 100, volatility: 0.25, trend: -0.01 },
+            { id: 'SOL', name: 'SunGlitch', price: 150, volatility: 0.08, trend: 0.005 },
+        ];
+
+        const NEWS_EVENTS = [
+            { text: "CEO tweets a rocket emoji. Market goes wild!", impact: 0.2, target: 'DOGE' },
+            { text: "Major exchange hack reported. Panic ensues.", impact: -0.15, target: 'ALL' },
+            { text: "Government announces crypto legal tender.", impact: 0.1, target: 'BTC' },
+            { text: "Smart contract exploit found in major protocol.", impact: -0.2, target: 'ETH' },
+            { text: "Institutional investors buy the dip.", impact: 0.05, target: 'ALL' }
+        ];
+
+        function App() {
+            const [isDemo, setIsDemo] = useState(false);
+            const [demoStep, setDemoStep] = useState(0);
+            const [balance, setBalance] = useState(10000);
+            const [portfolio, setPortfolio] = useState({ BTC: 0, ETH: 0, DOGE: 0, LUNA: 0, SOL: 0 });
+            const [assets, setAssets] = useState(ASSETS_INIT);
+            const [selectedAssetId, setSelectedAssetId] = useState('BTC');
+            const [history, setHistory] = useState({ BTC: [], ETH: [], DOGE: [], LUNA: [], SOL: [] });
+            const [miningPower, setMiningPower] = useState(0);
+            const [lastNews, setLastNews] = useState("Market is currently stable. Trading volume is high.");
+            const [logs, setLogs] = useState([]);
+
+            const canvasRef = useRef(null);
+
+            // Logging Helper
+            const addLog = (msg) => {
+                setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50));
+            };
+
+            // Demo Mode Init
+            const startDemo = () => {
+                setIsDemo(true);
+                setBalance(1000000);
+                setPortfolio({ BTC: 10, ETH: 10, DOGE: 10, LUNA: 10, SOL: 10 });
+                setMiningPower(5);
+                setDemoStep(1);
+                addLog("DEMO MODE STARTED: Balance set to $1,000,000.");
+            };
+
+            const endDemo = () => {
+                setIsDemo(false);
+                setBalance(10000);
+                setPortfolio({ BTC: 0, ETH: 0, DOGE: 0, LUNA: 0, SOL: 0 });
+                setMiningPower(0);
+                setDemoStep(0);
+                setLogs([]);
+            };
+
+            // Market Engine
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    setAssets(prev => prev.map(a => {
+                        const change = (Math.random() - 0.5 + a.trend) * a.volatility;
+                        const newPrice = Math.max(0.01, a.price * (1 + change));
+                        
+                        if (isDemo && Math.random() > 0.8) {
+                            addLog(`PRICE UPDATE: ${a.id} volatility(${a.volatility}) * noise(${change.toFixed(4)}) = $${newPrice.toFixed(2)}`);
+                        }
+                        
+                        return { ...a, price: newPrice };
+                    }));
+
+                    // News trigger
+                    if (Math.random() > 0.99) {
+                        const event = NEWS_EVENTS[Math.floor(Math.random() * NEWS_EVENTS.length)];
+                        setLastNews(event.text);
+                        addLog(`NEWS EVENT: ${event.text} (Impact: ${event.impact * 100}%)`);
+                        setAssets(prev => prev.map(a => {
+                            if (event.target === 'ALL' || event.target === a.id) {
+                                return { ...a, price: a.price * (1 + event.impact) };
+                            }
+                            return a;
+                        }));
+                    }
+                }, 1000);
+                return () => clearInterval(interval);
+            }, [isDemo]);
+
+            // History tracking & Mining
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    setHistory(prev => {
+                        const next = { ...prev };
+                        assets.forEach(a => {
+                            next[a.id] = [...(next[a.id] || []), a.price].slice(-100);
+                        });
+                        return next;
+                    });
+
+                    // Passive Mining (generates tiny BTC)
+                    if (miningPower > 0) {
+                        const mined = miningPower * 0.00001;
+                        setPortfolio(prev => ({ ...prev, BTC: prev.BTC + mined }));
+                        if (isDemo && Math.random() > 0.5) {
+                            addLog(`MINING TICK: Hashrate(${miningPower}) * Difficulty = +${mined.toFixed(6)} BTC`);
+                        }
+                    }
+                }, 2000);
+                return () => clearInterval(interval);
+            }, [assets, miningPower, isDemo]);
+
+            // Chart Rendering
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const h = history[selectedAssetId] || [];
+                if (h.length < 2) return;
+
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.strokeStyle = isDemo ? '#60a5fa' : '#3fb950';
+                ctx.lineWidth = 2;
+
+                const max = Math.max(...h) * 1.1;
+                const min = Math.min(...h) * 0.9;
+                const range = max - min;
+
+                ctx.beginPath();
+                h.forEach((p, i) => {
+                    const x = (i / (h.length - 1)) * canvas.width;
+                    const y = canvas.height - ((p - min) / range) * canvas.height;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+
+                // Gradient fill
+                ctx.lineTo(canvas.width, canvas.height);
+                ctx.lineTo(0, canvas.height);
+                const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                grad.addColorStop(0, isDemo ? 'rgba(96, 165, 250, 0.2)' : 'rgba(63, 185, 80, 0.2)');
+                grad.addColorStop(1, isDemo ? 'rgba(96, 165, 250, 0)' : 'rgba(63, 185, 80, 0)');
+                ctx.fillStyle = grad;
+                ctx.fill();
+
+            }, [history, selectedAssetId, isDemo]);
+
+            const buy = (id) => {
+                const asset = assets.find(a => a.id === id);
+                if (balance >= asset.price) {
+                    setBalance(b => b - asset.price);
+                    setPortfolio(p => ({ ...p, [id]: p[id] + 1 }));
+                    if (isDemo) addLog(`TRADE EXECUTION: BUY 1 ${id} @ $${asset.price.toFixed(2)}`);
+                }
+            };
+
+            const sell = (id) => {
+                const asset = assets.find(a => a.id === id);
+                if (portfolio[id] >= 1) {
+                    setBalance(b => b + asset.price);
+                    setPortfolio(p => ({ ...p, [id]: p[id] - 1 }));
+                    if (isDemo) addLog(`TRADE EXECUTION: SELL 1 ${id} @ $${asset.price.toFixed(2)}`);
+                }
+            };
+
+            const upgradeMining = () => {
+                const cost = (miningPower + 1) * 500;
+                if (balance >= cost) {
+                    setBalance(b => b - cost);
+                    setMiningPower(p => p + 1);
+                    if (isDemo) addLog(`SYSTEM UPGRADE: Mining Hashrate increased to ${miningPower + 1} GH/s`);
+                }
+            };
+
+            const selectedAsset = assets.find(a => a.id === selectedAssetId);
+
+            return (
+                <>
+                    {/* DEMO OVERLAY */}
+                    {isDemo && (
+                        <div style={{
+                            position: 'absolute', top: '60px', right: '20px', width: '350px',
+                            background: 'rgba(15, 23, 42, 0.95)', border: '1px solid #60a5fa',
+                            padding: '1rem', borderRadius: '8px', zIndex: 100, color: '#e2e8f0',
+                            boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+                        }}>
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem'}}>
+                                <h3 style={{margin: 0, color: '#60a5fa'}}>👨‍🏫 TUTOR MODE</h3>
+                                <button onClick={endDemo} style={{background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', cursor: 'pointer', padding: '2px 8px'}}>EXIT</button>
+                            </div>
+                            
+                            <div style={{marginBottom: '1rem', fontSize: '0.9rem', lineHeight: '1.4'}}>
+                                {demoStep === 1 && "Welcome! Notice your balance is $1M. In this mode, we reveal the hidden logic behind the market."}
+                                {demoStep === 2 && "Look at the LOG below. Every second, a 'Random Walk' algorithm updates prices based on asset volatility."}
+                                {demoStep === 3 && "Try BUYING some Doge (MoonByte). It's highly volatile (0.15), meaning huge potential gains... or losses."}
+                                {demoStep === 4 && "Check the Mining Rig. It passively generates SatoshiGold (BTC) every 2 seconds based on your Hashrate."}
+                            </div>
+
+                            <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                                <button disabled={demoStep <= 1} onClick={() => setDemoStep(s => s - 1)} className="btn" style={{width: 'auto', fontSize: '0.8rem'}}>Prev</button>
+                                <button disabled={demoStep >= 4} onClick={() => setDemoStep(s => s + 1)} className="btn" style={{width: 'auto', fontSize: '0.8rem', background: '#60a5fa', color: 'black'}}>Next</button>
+                            </div>
+
+                            <div style={{marginTop: '1rem', borderTop: '1px solid #334155', paddingTop: '0.5rem'}}>
+                                <div style={{fontSize: '0.7rem', color: '#94a3b8', marginBottom: '0.25rem'}}>LOGIC KERNEL OUTPUT:</div>
+                                <div style={{
+                                    height: '150px', overflowY: 'auto', fontFamily: 'monospace', 
+                                    fontSize: '0.7rem', color: '#34d399', background: '#000', padding: '0.5rem'
+                                }}>
+                                    {logs.map((l, i) => <div key={i}>{l}</div>)}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="header">
+                        <div style={{fontWeight: 'bold', fontSize: '1.2rem'}}>
+                            CRYPTO-TYCOON <span style={{color: 'var(--text-secondary)', fontSize: '0.8rem'}}>v1.0.4-BETA</span>
+                            {!isDemo && <button onClick={startDemo} style={{marginLeft: '1rem', fontSize: '0.7rem', padding: '2px 8px', background: 'var(--surface-color)', border: '1px solid var(--accent-green)', color: 'var(--accent-green)', cursor: 'pointer'}}>START DEMO</button>}
+                        </div>
+                        <div style={{display: 'flex', gap: '2rem'}}>
+                            <div>CASH: <span style={{color: 'var(--accent-green)'}}>${balance.toLocaleString(undefined, {maximumFractionDigits: 2})}</span></div>
+                            <div>PORTFOLIO: ${Object.keys(portfolio).reduce((total, id) => total + (portfolio[id] * assets.find(a => a.id === id).price), 0).toLocaleString(undefined, {maximumFractionDigits: 2})}</div>
+                        </div>
+                    </div>
+
+                    <div className="main-container">
+                        {/* Panel 1: Assets */}
+                        <div className="panel">
+                            <div className="panel-header">Markets <span>(LIVE)</span></div>
+                            <div className="asset-list">
+                                {assets.map(a => (
+                                    <div 
+                                        key={a.id} 
+                                        className={`asset-row ${selectedAssetId === a.id ? 'selected' : ''}`}
+                                        onClick={() => setSelectedAssetId(a.id)}
+                                    >
+                                        <div>
+                                            <div style={{fontWeight: 'bold'}}>{a.id}</div>
+                                            <div style={{fontSize: '0.7rem', color: 'var(--text-secondary)'}}>{a.name}</div>
+                                        </div>
+                                        <div className={a.price > (history[a.id]?.[history[a.id].length-2] || a.price) ? 'price-up' : 'price-down'}>
+                                            ${a.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Panel 2: Chart & Details */}
+                        <div className="panel" style={{borderRight: 'none'}}>
+                            <div className="chart-area">
+                                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end'}}>
+                                    <div>
+                                        <h2 style={{fontSize: '1.5rem'}}>{selectedAsset.name} / USD</h2>
+                                        <div style={{color: 'var(--text-secondary)'}}>{selectedAssetId} Marketplace</div>
+                                    </div>
+                                    <div style={{textAlign: 'right'}}>
+                                        <div style={{fontSize: '1.8rem', fontWeight: 'bold'}}>${selectedAsset.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                                        <div style={{color: 'var(--accent-green)'}}>+{(selectedAsset.volatility*100).toFixed(2)}% VOLATILITY</div>
+                                    </div>
+                                </div>
+                                <div className="chart-canvas-container">
+                                    <canvas ref={canvasRef} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Panel 3: Trading & Mining */}
+                        <div className="panel" style={{borderLeft: '1px solid var(--border-color)', borderRight: 'none'}}>
+                            <div className="trading-panel">
+                                <div className="stat-card">
+                                    <div className="panel-header" style={{background: 'none', border: 'none', padding: 0, marginBottom: '0.5rem'}}>Execution</div>
+                                    <div style={{marginBottom: '1rem', fontSize: '0.8rem'}}>Holdings: {portfolio[selectedAssetId].toFixed(4)} {selectedAssetId}</div>
+                                    <div style={{display: 'flex', gap: '0.5rem'}}>
+                                        <button className="btn btn-buy" onClick={() => buy(selectedAssetId)} disabled={balance < selectedAsset.price}>Buy 1</button>
+                                        <button className="btn btn-sell" onClick={() => sell(selectedAssetId)} disabled={portfolio[selectedAssetId] < 1}>Sell 1</button>
+                                    </div>
+                                </div>
+
+                                <div className="stat-card">
+                                    <div className="panel-header" style={{background: 'none', border: 'none', padding: 0, marginBottom: '0.5rem'}}>Mining Rig</div>
+                                    <div style={{fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem'}}>Hashrate: {miningPower} GH/s</div>
+                                    <div style={{fontSize: '0.7rem', marginBottom: '1rem'}}>Passively generating SatoshiGold...</div>
+                                    <button className="btn btn-upgrade" onClick={upgradeMining} disabled={balance < (miningPower + 1) * 500}>
+                                        Upgrade (${((miningPower + 1) * 500).toLocaleString()})
+                                    </button>
+                                </div>
+
+                                <div style={{marginTop: 'auto', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '4px', border: '1px solid var(--border-color)'}}>
+                                    <div style={{fontSize: '0.7rem', color: 'var(--text-secondary)'}}>NETWORK STATUS:</div>
+                                    <div style={{color: 'var(--accent-green)', fontSize: '0.8rem'}}>● ENCRYPTED & SECURE</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="footer">
+                        <span className="news-label">NEWS TICKET:</span>
+                        <div className="news-content">{lastNews}</div>
+                    </div>
+                </>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

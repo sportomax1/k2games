@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Flight Controller | ATC Simulation</title>
+    <!-- React & Babel CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        :root {
+            --bg-radar: #050a05;
+            --line-primary: #00ff41;
+            --line-dim: #004411;
+            --text-primary: #00ff41;
+            --danger: #ff3333;
+            --warning: #ffcc00;
+            --ui-bg: #0a0f0a;
+            --font-mono: 'Courier New', Courier, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: #000;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #root {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .game-wrapper {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Sidebar UI */
+        .sidebar {
+            width: 300px;
+            background: var(--ui-bg);
+            border-right: 1px solid var(--line-dim);
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            z-index: 10;
+        }
+
+        .sidebar h1 {
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--line-primary);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-box {
+            padding: 0.5rem;
+            border: 1px solid var(--line-dim);
+            background: rgba(0, 255, 65, 0.05);
+            font-size: 0.9rem;
+        }
+
+        .stat-label {
+            color: #008822;
+            font-size: 0.75rem;
+        }
+
+        .plane-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            overflow-y: auto;
+        }
+
+        .plane-card {
+            padding: 0.5rem;
+            border: 1px solid var(--line-dim);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .plane-card.selected {
+            border-color: var(--line-primary);
+            background: rgba(0, 255, 65, 0.15);
+        }
+
+        .plane-card:hover {
+            background: rgba(0, 255, 65, 0.1);
+        }
+
+        /* Radar Canvas */
+        .radar-container {
+            flex: 1;
+            position: relative;
+            background-color: var(--bg-radar);
+            cursor: crosshair;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            pointer-events: none;
+            text-align: right;
+        }
+
+        .alert-msg {
+            color: var(--danger);
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        /* Modal */
+        .modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--ui-bg);
+            border: 2px solid var(--line-primary);
+            padding: 2rem;
+            text-align: center;
+            z-index: 100;
+            box-shadow: 0 0 50px rgba(0, 255, 65, 0.2);
+            max-width: 600px;
+        }
+        
+        .fade-in {
+             animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal h2 { margin-bottom: 1rem; }
+        .modal p { line-height: 1.6; margin-bottom: 1rem; }
+        .modal ul { margin-bottom: 2rem; padding-left: 1.5rem; text-align: left; }
+        .modal li { margin-bottom: 0.5rem; }
+
+        .btn {
+            background: transparent;
+            border: 1px solid var(--line-primary);
+            color: var(--line-primary);
+            padding: 0.5rem 1rem;
+            margin-top: 1rem;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+        }
+
+        .btn:hover {
+            background: var(--line-primary);
+            color: black;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 150px;
+                font-size: 0.7rem;
+            }
+            .sidebar h1 { font-size: 0.8rem; }
+            .stat-box { font-size: 0.7rem; }
+            .modal { width: 90%; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        const COLLISION_RADIUS = 40;
+        const LANDING_RADIUS = 30;
+        const FUEL_DRAIN_RATE = 0.05;
+        const SPAWN_RATE = 5000;
+
+        const distance = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+        const normalizeAngle = (a) => (a + Math.PI * 2) % (Math.PI * 2);
+
+        function App() {
+            const canvasRef = useRef(null);
+            const [planes, setPlanes] = useState([]);
+            const [score, setScore] = useState({ landed: 0, departed: 0 });
+            const [crashes, setCrashes] = useState(0);
+            const [gameState, setGameState] = useState('BRIEFING');
+            const [selectedPlaneId, setSelectedPlaneId] = useState(null);
+            const [dimensions, setDimensions] = useState({ w: window.innerWidth, h: window.innerHeight });
+            const [scanAngle, setScanAngle] = useState(0);
+
+            const requestRef = useRef();
+            const lastSpawnRef = useRef(0);
+
+            useEffect(() => {
+                const handleResize = () => setDimensions({ w: window.innerWidth, h: window.innerHeight });
+                window.addEventListener('resize', handleResize);
+                return () => window.removeEventListener('resize', handleResize);
+            }, []);
+
+            const spawnPlane = useCallback((isDeparture = false) => {
+                const id = `FL-${Math.floor(100 + Math.random() * 899)}`;
+                const radarWidth = dimensions.w - 300;
+                const centerX = radarWidth / 2;
+
+                if (isDeparture) {
+                    return {
+                        id, x: centerX + 300, y: dimensions.h / 2, heading: 270 * (Math.PI/180),
+                        targetHeading: 270 * (Math.PI/180), speed: 0, altitude: 0,
+                        targetAltitude: 8000, fuel: 100, path: [], status: 'DEPARTURE', alert: false
+                    };
+                }
+
+                const side = Math.floor(Math.random() * 4);
+                let x, y;
+                const margin = 50;
+
+                if (side === 0) { x = margin + 300; y = Math.random() * dimensions.h; }
+                else if (side === 1) { x = dimensions.w - margin; y = Math.random() * dimensions.h; }
+                else if (side === 2) { x = Math.random() * radarWidth + 300; y = margin; }
+                else { x = Math.random() * radarWidth + 300; y = dimensions.h - margin; }
+
+                const heading = Math.atan2((dimensions.h/2) - y, (centerX + 300) - x);
+
+                return {
+                    id, x, y, heading, targetHeading: heading, speed: 0.8 + Math.random() * 0.5,
+                    altitude: 3000 + Math.floor(Math.random() * 7) * 1000, fuel: 80 + Math.random() * 20,
+                    path: [], status: 'ARRIVAL', alert: false, targetAltitude: 3000 + Math.floor(Math.random() * 7) * 1000
+                };
+            }, [dimensions]);
+
+            const update = useCallback((time) => {
+                if (gameState !== 'PLAYING') return;
+
+                if (time - lastSpawnRef.current > SPAWN_RATE) {
+                    setPlanes(prev => [...prev, spawnPlane(Math.random() > 0.7)]);
+                    lastSpawnRef.current = time;
+                }
+
+                setPlanes(prevPlanes => {
+                    const newPlanes = prevPlanes.map(p => {
+                        let { x, y, heading, targetHeading, speed, fuel, path, altitude, targetAltitude, status } = p;
+                        fuel -= FUEL_DRAIN_RATE;
+                        const turnSpeed = 0.02;
+                        let diff = normalizeAngle(targetHeading - heading);
+                        if (diff > Math.PI) diff -= Math.PI * 2;
+                        if (Math.abs(diff) > turnSpeed) heading += Math.sign(diff) * turnSpeed;
+                        else heading = targetHeading;
+                        if (path.length > 0) {
+                            const wp = path[0];
+                            if (distance({ x, y }, wp) < 15) path.shift();
+                            else targetHeading = Math.atan2(wp.y - y, wp.x - x);
+                        }
+                        if (altitude < targetAltitude) altitude += 20;
+                        if (altitude > targetAltitude) altitude -= 20;
+                        if (status === 'DEPARTURE' && altitude > 100) speed = 1.5;
+                        x += Math.cos(heading) * speed;
+                        y += Math.sin(heading) * speed;
+                        return { ...p, x, y, heading, targetHeading, fuel, path, altitude, speed };
+                    });
+
+                    let collisionOccurred = false;
+                    for (let i = 0; i < newPlanes.length; i++) {
+                        for (let j = i + 1; j < newPlanes.length; j++) {
+                            const p1 = newPlanes[i]; const p2 = newPlanes[j];
+                            if (distance(p1, p2) < COLLISION_RADIUS && Math.abs(p1.altitude - p2.altitude) < 1000) {
+                                collisionOccurred = true; break;
+                            }
+                        }
+                    }
+
+                    const radarWidth = dimensions.w - 300;
+                    const centerX = radarWidth / 2 + 300;
+                    const filtered = newPlanes.filter(p => {
+                        if (p.status === 'ARRIVAL' && distance(p, {x: centerX, y: dimensions.h/2}) < LANDING_RADIUS && p.altitude < 1500) {
+                            setScore(s => ({ ...s, landed: s.landed + 1 })); return false;
+                        }
+                        if (p.x < 250 || p.x > dimensions.w + 50 || p.y < -50 || p.y > dimensions.h + 50) {
+                            if (p.status === 'DEPARTURE') setScore(s => ({...s, departed: s.departed + 1}));
+                            else setCrashes(c => c + 1);
+                            return false;
+                        }
+                        if (p.fuel <= 0) { setCrashes(c => c + 1); return false; }
+                        return true;
+                    });
+                    if (collisionOccurred || crashes > 2) setGameState('GAME_OVER');
+                    return filtered;
+                });
+
+                setScanAngle(a => (a + 0.01) % (Math.PI * 2));
+                requestRef.current = requestAnimationFrame(update);
+            }, [gameState, spawnPlane, dimensions, crashes]);
+
+            useEffect(() => {
+                if (gameState === 'PLAYING') {
+                    requestRef.current = requestAnimationFrame(update);
+                }
+                return () => cancelAnimationFrame(requestRef.current);
+            }, [gameState, update]);
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const radarW = dimensions.w - 300;
+                ctx.clearRect(0, 0, radarW, dimensions.h);
+                const centerX = radarW / 2;
+                const centerY = dimensions.h / 2;
+                const radius = Math.min(centerX, centerY) - 20;
+
+                ctx.strokeStyle = varColor('--line-dim'); ctx.lineWidth = 1;
+                for (let r = 100; r < radarW; r += 100) {
+                    ctx.beginPath(); ctx.arc(centerX, centerY, r, 0, Math.PI * 2); ctx.stroke();
+                }
+                ctx.fillStyle = 'rgba(0, 255, 65, 0.05)';
+                ctx.fillRect(0, centerY - 20, radarW, 40);
+                ctx.strokeStyle = varColor('--line-primary'); ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(centerX - 50, centerY); ctx.lineTo(centerX + 50, centerY); ctx.stroke();
+
+                const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+                grad.addColorStop(0, 'rgba(0, 255, 65, 0.2)'); grad.addColorStop(1, 'transparent');
+                ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, scanAngle, scanAngle + Math.PI / 2); ctx.fill();
+
+                planes.forEach(p => {
+                    const planeX = p.x - 300;
+                    const isSelected = p.id === selectedPlaneId;
+                    ctx.strokeStyle = isSelected ? varColor('--line-primary') : '#00aa33';
+                    ctx.fillStyle = ctx.strokeStyle;
+                    ctx.save();
+                    ctx.translate(planeX, p.y);
+                    ctx.rotate(p.heading);
+                    ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-5, -5); ctx.lineTo(-5, 5); ctx.closePath();
+                    ctx.stroke();
+                    ctx.restore();
+                    ctx.font = '10px Courier New';
+                    ctx.fillText(p.id, planeX + 12, p.y - 5);
+                    ctx.fillText(`${Math.round(p.altitude)}' ${Math.round(p.fuel)}%`, planeX + 12, p.y + 5);
+                    if (p.path.length > 0) {
+                        ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(planeX, p.y);
+                        p.path.forEach(wp => ctx.lineTo(wp.x - 300, wp.y));
+                        ctx.stroke(); ctx.setLineDash([]);
+                    }
+                });
+            }, [planes, dimensions, selectedPlaneId, scanAngle]);
+
+            const varColor = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+            const handleCanvasClick = (e) => {
+                const rect = canvasRef.current.getBoundingClientRect();
+                const x = e.clientX;
+                const y = e.clientY - rect.top;
+                const clickedPlane = planes.find(p => distance({x: p.x, y: p.y}, { x, y }) < 20);
+                if (clickedPlane) {
+                    setSelectedPlaneId(clickedPlane.id);
+                } else if (selectedPlaneId) {
+                    setPlanes(prev => prev.map(p => {
+                        if (p.id === selectedPlaneId) return { ...p, path: [...p.path, { x, y }] };
+                        return p;
+                    }));
+                }
+            };
+            
+            const resetGame = () => {
+                setPlanes([]); setScore({ landed: 0, departed: 0 }); setCrashes(0);
+                setGameState('BRIEFING'); setSelectedPlaneId(null);
+            };
+            const startGame = () => { setGameState('PLAYING'); lastSpawnRef.current = performance.now(); }
+
+            if (gameState === 'BRIEFING') {
+                 return (
+                    <div className="modal fade-in">
+                        <h2>SHIFT BRIEFING: SECTOR 7G</h2>
+                        <p>Welcome, Controller. Your objective is to manage Terminal Airspace safely.</p>
+                        <ul>
+                            <li><b>ARRIVALS</b>: Guide planes to the central runway. They must be below <b>2000ft</b> to land.</li>
+                            <li><b>DEPARTURES</b>: Spawn on the runway. Guide them out of the sector to score.</li>
+                            <li><b>SEPARATION</b>: Maintain at least <b>1000ft</b> altitude difference or <b>40 units</b> lateral distance.</li>
+                            <li><b>CONTROLS</b>: Click a plane to select. Click on the radar to set waypoints.</li>
+                        </ul>
+                        <button className="btn" onClick={startGame} style={{width: '100%', padding: '1rem'}}>ACCEPT DUTY</button>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="game-wrapper">
+                    <div className="sidebar">
+                        <h1>SKY CONTROL</h1>
+                        <div className="stat-box">
+                            <div className="stat-label">OPERATIONS</div>
+                            <div>Landed: {score.landed}</div>
+                            <div>Departed: {score.departed}</div>
+                        </div>
+                        <div className="stat-box">
+                            <div className="stat-label">SAFETY RECORD</div>
+                            <div style={{color: crashes > 0 ? 'var(--danger)' : 'inherit'}}>{3 - crashes} LIVES REMAINING</div>
+                        </div>
+                        <div className="plane-info">
+                            <div className="stat-label">ACTIVE FLIGHTS</div>
+                            {planes.map(p => (
+                                <div key={p.id} className={`plane-card ${selectedPlaneId === p.id ? 'selected' : ''}`} onClick={() => setSelectedPlaneId(p.id)}>
+                                    <div>{p.id} ({p.status.slice(0,4)})</div>
+                                    <div style={{fontSize: '0.7rem', color: '#008822'}}>ALT: {Math.round(p.altitude)}' | FUEL: {Math.round(p.fuel)}%</div>
+                                    {p.fuel < 30 && <div className="alert-msg" style={{fontSize: '0.6rem'}}>LOW FUEL</div>}
+                                </div>
+                            ))}
+                        </div>
+                        <div style={{fontSize: '0.7rem', color: '#006611', marginTop: 'auto'}}>SYSTEM: OPERATIONAL<br/>RADAR: ACTIVE</div>
+                    </div>
+                    <div className="radar-container" onClick={handleCanvasClick}>
+                        <canvas ref={canvasRef} width={dimensions.w - 300} height={dimensions.h} />
+                        <div className="overlay">
+                            <div>HDG: {selectedPlaneId ? Math.round(planes.find(p => p.id === selectedPlaneId)?.heading * 180 / Math.PI) : '---'}°</div>
+                            <div style={{fontSize: '0.8rem'}}>SECTOR: 7G</div>
+                        </div>
+                        {gameState === 'GAME_OVER' && (
+                            <div className="modal">
+                                <h2>SYSTEM CRITICAL FAILURE</h2>
+                                <p style={{marginTop: '1rem'}}>Multiple collisions or fuel exhaustions detected.</p>
+                                <p style={{fontSize: '1.5rem', margin: '1rem 0'}}>FINAL SCORE: {score.landed + score.departed}</p>
+                                <button className="btn" onClick={resetGame}>Reboot System</button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

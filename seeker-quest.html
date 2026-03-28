@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Seeker Quest - Find the Hidden Character!</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #0f172a;
+            --text: #f8fafc;
+            --accent: #ef4444;
+            --panel: #1e293b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        html, body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden; /* Prevent all scrolling */
+            position: fixed; /* Lock viewport on mobile */
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            touch-action: none; /* Disable browser gestures like pull-to-refresh */
+        }
+
+        header {
+            background: var(--panel);
+            padding: 8px 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 10;
+            border-bottom: 2px solid #334155;
+            flex-shrink: 0;
+        }
+
+        .target-panel {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #334155;
+            padding: 5px 12px;
+            border-radius: 50px;
+            border: 2px solid #475569;
+        }
+
+        #target-canvas {
+            width: 50px;
+            height: 50px;
+            background: white;
+            border-radius: 10px;
+            border: 2px solid #64748b;
+        }
+
+        .controls { display: flex; gap: 8px; }
+
+        button {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: none;
+            background: var(--primary);
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+        }
+
+        button:hover { filter: brightness(1.2); }
+        button.secondary { background: #475569; }
+        button.active { background: #10b981; box-shadow: 0 0 10px rgba(16, 185, 129, 0.4); }
+
+        #game-container {
+            flex-grow: 1;
+            position: relative;
+            cursor: crosshair;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            overflow: hidden;
+        }
+
+        canvas#main-canvas { display: block; }
+
+        #overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(30, 41, 59, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            display: none;
+            z-index: 100;
+            border: 2px solid #3b82f6;
+            backdrop-filter: blur(10px);
+            width: 80%;
+            max-width: 400px;
+        }
+
+        #win-title { font-size: 1.8rem; color: #10b981; margin-bottom: 10px; }
+        .stats { font-weight: 800; color: #94a3b8; font-size: 0.8rem; }
+        #win-stats { font-size: 1rem; margin-bottom: 20px; }
+
+        @media (max-width: 600px) {
+            header { padding: 5px 10px; }
+            .target-panel span { display: none; } /* Hide text on mobile to save space */
+            #game-stats { display: none; } /* Hide live stats on small screens */
+        }
+    </style>
+</head>
+<body>
+
+<header id="game-header">
+    <div class="target-panel">
+        <span>FIND ME:</span>
+        <canvas id="target-canvas" width="60" height="60"></canvas>
+    </div>
+    <div class="stats" id="game-stats">TIME: 0.0s | COUNT: 0</div>
+    <div class="controls">
+        <button id="mode-toggle">MOVE: OFF</button>
+        <button id="reset-btn" class="secondary">NEW</button>
+    </div>
+</header>
+
+<div id="game-container">
+    <canvas id="main-canvas"></canvas>
+    <div id="overlay">
+        <h1 id="win-title">FOUND IT! 🎯</h1>
+        <p id="win-stats"></p>
+        <button id="play-again-btn" style="width: 100%;">Next Level</button>
+    </div>
+</div>
+
+<script>
+(function() {
+    const mainCanvas = document.getElementById('main-canvas');
+    const ctx = mainCanvas.getContext('2d');
+    const targetCanvas = document.getElementById('target-canvas');
+    const tCtx = targetCanvas.getContext('2d');
+    const statsEl = document.getElementById('game-stats');
+    const modeBtn = document.getElementById('mode-toggle');
+    const resetBtn = document.getElementById('reset-btn');
+    const overlay = document.getElementById('overlay');
+    const playAgainBtn = document.getElementById('play-again-btn');
+
+    let characters = [];
+    let targetIndex = -1;
+    let isMoving = false;
+    let startTime = 0;
+    let gameActive = false;
+    let animationId = null;
+
+    const COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#ffffff', '#fbbf24'];
+    const SHAPES = ['circle', 'square', 'triangle', 'pentagon', 'pill'];
+    const EMOJIS = ['🦁', '🤖', '👽', '🤡', '👻', '🐙', '🦖', '🦄', '🎭', '🤠', '🦊', '🐢', '🧿', '🔥'];
+    const PATTERNS = ['none', 'dots', 'stripes', 'gradient'];
+
+    class Character {
+        constructor() {
+            this.id = Math.random().toString(36).substr(2, 9);
+            this.size = 22 + Math.random() * 12;
+            this.x = 0; this.y = 0;
+            this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
+            this.shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+            this.useEmoji = Math.random() < 0.25;
+            this.emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+            this.pattern = PATTERNS[Math.floor(Math.random() * PATTERNS.length)];
+            this.patternColor = COLORS[Math.floor(Math.random() * COLORS.length)];
+            this.hasCape = Math.random() < 0.2;
+            this.hasGlasses = Math.random() < 0.25;
+            
+            this.vx = (Math.random() - 0.5) * 1.5;
+            this.vy = (Math.random() - 0.5) * 1.5;
+            this.bobOffset = Math.random() * Math.PI * 2;
+            this.bobSpeed = 0.02 + Math.random() * 0.03;
+        }
+
+        draw(c, x = this.x, y = this.y, size = this.size, inUI = false) {
+            c.save();
+            c.translate(x, y);
+            const active = (isMoving && gameActive) || inUI;
+            if (active) c.translate(0, Math.sin(Date.now() * this.bobSpeed + this.bobOffset) * 3);
+            if (active) c.rotate(Math.sin(Date.now() * 0.002 + this.bobOffset) * 0.12);
+
+            if (this.hasCape) {
+                c.fillStyle = this.patternColor; c.beginPath();
+                const sway = active ? Math.sin(Date.now() * 0.005 + this.bobOffset) * 4 : 0;
+                c.moveTo(-size/2, 0); c.lineTo(size/2, 0); c.lineTo(size/1.5 + sway, size); c.lineTo(-size/1.5 + sway, size);
+                c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1; c.stroke();
+            }
+
+            c.fillStyle = this.color; c.strokeStyle = '#000'; c.lineWidth = 2;
+            if (this.useEmoji) {
+                c.font = `${size}px serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+                c.fillText(this.emoji, 0, 0);
+            } else {
+                c.beginPath();
+                if (this.shape === 'circle') c.arc(0, 0, size/2, 0, Math.PI * 2);
+                else if (this.shape === 'square') c.rect(-size/2, -size/2, size, size);
+                else if (this.shape === 'triangle') { c.moveTo(0, -size/2); c.lineTo(size/2, size/2); c.lineTo(-size/2, size/2); c.closePath(); }
+                else if (this.shape === 'pill') c.roundRect(-size/3, -size/2, size/1.5, size, size/3);
+                else if (this.shape === 'pentagon') { for(let i=0; i<5; i++) { const a = (i*2*Math.PI/5)-Math.PI/2; c.lineTo(size/2*Math.cos(a), size/2*Math.sin(a)); } c.closePath(); }
+                c.fill();
+                if (this.pattern !== 'none') {
+                    c.clip(); c.fillStyle = this.patternColor;
+                    if (this.pattern === 'dots') { for(let i=-2; i<2; i++) for(let j=-2; j<2; j++) { c.beginPath(); c.arc(i*10, j*10, 2, 0, Math.PI*2); c.fill(); } }
+                    else if (this.pattern === 'stripes') { for(let i=-2; i<2; i++) c.fillRect(i*12, -size, 4, size*2); }
+                }
+                c.stroke();
+                c.fillStyle = 'white'; c.beginPath(); c.arc(-size/5, -size/10, size/8, 0, Math.PI*2); c.arc(size/5, -size/10, size/8, 0, Math.PI*2); c.fill();
+                c.fillStyle = 'black'; c.beginPath(); c.arc(-size/5, -size/10, size/16, 0, Math.PI*2); c.arc(size/5, -size/10, size/16, 0, Math.PI*2); c.fill();
+                if (this.hasGlasses) { c.strokeStyle = '#000'; c.lineWidth = 1.2; c.beginPath(); c.arc(-size/5, -size/10, size/7, 0, Math.PI*2); c.stroke(); c.beginPath(); c.arc(size/5, -size/10, size/7, 0, Math.PI*2); c.stroke(); c.beginPath(); c.moveTo(-size/10, -size/10); c.lineTo(size/10, -size/10); c.stroke(); }
+            }
+            c.restore();
+        }
+
+        update() {
+            if (!isMoving || !gameActive) return;
+            this.x += this.vx; this.y += this.vy;
+            if (this.x < this.size) this.vx *= -1; if (this.x > mainCanvas.width - this.size) this.vx *= -1;
+            if (this.y < this.size) this.vy *= -1; if (this.y > mainCanvas.height - this.size) this.vy *= -1;
+        }
+
+        contains(mx, my) {
+            const dx = mx - this.x, dy = my - this.y;
+            return Math.sqrt(dx*dx + dy*dy) < this.size;
+        }
+    }
+
+    function resize() {
+        const header = document.getElementById('game-header');
+        const hHeight = header ? header.offsetHeight : 0;
+        mainCanvas.width = window.innerWidth;
+        mainCanvas.height = window.innerHeight - hHeight;
+        if (gameActive) {
+            // Re-normalize positions if resized mid-game
+            characters.forEach(c => {
+                if (c.x > mainCanvas.width) c.x = mainCanvas.width - c.size;
+                if (c.y > mainCanvas.height) c.y = mainCanvas.height - c.size;
+            });
+        }
+    }
+
+    function initGame() {
+        resize();
+        overlay.style.display = 'none';
+        characters = [];
+        
+        const cellS = Math.min(mainCanvas.width, mainCanvas.height) / 8;
+        const cols = Math.floor(mainCanvas.width / cellS);
+        const rows = Math.floor(mainCanvas.height / cellS);
+        const cellW = mainCanvas.width / cols;
+        const cellH = mainCanvas.height / rows;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const char = new Character();
+                char.x = c * cellW + cellW/2 + (Math.random() - 0.5) * cellW * 0.7;
+                char.y = r * cellH + cellH/2 + (Math.random() - 0.5) * cellH * 0.7;
+                characters.push(char);
+            }
+        }
+
+        targetIndex = Math.floor(Math.random() * characters.length);
+        tCtx.clearRect(0, 0, 60, 60);
+        characters[targetIndex].draw(tCtx, 30, 30, 30, true);
+
+        startTime = Date.now();
+        gameActive = true;
+        if (animationId) cancelAnimationFrame(animationId);
+        animate();
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+        characters.forEach(char => { char.update(); char.draw(ctx); });
+        if (gameActive) {
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            if (statsEl) statsEl.innerText = `TIME: ${elapsed}s | COUNT: ${characters.length}`;
+            animationId = requestAnimationFrame(animate);
+        }
+    }
+
+    function handleInteraction(e) {
+        if (!gameActive) return;
+        e.preventDefault();
+        const rect = mainCanvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const mx = clientX - rect.left;
+        const my = clientY - rect.top;
+        if (characters[targetIndex].contains(mx, my)) win();
+    }
+
+    function win() {
+        gameActive = false;
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        overlay.style.display = 'block';
+        document.getElementById('win-stats').innerText = `Target located in ${elapsed} seconds!`;
+    }
+
+    modeBtn.addEventListener('click', () => {
+        isMoving = !isMoving;
+        modeBtn.innerText = `MOVE: ${isMoving ? 'ON' : 'OFF'}`;
+        modeBtn.classList.toggle('active', isMoving);
+    });
+
+    resetBtn.addEventListener('click', initGame);
+    playAgainBtn.addEventListener('click', initGame);
+    window.addEventListener('resize', resize);
+    mainCanvas.addEventListener('mousedown', handleInteraction);
+    mainCanvas.addEventListener('touchstart', handleInteraction, {passive: false});
+
+    initGame();
+})();
+</script>
+
+</body>
+</html>

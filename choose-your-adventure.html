@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinite Quest: A Family Adventure</title>
+    <!-- React & Babel CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg-color: #f0f9ff;
+            --surface-color: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --accent-color: #38bdf8;
+            --danger-color: #fb7185;
+            --success-color: #34d399;
+            --warning-color: #fbbf24;
+            --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --transition-speed: 0.3s;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: radial-gradient(circle at 20% 20%, #e0f2fe 0%, transparent 40%),
+                              radial-gradient(circle at 80% 80%, #fef3c7 0%, transparent 40%);
+        }
+
+        #root {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            max-width: 900px;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.8s ease-out forwards;
+        }
+
+        .slide-in {
+            animation: slideInRight 0.5s ease-out forwards;
+        }
+
+        /* Layout */
+        .game-container {
+            flex: 1;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 1.5rem;
+            overflow: hidden;
+            background-color: var(--surface-color);
+            border-radius: 2rem;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.05);
+            padding: 2rem;
+            position: relative;
+            border: 4px solid #e2e8f0;
+        }
+
+        /* HUD */
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f1f5f9;
+        }
+
+        .stat-group {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #f8fafc;
+            padding: 0.5rem 1rem;
+            border-radius: 1rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: transform 0.2s;
+            border: 2px solid #f1f5f9;
+        }
+
+        .stat-item:hover {
+            transform: scale(1.05);
+        }
+
+        /* Story Content */
+        .story-content {
+            overflow-y: auto;
+            padding-right: 0.5rem;
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent-color) transparent;
+        }
+
+        .story-text {
+            font-size: 1.4rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+            color: var(--text-primary);
+        }
+
+        .story-result {
+            font-size: 1.1rem;
+            padding: 1.25rem;
+            background: #f0f9ff;
+            border-radius: 1rem;
+            border-left: 6px solid var(--accent-color);
+            margin-bottom: 1.5rem;
+            font-style: italic;
+            color: #0369a1;
+        }
+
+        /* Choices */
+        .choices-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .choices-grid {
+                grid-template-columns: 1fr;
+            }
+            .game-container {
+                padding: 1rem;
+            }
+        }
+
+        .choice-btn {
+            background: #ffffff;
+            border: 2px solid #e2e8f0;
+            color: var(--text-primary);
+            padding: 1.25rem;
+            border-radius: 1.25rem;
+            text-align: left;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .choice-btn:hover:not(:disabled) {
+            background: #f0f9ff;
+            border-color: var(--accent-color);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 20px rgba(56, 189, 248, 0.1);
+        }
+
+        .choice-btn .choice-label {
+            font-weight: 800;
+            color: var(--accent-color);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .choice-btn .choice-desc {
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        /* Inventory */
+        .inventory-tray {
+            position: absolute;
+            bottom: 2rem;
+            right: 2rem;
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .inv-item {
+            width: 50px;
+            height: 50px;
+            background: #ffffff;
+            border: 3px solid var(--accent-color);
+            border-radius: 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.05);
+            cursor: help;
+            transition: transform 0.2s;
+        }
+
+        .inv-item:hover {
+            transform: scale(1.2) rotate(5deg);
+        }
+
+        /* Start Screen */
+        .start-screen {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .title-fancy {
+            font-size: 4rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            filter: drop-shadow(0 5px 15px rgba(56, 189, 248, 0.2));
+        }
+
+        .setting-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 850px;
+        }
+
+        @media (max-width: 768px) {
+            .setting-cards {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .setting-card {
+            background: #ffffff;
+            border: 3px solid #f1f5f9;
+            padding: 2rem;
+            border-radius: 2rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.02);
+        }
+
+        .setting-card:hover {
+            border-color: var(--accent-color);
+            transform: translateY(-8px);
+            box-shadow: 0 20px 30px rgba(56, 189, 248, 0.1);
+        }
+
+        .setting-card.selected {
+            background: #f0f9ff;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 30px rgba(56, 189, 248, 0.2);
+        }
+
+        .setting-icon {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .start-btn {
+            background: linear-gradient(135deg, #38bdf8, #6366f1);
+            color: white;
+            border: none;
+            padding: 1.25rem 4rem;
+            font-size: 1.4rem;
+            font-weight: 800;
+            border-radius: 3rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 10px 25px rgba(99, 102, 241, 0.3);
+        }
+
+        .start-btn:hover:not(:disabled) {
+            transform: scale(1.05) translateY(-2px);
+            box-shadow: 0 15px 35px rgba(99, 102, 241, 0.4);
+        }
+
+        .start-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useMemo } = React;
+
+        // --- GAME DATA & ENGINE ---
+        
+        const SETTINGS = {
+            TOYTOWN: {
+                id: 'TOYTOWN',
+                name: 'Toy Box Town',
+                icon: '🧸',
+                color: '#3b82f6',
+                desc: 'A magical place where every toy has a story and loves to play!',
+                locations: ['The Marble Park', 'Block Castle', 'Puzzle Path', 'Crayon Canyon', 'Dollhouse Drive', 'Stuffed Animal Square'],
+                friends: ['Bouncy Ball', 'Clockwork Robot', 'Sleepy Bear', 'Sparkly Unicorn', 'Paper Plane', 'Giggling Jack-in-the-Box'],
+                treats: ['Golden Sticker', 'Bright Ribbon', 'Lucky Marble', 'Puff Ball', 'Star Badge']
+            },
+            WIZARDS: {
+                id: 'WIZARDS',
+                name: 'Starry School',
+                icon: '🪄',
+                color: '#10b981',
+                desc: 'A school for young wizards where magic is used for kindness and tricks.',
+                locations: ['Flying Broom Field', 'Glowing Library', 'Potion Kitchen', 'Secret Attic', 'Crystal Hall', 'Greenhouse Garden'],
+                friends: ['Wise Owl', 'Floating Lantern', 'Singing Book', 'Friendly Frog', 'Helpful Hat', 'Playful Sprite'],
+                treats: ['Sparkle Dust', 'Moon Stone', 'Magic Feather', 'Sweet Root', 'Rainbow Ink']
+            },
+            CANDY: {
+                id: 'CANDY',
+                name: 'Sugar Valley',
+                icon: '🍭',
+                color: '#fb7185',
+                desc: 'A yummy world made of candy, chocolate, and everything sweet!',
+                locations: ['Gumdrop Forest', 'Chocolate River', 'Marshmallow Meadow', 'Cookie Cave', 'Lollipop Lane', 'Cupcake Hill'],
+                friends: ['Gummy Worm', 'Gingerbread Man', 'Cotton Candy Cloud', 'Jelly Bean Pup', 'Taffy Turtle', 'Sugar Bee'],
+                treats: ['Peppermint Pop', 'Cocoa Bean', 'Sprinkle Jar', 'Candy Cane', 'Sweet Glaze']
+            },
+            ANIMALS: {
+                id: 'ANIMALS',
+                name: 'Animal Rescue',
+                icon: '🐾',
+                color: '#8b5cf6',
+                desc: 'Help animals in need and make new furry friends in the great outdoors.',
+                locations: ['Berry Bush', 'Quiet Pond', 'Tall Tree', 'Hidden Cave', 'Sunny Clearing', 'Winding Stream'],
+                friends: ['Lost Kitten', 'Hungry Bunny', 'Confused Turtle', 'Thirsty Deer', 'Small Bird', 'Brave Squirrel'],
+                treats: ['Crunchy Nut', 'Sweet Berry', 'Safe Blanket', 'Clean Water', 'Soft Brush']
+            },
+            DINOS: {
+                id: 'DINOS',
+                name: 'Dino Discovery',
+                icon: '🦕',
+                color: '#f59e0b',
+                desc: 'Travel back in time to explore with big, friendly dinosaurs!',
+                locations: ['Fern Valley', 'Bubbling Springs', 'Sandy Shore', 'High Plateau', 'Leafy Jungle', 'Mist Peaks'],
+                friends: ['Little Longneck', 'Three-Horn Friend', 'Spiky Stego', 'Fast Flyer', 'Big Stomper', 'Gentle Giant'],
+                treats: ['Old Shell', 'Smooth Rock', 'Giant Leaf', 'Egg Shell', 'Amber Stone']
+            }
+        };
+
+        const ACTION_TEMPLATES = {
+            PLAYTIME: [
+                { label: 'TICKLE', text: 'Give the [TARGET] a gentle tickle to make them laugh.', stat: 'AGI' },
+                { label: 'PLAY TAG', text: 'Run around and play a game of tag with the [TARGET].', stat: 'AGI' },
+                { label: 'TELL JOKE', text: 'Tell the [TARGET] a silly joke to see them smile.', stat: 'INT' },
+                { label: 'DANCE', text: 'Do a happy dance with the [TARGET].', stat: 'AGI' }
+            ],
+            KINDNESS: [
+                { label: 'SHARE SNACK', text: 'Share a yummy snack with the [TARGET].', stat: 'INT' },
+                { label: 'GIVE HUG', text: 'Give the [TARGET] a big, warm hug.', stat: 'STR' },
+                { label: 'HELP OUT', text: 'Help the [TARGET] with whatever they need.', stat: 'INT' },
+                { label: 'SING SONG', text: 'Sing a beautiful song for the [TARGET].', stat: 'INT' }
+            ],
+            ADVENTURE: [
+                { label: 'EXPLORE', text: 'Look around the area with the [TARGET].', stat: 'INT' },
+                { label: 'SNEAK BY', text: 'Move quietly so you don\'t wake the [TARGET].', stat: 'AGI' },
+                { label: 'GIVE GIFT', text: 'Find a little gift to give to the [TARGET].', stat: 'STR' },
+                { label: 'WAVE HI', text: 'Give a friendly wave to the [TARGET].', stat: 'STR' }
+            ]
+        };
+
+        // --- COMPONENTS ---
+
+        function App() {
+            const [gameState, setGameState] = useState('START'); // START, PLAYING, GAME_OVER
+            const [setting, setSetting] = useState(null);
+            const [stats, setStats] = useState({ JOY: 100, STR: 5, AGI: 5, INT: 5 });
+            const [inventory, setInventory] = useState([]);
+            const [currentNode, setCurrentNode] = useState(null);
+            const [history, setHistory] = useState([]);
+            const [lastResult, setLastResult] = useState('');
+
+            // Initialize icons when node or state changes
+            useEffect(() => {
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+            }, [currentNode, gameState, inventory]);
+
+            const startGame = () => {
+                if (!setting) return;
+                setGameState('PLAYING');
+                const firstNode = generateNode(setting, stats, inventory, true);
+                setCurrentNode(firstNode);
+            };
+
+            const generateNode = (currentSetting, currentStats, currentInv, isStart = false) => {
+                const loc = currentSetting.locations[Math.floor(Math.random() * currentSetting.locations.length)];
+                const friend = currentSetting.friends[Math.floor(Math.random() * currentSetting.friends.length)];
+                
+                let text = '';
+                if (isStart) {
+                    text = `Welcome to ${loc} in the world of ${currentSetting.name}! The sun is shining and you feel very happy. Your wonderful journey begins now!`;
+                } else {
+                    const intros = [
+                        `As you walk through ${loc}, you meet a [TARGET].`,
+                        `While you explore ${loc}, a [TARGET] comes over to say hello!`,
+                        `In the middle of ${loc}, you find a [TARGET] waiting for a friend.`,
+                        `Suddenly, a [TARGET] pops out from behind a corner in ${loc}.`,
+                        `You see a [TARGET] looking for someone to play with in ${loc}.`
+                    ];
+                    text = intros[Math.floor(Math.random() * intros.length)].replace('[TARGET]', friend);
+                }
+
+                // Generate 4 random choices
+                const types = ['PLAYTIME', 'KINDNESS', 'ADVENTURE', 'KINDNESS'];
+                const choices = [];
+                
+                const shuffledTypes = types.sort(() => Math.random() - 0.5);
+                
+                shuffledTypes.forEach(type => {
+                    const templates = ACTION_TEMPLATES[type];
+                    const template = templates[Math.floor(Math.random() * templates.length)];
+                    if (!choices.find(c => c.label === template.label)) {
+                        choices.push({
+                            ...template,
+                            text: template.text.replace('[TARGET]', friend),
+                            type: type
+                        });
+                    }
+                });
+
+                return {
+                    id: Date.now(),
+                    location: loc,
+                    target: friend,
+                    text: text,
+                    choices: choices
+                };
+            };
+
+            const handleChoice = (choice) => {
+                const roll = Math.floor(Math.random() * 10) + stats[choice.stat];
+                const difficulty = 6 + Math.floor(history.length / 5);
+                
+                let success = roll >= difficulty;
+                let result = '';
+                let joyChange = 0;
+                let statGained = null;
+                let treatGained = null;
+
+                if (success) {
+                    result = `Yay! You ${choice.label.toLowerCase()}ed with the ${currentNode.target} and they loved it!`;
+                    const treatRoll = Math.random();
+                    if (treatRoll > 0.8) {
+                        statGained = choice.stat;
+                        result += ` You feel more ${statGained === 'STR' ? 'brave' : statGained === 'AGI' ? 'energetic' : 'smart'}. (+1 ${statGained})`;
+                    } else if (treatRoll > 0.6) {
+                        treatGained = setting.treats[Math.floor(Math.random() * setting.treats.length)];
+                        if (!inventory.includes(treatGained)) {
+                            result += ` They gave you a ${treatGained} as a thank you!`;
+                        } else {
+                            result += ` You feel extra happy! (+10 Joy)`;
+                            joyChange = 10;
+                        }
+                    }
+                } else {
+                    result = `Oops! The ${currentNode.target} was a bit too sleepy to play right now.`;
+                    joyChange = -(5 + Math.floor(Math.random() * 5));
+                    result += ` You feel a little bit tired. (-${Math.abs(joyChange)} Joy)`;
+                }
+
+                const newStats = { ...stats, JOY: Math.min(100, stats.JOY + joyChange) };
+                if (statGained) newStats[statGained] += 1;
+                
+                if (newStats.JOY <= 0) {
+                    setGameState('GAME_OVER');
+                    setLastResult(`It's time for a little nap! ${result}`);
+                    return;
+                }
+
+                setStats(newStats);
+                if (treatGained && !inventory.includes(treatGained)) {
+                    setInventory([...inventory, treatGained]);
+                }
+                setLastResult(result);
+                setHistory([...history, { node: currentNode, choice: choice, result: result }]);
+                
+                setCurrentNode(generateNode(setting, newStats, inventory));
+            };
+
+            const resetGame = () => {
+                setGameState('START');
+                setStats({ JOY: 100, STR: 5, AGI: 5, INT: 5 });
+                setInventory([]);
+                setHistory([]);
+                setSetting(null);
+                setLastResult('');
+            };
+
+            if (gameState === 'START') {
+                return (
+                    <div className="start-screen fade-in">
+                        <div>
+                            <h1 className="title-fancy">INFINITE QUEST</h1>
+                            <p style={{color: 'var(--text-secondary)', fontWeight: '600'}}>A Friendly Storytelling Adventure</p>
+                        </div>
+                        
+                        <div className="setting-cards">
+                            {Object.values(SETTINGS).map(s => (
+                                <div 
+                                    key={s.id} 
+                                    className={`setting-card ${setting?.id === s.id ? 'selected' : ''}`}
+                                    onClick={() => setSetting(s)}
+                                >
+                                    <div className="setting-icon">{s.icon}</div>
+                                    <h3 style={{fontSize: '1.25rem'}}>{s.name}</h3>
+                                    <p style={{fontSize: '0.9rem', marginTop: '0.75rem', color: 'var(--text-secondary)', fontWeight: '500'}}>{s.desc}</p>
+                                </div>
+                            ))}
+                        </div>
+
+                        <button 
+                            className="start-btn" 
+                            disabled={!setting}
+                            onClick={startGame}
+                        >
+                            Let's Play!
+                        </button>
+                    </div>
+                );
+            }
+
+            if (gameState === 'GAME_OVER') {
+                return (
+                    <div className="game-container fade-in">
+                        <div className="hud">
+                            <h2 style={{color: 'var(--accent-color)'}}>REST TIME</h2>
+                        </div>
+                        <div className="story-content">
+                            <p className="story-text" style={{textAlign: 'center'}}>
+                                Your wonderful journey comes to an end for today in ${currentNode.location}.
+                                <br/><br/>
+                                <strong>{lastResult}</strong>
+                                <br/><br/>
+                                You shared {history.length} happy moments!
+                            </p>
+                            <div style={{display: 'flex', justifyContent: 'center'}}>
+                                <button className="start-btn" onClick={resetGame}>Play Again</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="game-container fade-in" key={currentNode.id}>
+                    {/* HUD */}
+                    <div className="hud">
+                        <div className="stat-group">
+                            <div className="stat-item" style={{color: stats.JOY < 30 ? 'var(--danger-color)' : 'var(--success-color)'}}>
+                                <i data-lucide="sparkles"></i> {stats.JOY} JOY
+                            </div>
+                            <div className="stat-item" title="Brave" style={{color: '#6366f1'}}>
+                                <i data-lucide="shield"></i> {stats.STR}
+                            </div>
+                            <div className="stat-item" title="Energy" style={{color: '#f59e0b'}}>
+                                <i data-lucide="zap"></i> {stats.AGI}
+                            </div>
+                            <div className="stat-item" title="Smart" style={{color: '#8b5cf6'}}>
+                                <i data-lucide="brain"></i> {stats.INT}
+                            </div>
+                        </div>
+                        <div style={{color: 'var(--text-secondary)', fontSize: '1rem', fontWeight: '800'}}>
+                            {currentNode.location}
+                        </div>
+                    </div>
+
+                    {/* STORY */}
+                    <div className="story-content" id="story-box">
+                        {lastResult && <div className="story-result slide-in">{lastResult}</div>}
+                        <div className="story-text">
+                            {currentNode.text}
+                        </div>
+                    </div>
+
+                    {/* CHOICES */}
+                    <div className="choices-grid">
+                        {currentNode.choices.map((choice, i) => (
+                            <button 
+                                key={i} 
+                                className="choice-btn"
+                                onClick={() => handleChoice(choice)}
+                            >
+                                <span className="choice-label">{choice.label}</span>
+                                <span className="choice-desc">{choice.text}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* INVENTORY */}
+                    <div className="inventory-tray">
+                        {inventory.map((item, i) => (
+                            <div key={i} className="inv-item" title={item}>
+                                <i data-lucide="star" color="var(--accent-color)" fill="var(--accent-color)"></i>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

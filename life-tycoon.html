@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City Life Simulator</title>
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --text-color: #e0e0e0;
+            --grid-border: #4a4a6b;
+            --zone-house: #3f3f46; /* Gray-ish */
+            --zone-work: #2c3e50;  /* Dark Blue */
+            --zone-school: #f39c12; /* Orange-Yellow */
+            --zone-store: #27ae60; /* Green */
+            --zone-gym: #e74c3c; /* Red */
+            --zone-church: #9b59b6; /* Purple */
+            --zone-venue: #e67e22; /* Dark Orange */
+            --zone-road: #34495e;  /* Dark Gray */
+            --person-male-hue: 210;
+            --person-female-hue: 330;
+            --person-saturation: 80%;
+            --border-radius: 4px;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+            line-height: 1.6;
+            overflow-x: hidden; /* Prevent horizontal scroll on small screens */
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            margin-bottom: 20px;
+            position: relative; /* For schedule display */
+        }
+
+        h1 {
+            color: var(--text-color);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .dashboard {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #2a2a4a;
+            padding: 15px 20px;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .dashboard-item {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .dashboard-item label {
+            font-size: 0.8em;
+            color: #bbb;
+            margin-bottom: 5px;
+        }
+
+        .dashboard-item span, .dashboard-item input {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        #time-slider {
+            width: 150px;
+            -webkit-appearance: none;
+            height: 8px;
+            background: #555;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+            border-radius: 5px;
+        }
+
+        #time-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--zone-school);
+            cursor: pointer;
+        }
+
+        #time-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--zone-school);
+            cursor: pointer;
+        }
+
+        .city-grid-container {
+            position: relative;
+            width: min(90vw, 800px);
+            padding-bottom: min(90vw, 800px); /* 1:1 Aspect Ratio */
+            margin: 0 auto;
+        }
+
+        #city-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            border: 2px solid var(--grid-border);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+        }
+
+        .zone {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            font-weight: bold;
+            font-size: 0.8em;
+            position: relative;
+            overflow: hidden;
+            background-color: var(--zone-road); /* Default for empty/road */
+        }
+        .zone::before {
+            content: attr(data-emoji);
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            font-size: 1.2em;
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .zone-H { background-color: var(--zone-house); }
+        .zone-W { background-color: var(--zone-work); }
+        .zone-S { background-color: var(--zone-school); }
+        .zone-M { background-color: var(--zone-store); }
+        .zone-G { background-color: var(--zone-gym); }
+        .zone-C { background-color: var(--zone-church); }
+        .zone-V { background-color: var(--zone-venue); }
+        .zone-R { /* Enhanced road styling */
+            background-color: #5a6a7a; /* Lighter gray for roads */
+            position: relative;
+        }
+        .zone-R::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: repeating-linear-gradient(to right, white 0px, white 5px, transparent 5px, transparent 10px);
+            transform: translateY(-50%);
+        }
+
+        .person {
+            position: absolute;
+            width: 8px; /* Square size */
+            height: 8px; /* Square size */
+            border-radius: 50%; /* Make them circles for better visibility */
+            transition: transform 0.5s linear; /* Smooth movement */
+            box-shadow: 0 0 3px rgba(0,0,0,0.5);
+            z-index: 10;
+            cursor: pointer; /* Indicate clickable */
+            pointer-events: auto; /* Make the person element clickable */
+        }
+        .person-container {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Allow clicks to pass through to zones */
+            z-index: 5;
+        }
+
+        .legend {
+            background-color: #2a2a4a;
+            padding: 15px 20px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            width: min(90vw, 800px);
+            margin-top: 20px;
+        }
+
+        .legend h3 {
+            margin-top: 0;
+            color: var(--text-color);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .legend-color-box {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            border-radius: var(--border-radius);
+        }
+
+        .age-gradient-male, .age-gradient-female {
+            width: 100px;
+            height: 20px;
+            margin-right: 10px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .age-gradient-male { background: linear-gradient(to right, hsl(var(--person-male-hue), var(--person-saturation), 80%), hsl(var(--person-male-hue), var(--person-saturation), 30%)); }
+        .age-gradient-female { background: linear-gradient(to right, hsl(var(--person-female-hue), var(--person-saturation), 80%), hsl(var(--person-female-hue), var(--person-saturation), 30%)); }
+        
+        /* Schedule Display */
+        #schedule-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        #schedule-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #schedule-content {
+            background-color: #2a2a4a;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        #schedule-content h2 {
+            margin-top: 0;
+            color: var(--text-color);
+            border-bottom: 1px solid var(--grid-border);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        #schedule-content h3 {
+            margin-top: 20px;
+            color: var(--accent);
+        }
+
+        #schedule-details p {
+            margin: 5px 0;
+            font-size: 0.95em;
+        }
+
+        #schedule-routine ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        #schedule-routine li {
+            background-color: #1e293b;
+            margin-bottom: 5px;
+            padding: 8px 12px;
+            border-radius: var(--border-radius);
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+        }
+        #schedule-routine li strong {
+            color: var(--accent);
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            color: var(--muted);
+            cursor: pointer;
+            transition: color 0.2s ease-in-out;
+        }
+        .close-btn:hover {
+            color: var(--text-color);
+        }
+
+
+        @media (max-width: 768px) {
+            .dashboard {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>City Life Simulator</h1>
+
+        <div class="dashboard">
+            <div class="dashboard-item">
+                <label>Time:</label>
+                <span id="current-time">00:00</span>
+            </div>
+            <div class="dashboard-item">
+                <label>Simulation Speed (x):</label>
+                <input type="range" id="time-slider" min="1" max="10" value="1">
+            </div>
+            <div class="dashboard-item">
+                <label>Population:</label>
+                <span id="population-count">0</span>
+            </div>
+        </div>
+
+        <div class="city-grid-container">
+            <div id="city-grid"></div>
+            <div class="person-container" id="person-layer"></div>
+        </div>
+
+        <div class="legend">
+            <h3>Legend</h3>
+            <div class="legend-item">
+                <div class="legend-color-box zone-H"></div> Home
+            </div>
+            <div class="legend-item">
+                <div class="legend-color-box zone-W"></div> Work
+            </div>
+            <div class="legend-item">
+                <div class="legend-color-box zone-S"></div> School
+            </div>
+            <div class="legend-item">
+                <div class="legend-color-box zone-M"></div> Store
+            </div>
+            <div class="legend-item">
+                <div class="legend-color-box zone-G"></div> Gym
+            </div>
+            <div class="legend-item">
+                <div class="legend-color-box zone-C"></div> Church
+            </div>
+            <div class="legend-item">
+                <div class="legend-color-box zone-V"></div> Venue
+            </div>
+            <div class="legend-item">
+                <div class="age-gradient-male"></div> Male (Young to Old)
+            </div>
+            <div class="legend-item">
+                <div class="age-gradient-female"></div> Female (Young to Old)
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Display Overlay -->
+    <div id="schedule-overlay">
+        <div id="schedule-content">
+            <button class="close-btn" onclick="hideScheduleOverlay()">✖</button>
+            <h2 id="schedule-person-title">Person Details</h2>
+            <div id="schedule-details">
+                <p><strong>ID:</strong> <span id="schedule-id"></span></p>
+                <p><strong>Family ID:</strong> <span id="schedule-family-id"></span></p>
+                <p><strong>Gender:</strong> <span id="schedule-gender"></span></p>
+                <p><strong>Age:</strong> <span id="schedule-age"></span></p>
+                <p><strong>Home Zone:</strong> <span id="schedule-home-zone"></span></p>
+                <p><strong>Work Zone:</strong> <span id="schedule-work-zone"></span></p>
+                <p><strong>School Zone:</strong> <span id="schedule-school-zone"></span></p>
+            </div>
+            <h3>Daily Routine</h3>
+            <ul id="schedule-routine"></ul>
+        </div>
+    </div>
+
+    <script>
+        const CITY_SIZE = 8;
+        const POPULATION_SIZE = 200;
+        const BASE_SIM_TICK_INTERVAL_MS = 100; // Base interval for 1x speed (100ms per simulated minute)
+        let currentSimTime = 0; // In minutes from 00:00
+
+        const cityGridEl = document.getElementById('city-grid');
+        const personLayerEl = document.getElementById('person-layer');
+        const currentTimeEl = document.getElementById('current-time');
+        const populationCountEl = document.getElementById('population-count');
+        const timeSlider = document.getElementById('time-slider');
+        const scheduleOverlay = document.getElementById('schedule-overlay');
+        const schedulePersonTitle = document.getElementById('schedule-person-title');
+        const scheduleId = document.getElementById('schedule-id');
+        const scheduleFamilyId = document.getElementById('schedule-family-id');
+        const scheduleGender = document.getElementById('schedule-gender');
+        const scheduleAge = document.getElementById('schedule-age');
+        const scheduleHomeZone = document.getElementById('schedule-home-zone');
+        const scheduleWorkZone = document.getElementById('schedule-work-zone');
+        const scheduleSchoolZone = document.getElementById('schedule-school-zone');
+        const scheduleRoutineList = document.getElementById('schedule-routine');
+
+
+        let simulationSpeed = parseInt(timeSlider.value);
+
+        // Define the city layout (8x8 grid)
+        // H: Home, W: Work, S: School, M: Market/Store, G: Gym, C: Church, V: Venue, R: Road/Empty
+        const cityLayout = [
+            ['R', 'R', 'H', 'H', 'W', 'W', 'R', 'R'],
+            ['R', 'R', 'H', 'H', 'W', 'W', 'R', 'R'],
+            ['S', 'S', 'R', 'R', 'M', 'M', 'V', 'V'],
+            ['S', 'S', 'R', 'R', 'M', 'M', 'V', 'V'],
+            ['R', 'R', 'R', 'R', 'R', 'R', 'R', 'R'],
+            ['H', 'H', 'G', 'G', 'W', 'W', 'C', 'C'],
+            ['H', 'H', 'G', 'G', 'W', 'W', 'C', 'C'],
+            ['R', 'R', 'R', 'R', 'R', 'R', 'R', 'R']
+        ];
+
+        const ZONE_EMOJIS = {
+            'H': '🏠', 'W': '🏢', 'S': '🏫', 'M': '🛍️',
+            'G': '💪', 'C': '⛪', 'V': '🏟️', 'R': '🛣️'
+        };
+
+        let zones = []; // Array of zone objects
+        let people = []; // Array of Person objects
+        let availableHomeZones = [];
+        let availableWorkZones = [];
+        let availableSchoolZones = [];
+        let availableMarketZones = [];
+        let availableGymZones = [];
+        let availableChurchZones = [];
+        let availableVenueZones = [];
+
+
+        // --- Zone Management ---
+        class Zone {
+            constructor(id, type, row, col) {
+                this.id = id;
+                this.type = type;
+                this.row = row;
+                this.col = col;
+                this.element = null; // DOM element for the zone
+                this.people = new Set(); // People currently in this zone
+            }
+
+            render() {
+                this.element = document.createElement('div');
+                this.element.classList.add('zone', `zone-${this.type}`);
+                this.element.dataset.row = this.row;
+                this.element.dataset.col = this.col;
+                this.element.dataset.emoji = ZONE_EMOJIS[this.type];
+                cityGridEl.appendChild(this.element);
+            }
+
+            addPerson(person) {
+                this.people.add(person);
+            }
+
+            removePerson(person) {
+                this.people.delete(person);
+            }
+        }
+
+        function createCity() {
+            cityGridEl.innerHTML = ''; // Clear existing grid
+            zones = [];
+            let zoneIdCounter = 0;
+            for (let r = 0; r < CITY_SIZE; r++) {
+                for (let c = 0; c < CITY_SIZE; c++) {
+                    const type = cityLayout[r][c];
+                    const zone = new Zone(zoneIdCounter++, type, r, c);
+                    zones.push(zone);
+                    zone.render();
+                }
+            }
+            // Populate available zones
+            availableHomeZones = getZoneByType('H');
+            availableWorkZones = getZoneByType('W');
+            availableSchoolZones = getZoneByType('S');
+            availableMarketZones = getZoneByType('M');
+            availableGymZones = getZoneByType('G');
+            availableChurchZones = getZoneByType('C');
+            availableVenueZones = getZoneByType('V');
+        }
+
+        function getZoneByType(type) {
+            return zones.filter(zone => zone.type === type);
+        }
+
+        function getZoneByCoords(row, col) {
+            return zones.find(zone => zone.row === row && zone.col === col);
+        }
+
+        // Helper to get center coordinates of a zone element relative to personLayerEl
+        function getZoneCenterCoordinates(zone) {
+            const zoneRect = zone.element.getBoundingClientRect();
+            const personLayerRect = personLayerEl.getBoundingClientRect();
+
+            const centerX = zoneRect.left + (zoneRect.width / 2);
+            const centerY = zoneRect.top + (zoneRect.height / 2);
+
+            // Calculate position relative to personLayerEl
+            return {
+                x: centerX - personLayerRect.left,
+                y: centerY - personLayerRect.top
+            };
+        }
+
+        // --- Person Management ---
+        class Person {
+            constructor(id, familyId, gender, age, homeZone, workZone = null, schoolZone = null) {
+                this.id = id;
+                this.familyId = familyId;
+                this.gender = gender;
+                this.age = age;
+                this.element = document.createElement('div');
+                this.element.classList.add('person');
+                this.element.addEventListener('click', () => this.showSchedule()); // Add click listener
+                personLayerEl.appendChild(this.element);
+
+                this.homeZone = homeZone;
+                this.workZone = workZone;
+                this.schoolZone = schoolZone;
+                this.currentZone = this.homeZone;
+                this.destinationZone = this.homeZone;
+
+                this.setInitialPosition();
+                this.updateColor();
+
+                this.dailyRoutine = this.generateDailyRoutine();
+            }
+
+            generateDailyRoutine() {
+                const routine = [];
+                // Morning: Go to work/school
+                if (this.age >= 5 && this.age <= 18 && this.schoolZone) { // School age
+                    routine.push({ time: 7 * 60, zone: this.schoolZone });
+                    routine.push({ time: 9 * 60, zone: this.schoolZone }); // Stay at school
+                    routine.push({ time: 15 * 60, zone: this.homeZone }); // Go home after school
+                } else if (this.age > 18 && this.workZone) { // Work age
+                    routine.push({ time: 7 * 60, zone: this.workZone });
+                    routine.push({ time: 9 * 60, zone: this.workZone }); // Stay at work
+                    routine.push({ time: 17 * 60, zone: this.homeZone }); // Go home after work
+                }
+
+                // Evening: Some random activity for adults/teens if not already home
+                if (this.age > 12 && Math.random() < 0.6) { // 60% chance for an evening activity
+                    const activityZones = [...availableMarketZones, ...availableGymZones, ...availableVenueZones, ...availableChurchZones];
+                    if (activityZones.length > 0) {
+                        const activityZone = activityZones[Math.floor(Math.random() * activityZones.length)];
+                        const activityTime = 18 * 60; // Start activity around 6 PM
+                        // Ensure activity isn't before returning from work/school
+                        const lastCommuteHomeTime = routine.length > 0 ? routine[routine.length - 1].time : 0;
+                        if (activityTime > lastCommuteHomeTime && !routine.some(entry => entry.time === activityTime)) { // Avoid duplicate times
+                            routine.push({ time: activityTime, zone: activityZone });
+                            routine.push({ time: (activityTime + 60) % (24 * 60), zone: this.homeZone }); // Go home after 1 hour activity
+                        }
+                    }
+                }
+                
+                // Always ensure they return home late evening/night
+                routine.push({ time: 22 * 60, zone: this.homeZone });
+
+                return routine.sort((a, b) => a.time - b.time);
+            }
+
+            setInitialPosition() {
+                // Initial placement within the home zone
+                this.currentZone.addPerson(this);
+                this.updateElementPosition();
+            }
+
+            updateColor() {
+                // Lighter = Younger, Darker = Older
+                // L: 80% (age 0) to 30% (age 90)
+                const lightness = 80 - (this.age * 0.5);
+                const maleHue = getComputedStyle(document.documentElement).getPropertyValue('--person-male-hue').trim();
+                const femaleHue = getComputedStyle(document.documentElement).getPropertyValue('--person-female-hue').trim();
+                const hue = this.gender === 'male' ? maleHue : femaleHue;
+                this.element.style.backgroundColor = `hsl(${hue}, var(--person-saturation), ${lightness}%)`;
+            }
+
+            updatePosition(simTime) {
+                // Logic to determine destination based on currentSimTime and dailyRoutine
+                let newDestination = this.homeZone;
+                for (let i = 0; i < this.dailyRoutine.length; i++) {
+                    const routineEntry = this.dailyRoutine[i];
+                    if (simTime >= routineEntry.time) {
+                        newDestination = routineEntry.zone;
+                    } else {
+                        break; // Routine entries are sorted by time
+                    }
+                }
+
+                if (newDestination && newDestination !== this.currentZone) {
+                    this.currentZone.removePerson(this);
+                    this.currentZone = newDestination;
+                    this.currentZone.addPerson(this);
+                    this.updateElementPosition();
+                } else if (!newDestination) { // Default to home if no routine matches
+                    if (this.currentZone !== this.homeZone) {
+                        this.currentZone.removePerson(this);
+                        this.currentZone = this.homeZone;
+                        this.currentZone.addPerson(this);
+                        this.updateElementPosition();
+                    }
+                }
+            }
+            
+            updateElementPosition() {
+                const { x, y } = getZoneCenterCoordinates(this.currentZone);
+                // Add a small random offset to prevent perfect stacking
+                const offsetX = (Math.random() - 0.5) * (this.currentZone.element.offsetWidth * 0.4);
+                const offsetY = (Math.random() - 0.5) * (this.currentZone.element.offsetHeight * 0.4);
+
+                this.element.style.transform = `translate(${x + offsetX - (this.element.offsetWidth / 2)}px, ${y + offsetY - (this.element.offsetHeight / 2)}px)`;
+            }
+
+            showSchedule() {
+                schedulePersonTitle.textContent = `Person ${this.id} Details`;
+                scheduleId.textContent = this.id;
+                scheduleFamilyId.textContent = this.familyId;
+                scheduleGender.textContent = this.gender;
+                scheduleAge.textContent = this.age;
+                scheduleHomeZone.textContent = `${this.homeZone.type} (R${this.homeZone.row}C${this.homeZone.col})`;
+                scheduleWorkZone.textContent = this.workZone ? `${this.workZone.type} (R${this.workZone.row}C${this.workZone.col})` : 'N/A';
+                scheduleSchoolZone.textContent = this.schoolZone ? `${this.schoolZone.type} (R${this.schoolZone.row}C${this.schoolZone.col})` : 'N/A';
+                
+                scheduleRoutineList.innerHTML = '';
+                this.dailyRoutine.forEach(entry => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>${formatTime(entry.time)}</strong> - Go to ${entry.zone.type} (R${entry.zone.row}C${entry.zone.col})`;
+                    scheduleRoutineList.appendChild(li);
+                });
+
+                scheduleOverlay.classList.add('active');
+            }
+        }
+
+        function hideScheduleOverlay() {
+            scheduleOverlay.classList.remove('active');
+        }
+
+        function createPopulation() {
+            people = [];
+            personLayerEl.innerHTML = ''; // Clear existing people
+
+            let personIdCounter = 0;
+            let familyIdCounter = 0;
+            const families = [];
+
+            // Get all home zones and shuffle them to assign homes uniquely
+            const shuffledHomeZones = [...availableHomeZones].sort(() => 0.5 - Math.random());
+            const shuffledWorkZones = [...availableWorkZones].sort(() => 0.5 - Math.random());
+            const shuffledSchoolZones = [...availableSchoolZones].sort(() => 0.5 - Math.random());
+
+
+            for (let i = 0; i < shuffledHomeZones.length && personIdCounter < POPULATION_SIZE; i++) {
+                const homeZone = shuffledHomeZones[i];
+                const familySize = Math.floor(Math.random() * 4) + 1; // 1 parent + 0-3 children for family sizes
+                const currentFamily = [];
+
+                // Create 1-2 parents (adults)
+                const numParents = Math.random() < 0.5 ? 1 : 2;
+                for (let p = 0; p < numParents; p++) {
+                    const gender = Math.random() < 0.5 ? 'male' : 'female';
+                    const age = Math.floor(Math.random() * (60 - 25 + 1)) + 25; // Age 25-60
+                    const workZone = shuffledWorkZones[personIdCounter % shuffledWorkZones.length];
+                    const parent = new Person(personIdCounter++, familyIdCounter, gender, age, homeZone, workZone);
+                    people.push(parent);
+                    currentFamily.push(parent);
+                    if (people.length >= POPULATION_SIZE) break;
+                }
+
+                // Create children (0-3)
+                const numChildren = Math.floor(Math.random() * 4); // 0, 1, 2, or 3 children
+                for (let c = 0; c < numChildren; c++) {
+                    const gender = Math.random() < 0.5 ? 'male' : 'female';
+                    const age = Math.floor(Math.random() * 18) + 1; // Age 1-18
+                    const schoolZone = (age >=5 && age <= 18) ? shuffledSchoolZones[personIdCounter % shuffledSchoolZones.length] : null;
+                    const child = new Person(personIdCounter++, familyIdCounter, gender, age, homeZone, null, schoolZone);
+                    people.push(child);
+                    currentFamily.push(child);
+                    if (people.length >= POPULATION_SIZE) break;
+                }
+                families.push(currentFamily);
+                familyIdCounter++;
+                if (people.length >= POPULATION_SIZE) break;
+            }
+
+            populationCountEl.textContent = people.length;
+        }
+
+        // --- Simulation Loop ---
+        function formatTime(minutes) {
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        }
+
+        function simulateTick() {
+            currentSimTime = (currentSimTime + 1) % (24 * 60); // Each tick is 1 minute simulated time
+
+            currentTimeEl.textContent = formatTime(currentSimTime);
+
+            people.forEach(person => person.updatePosition(currentSimTime));
+        }
+
+        let simInterval;
+
+        function startSimulation() {
+            if (simInterval) clearInterval(simInterval);
+            const actualInterval = BASE_SIM_TICK_INTERVAL_MS / simulationSpeed;
+            simInterval = setInterval(simulateTick, actualInterval);
+        }
+
+        timeSlider.addEventListener('input', (e) => {
+            simulationSpeed = parseInt(e.target.value);
+            startSimulation(); // Restart simulation with new speed
+        });
+
+        function initSimulation() {
+            createCity();
+            createPopulation();
+            // Initial positioning for all people
+            people.forEach(person => person.updateElementPosition());
+            startSimulation();
+        }
+
+        // Initialize on load
+        window.onload = initSimulation;
+        window.onresize = () => {
+            // Re-render positions on resize to keep people within zones
+            people.forEach(person => person.updateElementPosition());
+        };
+    </script>
+</body>
+</html>

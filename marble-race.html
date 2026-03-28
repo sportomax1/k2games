@@ -1,0 +1,1228 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marble Race — K2 Games</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f172a;color:#f8fafc;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:1rem}
+a.back{align-self:flex-start;color:#94a3b8;text-decoration:none;font-size:.85rem;margin-bottom:.5rem}
+h1{font-size:2.5rem;font-weight:900;background:linear-gradient(to right,#818cf8,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.2rem}
+.subtitle{color:#94a3b8;font-size:.8rem;text-transform:uppercase;letter-spacing:2px;margin-bottom:.6rem}
+/* Mode tabs */
+.mode-tabs{display:flex;gap:0;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.1);margin-bottom:.8rem;width:100%;max-width:640px}
+.mode-tab{flex:1;padding:.55rem;text-align:center;cursor:pointer;font-size:.85rem;font-weight:800;background:#1e293b;color:#64748b;border:none;transition:.15s}
+.mode-tab.active{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff}
+.mode-tab:hover:not(.active){background:#2d3748;color:#f8fafc}
+.layout{display:flex;gap:1.2rem;flex-wrap:wrap;justify-content:center;align-items:flex-start;width:100%;max-width:1100px}
+#canvas-wrap{position:relative;flex-shrink:0}
+canvas{display:block;border-radius:12px;border:2px solid rgba(99,102,241,.4);box-shadow:0 0 40px rgba(99,102,241,.25)}
+.panel{background:#1e293b;border-radius:14px;padding:1.2rem;border:1px solid rgba(255,255,255,.08);width:280px;display:flex;flex-direction:column;gap:.9rem}
+/* Editor panel */
+.editor-panel{background:#1e293b;border-radius:14px;padding:1.2rem;border:1px solid rgba(255,255,255,.08);width:280px;display:flex;flex-direction:column;gap:.75rem}
+.wallet{font-size:1.4rem;font-weight:900;color:#f59e0b;text-align:center}
+.wallet span{color:#94a3b8;font-size:.85rem;display:block;font-weight:400}
+.section-title{font-size:.75rem;text-transform:uppercase;letter-spacing:1.5px;color:#6366f1;font-weight:700;margin-bottom:.3rem}
+.marbles-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.marble-btn{padding:.55rem .4rem;border-radius:8px;border:2px solid transparent;background:#0f172a;cursor:pointer;display:flex;align-items:center;gap:.5rem;transition:.15s;font-size:.8rem;font-weight:700;color:#94a3b8}
+.marble-btn:hover{border-color:#6366f1;background:#1a2535}
+.marble-btn.selected{border-color:#f59e0b;background:#1a2535;color:#f8fafc}
+.marble-btn.finished-1st{background:rgba(245,158,11,.15);color:#f59e0b}
+.dot{width:18px;height:18px;border-radius:50%;flex-shrink:0}
+.odds{font-size:.7rem;color:#94a3b8;margin-left:auto}
+.bet-row{display:flex;align-items:center;gap:.5rem}
+.bet-row label{font-size:.8rem;color:#94a3b8}
+.bet-input{flex:1;min-width:60px;padding:.45rem .6rem;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:#0f172a;color:#f8fafc;font-size:.9rem;font-weight:700;text-align:center}
+.bet-presets{display:flex;gap:.35rem;flex-wrap:wrap}
+.bet-presets button{padding:.3rem .6rem;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:#0f172a;color:#94a3b8;font-size:.75rem;cursor:pointer;transition:.15s}
+.bet-presets button:hover{border-color:#6366f1;color:#f8fafc}
+.big-btn{padding:.75rem;border-radius:10px;border:none;font-size:1rem;font-weight:800;cursor:pointer;transition:.2s;width:100%}
+.big-btn.start{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff}
+.big-btn.start:hover:not(:disabled){filter:brightness(1.15);transform:translateY(-1px)}
+.big-btn.start:disabled{opacity:.4;cursor:not-allowed}
+.big-btn.reset{background:#1a2535;color:#94a3b8;border:1px solid rgba(255,255,255,.1)}
+.big-btn.reset:hover{background:#2d3748;color:#f8fafc}
+.big-btn.race{background:linear-gradient(135deg,#10b981,#059669);color:#fff}
+.big-btn.race:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.big-btn.danger{background:#1a2535;color:#ef4444;border:1px solid rgba(239,68,68,.3)}
+.big-btn.danger:hover{background:rgba(239,68,68,.15)}
+.results-box{background:#0f172a;border-radius:10px;padding:.8rem;font-size:.82rem;line-height:1.8;display:none}
+.results-box.show{display:block}
+.res-win{color:#10b981;font-weight:800;font-size:1rem}
+.res-loss{color:#ef4444;font-weight:800;font-size:1rem}
+.podium{display:flex;flex-direction:column;gap:.2rem}
+.podium-item{display:flex;align-items:center;gap:.5rem;font-size:.8rem}
+.podium-item .place{width:22px;font-weight:800;color:#94a3b8}
+.podium-item .place.p1{color:#f59e0b}
+.podium-item .place.p2{color:#e2e8f0}
+.podium-item .place.p3{color:#d97706}
+.msg{text-align:center;min-height:1.5rem;font-weight:700;font-size:.9rem;color:#f59e0b}
+#phase-overlay{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(9,15,26,.85);border-radius:12px;pointer-events:none;opacity:0;transition:opacity .4s}
+#phase-overlay.show{opacity:1}
+#phase-text{font-size:3rem;font-weight:900;color:#f59e0b;text-shadow:0 0 30px rgba(245,158,11,.6)}
+#phase-sub{font-size:1.1rem;color:#94a3b8;margin-top:.5rem}
+/* Tool palette */
+.tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem}
+.tool-btn{padding:.55rem .35rem;border-radius:8px;border:2px solid transparent;background:#0f172a;cursor:pointer;font-size:.78rem;font-weight:700;color:#94a3b8;text-align:center;line-height:1.4;transition:.15s}
+.tool-btn:hover{border-color:#6366f1;color:#f8fafc;background:#1a2535}
+.tool-btn.active{border-color:#f59e0b;background:#1a2535;color:#f8fafc}
+.tool-hint{background:#0f172a;border-radius:8px;padding:.6rem;font-size:.75rem;color:#64748b;line-height:1.5}
+.obj-count{font-size:.72rem;color:#475569;text-align:right;margin-top:-.3rem}
+.snap-row{display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:#94a3b8}
+.snap-row input{accent-color:#6366f1}
+</style>
+</head>
+<body>
+<a class="back" href="index.html">&#8592; Back to Vault</a>
+<h1>Marble Race</h1>
+<p class="subtitle">Physics &bull; Betting &bull; Build Your Own Course</p>
+
+<!-- Mode tabs -->
+<div class="mode-tabs">
+  <button class="mode-tab active" id="tab-classic" onclick="switchMode('classic')">&#127942; Classic Race</button>
+  <button class="mode-tab" id="tab-build" onclick="switchMode('build')">&#128736; Build Course</button>
+</div>
+
+<div class="layout">
+  <div id="canvas-wrap">
+    <canvas id="c"></canvas>
+    <div id="phase-overlay"><div id="phase-text"></div><div id="phase-sub"></div></div>
+  </div>
+
+  <!-- Classic race panel -->
+  <div class="panel" id="race-panel">
+    <div class="wallet"><span>Wallet</span>$<span id="wallet-val">1000</span></div>
+    <div>
+      <div class="section-title">Pick a Marble</div>
+      <div class="marbles-grid" id="marbles-grid"></div>
+    </div>
+    <div>
+      <div class="section-title">Bet Amount</div>
+      <div class="bet-row">
+        <label>$</label>
+        <input type="number" class="bet-input" id="bet-input" value="50" min="10" step="10">
+      </div>
+      <div class="bet-presets">
+        <button onclick="setBet(10)">$10</button>
+        <button onclick="setBet(25)">$25</button>
+        <button onclick="setBet(50)">$50</button>
+        <button onclick="setBet(100)">$100</button>
+        <button onclick="setBet(250)">$250</button>
+        <button onclick="setBet(allIn())">All In</button>
+      </div>
+    </div>
+    <button class="big-btn start" id="start-btn" onclick="startRace()">&#128640; Start Race</button>
+    <button class="big-btn reset" onclick="resetGame()">&#8634; New Track</button>
+    <div class="msg" id="msg"></div>
+    <div class="results-box" id="results-box">
+      <div class="section-title">Results</div>
+      <div id="outcome-text"></div>
+      <div class="podium" id="podium"></div>
+    </div>
+  </div>
+
+  <!-- Build panel -->
+  <div class="editor-panel" id="build-panel" style="display:none">
+    <div style="font-size:1rem;font-weight:900;color:#818cf8;text-align:center">Course Builder</div>
+
+    <div>
+      <div class="section-title">Tools</div>
+      <div class="tool-grid" id="tool-grid"></div>
+    </div>
+
+    <div class="tool-hint" id="tool-hint">Select a tool then click/drag on the canvas.</div>
+
+    <div>
+      <div class="section-title">Options</div>
+      <label class="snap-row"><input type="checkbox" id="snap-cb" checked> Snap to grid (20px)</label>
+    </div>
+
+    <div class="obj-count" id="obj-count">Objects placed: 0</div>
+
+    <button class="big-btn danger" onclick="clearCustomTrack()">&#128465; Clear All</button>
+    <button class="big-btn race" onclick="playCustomTrack()">&#9654; Race This Track!</button>
+
+    <!-- Inline betting for custom race -->
+    <div id="custom-bet-area" style="display:none;flex-direction:column;gap:.6rem">
+      <div class="section-title">Pick a Marble</div>
+      <div class="marbles-grid" id="marbles-grid2"></div>
+      <div class="section-title" style="margin-top:.2rem">Bet Amount</div>
+      <div class="bet-row">
+        <label>$</label>
+        <input type="number" class="bet-input" id="bet-input2" value="50" min="10" step="10">
+      </div>
+      <div class="bet-presets">
+        <button onclick="setBet2(10)">$10</button>
+        <button onclick="setBet2(25)">$25</button>
+        <button onclick="setBet2(50)">$50</button>
+        <button onclick="setBet2(allIn())">All In</button>
+      </div>
+      <div class="wallet" style="font-size:1.1rem">$<span id="wallet-val2">1000</span></div>
+      <button class="big-btn start" id="custom-start-btn" onclick="startCustomRace()">&#128640; Start!</button>
+      <button class="big-btn reset" onclick="backToBuilder()">&#8592; Back to Builder</button>
+      <div class="msg" id="msg2"></div>
+      <div class="results-box" id="results-box2">
+        <div class="section-title">Results</div>
+        <div id="outcome-text2"></div>
+        <div class="podium" id="podium2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Constants ───────────────────────────────────────────────────────────────
+const W=640,H=860,G=980,FRICTION=0.995,BOUNCE=0.42,MARBLE_R=10,DT=1/60,NUM_MARBLES=8;
+const COLORS=[
+  {name:'Red',hex:'#ef4444',dark:'#991b1b'},{name:'Blue',hex:'#3b82f6',dark:'#1d4ed8'},
+  {name:'Green',hex:'#10b981',dark:'#065f46'},{name:'Yellow',hex:'#eab308',dark:'#854d0e'},
+  {name:'Purple',hex:'#a855f7',dark:'#6b21a8'},{name:'Orange',hex:'#f97316',dark:'#9a3412'},
+  {name:'Cyan',hex:'#06b6d4',dark:'#155e75'},{name:'Pink',hex:'#ec4899',dark:'#9d174d'},
+];
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+canvas.width=W; canvas.height=H;
+
+// ─── Global state ─────────────────────────────────────────────────────────────
+let wallet=1000,betMarble=null,betAmt=50,marbles=[],track=[],phase='idle',raceStartTime=0,finishOrder=[],animFrame=null;
+let currentMode='classic'; // 'classic' | 'build' | 'custom-race'
+const finishY=H-30;
+
+// ─── Vec2 / Wall ─────────────────────────────────────────────────────────────
+class Vec2{
+  constructor(x,y){this.x=x;this.y=y;}
+  add(v){return new Vec2(this.x+v.x,this.y+v.y);}
+  scale(s){return new Vec2(this.x*s,this.y*s);}
+  len(){return Math.sqrt(this.x*this.x+this.y*this.y);}
+  norm(){const l=this.len()||1;return new Vec2(this.x/l,this.y/l);}
+  dot(v){return this.x*v.x+this.y*v.y;}
+}
+class Wall{
+  constructor(ax,ay,bx,by,type='normal'){
+    this.a=new Vec2(ax,ay);this.b=new Vec2(bx,by);this.type=type;
+  }
+}
+
+// ─── Track builders ──────────────────────────────────────────────────────────
+function makePlatform(x1,y1,x2,y2){return [new Wall(x1,y1,x2,y2)];}
+function makeCurve(cx,cy,rx,ry,a0,a1,steps=20){
+  const walls=[];let prev=null;
+  for(let i=0;i<=steps;i++){
+    const a=a0+(a1-a0)*i/steps;
+    const pt={x:cx+Math.cos(a)*rx,y:cy+Math.sin(a)*ry};
+    if(prev) walls.push(new Wall(prev.x,prev.y,pt.x,pt.y,'curve'));
+    prev=pt;
+  }
+  return walls;
+}
+
+function buildTrack(){
+  const w=[];
+  w.push(new Wall(0,0,0,H,'boundary'));
+  w.push(new Wall(W,0,W,H,'boundary'));
+  w.push(new Wall(W*0.15,50,W*0.42,140,'funnel'));
+  w.push(new Wall(W*0.85,50,W*0.58,140,'funnel'));
+  w.push(...makePlatform(W*0.08,200,W*0.46,260));
+  w.push(...makePlatform(W*0.54,260,W*0.92,200));
+  w.push(new Wall(W/2,140,W*0.44,205,'divider'));
+  w.push(new Wall(W/2,140,W*0.56,205,'divider'));
+  const loopCX=W*0.2,loopCY=340,loopR=52;
+  w.push(...makeCurve(loopCX,loopCY,loopR,loopR,Math.PI*0.5,Math.PI*2.5,28));
+  w.push(...makePlatform(W*0.06,395,W*0.32,415));
+  w.push(...makePlatform(W*0.05,415,W*0.35,460));
+  w.push(...makePlatform(W*0.68,235,W*0.95,270));
+  w.push(...makePlatform(W*0.55,305,W*0.88,335));
+  w.push(...makePlatform(W*0.6,365,W*0.93,390));
+  w.push(...makeCurve(W*0.75,300,18,18,0,Math.PI*2,14));
+  w.push(...makeCurve(W*0.82,360,16,16,0,Math.PI*2,14));
+  w.push(new Wall(W*0.05,460,W*0.3,530,'funnel'));
+  w.push(new Wall(W*0.95,430,W*0.7,530,'funnel'));
+  w.push(...makeCurve(W/2,590,180,50,Math.PI,0,20));
+  w.push(...makeCurve(W/2,590,180,50,0,Math.PI,20));
+  w.push(new Wall(W/2,540,W*0.38,580,'divider'));
+  w.push(new Wall(W/2,540,W*0.62,580,'divider'));
+  w.push(...makePlatform(W*0.1,615,W*0.4,635));
+  w.push(...makePlatform(W*0.6,635,W*0.9,615));
+  w.push(new Wall(W*0.1,680,W*0.38,730,'funnel'));
+  w.push(new Wall(W*0.9,680,W*0.62,730,'funnel'));
+  w.push(...makePlatform(W*0.25,760,W*0.75,778));
+  w.push(new Wall(60,finishY,W-60,finishY,'finish'));
+  return w;
+}
+
+// ─── Custom track objects ─────────────────────────────────────────────────────
+// Each customObject: {type, ...params}
+// Types: 'ramp' {x1,y1,x2,y2}, 'peg' {cx,cy,r}, 'funnel' {x1,x2,y,spread}
+// 'bumper' {cx,cy,r}, 'halfpipe' {cx,cy,rx,ry,a0,a1}
+let customObjects=[]; // user-placed objects
+let customBetMarble=null,customBetAmt=50;
+
+function customObjToWalls(obj){
+  switch(obj.type){
+    case 'ramp':
+      return [new Wall(obj.x1,obj.y1,obj.x2,obj.y2,'normal')];
+    case 'peg':
+    case 'bumper':
+      return makeCurve(obj.cx,obj.cy,obj.r,obj.r,0,Math.PI*2,16).map(w=>{w.type='curve';return w;});
+    case 'halfpipe':
+      return makeCurve(obj.cx,obj.cy,obj.rx,obj.ry,obj.a0,obj.a1,18).map(w=>{w.type='curve';return w;});
+    case 'funnel':
+      return [
+        new Wall(obj.x1,obj.y1,obj.mx,obj.y2,'funnel'),
+        new Wall(obj.x2,obj.y1,obj.mx,obj.y2,'funnel'),
+      ];
+    default: return [];
+  }
+}
+
+function buildCustomTrack(){
+  // Always fixed start + finish
+  const w=[];
+  w.push(new Wall(0,0,0,H,'boundary'));
+  w.push(new Wall(W,0,W,H,'boundary'));
+  // Start funnel
+  w.push(new Wall(W*0.15,30,W*0.43,120,'funnel'));
+  w.push(new Wall(W*0.85,30,W*0.57,120,'funnel'));
+  // Finish line
+  w.push(new Wall(60,finishY,W-60,finishY,'finish'));
+  // User objects
+  for(const obj of customObjects){
+    w.push(...customObjToWalls(obj));
+  }
+  return w;
+}
+
+// ─── Editor state ─────────────────────────────────────────────────────────────
+const TOOLS=[
+  {id:'ramp',     label:'🟦 Ramp',        hint:'Click & drag to draw a ramp/platform.'},
+  {id:'peg',      label:'⚫ Peg',          hint:'Click to place a small peg marble bounce off.'},
+  {id:'bumper',   label:'🔴 Bumper',       hint:'Click to place a larger circular bumper.'},
+  {id:'halfpipe', label:'🌀 Half-Pipe',    hint:'Click & drag to create a curved scoop.'},
+  {id:'funnel',   label:'📐 Funnel',       hint:'Click & drag to place a V-shaped funnel.'},
+  {id:'erase',    label:'🗑️ Erase',        hint:'Click near an object to delete it.'},
+];
+let activeTool='ramp';
+let dragStart=null; // {x,y} in canvas coords
+let ghostEnd=null;  // current mouse position while dragging
+let editorActive=false;
+
+function snap(v){
+  if(!document.getElementById('snap-cb').checked) return v;
+  return Math.round(v/20)*20;
+}
+function canvasXY(e){
+  const r=canvas.getBoundingClientRect();
+  const scaleX=W/r.width, scaleY=H/r.height;
+  const src=e.touches?e.touches[0]:e;
+  return {x:snap((src.clientX-r.left)*scaleX), y:snap((src.clientY-r.top)*scaleY)};
+}
+
+function buildToolPalette(){
+  const grid=document.getElementById('tool-grid');grid.innerHTML='';
+  for(const t of TOOLS){
+    const btn=document.createElement('button');
+    btn.className='tool-btn'+(activeTool===t.id?' active':'');
+    btn.textContent=t.label;
+    btn.onclick=()=>{activeTool=t.id;buildToolPalette();document.getElementById('tool-hint').textContent=TOOLS.find(x=>x.id===t.id).hint;};
+    grid.appendChild(btn);
+  }
+  document.getElementById('tool-hint').textContent=TOOLS.find(x=>x.id===activeTool).hint;
+}
+
+// ─── Editor canvas events ─────────────────────────────────────────────────────
+function onEditorDown(e){
+  if(!editorActive) return;
+  e.preventDefault();
+  const p=canvasXY(e);
+  if(activeTool==='peg'){
+    customObjects.push({type:'peg',cx:p.x,cy:p.y,r:10});updateObjCount();renderEditor();return;
+  }
+  if(activeTool==='bumper'){
+    customObjects.push({type:'bumper',cx:p.x,cy:p.y,r:22});updateObjCount();renderEditor();return;
+  }
+  if(activeTool==='erase'){
+    eraseAt(p.x,p.y);return;
+  }
+  dragStart=p; ghostEnd=p;
+}
+function onEditorMove(e){
+  if(!editorActive||!dragStart) return;
+  e.preventDefault();
+  ghostEnd=canvasXY(e);
+  renderEditor();
+}
+function onEditorUp(e){
+  if(!editorActive) return;
+  if(!dragStart) return;
+  const p=canvasXY(e);
+  const dx=p.x-dragStart.x, dy=p.y-dragStart.y;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  if(dist>12){
+    if(activeTool==='ramp'){
+      customObjects.push({type:'ramp',x1:dragStart.x,y1:dragStart.y,x2:p.x,y2:p.y});
+    } else if(activeTool==='halfpipe'){
+      const cx=(dragStart.x+p.x)/2, cy=(dragStart.y+p.y)/2;
+      const rx=Math.abs(dx)/2+10, ry=26;
+      customObjects.push({type:'halfpipe',cx,cy,rx,ry,a0:Math.PI,a1:0});
+    } else if(activeTool==='funnel'){
+      const mx=(dragStart.x+p.x)/2;
+      customObjects.push({type:'funnel',x1:Math.min(dragStart.x,p.x)-30,x2:Math.max(dragStart.x,p.x)+30,y1:Math.min(dragStart.y,p.y),y2:Math.max(dragStart.y,p.y),mx});
+    }
+    updateObjCount();
+  }
+  dragStart=null;ghostEnd=null;renderEditor();
+}
+
+function eraseAt(x,y){
+  const thresh=26;
+  for(let i=customObjects.length-1;i>=0;i--){
+    const obj=customObjects[i];
+    let hit=false;
+    if(obj.type==='ramp'||obj.type==='funnel'){
+      // distance from point to segment
+      const dx=obj.x2-(obj.x1||obj.mx), dy=obj.y2-(obj.y1||0);
+      const ax=obj.x1||obj.x1, ay=obj.y1;
+      const bx=obj.x2||obj.mx, by=obj.y2||obj.y2;
+      const segdx=bx-ax,segdy=by-ay,len2=segdx*segdx+segdy*segdy;
+      if(len2>0){
+        let t=((x-ax)*segdx+(y-ay)*segdy)/len2;t=Math.max(0,Math.min(1,t));
+        const px2=ax+t*segdx,py2=ay+t*segdy;
+        hit=Math.sqrt((x-px2)**2+(y-py2)**2)<thresh;
+      }
+    } else {
+      const cx=obj.cx||0,cy=obj.cy||0;
+      hit=Math.sqrt((x-cx)**2+(y-cy)**2)<thresh+10;
+    }
+    if(hit){customObjects.splice(i,1);updateObjCount();renderEditor();return;}
+  }
+}
+
+function updateObjCount(){
+  document.getElementById('obj-count').textContent=`Objects placed: ${customObjects.length}`;
+}
+
+// ─── Editor rendering ─────────────────────────────────────────────────────────
+function renderEditor(){
+  const customTrack=buildCustomTrack();
+  drawTrackBase(customTrack);
+
+  // Draw placed objects with highlight
+  for(const obj of customObjects) drawCustomObj(obj, '#38bdf8', false);
+
+  // Ghost preview while dragging
+  if(dragStart&&ghostEnd){
+    const dx=ghostEnd.x-dragStart.x, dy=ghostEnd.y-dragStart.y;
+    ctx.save();ctx.globalAlpha=0.55;
+    if(activeTool==='ramp'){
+      drawLine(dragStart.x,dragStart.y,ghostEnd.x,ghostEnd.y,'#f59e0b',5);
+    } else if(activeTool==='halfpipe'){
+      const cx=(dragStart.x+ghostEnd.x)/2,cy=(dragStart.y+ghostEnd.y)/2;
+      const rx=Math.abs(dx)/2+10,ry=26;
+      ctx.strokeStyle='#f59e0b';ctx.lineWidth=5;ctx.beginPath();
+      for(let i=0;i<=18;i++){const a=Math.PI+(Math.PI)*i/18;ctx.lineTo(cx+Math.cos(a)*rx,cy+Math.sin(a)*ry);}
+      ctx.stroke();
+    } else if(activeTool==='funnel'){
+      const mx=(dragStart.x+ghostEnd.x)/2;
+      const y1=Math.min(dragStart.y,ghostEnd.y), y2=Math.max(dragStart.y,ghostEnd.y);
+      const x1=Math.min(dragStart.x,ghostEnd.x)-30, x2=Math.max(dragStart.x,ghostEnd.x)+30;
+      drawLine(x1,y1,mx,y2,'#f59e0b',5);
+      drawLine(x2,y1,mx,y2,'#f59e0b',5);
+    }
+    ctx.restore();
+  }
+
+  // Draw fixed start/finish labels
+  ctx.fillStyle='#818cf8';ctx.font='bold 12px Segoe UI';ctx.textAlign='center';
+  ctx.fillText('-- START --',W/2,25);
+  ctx.fillStyle='#f59e0b';ctx.font='bold 12px Segoe UI';
+  ctx.fillText('FINISH',W/2,finishY-10);
+
+  // Cursor crosshair
+  if(ghostEnd&&editorActive&&!dragStart&&activeTool!=='erase'){
+    ctx.save();ctx.strokeStyle='rgba(245,158,11,0.5)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(ghostEnd.x-14,ghostEnd.y);ctx.lineTo(ghostEnd.x+14,ghostEnd.y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(ghostEnd.x,ghostEnd.y-14);ctx.lineTo(ghostEnd.x,ghostEnd.y+14);ctx.stroke();
+    ctx.setLineDash([]);ctx.restore();
+  }
+}
+
+function drawLine(x1,y1,x2,y2,color,lw){
+  ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+}
+
+function drawCustomObj(obj, color, fill){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=5;ctx.lineCap='round';
+  ctx.shadowColor=color;ctx.shadowBlur=8;
+  if(obj.type==='ramp'){
+    ctx.beginPath();ctx.moveTo(obj.x1,obj.y1);ctx.lineTo(obj.x2,obj.y2);ctx.stroke();
+  } else if(obj.type==='peg'){
+    ctx.beginPath();ctx.arc(obj.cx,obj.cy,obj.r,0,Math.PI*2);
+    ctx.strokeStyle=color;ctx.lineWidth=3;ctx.stroke();
+    ctx.fillStyle=color+'55';ctx.fill();
+  } else if(obj.type==='bumper'){
+    ctx.beginPath();ctx.arc(obj.cx,obj.cy,obj.r,0,Math.PI*2);
+    ctx.strokeStyle='#ef4444';ctx.lineWidth=4;ctx.shadowColor='#ef4444';ctx.stroke();
+    ctx.fillStyle='rgba(239,68,68,0.18)';ctx.fill();
+  } else if(obj.type==='halfpipe'){
+    ctx.strokeStyle='#818cf8';ctx.lineWidth=5;
+    ctx.beginPath();
+    for(let i=0;i<=18;i++){const a=obj.a0+(obj.a1-obj.a0)*i/18;
+      i===0?ctx.moveTo(obj.cx+Math.cos(a)*obj.rx,obj.cy+Math.sin(a)*obj.ry):ctx.lineTo(obj.cx+Math.cos(a)*obj.rx,obj.cy+Math.sin(a)*obj.ry);}
+    ctx.stroke();
+  } else if(obj.type==='funnel'){
+    ctx.strokeStyle='#6366f1';ctx.lineWidth=5;
+    ctx.beginPath();ctx.moveTo(obj.x1,obj.y1);ctx.lineTo(obj.mx,obj.y2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(obj.x2,obj.y1);ctx.lineTo(obj.mx,obj.y2);ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ─── Marble class ─────────────────────────────────────────────────────────────
+class Marble{
+  constructor(id,color){this.id=id;this.color=color;this.r=MARBLE_R;this.reset(W/2,50);}
+  reset(sx,sy){
+    this.x=sx;this.y=sy;
+    this.vx=(Math.random()-0.5)*80;this.vy=10+Math.random()*20;
+    this.finished=false;this.finishTime=null;this.trail=[];
+    this.stuckFrames=0;this.checkX=sx;this.checkY=sy;
+  }
+  update(walls){
+    if(this.finished) return;
+    this.vy+=G*DT;
+    this.vx*=FRICTION;this.vy*=FRICTION;
+    const spd=Math.sqrt(this.vx*this.vx+this.vy*this.vy);
+    if(spd>1400){this.vx=this.vx/spd*1400;this.vy=this.vy/spd*1400;}
+    this.x+=this.vx*DT;this.y+=this.vy*DT;
+    this.trail.push({x:this.x,y:this.y});
+    if(this.trail.length>12) this.trail.shift();
+    for(const wall of walls) this.collideWall(wall);
+    if(this.x<this.r){this.x=this.r;this.vx=Math.abs(this.vx)*BOUNCE;}
+    if(this.x>W-this.r){this.x=W-this.r;this.vx=-Math.abs(this.vx)*BOUNCE;}
+    if(this.y<this.r+2){this.y=this.r+2;this.vy=Math.abs(this.vy)*0.3;}
+    this.stuckFrames++;
+    if(this.stuckFrames>=40){
+      const moved=Math.sqrt((this.x-this.checkX)**2+(this.y-this.checkY)**2);
+      if(moved<4){
+        this.vy=Math.max(this.vy+180,250);
+        this.vx+=(Math.random()-0.5)*220;
+        this.y+=this.r*1.2;
+      }
+      this.stuckFrames=0;this.checkX=this.x;this.checkY=this.y;
+    }
+    if(this.y>finishY-this.r&&!this.finished){
+      this.finished=true;this.finishTime=performance.now()-raceStartTime;
+      this.vy=0;this.vx*=0.1;this.y=finishY-this.r;
+    }
+  }
+  collideWall(wall){
+    const ax=wall.a.x,ay=wall.a.y,bx=wall.b.x,by=wall.b.y;
+    const dx=bx-ax,dy=by-ay,lenSq=dx*dx+dy*dy;
+    if(lenSq<0.001) return;
+    let t=((this.x-ax)*dx+(this.y-ay)*dy)/lenSq;
+    t=Math.max(0,Math.min(1,t));
+    const cx2=ax+t*dx,cy2=ay+t*dy;
+    const ex=this.x-cx2,ey=this.y-cy2,dist=Math.sqrt(ex*ex+ey*ey);
+    if(dist<this.r&&dist>0.001){
+      const nx=ex/dist,ny=ey/dist;
+      this.x=cx2+nx*this.r;this.y=cy2+ny*this.r;
+      const dot=this.vx*nx+this.vy*ny;
+      if(dot<0){this.vx-=(1+BOUNCE)*dot*nx;this.vy-=(1+BOUNCE)*dot*ny;this.vx*=0.97;this.vy*=0.97;}
+    }
+  }
+  draw(ctx){
+    for(let i=0;i<this.trail.length;i++){
+      const a=i/this.trail.length*0.25;
+      const hex=Math.floor(a*255).toString(16).padStart(2,'0');
+      ctx.beginPath();ctx.arc(this.trail[i].x,this.trail[i].y,this.r*(0.3+0.5*i/this.trail.length),0,Math.PI*2);
+      ctx.fillStyle=this.color.hex+hex;ctx.fill();
+    }
+    const g=ctx.createRadialGradient(this.x-this.r*0.35,this.y-this.r*0.35,this.r*0.05,this.x,this.y,this.r);
+    g.addColorStop(0,'rgba(255,255,255,0.9)');g.addColorStop(0.25,this.color.hex);g.addColorStop(1,this.color.dark);
+    ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=1;ctx.stroke();
+  }
+}
+
+// ─── Track drawing ────────────────────────────────────────────────────────────
+function drawTrackBase(walls){
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#0f172a');bg.addColorStop(1,'#080e1a');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+
+  // Grid overlay when in editor mode
+  if(editorActive){
+    ctx.save();ctx.strokeStyle='rgba(99,102,241,0.08)';ctx.lineWidth=1;
+    for(let x=0;x<=W;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=0;y<=H;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+    ctx.restore();
+  }
+
+  for(const w of walls){
+    if(w.type==='finish'){
+      ctx.save();ctx.strokeStyle='#f59e0b';ctx.lineWidth=5;ctx.setLineDash([14,8]);
+      ctx.shadowColor='#f59e0b';ctx.shadowBlur=12;
+      ctx.beginPath();ctx.moveTo(w.a.x,w.a.y);ctx.lineTo(w.b.x,w.b.y);ctx.stroke();
+      ctx.restore();continue;
+    }
+    if(w.type==='boundary') continue;
+    const isFunnel=w.type==='funnel',isDiv=w.type==='divider',isCurve=w.type==='curve';
+    ctx.strokeStyle=isDiv?'#a855f7':isFunnel?'#6366f1':isCurve?'#475569':'#334155';
+    ctx.lineWidth=isDiv?7:isFunnel?6:5;ctx.lineCap='round';
+    ctx.shadowColor=isDiv?'#a855f7':isFunnel?'#818cf8':'rgba(99,102,241,.15)';
+    ctx.shadowBlur=isDiv||isFunnel?12:3;
+    ctx.beginPath();ctx.moveTo(w.a.x,w.a.y);ctx.lineTo(w.b.x,w.b.y);ctx.stroke();
+    ctx.shadowBlur=0;
+  }
+  ctx.fillStyle='#f59e0b';ctx.font='bold 12px Segoe UI';ctx.textAlign='center';
+  ctx.fillText('FINISH',W/2,finishY-10);
+  ctx.fillStyle='#818cf8';ctx.fillText('-- START --',W/2,45);
+}
+function drawTrack(walls){drawTrackBase(walls);}
+
+// ─── Classic race logic ───────────────────────────────────────────────────────
+function getOdds(id){return [2,2.5,3,3.5,4,5,6,8][id%8];}
+
+function buildPanel(){
+  const grid=document.getElementById('marbles-grid');grid.innerHTML='';
+  for(const m of marbles){
+    const btn=document.createElement('button');
+    btn.className='marble-btn'+(betMarble===m?' selected':'');
+    btn.id='mb-'+m.id;
+    btn.innerHTML=`<div class="dot" style="background:${m.color.hex}"></div><span>${m.color.name}</span><span class="odds">${getOdds(m.id)}x</span>`;
+    btn.onclick=()=>{if(phase!=='idle')return;betMarble=m;document.querySelectorAll('.marble-btn').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');};
+    grid.appendChild(btn);
+  }
+}
+
+function buildPanel2(){
+  const grid=document.getElementById('marbles-grid2');grid.innerHTML='';
+  for(const m of marbles){
+    const btn=document.createElement('button');
+    btn.className='marble-btn'+(customBetMarble===m?' selected':'');
+    btn.id='mb2-'+m.id;
+    btn.innerHTML=`<div class="dot" style="background:${m.color.hex}"></div><span>${m.color.name}</span><span class="odds">${getOdds(m.id)}x</span>`;
+    btn.onclick=()=>{customBetMarble=m;document.querySelectorAll('#marbles-grid2 .marble-btn').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');};
+    grid.appendChild(btn);
+  }
+  document.getElementById('wallet-val2').textContent=wallet;
+}
+
+function updatePanel(){
+  if(!finishOrder.length) return;
+  for(const m of marbles){
+    const btn=document.getElementById('mb-'+m.id);if(!btn)continue;
+    btn.classList.toggle('finished-1st',finishOrder[0]===m);
+  }
+}
+function updatePanel2(){
+  if(!finishOrder.length) return;
+  for(const m of marbles){
+    const btn=document.getElementById('mb2-'+m.id);if(!btn)continue;
+    if(btn) btn.classList.toggle('finished-1st',finishOrder[0]===m);
+  }
+}
+
+function setBet(v){betAmt=Math.min(v,wallet);document.getElementById('bet-input').value=betAmt;}
+function setBet2(v){customBetAmt=Math.min(v,wallet);document.getElementById('bet-input2').value=customBetAmt;}
+function allIn(){return wallet;}
+document.getElementById('bet-input').addEventListener('change',e=>{betAmt=Math.max(10,Math.min(+e.target.value,wallet));e.target.value=betAmt;});
+document.getElementById('bet-input2').addEventListener('change',e=>{customBetAmt=Math.max(10,Math.min(+e.target.value,wallet));e.target.value=customBetAmt;});
+
+function showOverlay(t,s,dur){
+  const ov=document.getElementById('phase-overlay');
+  document.getElementById('phase-text').textContent=t;
+  document.getElementById('phase-sub').textContent=s;
+  ov.classList.add('show');
+  if(dur) setTimeout(()=>ov.classList.remove('show'),dur);
+}
+function hideOverlay(){document.getElementById('phase-overlay').classList.remove('show');}
+
+function spawnMarbles(){
+  const spread=W*0.65;
+  for(let i=0;i<marbles.length;i++){
+    const sx=W/2-spread/2+(spread/(marbles.length-1))*i+(Math.random()-.5)*8;
+    marbles[i].reset(sx,35+Math.random()*12);
+  }
+}
+
+function renderIdle(){
+  if(phase!=='idle')return;
+  ctx.clearRect(0,0,W,H);drawTrack(track);
+  for(const m of marbles) m.draw(ctx);
+  animFrame=requestAnimationFrame(renderIdle);
+}
+
+function initGame(){
+  wallet=1000;betMarble=null;betAmt=50;customBetMarble=null;customBetAmt=50;
+  document.getElementById('wallet-val').textContent=wallet;
+  document.getElementById('wallet-val2').textContent=wallet;
+  document.getElementById('bet-input').value=50;
+  document.getElementById('bet-input2').value=50;
+  marbles=COLORS.slice(0,NUM_MARBLES).map((c,i)=>new Marble(i,c));
+  track=buildTrack();finishOrder=[];phase='idle';
+  document.getElementById('start-btn').disabled=false;
+  document.getElementById('results-box').classList.remove('show');
+  document.getElementById('msg').textContent='Pick a marble and place your bet!';
+  buildPanel();buildPanel2();spawnMarbles();
+  if(animFrame) cancelAnimationFrame(animFrame);
+  renderIdle();
+}
+
+function startRace(){
+  betAmt=+document.getElementById('bet-input').value;
+  if(!betMarble){document.getElementById('msg').textContent='Pick a marble first!';return;}
+  if(betAmt>wallet){document.getElementById('msg').textContent='Not enough funds!';return;}
+  if(betAmt<10){document.getElementById('msg').textContent='Minimum bet is $10';return;}
+  wallet-=betAmt;document.getElementById('wallet-val').textContent=wallet;
+  document.getElementById('results-box').classList.remove('show');
+  document.getElementById('start-btn').disabled=true;document.getElementById('msg').textContent='';
+  phase='countdown';if(animFrame) cancelAnimationFrame(animFrame);
+  let count=3;showOverlay(count,'Get ready!',0);
+  const cd=setInterval(()=>{
+    count--;
+    if(count>0) document.getElementById('phase-text').textContent=count;
+    else{
+      clearInterval(cd);hideOverlay();spawnMarbles();finishOrder=[];
+      phase='racing';raceStartTime=performance.now();
+      requestAnimationFrame(raceLoop);
+    }
+  },1000);
+}
+
+function raceLoop(){
+  if(phase!=='racing')return;
+  ctx.clearRect(0,0,W,H);drawTrack(track);
+  let allDone=true;
+  for(const m of marbles){
+    m.update(track);m.draw(ctx);
+    if(!m.finished) allDone=false;
+    else if(!finishOrder.includes(m)) finishOrder.push(m);
+  }
+  finishOrder.slice(0,3).forEach((m,i)=>{
+    ctx.fillStyle=['#f59e0b','#e2e8f0','#d97706'][i];
+    ctx.font=`bold ${i===0?14:11}px Segoe UI`;ctx.textAlign='center';
+    ctx.fillText(['1st','2nd','3rd'][i],m.x,m.y-m.r-4);
+  });
+  updatePanel();
+  if(allDone||(performance.now()-raceStartTime>35000)){
+    for(const m of marbles) if(!m.finished){m.finished=true;finishOrder.push(m);}
+    phase='results';showResults();return;
+  }
+  animFrame=requestAnimationFrame(raceLoop);
+}
+
+function showResults(custom=false){
+  const winner=finishOrder[0];
+  const chosenMarble=custom?customBetMarble:betMarble;
+  const chosenBet=custom?customBetAmt:betAmt;
+  const isWin=winner===chosenMarble;
+  const odds=getOdds(chosenMarble?.id??0);const payout=isWin?Math.floor(chosenBet*odds):0;
+  if(isWin) wallet+=payout;
+  document.getElementById('wallet-val').textContent=wallet;
+  document.getElementById('wallet-val2').textContent=wallet;
+
+  const suffix=custom?'2':'';
+  const rb=document.getElementById('results-box'+suffix);rb.classList.add('show');
+  const medals=['1st','2nd','3rd','4th'];
+  document.getElementById('outcome-text'+suffix).innerHTML=isWin
+    ?`<div class="res-win">Winner! +$${payout}</div><div style="color:#94a3b8;font-size:.8rem;margin-bottom:.4rem">${chosenMarble.color.name} at ${odds}x odds</div>`
+    :`<div class="res-loss">Lost $${chosenBet}</div><div style="color:#94a3b8;font-size:.8rem;margin-bottom:.4rem">Your pick: ${chosenMarble?.color.name} | Winner: ${winner?.color.name}</div>`;
+  const podEl=document.getElementById('podium'+suffix);podEl.innerHTML='';
+  finishOrder.slice(0,4).forEach((m,i)=>{
+    const d=document.createElement('div');d.className='podium-item';
+    d.innerHTML=`<span class="place p${i+1}">${medals[i]}</span><span class="dot" style="background:${m.color.hex};width:12px;height:12px;border-radius:50%;display:inline-block"></span><span>${m.color.name}</span><span style="margin-left:auto;color:#6366f1;font-size:.72rem">${(m.finishTime/1000).toFixed(2)}s</span>`;
+    podEl.appendChild(d);
+  });
+
+  if(custom){
+    (updatePanel2)();
+    document.getElementById('msg2').textContent=`Balance: $${wallet}`;
+    document.getElementById('custom-start-btn').disabled=false;
+  } else {
+    if(wallet<=0){document.getElementById('msg').textContent='Broke! Resetting...';setTimeout(initGame,2500);}
+    else{document.getElementById('msg').textContent=`Balance: $${wallet}`;document.getElementById('start-btn').disabled=false;}
+  }
+  showOverlay(isWin?'YOU WIN!':'YOU LOSE',isWin?`+$${payout}`:`-$${chosenBet}`,2500);
+}
+
+function resetGame(){
+  if(animFrame) cancelAnimationFrame(animFrame);
+  track=buildTrack();finishOrder=[];betMarble=null;phase='idle';
+  document.getElementById('results-box').classList.remove('show');
+  document.getElementById('msg').textContent='New track loaded!';
+  document.querySelectorAll('.marble-btn').forEach(b=>b.classList.remove('selected'));
+  document.getElementById('start-btn').disabled=false;
+  spawnMarbles();buildPanel();renderIdle();
+}
+
+// ─── Build mode logic ─────────────────────────────────────────────────────────
+function switchMode(mode){
+  currentMode=mode;
+  document.getElementById('tab-classic').classList.toggle('active',mode==='classic');
+  document.getElementById('tab-build').classList.toggle('active',mode==='build'||mode==='custom-race');
+  document.getElementById('race-panel').style.display=mode==='classic'?'flex':'none';
+  document.getElementById('build-panel').style.display=(mode==='build'||mode==='custom-race')?'flex':'none';
+  document.getElementById('custom-bet-area').style.display=mode==='custom-race'?'flex':'none';
+
+  if(animFrame) cancelAnimationFrame(animFrame);
+  animFrame=null;
+
+  if(mode==='classic'){
+    editorActive=false;
+    detachEditorEvents();
+    phase='idle';
+    track=buildTrack();
+    spawnMarbles();renderIdle();
+  } else if(mode==='build'){
+    editorActive=true;
+    phase='idle';
+    attachEditorEvents();
+    buildToolPalette();updateObjCount();
+    renderEditor();
+  } else if(mode==='custom-race'){
+    // racing in custom mode — handled by startCustomRace
+  }
+}
+
+function attachEditorEvents(){
+  canvas.addEventListener('mousedown',onEditorDown);
+  canvas.addEventListener('mousemove',onEditorMoveHandler);
+  canvas.addEventListener('mouseup',onEditorUp);
+  canvas.addEventListener('mouseleave',onEditorLeave);
+  canvas.addEventListener('touchstart',onEditorDown,{passive:false});
+  canvas.addEventListener('touchmove',onEditorMove,{passive:false});
+  canvas.addEventListener('touchend',onEditorUp);
+  canvas.style.cursor='crosshair';
+}
+function detachEditorEvents(){
+  canvas.removeEventListener('mousedown',onEditorDown);
+  canvas.removeEventListener('mousemove',onEditorMoveHandler);
+  canvas.removeEventListener('mouseup',onEditorUp);
+  canvas.removeEventListener('mouseleave',onEditorLeave);
+  canvas.removeEventListener('touchstart',onEditorDown);
+  canvas.removeEventListener('touchmove',onEditorMove);
+  canvas.removeEventListener('touchend',onEditorUp);
+  canvas.style.cursor='default';
+}
+function onEditorMoveHandler(e){
+  const p=canvasXY(e);ghostEnd=p;
+  if(dragStart) onEditorMove(e);
+  else {ghostEnd=p;renderEditor();}
+}
+function onEditorLeave(){ghostEnd=null;dragStart=null;renderEditor();}
+
+function clearCustomTrack(){
+  customObjects=[];updateObjCount();renderEditor();
+}
+
+function playCustomTrack(){
+  if(customObjects.length===0){
+    // allow empty track (just start+finish)
+  }
+  // Show bet panel
+  buildPanel2();
+  customBetMarble=null;customBetAmt=50;
+  document.getElementById('bet-input2').value=50;
+  document.getElementById('results-box2').classList.remove('show');
+  document.getElementById('msg2').textContent='Pick a marble & bet!';
+  document.getElementById('custom-start-btn').disabled=false;
+  switchMode('custom-race');
+  editorActive=false;detachEditorEvents();
+  // Draw the custom track idle preview
+  track=buildCustomTrack();phase='idle';
+  marbles=COLORS.slice(0,NUM_MARBLES).map((c,i)=>new Marble(i,c));
+  spawnMarbles();
+  renderCustomIdle();
+}
+
+function renderCustomIdle(){
+  if(phase!=='idle'||currentMode!=='custom-race') return;
+  ctx.clearRect(0,0,W,H);
+  drawTrackBase(track);
+  // re-draw user objs on top with their style
+  for(const obj of customObjects) drawCustomObj(obj,'#38bdf8',false);
+  for(const m of marbles) m.draw(ctx);
+  animFrame=requestAnimationFrame(renderCustomIdle);
+}
+
+function startCustomRace(){
+  customBetAmt=+document.getElementById('bet-input2').value;
+  if(!customBetMarble){document.getElementById('msg2').textContent='Pick a marble first!';return;}
+  if(customBetAmt>wallet){document.getElementById('msg2').textContent='Not enough funds!';return;}
+  if(customBetAmt<10){document.getElementById('msg2').textContent='Minimum bet is $10';return;}
+  wallet-=customBetAmt;
+  document.getElementById('wallet-val2').textContent=wallet;
+  document.getElementById('wallet-val').textContent=wallet;
+  document.getElementById('results-box2').classList.remove('show');
+  document.getElementById('custom-start-btn').disabled=true;
+  document.getElementById('msg2').textContent='';
+  if(animFrame) cancelAnimationFrame(animFrame);
+  phase='countdown';let count=3;showOverlay(count,'Get ready!',0);
+  const cd=setInterval(()=>{
+    count--;
+    if(count>0) document.getElementById('phase-text').textContent=count;
+    else{
+      clearInterval(cd);hideOverlay();spawnMarbles();finishOrder=[];
+      phase='racing';raceStartTime=performance.now();
+      requestAnimationFrame(customRaceLoop);
+    }
+  },1000);
+}
+
+function customRaceLoop(){
+  if(phase!=='racing') return;
+  ctx.clearRect(0,0,W,H);
+  drawTrackBase(track);
+  for(const obj of customObjects) drawCustomObj(obj,'#38bdf8',false);
+  let allDone=true;
+  for(const m of marbles){
+    m.update(track);m.draw(ctx);
+    if(!m.finished) allDone=false;
+    else if(!finishOrder.includes(m)) finishOrder.push(m);
+  }
+  finishOrder.slice(0,3).forEach((m,i)=>{
+    ctx.fillStyle=['#f59e0b','#e2e8f0','#d97706'][i];
+    ctx.font=`bold ${i===0?14:11}px Segoe UI`;ctx.textAlign='center';
+    ctx.fillText(['1st','2nd','3rd'][i],m.x,m.y-m.r-4);
+  });
+  updatePanel2();
+  if(allDone||(performance.now()-raceStartTime>45000)){
+    for(const m of marbles) if(!m.finished){m.finished=true;finishOrder.push(m);}
+    phase='results';showResults(true);return;
+  }
+  animFrame=requestAnimationFrame(customRaceLoop);
+}
+
+function backToBuilder(){
+  if(animFrame) cancelAnimationFrame(animFrame);animFrame=null;
+  phase='idle';currentMode='build';editorActive=true;
+  document.getElementById('build-panel').style.display='flex';
+  document.getElementById('custom-bet-area').style.display='none';
+  document.getElementById('tab-build').classList.add('active');
+  attachEditorEvents();buildToolPalette();updateObjCount();renderEditor();
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+initGame();
+</script>
+</body>
+</html>
+
+class Wall{
+  constructor(ax,ay,bx,by,type='normal'){
+    this.a=new Vec2(ax,ay);this.b=new Vec2(bx,by);this.type=type;
+  }
+}
+
+function makePlatform(x1,y1,x2,y2){
+  return [new Wall(x1,y1,x2,y2)];
+}
+
+function makeCurve(cx,cy,rx,ry,a0,a1,steps=20){
+  const walls=[];
+  let prev=null;
+  for(let i=0;i<=steps;i++){
+    const a=a0+(a1-a0)*i/steps;
+    const pt={x:cx+Math.cos(a)*rx,y:cy+Math.sin(a)*ry};
+    if(prev) walls.push(new Wall(prev.x,prev.y,pt.x,pt.y,'curve'));
+    prev=pt;
+  }
+  return walls;
+}
+
+function buildTrack(){
+  const w=[];
+
+  // Outer boundaries
+  w.push(new Wall(0,0,0,H,'boundary'));
+  w.push(new Wall(W,0,W,H,'boundary'));
+
+  // === STARTING FUNNEL ===
+  w.push(new Wall(W*0.15,50,W*0.42,140,'funnel'));
+  w.push(new Wall(W*0.85,50,W*0.58,140,'funnel'));
+
+  // === FIRST WIDE SLOPE: left and right ramps ===
+  w.push(...makePlatform(W*0.08,200,W*0.46,260));
+  w.push(...makePlatform(W*0.54,260,W*0.92,200));
+  // center divider (fork peg)
+  w.push(new Wall(W/2,140,W*0.44,205,'divider'));
+  w.push(new Wall(W/2,140,W*0.56,205,'divider'));
+
+  // === LEFT LANE: loop-the-loop ===
+  const loopCX=W*0.2, loopCY=340, loopR=52;
+  w.push(...makeCurve(loopCX,loopCY,loopR,loopR,Math.PI*0.5,Math.PI*2.5,28));
+
+  // left lane floor after loop
+  w.push(...makePlatform(W*0.06,395,W*0.32,415));
+  w.push(...makePlatform(W*0.05,415,W*0.35,460));
+
+  // === RIGHT LANE: zigzag bumpers ===
+  w.push(...makePlatform(W*0.68,235,W*0.95,270));
+  w.push(...makePlatform(W*0.55,305,W*0.88,335));
+  w.push(...makePlatform(W*0.6,365,W*0.93,390));
+  // small circular bumpers
+  w.push(...makeCurve(W*0.75,300,18,18,0,Math.PI*2,14));
+  w.push(...makeCurve(W*0.82,360,16,16,0,Math.PI*2,14));
+
+  // === MERGE FUNNEL (both lanes come together) ===
+  w.push(new Wall(W*0.05,460,W*0.3,530,'funnel'));
+  w.push(new Wall(W*0.95,430,W*0.7,530,'funnel'));
+
+  // === SPIRAL/CURVE section ===
+  w.push(...makeCurve(W/2,590,180,50,Math.PI,0,20));
+  w.push(...makeCurve(W/2,590,180,50,0,Math.PI,20));
+
+  // === SECOND FORK ===
+  w.push(new Wall(W/2,540,W*0.38,580,'divider'));
+  w.push(new Wall(W/2,540,W*0.62,580,'divider'));
+  w.push(...makePlatform(W*0.1,615,W*0.4,635));
+  w.push(...makePlatform(W*0.6,635,W*0.9,615));
+
+  // === FINAL MERGE and RAMP to finish ===
+  w.push(new Wall(W*0.1,680,W*0.38,730,'funnel'));
+  w.push(new Wall(W*0.9,680,W*0.62,730,'funnel'));
+  w.push(...makePlatform(W*0.25,760,W*0.75,778));
+
+  // === FINISH ===
+  w.push(new Wall(60,finishY,W-60,finishY,'finish'));
+
+  return w;
+}
+
+class Marble{
+  constructor(id,color){this.id=id;this.color=color;this.r=MARBLE_R;this.reset(W/2,50);}
+  reset(sx,sy){
+    this.x=sx;this.y=sy;
+    this.vx=(Math.random()-0.5)*80;this.vy=10+Math.random()*20;
+    this.finished=false;this.finishTime=null;this.trail=[];
+    this.stuckFrames=0;this.checkX=sx;this.checkY=sy;
+  }
+  update(walls){
+    if(this.finished) return;
+    this.vy+=G*DT;
+    this.vx*=FRICTION;this.vy*=FRICTION;
+    const spd=Math.sqrt(this.vx*this.vx+this.vy*this.vy);
+    if(spd>1400){this.vx=this.vx/spd*1400;this.vy=this.vy/spd*1400;}
+    this.x+=this.vx*DT;this.y+=this.vy*DT;
+    this.trail.push({x:this.x,y:this.y});
+    if(this.trail.length>12) this.trail.shift();
+    for(const wall of walls) this.collideWall(wall);
+    if(this.x<this.r){this.x=this.r;this.vx=Math.abs(this.vx)*BOUNCE;}
+    if(this.x>W-this.r){this.x=W-this.r;this.vx=-Math.abs(this.vx)*BOUNCE;}
+    if(this.y<this.r+2){this.y=this.r+2;this.vy=Math.abs(this.vy)*0.3;}
+    // Anti-stuck: every 40 frames check if marble has moved enough
+    this.stuckFrames++;
+    if(this.stuckFrames>=40){
+      const moved=Math.sqrt((this.x-this.checkX)**2+(this.y-this.checkY)**2);
+      if(moved<4){
+        // Kick marble downward and randomise horizontal so it always escapes
+        this.vy=Math.max(this.vy+180, 250);
+        this.vx+=(Math.random()-0.5)*220;
+        this.y+=this.r*1.2; // nudge down past any wall edge
+      }
+      this.stuckFrames=0;this.checkX=this.x;this.checkY=this.y;
+    }
+    if(this.y>finishY-this.r&&!this.finished){
+      this.finished=true;this.finishTime=performance.now()-raceStartTime;
+      this.vy=0;this.vx*=0.1;this.y=finishY-this.r;
+    }
+  }
+  collideWall(wall){
+    const ax=wall.a.x,ay=wall.a.y,bx=wall.b.x,by=wall.b.y;
+    const dx=bx-ax,dy=by-ay,lenSq=dx*dx+dy*dy;
+    if(lenSq<0.001) return;
+    let t=((this.x-ax)*dx+(this.y-ay)*dy)/lenSq;
+    t=Math.max(0,Math.min(1,t));
+    const cx2=ax+t*dx,cy2=ay+t*dy;
+    const ex=this.x-cx2,ey=this.y-cy2,dist=Math.sqrt(ex*ex+ey*ey);
+    if(dist<this.r&&dist>0.001){
+      const nx=ex/dist,ny=ey/dist;
+      this.x=cx2+nx*this.r;this.y=cy2+ny*this.r;
+      const dot=this.vx*nx+this.vy*ny;
+      if(dot<0){this.vx-=(1+BOUNCE)*dot*nx;this.vy-=(1+BOUNCE)*dot*ny;this.vx*=0.97;this.vy*=0.97;}
+    }
+  }
+  draw(ctx){
+    for(let i=0;i<this.trail.length;i++){
+      const a=i/this.trail.length*0.25;
+      const hex=Math.floor(a*255).toString(16).padStart(2,'0');
+      ctx.beginPath();ctx.arc(this.trail[i].x,this.trail[i].y,this.r*(0.3+0.5*i/this.trail.length),0,Math.PI*2);
+      ctx.fillStyle=this.color.hex+hex;ctx.fill();
+    }
+    const g=ctx.createRadialGradient(this.x-this.r*0.35,this.y-this.r*0.35,this.r*0.05,this.x,this.y,this.r);
+    g.addColorStop(0,'rgba(255,255,255,0.9)');g.addColorStop(0.25,this.color.hex);g.addColorStop(1,this.color.dark);
+    ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=1;ctx.stroke();
+  }
+}
+
+function drawTrack(walls){
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#0f172a');bg.addColorStop(1,'#080e1a');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+
+  for(const w of walls){
+    if(w.type==='finish'){
+      ctx.save();ctx.strokeStyle='#f59e0b';ctx.lineWidth=5;ctx.setLineDash([14,8]);
+      ctx.shadowColor='#f59e0b';ctx.shadowBlur=12;
+      ctx.beginPath();ctx.moveTo(w.a.x,w.a.y);ctx.lineTo(w.b.x,w.b.y);ctx.stroke();
+      ctx.restore();continue;
+    }
+    if(w.type==='boundary') continue;
+    const isFunnel=w.type==='funnel',isDiv=w.type==='divider',isCurve=w.type==='curve';
+    ctx.strokeStyle=isDiv?'#a855f7':isFunnel?'#6366f1':isCurve?'#475569':'#334155';
+    ctx.lineWidth=isDiv?7:isFunnel?6:5;ctx.lineCap='round';
+    ctx.shadowColor=isDiv?'#a855f7':isFunnel?'#818cf8':'rgba(99,102,241,.15)';
+    ctx.shadowBlur=isDiv||isFunnel?12:3;
+    ctx.beginPath();ctx.moveTo(w.a.x,w.a.y);ctx.lineTo(w.b.x,w.b.y);ctx.stroke();
+    ctx.shadowBlur=0;
+  }
+  ctx.fillStyle='#f59e0b';ctx.font='bold 12px Segoe UI';ctx.textAlign='center';
+  ctx.fillText('FINISH',W/2,finishY-10);
+  ctx.fillStyle='#818cf8';ctx.fillText('-- START --',W/2,45);
+}
+
+function getOdds(id){return [2,2.5,3,3.5,4,5,6,8][id%8];}
+
+function buildPanel(){
+  const grid=document.getElementById('marbles-grid');grid.innerHTML='';
+  for(const m of marbles){
+    const btn=document.createElement('button');
+    btn.className='marble-btn'+(betMarble===m?' selected':'');
+    btn.id='mb-'+m.id;
+    btn.innerHTML=`<div class="dot" style="background:${m.color.hex}"></div><span>${m.color.name}</span><span class="odds">${getOdds(m.id)}x</span>`;
+    btn.onclick=()=>{if(phase!=='idle')return;betMarble=m;document.querySelectorAll('.marble-btn').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');};
+    grid.appendChild(btn);
+  }
+}
+
+function updatePanel(){
+  if(!finishOrder.length) return;
+  for(const m of marbles){
+    const btn=document.getElementById('mb-'+m.id);if(!btn)continue;
+    btn.classList.toggle('finished-1st',finishOrder[0]===m);
+  }
+}
+
+function setBet(v){betAmt=Math.min(v,wallet);document.getElementById('bet-input').value=betAmt;}
+function allIn(){return wallet;}
+document.getElementById('bet-input').addEventListener('change',e=>{betAmt=Math.max(10,Math.min(+e.target.value,wallet));e.target.value=betAmt;});
+
+function showOverlay(t,s,dur){
+  const ov=document.getElementById('phase-overlay');
+  document.getElementById('phase-text').textContent=t;
+  document.getElementById('phase-sub').textContent=s;
+  ov.classList.add('show');
+  if(dur) setTimeout(()=>ov.classList.remove('show'),dur);
+}
+function hideOverlay(){document.getElementById('phase-overlay').classList.remove('show');}
+
+function spawnMarbles(){
+  const spread=W*0.65;
+  for(let i=0;i<marbles.length;i++){
+    const sx=W/2-spread/2+(spread/(marbles.length-1))*i+(Math.random()-.5)*8;
+    marbles[i].reset(sx,35+Math.random()*12);
+  }
+}
+
+function renderIdle(){
+  if(phase!=='idle')return;
+  ctx.clearRect(0,0,W,H);drawTrack(track);
+  for(const m of marbles) m.draw(ctx);
+  animFrame=requestAnimationFrame(renderIdle);
+}
+
+function initGame(){
+  wallet=1000;betMarble=null;betAmt=50;
+  document.getElementById('wallet-val').textContent=wallet;
+  document.getElementById('bet-input').value=50;
+  marbles=COLORS.slice(0,NUM_MARBLES).map((c,i)=>new Marble(i,c));
+  track=buildTrack();finishOrder=[];phase='idle';
+  document.getElementById('start-btn').disabled=false;
+  document.getElementById('results-box').classList.remove('show');
+  document.getElementById('msg').textContent='Pick a marble and place your bet!';
+  buildPanel();spawnMarbles();
+  if(animFrame) cancelAnimationFrame(animFrame);
+  renderIdle();
+}
+
+function startRace(){
+  betAmt=+document.getElementById('bet-input').value;
+  if(!betMarble){document.getElementById('msg').textContent='Pick a marble first!';return;}
+  if(betAmt>wallet){document.getElementById('msg').textContent='Not enough funds!';return;}
+  if(betAmt<10){document.getElementById('msg').textContent='Minimum bet is $10';return;}
+  wallet-=betAmt;document.getElementById('wallet-val').textContent=wallet;
+  document.getElementById('results-box').classList.remove('show');
+  document.getElementById('start-btn').disabled=true;document.getElementById('msg').textContent='';
+  phase='countdown';if(animFrame) cancelAnimationFrame(animFrame);
+  let count=3;showOverlay(count,'Get ready!',0);
+  const cd=setInterval(()=>{
+    count--;
+    if(count>0) document.getElementById('phase-text').textContent=count;
+    else{
+      clearInterval(cd);hideOverlay();spawnMarbles();finishOrder=[];
+      phase='racing';raceStartTime=performance.now();
+      requestAnimationFrame(raceLoop);
+    }
+  },1000);
+}
+
+function raceLoop(){
+  if(phase!=='racing')return;
+  ctx.clearRect(0,0,W,H);drawTrack(track);
+  let allDone=true;
+  for(const m of marbles){
+    m.update(track);m.draw(ctx);
+    if(!m.finished) allDone=false;
+    else if(!finishOrder.includes(m)) finishOrder.push(m);
+  }
+  finishOrder.slice(0,3).forEach((m,i)=>{
+    ctx.fillStyle=['#f59e0b','#e2e8f0','#d97706'][i];
+    ctx.font=`bold ${i===0?14:11}px Segoe UI`;ctx.textAlign='center';
+    ctx.fillText(['1st','2nd','3rd'][i],m.x,m.y-m.r-4);
+  });
+  updatePanel();
+  if(allDone||(performance.now()-raceStartTime>35000)){
+    for(const m of marbles) if(!m.finished){m.finished=true;finishOrder.push(m);}
+    phase='results';showResults();return;
+  }
+  animFrame=requestAnimationFrame(raceLoop);
+}
+
+function showResults(){
+  const winner=finishOrder[0];const isWin=winner===betMarble;
+  const odds=getOdds(betMarble?.id??0);const payout=isWin?Math.floor(betAmt*odds):0;
+  if(isWin) wallet+=payout;
+  document.getElementById('wallet-val').textContent=wallet;
+  const rb=document.getElementById('results-box');rb.classList.add('show');
+  const medals=['1st','2nd','3rd','4th'];
+  document.getElementById('outcome-text').innerHTML=isWin
+    ?`<div class="res-win">Winner! +$${payout}</div><div style="color:#94a3b8;font-size:.8rem;margin-bottom:.4rem">${betMarble.color.name} at ${odds}x odds</div>`
+    :`<div class="res-loss">Lost $${betAmt}</div><div style="color:#94a3b8;font-size:.8rem;margin-bottom:.4rem">Your pick: ${betMarble?.color.name} | Winner: ${winner?.color.name}</div>`;
+  const podEl=document.getElementById('podium');podEl.innerHTML='';
+  finishOrder.slice(0,4).forEach((m,i)=>{
+    const d=document.createElement('div');d.className='podium-item';
+    d.innerHTML=`<span class="place p${i+1}">${medals[i]}</span><span class="dot" style="background:${m.color.hex};width:12px;height:12px;border-radius:50%;display:inline-block"></span><span>${m.color.name}</span><span style="margin-left:auto;color:#6366f1;font-size:.72rem">${(m.finishTime/1000).toFixed(2)}s</span>`;
+    podEl.appendChild(d);
+  });
+  if(wallet<=0){document.getElementById('msg').textContent='Broke! Resetting...';setTimeout(initGame,2500);}
+  else{document.getElementById('msg').textContent=`Balance: $${wallet}`;document.getElementById('start-btn').disabled=false;}
+  showOverlay(isWin?'YOU WIN!':'YOU LOSE',isWin?`+$${payout}`:`-$${betAmt}`,2500);
+}
+
+function resetGame(){
+  if(animFrame) cancelAnimationFrame(animFrame);
+  track=buildTrack();finishOrder=[];betMarble=null;phase='idle';
+  document.getElementById('results-box').classList.remove('show');
+  document.getElementById('msg').textContent='New track loaded!';
+  document.querySelectorAll('.marble-btn').forEach(b=>b.classList.remove('selected'));
+  document.getElementById('start-btn').disabled=false;
+  spawnMarbles();buildPanel();renderIdle();
+}
+
+initGame();
+</script>
+</body>
+</html>

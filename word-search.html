@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word Search</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f172a;color:#f8fafc;font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:1rem}
+h1{font-size:2.5rem;font-weight:900;background:linear-gradient(to right,#818cf8,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.5rem}
+.subtitle{color:#94a3b8;font-size:.85rem;margin-bottom:1rem;text-transform:uppercase;letter-spacing:2px}
+.top-bar{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center;align-items:center;margin-bottom:1.2rem}
+.top-bar select,.top-bar button{padding:.6rem 1.2rem;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:#1e293b;color:#f8fafc;font-size:.9rem;cursor:pointer}
+.top-bar button{background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;font-weight:700;transition:.2s}
+.top-bar button:hover{filter:brightness(1.2);transform:scale(1.04)}
+.info-bar{display:flex;gap:2rem;margin-bottom:1rem;font-weight:700;font-size:.95rem}
+.info-bar span{color:#94a3b8}.info-bar span b{color:#f59e0b}
+.game-wrap{display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+#grid-container{position:relative;user-select:none;touch-action:none}
+#grid{display:grid;border:2px solid rgba(99,102,241,.4);border-radius:12px;overflow:hidden;box-shadow:0 0 30px rgba(99,102,241,.2)}
+.cell{width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:700;cursor:pointer;background:#1e293b;border:1px solid rgba(255,255,255,.05);transition:background .1s,color .1s;text-transform:uppercase}
+.cell.highlighted{background:rgba(99,102,241,.7);color:#fff}
+.cell.found{background:rgba(16,185,129,.25);color:#10b981}
+.cell.selecting{background:rgba(245,158,11,.5);color:#fff}
+.word-list{background:#1e293b;border-radius:12px;padding:1rem 1.4rem;min-width:160px;border:1px solid rgba(255,255,255,.08)}
+.word-list h3{color:#818cf8;margin-bottom:.8rem;font-size:1rem;text-transform:uppercase;letter-spacing:1px}
+.word-item{padding:.3rem .5rem;border-radius:6px;margin-bottom:.3rem;font-weight:600;font-size:.9rem;color:#94a3b8;transition:.2s;cursor:default}
+.word-item.found{color:#10b981;text-decoration:line-through}
+#message{margin-top:1rem;font-size:1.3rem;font-weight:800;min-height:2rem;color:#f59e0b}
+#timer-bar{width:100%;max-width:800px;height:6px;background:#1e293b;border-radius:3px;margin-bottom:.5rem;overflow:hidden}
+#timer-fill{height:100%;background:linear-gradient(90deg,#6366f1,#f59e0b);transition:width .5s linear;width:100%}
+.found-flash{animation:flash .4s ease}
+@keyframes flash{0%{transform:scale(1.2)}100%{transform:scale(1)}}
+</style>
+</head>
+<body>
+<a href="index.html" style="align-self:flex-start;margin-bottom:.5rem;color:#94a3b8;text-decoration:none;font-size:.85rem">← Back to Vault</a>
+<h1>Word Search</h1>
+<p class="subtitle">Find all hidden words</p>
+
+<div id="timer-bar"><div id="timer-fill"></div></div>
+
+<div class="top-bar">
+  <select id="category">
+    <option value="animals">Animals</option>
+    <option value="sports">Sports</option>
+    <option value="food">Food</option>
+    <option value="space">Space</option>
+    <option value="tech">Technology</option>
+    <option value="countries">Countries</option>
+  </select>
+  <select id="difficulty">
+    <option value="easy">Easy (10x10)</option>
+    <option value="medium" selected>Medium (14x14)</option>
+    <option value="hard">Hard (18x18)</option>
+  </select>
+  <button id="new-game-btn">New Game</button>
+</div>
+
+<div class="info-bar">
+  <span>Found: <b id="found-count">0</b> / <b id="total-count">0</b></span>
+  <span>Time: <b id="timer">0:00</b></span>
+  <span>Score: <b id="score">0</b></span>
+</div>
+
+<div class="game-wrap">
+  <div id="grid-container"><div id="grid"></div></div>
+  <div class="word-list">
+    <h3>Words</h3>
+    <div id="word-list-items"></div>
+  </div>
+</div>
+
+<div id="message"></div>
+
+<script>
+const WORD_BANKS = {
+  animals:   ['ELEPHANT','GIRAFFE','DOLPHIN','PANTHER','PENGUIN','CHEETAH','OCTOPUS','GORILLA','HAMSTER','PEACOCK','JAGUAR','FALCON','WALRUS','PYTHON','CRANE','BISON','OTTER','COBRA','HYENA','KOALA','MOOSE','LEMUR','VIPER'],
+  sports:    ['BASKETBALL','VOLLEYBALL','BASEBALL','FOOTBALL','SWIMMING','WRESTLING','GYMNASTICS','TRIATHLON','ARCHERY','CRICKET','TENNIS','HOCKEY','BOXING','KARATE','CYCLING','SURFING','ROWING','SKIING','FENCING','JUDO'],
+  food:      ['SPAGHETTI','CHOCOLATE','AVOCADO','BROCCOLI','CINNAMON','BLUEBERRY','MUSHROOM','SANDWICH','PINEAPPLE','STRAWBERRY','MANGO','LEMON','PEACH','OLIVE','CURRY','WAFFLE','NOODLE','PAPAYA','CROISSANT','PRETZEL'],
+  space:     ['ASTEROID','BLACKHOLE','NEBULA','GALAXY','COMET','SATURN','JUPITER','MERCURY','NEPTUNE','ECLIPSE','SOLSTICE','GRAVITY','COSMOS','QUASAR','PULSAR','METEOR','OXYGEN','PLASMA','ROCKET','ORBIT'],
+  tech:      ['ALGORITHM','DATABASE','JAVASCRIPT','PYTHON','NETWORK','QUANTUM','ROBOTICS','COMPILER','FIREWALL','TERMINAL','BROWSER','CLOUD','SERVER','PIXEL','VECTOR','BINARY','CACHE','KERNEL','PROXY','SYNTAX'],
+  countries: ['AUSTRALIA','BRAZIL','CANADA','DENMARK','ETHIOPIA','FINLAND','GERMANY','HUNGARY','ICELAND','JAMAICA','KENYA','LEBANON','MOROCCO','NIGERIA','PORTUGAL','ROMANIA','SWEDEN','THAILAND','UKRAINE','VIETNAM'],
+};
+const DIRECTIONS = [
+  [0,1],[1,0],[0,-1],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]
+];
+const DIFF = { easy:{size:10,count:8,time:120}, medium:{size:14,count:12,time:180}, hard:{size:18,count:16,time:240} };
+
+let grid=[], words=[], placed=[], found=[], size=14, selecting=false, selStart=null, selCells=[], timerVal=0, timerMax=180, timerInterval=null, score=0;
+
+function getConfig(){ return DIFF[document.getElementById('difficulty').value]; }
+function pick(arr,n){ const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a.slice(0,n); }
+
+function newGame(){
+  clearInterval(timerInterval);
+  const cfg = getConfig();
+  size = cfg.size;
+  const cat = document.getElementById('category').value;
+  words = pick(WORD_BANKS[cat], cfg.count);
+  found = [];
+  score = 0;
+  grid = Array.from({length:size},()=>Array(size).fill(''));
+  placed = [];
+  for(const w of words){ tryPlace(w); }
+  fillRandom();
+  renderGrid();
+  renderWordList();
+  document.getElementById('found-count').textContent='0';
+  document.getElementById('total-count').textContent=words.length;
+  document.getElementById('score').textContent='0';
+  document.getElementById('message').textContent='';
+  timerVal = 0;
+  timerMax = cfg.time;
+  document.getElementById('timer-fill').style.width='100%';
+  document.getElementById('timer').textContent='0:00';
+  timerInterval = setInterval(tickTimer, 1000);
+}
+
+function tickTimer(){
+  timerVal++;
+  const rem = timerMax - timerVal;
+  if(rem <= 0){
+    clearInterval(timerInterval);
+    document.getElementById('message').textContent = "⏰ Time's up! Final score: "+score;
+    document.getElementById('timer-fill').style.width='0%';
+    return;
+  }
+  const m=Math.floor(rem/60), s=rem%60;
+  document.getElementById('timer').textContent=`${m}:${s.toString().padStart(2,'0')}`;
+  document.getElementById('timer-fill').style.width=(rem/timerMax*100)+'%';
+}
+
+function tryPlace(word){
+  const dirs = [...DIRECTIONS];
+  shuffle(dirs);
+  for(let attempt=0;attempt<400;attempt++){
+    const dir = dirs[attempt%8];
+    const row = Math.floor(Math.random()*size);
+    const col = Math.floor(Math.random()*size);
+    if(canPlace(word, row, col, dir)){
+      doPlace(word, row, col, dir);
+      return true;
+    }
+  }
+  return false;
+}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
+function canPlace(w,r,c,d){
+  for(let i=0;i<w.length;i++){
+    const nr=r+d[0]*i, nc=c+d[1]*i;
+    if(nr<0||nr>=size||nc<0||nc>=size) return false;
+    if(grid[nr][nc]!==''&&grid[nr][nc]!==w[i]) return false;
+  }
+  return true;
+}
+function doPlace(w,r,c,d){
+  const cells=[];
+  for(let i=0;i<w.length;i++){
+    const nr=r+d[0]*i, nc=c+d[1]*i;
+    grid[nr][nc]=w[i];
+    cells.push([nr,nc]);
+  }
+  placed.push({word:w,cells});
+}
+function fillRandom(){
+  const alpha='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  for(let r=0;r<size;r++) for(let c=0;c<size;c++) if(grid[r][c]==='') grid[r][c]=alpha[Math.floor(Math.random()*26)];
+}
+
+function renderGrid(){
+  const g=document.getElementById('grid');
+  g.style.gridTemplateColumns=`repeat(${size},36px)`;
+  g.innerHTML='';
+  for(let r=0;r<size;r++) for(let c=0;c<size;c++){
+    const cell=document.createElement('div');
+    cell.className='cell';
+    cell.textContent=grid[r][c];
+    cell.dataset.r=r; cell.dataset.c=c;
+    g.appendChild(cell);
+  }
+  addGridEvents();
+}
+function renderWordList(){
+  const el=document.getElementById('word-list-items');
+  el.innerHTML='';
+  for(const w of words){
+    const d=document.createElement('div');
+    d.className='word-item'+(found.includes(w)?' found':'');
+    d.id='w-'+w; d.textContent=w;
+    el.appendChild(d);
+  }
+}
+
+// Selection
+function cellAt(r,c){ return document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`); }
+function getAllCells(){ return document.querySelectorAll('.cell'); }
+
+function startSelect(e){
+  const t=e.target.closest('.cell'); if(!t) return;
+  selecting=true;
+  selStart={r:+t.dataset.r, c:+t.dataset.c};
+  selCells=[];
+  highlightSelection(selStart.r, selStart.c);
+  e.preventDefault();
+}
+function moveSelect(e){
+  if(!selecting) return;
+  let t;
+  if(e.touches){ const touch=e.touches[0]; t=document.elementFromPoint(touch.clientX,touch.clientY)?.closest?.('.cell'); }
+  else t=e.target.closest('.cell');
+  if(!t) return;
+  const er=+t.dataset.r, ec=+t.dataset.c;
+  highlightSelection(er, ec);
+  e.preventDefault();
+}
+function endSelect(e){
+  if(!selecting) return;
+  selecting=false;
+  checkSelection();
+  clearSelecting();
+}
+
+function highlightSelection(er, ec){
+  clearSelecting();
+  const dr=er-selStart.r, dc=ec-selStart.c;
+  let dir=null;
+  for(const d of DIRECTIONS){
+    const steps=Math.max(Math.abs(dr),Math.abs(dc));
+    if(steps>0 && d[0]*steps===dr && d[1]*steps===dc){ dir=d; break; }
+    if(dr===0&&dc===0){ dir=[0,0]; break; }
+  }
+  if(!dir) return;
+  selCells=[];
+  const steps=Math.max(Math.abs(dr),Math.abs(dc));
+  for(let i=0;i<=steps;i++){
+    const r=selStart.r+dir[0]*i, c=selStart.c+dir[1]*i;
+    if(r>=0&&r<size&&c>=0&&c<size){ selCells.push([r,c]); cellAt(r,c)?.classList.add('selecting'); }
+  }
+}
+function clearSelecting(){ document.querySelectorAll('.cell.selecting').forEach(c=>c.classList.remove('selecting')); }
+
+function checkSelection(){
+  if(selCells.length<2) return;
+  const sel=selCells.map(([r,c])=>grid[r][c]).join('');
+  const selRev=[...selCells].reverse().map(([r,c])=>grid[r][c]).join('');
+  for(const p of placed){
+    if(found.includes(p.word)) continue;
+    if(p.word===sel||p.word===selRev){
+      foundWord(p);
+      return;
+    }
+  }
+}
+
+function foundWord(p){
+  found.push(p.word);
+  const bonus = Math.max(0, timerMax-timerVal);
+  score += p.word.length * 10 + bonus;
+  document.getElementById('score').textContent=score;
+  document.getElementById('found-count').textContent=found.length;
+  p.cells.forEach(([r,c])=>{ const cl=cellAt(r,c); if(cl){cl.classList.remove('highlighted');cl.classList.add('found','found-flash');} });
+  const wi=document.getElementById('w-'+p.word);
+  if(wi){wi.classList.add('found');}
+  if(found.length===words.length){
+    clearInterval(timerInterval);
+    document.getElementById('message').textContent='🎉 All words found! Score: '+score;
+  }
+}
+
+function addGridEvents(){
+  const g=document.getElementById('grid');
+  g.addEventListener('mousedown',startSelect);
+  g.addEventListener('mouseover',moveSelect);
+  window.addEventListener('mouseup',endSelect);
+  g.addEventListener('touchstart',startSelect,{passive:false});
+  g.addEventListener('touchmove',moveSelect,{passive:false});
+  window.addEventListener('touchend',endSelect);
+}
+
+document.getElementById('new-game-btn').addEventListener('click',newGame);
+document.getElementById('difficulty').addEventListener('change',newGame);
+document.getElementById('category').addEventListener('change',newGame);
+newGame();
+</script>
+</body>
+</html>

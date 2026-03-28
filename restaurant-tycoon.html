@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant Tycoon</title>
+    <!-- React, Babel, Lucide Icons -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg: #111827; --surface: #1f2937; --panel: #374151;
+            --text: #f9fafb; --text-muted: #9ca3af;
+            --primary: #3b82f6; --accent: #10b981; --danger: #ef4444;
+            --font-main: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background-color: var(--bg); color: var(--text); font-family: var(--font-main); font-size: 14px; }
+        #root { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
+
+        /* --- Layout --- */
+        .header { padding: 0.5rem 1rem; background: var(--surface); border-bottom: 1px solid var(--panel); display: flex; justify-content: space-between; align-items: center; }
+        .main-grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 0.5rem; padding: 0.5rem; overflow: hidden; }
+        .panel { background: var(--surface); border: 1px solid var(--panel); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
+        .panel-header { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--panel); font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
+        .panel-content { flex: 1; padding: 0.75rem; overflow-y: auto; }
+
+        /* --- Mobile --- */
+        .mobile-nav { display: none; }
+        @media (max-width: 800px) {
+            .main-grid { display: block; padding: 0; }
+            .panel { display: none; height: calc(100vh - 90px); border-radius: 0; border: none; }
+            .panel.active { display: flex; }
+            .mobile-nav { display: flex; background: var(--surface); border-top: 1px solid var(--panel); }
+            .mobile-nav button { flex: 1; background: none; border: none; color: var(--text-muted); padding: 0.75rem 0; cursor: pointer; }
+            .mobile-nav button.active { color: var(--primary); background: rgba(59, 130, 246, 0.1); border-top: 2px solid var(--primary); }
+        }
+
+        /* --- Components --- */
+        .table-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+        .table { height: 70px; border: 2px solid var(--panel); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; transition: 0.3s; }
+        .table.free { background: var(--accent); color: #fff; cursor: pointer; }
+        .table.occupied { background: var(--danger); color: #fff; }
+
+        .order-card, .delivery-card { background: var(--panel); padding: 0.5rem; border-radius: 4px; margin-bottom: 0.5rem; font-size: 0.8rem; }
+        .progress-bar { height: 8px; background: var(--panel); border-radius: 4px; overflow: hidden; margin-top: 4px; }
+        .progress-fill { height: 100%; background: var(--primary); transition: width 0.5s; }
+        .btn { background: var(--primary); color: #fff; border: none; padding: 0.5rem 0.75rem; border-radius: 4px; cursor: pointer; }
+        .btn:disabled { background: var(--panel); opacity: 0.5; cursor: not-allowed; }
+        .menu-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-radius: 4px; }
+        .menu-item:hover { background: var(--panel); }
+    </style>
+</head>
+<body><div id="root"></div></body>
+<script type="text/babel">
+    const { useState, useEffect, useCallback, useMemo } = React;
+
+    const GAME_DATA = {
+        INGREDIENTS: {
+            BUN: { name: 'Burger Bun', cost: 0.5 }, PATTY: { name: 'Beef Patty', cost: 1.2 }, LETTUCE: { name: 'Lettuce', cost: 0.2 },
+            FISH: { name: 'Fish Fillet', cost: 1.5 }, FRIES: { name: 'Potatoes', cost: 0.3 }, SODA: { name: 'Soda Syrup', cost: 0.25 },
+        },
+        MENU: [
+            { id: 'BURGER', name: 'Classic Burger', price: 8.99, ingredients: { PATTY: 1, BUN: 1, LETTUCE: 1 } },
+            { id: 'FISH_SANDWICH', name: 'Fish Sandwich', price: 9.99, ingredients: { FISH: 1, BUN: 1 } },
+            { id: 'MEAL_BURGER', name: 'Burger Meal', price: 11.99, ingredients: { PATTY: 1, BUN: 1, LETTUCE: 1, FRIES: 1, SODA: 1 } },
+        ],
+        VENDORS: [
+            { name: 'General Food Co.', deliveryTime: 20, items: ['BUN', 'PATTY', 'LETTUCE', 'FRIES', 'SODA'] },
+            { name: 'Ocean Foods', deliveryTime: 35, items: ['FISH'] }
+        ],
+        TABLE_COUNT: 6,
+    };
+
+    function App() {
+        // --- State ---
+        const [tick, setTick] = useState(0);
+        const [cash, setCash] = useState(1000);
+        const [reputation, setReputation] = useState(75);
+        const [dailySales, setDailySales] = useState(0);
+        const [inventory, setInventory] = useState({ BUN: 10, PATTY: 10, LETTUCE: 10, FISH: 10, FRIES: 20, SODA: 20 });
+        const [tables, setTables] = useState(Array(GAME_DATA.TABLE_COUNT).fill({ status: 'free' }));
+        const [orders, setOrders] = useState([]);
+        const [deliveries, setDeliveries] = useState([]);
+        const [specials, setSpecials] = useState({});
+        const [mobileTab, setMobileTab] = useState('floor');
+        const [showModal, setShowModal] = useState(true);
+
+        // --- Game Loop ---
+        useEffect(() => {
+            const gameInterval = setInterval(() => setTick(t => t + 1), 2000);
+            return () => clearInterval(gameInterval);
+        }, []);
+
+        useEffect(() => {
+            // Customer Arrival
+            const footTraffic = reputation / 100;
+            if (Math.random() < footTraffic * 0.5) {
+                const freeTableIdx = tables.findIndex(t => t.status === 'free');
+                if (freeTableIdx !== -1) {
+                    setTables(prev => prev.map((t, i) => i === freeTableIdx ? { status: 'ordering', customer: {}, timer: 5 } : t));
+                }
+            }
+
+            // Customer & Order Processing
+            setTables(prevTables => prevTables.map(table => {
+                if (table.status !== 'free') {
+                    const newTimer = table.timer - 1;
+                    if (newTimer <= 0) {
+                        if (table.status === 'ordering') {
+                            const desiredItems = Object.keys(specials).length > 0 && Math.random() < 0.6 ? 
+                                [GAME_DATA.MENU.find(m => m.id === Object.keys(specials)[0])] : GAME_DATA.MENU;
+                            const orderItem = desiredItems[Math.floor(Math.random() * desiredItems.length)];
+                            setOrders(o => [...o, { item: orderItem, tableId: tables.indexOf(table) }]);
+                            return { ...table, status: 'waiting', timer: 999 };
+                        }
+                        if (table.status === 'eating') {
+                            setCash(c => c + table.price);
+                            setDailySales(s => s + table.price);
+                            return { status: 'free' };
+                        }
+                    }
+                    return { ...table, timer: newTimer };
+                }
+                return table;
+            }));
+
+            // Delivery Processing
+            setDeliveries(d => d.map(delivery => ({ ...delivery, eta: delivery.eta - 1 })).filter(delivery => {
+                if (delivery.eta <= 0) {
+                    setInventory(inv => {
+                        const newInv = { ...inv };
+                        newInv[delivery.item] += delivery.quantity;
+                        return newInv;
+                    });
+                    return false;
+                }
+                return true;
+            }));
+
+        }, [tick]);
+
+        // --- Event Handlers ---
+        const handleFulfillOrder = (order, index) => {
+            const hasIngredients = Object.entries(order.item.ingredients).every(([key, val]) => inventory[key] >= val);
+            if (hasIngredients) {
+                setInventory(inv => {
+                    const newInv = { ...inv };
+                    Object.entries(order.item.ingredients).forEach(([key, val]) => newInv[key] -= val);
+                    return newInv;
+                });
+                setTables(prev => prev.map((t, i) => i === order.tableId ? { status: 'eating', price: order.item.price * (1 - (specials[order.item.id] || 0)), timer: 10 } : t));
+                setReputation(r => Math.min(100, r + 1));
+            } else {
+                setTables(prev => prev.map((t, i) => i === order.tableId ? { status: 'free' } : t)); // Angry customer leaves
+                setReputation(r => Math.max(0, r - 5));
+            }
+            setOrders(o => o.filter((_, i) => i !== index));
+        };
+
+        const handlePlaceOrder = (item, quantity, vendor) => {
+            const cost = GAME_DATA.INGREDIENTS[item].cost * quantity;
+            if (cash >= cost) {
+                setCash(c => c - cost);
+                setDeliveries(d => [...d, { item, quantity, eta: vendor.deliveryTime }]);
+            } else {
+                alert("Not enough cash!");
+            }
+        };
+
+        const toggleSpecial = (id) => {
+            setSpecials(s => s[id] ? {} : { [id]: 0.2 }); // Reset all other specials
+        };
+
+        // --- Render ---
+        const renderPanel = (panelId) => {
+            switch (panelId) {
+                case 'floor': return (
+                    <div className="table-grid">{tables.map((t, i) => <div key={i} className={`table ${t.status}`} />)}</div>
+                );
+                case 'kitchen': return (
+                    <>
+                        <h4 style={{marginBottom: '0.5rem'}}>Incoming Orders ({orders.length})</h4>
+                        {orders.map((o, i) => (
+                            <div key={i} className="order-card">
+                                <span>Table {o.tableId + 1}: {o.item.name}</span>
+                                <button onClick={() => handleFulfillOrder(o, i)} style={{float: 'right'}}>Cook</button>
+                            </div>
+                        ))}
+                        <h4 style={{margin: '1rem 0 0.5rem'}}>Inventory</h4>
+                        {Object.entries(inventory).map(([key, val]) => (
+                            <div key={key} style={{marginBottom: '0.5rem'}}>
+                                <span>{GAME_DATA.INGREDIENTS[key].name} ({val})</span>
+                                <div className="progress-bar"><div className="progress-fill" style={{width: `${val}%`, background: val < 10 ? 'var(--danger)' : 'var(--primary)'}}></div></div>
+                            </div>
+                        ))}
+                    </>
+                );
+                case 'finance': return (
+                    <>
+                        <h4 style={{marginBottom: '0.5rem'}}>Menu & Pricing</h4>
+                        {GAME_DATA.MENU.map(item => (
+                            <div key={item.id} className="menu-item">
+                                <div>{item.name} - ${item.price.toFixed(2)}</div>
+                                <button className="btn" onClick={() => toggleSpecial(item.id)} style={{background: specials[item.id] ? 'var(--accent)' : 'var(--primary)'}}>
+                                    {specials[item.id] ? 'Special Active!' : 'Set Special'}
+                                </button>
+                            </div>
+                        ))}
+                    </>
+                );
+                case 'supply': return (
+                    <>
+                        <h4 style={{marginBottom: '0.5rem'}}>Vendors</h4>
+                        {GAME_DATA.VENDORS.map(v => (
+                            <div key={v.name} className="order-card">
+                                <b>{v.name}</b> (ETA: {v.deliveryTime}s)
+                                {v.items.map(item => (
+                                    <div key={item} style={{display: 'flex', justifyContent: 'space-between', padding: '0.25rem'}}>
+                                        <span>{GAME_DATA.INGREDIENTS[item].name} (${GAME_DATA.INGREDIENTS[item].cost})</span>
+                                        <button onClick={() => handlePlaceOrder(item, 10, v)}>Order 10</button>
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
+                        <h4 style={{margin: '1rem 0 0.5rem'}}>Pending Deliveries</h4>
+                        {deliveries.map((d,i) => <div key={i} className="delivery-card">{d.quantity}x {d.item} (ETA: {d.eta}s)</div>)}
+                    </>
+                );
+            }
+        };
+
+        if (showModal) {
+            return <div className="panel active" style={{justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '2rem'}}>
+                <h1>Restaurant Tycoon</h1>
+                <p style={{maxWidth: '500px', margin: '1rem 0', color: 'var(--text-muted)'}}>Manage your inventory, fulfill customer orders, and handle your supply chain to build a restaurant empire. Don't let your ingredients run out!</p>
+                <button className="btn" style={{padding: '1rem 2rem'}} onClick={() => setShowModal(false)}>Start Day</button>
+            </div>
+        }
+
+        return (
+            <>
+                <div className="header">
+                    <div>Cash: <span style={{color: 'var(--accent)'}}>${cash.toFixed(2)}</span></div>
+                    <div>Reputation: {reputation}%</div>
+                    <div>Daily Sales: ${dailySales.toFixed(2)}</div>
+                </div>
+                <div className="main-grid">
+                    {['floor', 'kitchen', 'finance', 'supply'].map(id => (
+                        <div key={id} className={`panel ${mobileTab === id ? 'active' : ''}`}>
+                            <div className="panel-header"><i data-lucide={id==='floor'?'layout':id==='kitchen'?'chef-hat':id==='finance'?'dollar-sign':'truck'}></i> {id.replace(/^\w/, c => c.toUpperCase())}</div>
+                            <div className="panel-content">{renderPanel(id)}</div>
+                        </div>
+                    ))}
+                </div>
+                <div className="mobile-nav">
+                    {['floor', 'kitchen', 'finance', 'supply'].map(id => (
+                        <button key={id} className={mobileTab === id ? 'active' : ''} onClick={() => setMobileTab(id)}>
+                             <i data-lucide={id==='floor'?'layout':id==='kitchen'?'chef-hat':id==='finance'?'dollar-sign':'truck'}></i>
+                        </button>
+                    ))}
+                </div>
+            </>
+        );
+    }
+    
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+    setInterval(() => lucide.createIcons(), 200); // Lucide icon refresh
+</script>
+</html>
