@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Charge! - K2 games</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --accent: #fbbf24;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            overflow: hidden;
+            height: 100dvh;
+            background: var(--bg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text);
+        }
+
+        #home-btn {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            text-decoration: none;
+            z-index: 1000;
+            transition: all 0.2s;
+        }
+
+        #home-btn:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100dvh;
+            max-width: 600px;
+            margin: 0 auto;
+            background: linear-gradient(180deg, #87ceeb 0%, #e0ac69 50%, #d4a574 100%);
+            box-sizing: border-box;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #87ceeb 0%, #e0ac69 60%, #a0826d 100%);
+        }
+
+        #hud {
+            position: absolute;
+            top: 60px;
+            left: 16px;
+            right: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #score, #high-score {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        #lives {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.2rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        #charge-bar-container {
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 2px solid var(--accent);
+            border-radius: 10px;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        #charge-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #ef4444, #fbbf24, #22c55e);
+            width: 0%;
+            transition: width 0.05s;
+        }
+
+        #mobile-controls {
+            display: none;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 30%;
+            gap: 0;
+        }
+
+        .touch-zone {
+            flex: 1;
+            background: transparent;
+            border: 2px solid rgba(251, 191, 36, 0.2);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: rgba(251, 191, 36, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            #mobile-controls {
+                display: flex;
+            }
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 100;
+            font-weight: bold;
+        }
+
+        .overlay h2 {
+            font-size: 2rem;
+            color: var(--accent);
+            text-align: center;
+        }
+
+        .overlay p {
+            font-size: 0.9rem;
+            color: var(--muted);
+            text-align: center;
+            max-width: 80%;
+        }
+
+        button {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" id="home-btn">← HUB</a>
+    <div id="game-container">
+        <div id="charge-bar-container">
+            <div id="charge-bar"></div>
+        </div>
+        <div id="hud">
+            <div id="score">Score: 0</div>
+            <div id="high-score">High: 0</div>
+        </div>
+        <div id="lives">🦏🦏🦏</div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="mobile-controls">
+            <div class="touch-zone" id="charge-zone">CHARGE</div>
+        </div>
+        <div id="menu-overlay" class="overlay">
+            <h2>Charge!</h2>
+            <p>Build momentum and smash through obstacles!</p>
+            <p style="font-size: 0.8rem; color: var(--muted);">Hold SPACE to charge. Crates break anytime, boulders need 50% power, walls need 100%.</p>
+            <button onclick="startGame()">Start Game</button>
+        </div>
+        <div id="gameover-overlay" class="overlay hidden">
+            <h2>Game Over!</h2>
+            <p id="final-score">Score: 0</p>
+            <button onclick="location.reload()">Play Again</button>
+            <button onclick="location.href='index.html'">Back to Hub</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const highScoreEl = document.getElementById('high-score');
+        const livesEl = document.getElementById('lives');
+        const chargeBarEl = document.getElementById('charge-bar');
+        const menuOverlay = document.getElementById('menu-overlay');
+        const gameoverOverlay = document.getElementById('gameover-overlay');
+        const finalScoreEl = document.getElementById('final-score');
+
+        let width, height;
+        let gameActive = false;
+        let score = 0;
+        let highScore = parseInt(localStorage.getItem('chargeHighScore') || '0');
+        let lives = 3;
+        let spacePressed = false;
+        let touchPressed = false;
+        let shakeAmount = 0;
+        let hitFlashFrames = 0;
+        let dustTrailCounter = 0;
+
+        const rhino = {
+            x: 80,
+            y: 0,
+            width: 50,
+            height: 40,
+            speed: 4,
+            charge: 0,
+            maxCharge: 100,
+            isSprinting: false,
+            sprintTimer: 0,
+            sprintDuration: 120,
+            baseLegFrame: 0,
+            inMud: false,
+            mudTimer: 0,
+            invincibilityFrames: 0
+        };
+
+        let obstacles = [];
+        let particles = [];
+        let cracks = [];
+        let nextObstacleTime = 0;
+        let obstacleSpawnRate = 100;
+        let gameSpeed = 3;
+
+        function resize() {
+            const container = document.getElementById('game-container');
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+            rhino.y = height - 100;
+        }
+
+        function init() {
+            resize();
+            highScoreEl.textContent = `High: ${highScore}`;
+            window.addEventListener('resize', resize);
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    spacePressed = true;
+                }
+            });
+            window.addEventListener('keyup', (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    spacePressed = false;
+                    if (rhino.charge >= 100 && !rhino.isSprinting) {
+                        startSprint();
+                    }
+                }
+            });
+
+            document.getElementById('charge-zone').addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                touchPressed = true;
+            });
+            document.getElementById('charge-zone').addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touchPressed = false;
+                if (rhino.charge >= 100 && !rhino.isSprinting) {
+                    startSprint();
+                }
+            });
+        }
+
+        function startSprint() {
+            rhino.isSprinting = true;
+            rhino.sprintTimer = rhino.sprintDuration;
+            rhino.charge = 0;
+            chargeBarEl.style.width = '0%';
+        }
+
+        function startGame() {
+            menuOverlay.classList.add('hidden');
+            gameActive = true;
+            score = 0;
+            lives = 3;
+            obstacles = [];
+            particles = [];
+            cracks = [];
+            nextObstacleTime = 0;
+            gameSpeed = 3;
+            rhino.charge = 0;
+            rhino.isSprinting = false;
+            rhino.inMud = false;
+            rhino.invincibilityFrames = 0;
+            updateHUD();
+            requestAnimationFrame(update);
+        }
+
+        function update() {
+            if (!gameActive) return;
+
+            // Charge meter (when not sprinting)
+            if (!rhino.isSprinting && (spacePressed || touchPressed)) {
+                if (rhino.charge < rhino.maxCharge) {
+                    rhino.charge += 1.2;
+                }
+            }
+
+            // Handle sprint
+            if (rhino.isSprinting) {
+                rhino.sprintTimer--;
+                if (rhino.sprintTimer <= 0) {
+                    rhino.isSprinting = false;
+                }
+            }
+
+            // Mud slowdown
+            if (rhino.inMud) {
+                rhino.mudTimer--;
+                if (rhino.mudTimer <= 0) {
+                    rhino.inMud = false;
+                }
+            }
+
+            if (rhino.invincibilityFrames > 0) rhino.invincibilityFrames--;
+
+            // Determine current speed
+            let currentSpeed = gameSpeed;
+            if (rhino.isSprinting) {
+                currentSpeed = gameSpeed * 2.5;
+                shakeAmount = 2;
+
+                // Dust trail during sprint
+                if (dustTrailCounter++ % 2 === 0) {
+                    for (let i = 0; i < 3; i++) {
+                        particles.push({
+                            x: rhino.x - 30 + Math.random() * 20,
+                            y: rhino.y + 30 + Math.random() * 10,
+                            vx: (Math.random() - 0.5) * 1.5,
+                            vy: -Math.random() * 0.8,
+                            life: 40,
+                            maxLife: 40,
+                            size: 8 + Math.random() * 6,
+                            color: `rgba(139, 110, 83, ${0.3 + Math.random() * 0.4})`
+                        });
+                    }
+                }
+            } else if (rhino.inMud) {
+                currentSpeed = gameSpeed * 0.3;
+            }
+
+            // Spawn obstacles
+            nextObstacleTime++;
+            if (nextObstacleTime > obstacleSpawnRate) {
+                const rand = Math.random();
+                let type;
+                if (rand < 0.3) type = 'crate';
+                else if (rand < 0.6) type = 'boulder';
+                else if (rand < 0.85) type = 'wall';
+                else type = 'mud';
+
+                const widthMap = { crate: 35, boulder: 40, wall: 50, mud: 100 };
+                const heightMap = { crate: 35, boulder: 40, wall: 60, mud: 20 };
+
+                obstacles.push({
+                    x: width,
+                    type: type,
+                    width: widthMap[type],
+                    height: heightMap[type],
+                    hit: false
+                });
+                nextObstacleTime = 0;
+                obstacleSpawnRate = Math.max(60, 100 - score / 100);
+                gameSpeed = Math.min(6, 3 + score / 300);
+            }
+
+            // Update obstacles
+            obstacles = obstacles.filter(obs => {
+                obs.x -= currentSpeed;
+
+                // Collision detection
+                if (!obs.hit && rhino.invincibilityFrames <= 0) {
+                    if (obs.x < rhino.x + rhino.width && obs.x + obs.width > rhino.x) {
+                        if (obs.type === 'mud') {
+                            rhino.inMud = true;
+                            rhino.mudTimer = 90;
+                            obs.hit = true;
+                        } else {
+                            // Check if can break
+                            let canBreak = false;
+                            if (obs.type === 'crate') canBreak = true;
+                            else if (obs.type === 'boulder' && rhino.charge >= 50) canBreak = true;
+                            else if (obs.type === 'wall' && rhino.charge >= 100) canBreak = true;
+                            else if (rhino.isSprinting) canBreak = true;
+
+                            if (canBreak) {
+                                obs.hit = true;
+                                const points = { crate: 5, boulder: 15, wall: 30 }[obs.type];
+                                score += points;
+                                createObstacleParticles(obs.x + obs.width / 2, rhino.y, obs.type);
+                                if (obs.type === 'wall') {
+                                    createShockwave(obs.x + obs.width / 2, rhino.y);
+                                    createGroundCrack(obs.x + obs.width / 2, rhino.y);
+                                }
+                                shakeAmount = obs.type === 'wall' ? 4 : 2;
+                                updateHUD();
+                            } else {
+                                // Fail to break
+                                lives--;
+                                rhino.invincibilityFrames = 60;
+                                hitFlashFrames = 8;
+                                shakeAmount = 6;
+                                updateHUD();
+                                if (lives <= 0) {
+                                    gameOver();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return obs.x > -50;
+            });
+
+            // Update particles
+            particles = particles.filter(p => {
+                if (p.isShockwave) {
+                    p.radius += 2.5;
+                } else {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.2;
+                }
+                p.life--;
+                return p.life > 0;
+            });
+
+            // Update cracks
+            cracks = cracks.filter(c => c.life-- > 0);
+
+            // Update leg animation
+            rhino.baseLegFrame++;
+
+            // Apply screen shake
+            const shakeX = shakeAmount > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
+            const shakeY = shakeAmount > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
+            shakeAmount *= 0.8;
+
+            // Draw
+            ctx.save();
+            ctx.translate(shakeX, shakeY);
+
+            // Sky gradient
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, height * 0.6);
+            skyGradient.addColorStop(0, '#87ceeb');
+            skyGradient.addColorStop(1, '#e0ac69');
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, width, height * 0.6);
+
+            // Sun with shimmer rings
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.2)';
+            ctx.beginPath();
+            ctx.arc(width - 60, 60, 60, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.3)';
+            ctx.beginPath();
+            ctx.arc(width - 60, 60, 45, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(width - 60, 60, 30, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Distant rocky outcrops (parallax)
+            ctx.fillStyle = 'rgba(80, 60, 40, 0.2)';
+            for (let i = 0; i < 4; i++) {
+                const rockX = (i * width / 2) - ((score * 0.1) % (width / 2));
+                ctx.beginPath();
+                ctx.moveTo(rockX, height * 0.55);
+                ctx.lineTo(rockX - 40, height * 0.45);
+                ctx.lineTo(rockX + 40, height * 0.45);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Ground gradient
+            const groundGradient = ctx.createLinearGradient(0, height * 0.6, 0, height);
+            groundGradient.addColorStop(0, '#d4a574');
+            groundGradient.addColorStop(1, '#a0826d');
+            ctx.fillStyle = groundGradient;
+            ctx.fillRect(0, height * 0.6, width, height * 0.4);
+
+            // Scrolling ground pattern - tyre tracks
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.lineWidth = 2;
+            const groundPattern = Math.floor((score / 10) % (width / 30)) * 30;
+            for (let i = 0; i < width / 30 + 2; i++) {
+                for (let j = 0; j < 3; j++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * 30 - groundPattern, height * 0.6 + j * 15);
+                    ctx.lineTo(i * 30 - groundPattern + 15, height * 0.6 + j * 15);
+                    ctx.stroke();
+                }
+            }
+
+            // Tumbleweed silhouettes
+            ctx.fillStyle = 'rgba(139, 110, 83, 0.15)';
+            for (let i = 0; i < 2; i++) {
+                const tumbleX = ((score * 0.3) + i * 250) % (width + 200) - 100;
+                ctx.beginPath();
+                ctx.arc(tumbleX, height - 40, 20, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw cracks
+            cracks.forEach(c => {
+                ctx.strokeStyle = `rgba(139, 110, 83, ${(c.life / c.maxLife) * 0.8})`;
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(c.x, c.y);
+                    ctx.lineTo(c.x + Math.cos(angle) * 50, c.y + Math.sin(angle) * 30);
+                    ctx.stroke();
+                }
+            });
+
+            // Draw obstacles
+            obstacles.forEach(obs => {
+                if (obs.type === 'crate') {
+                    // Crate with gradient
+                    const crateGradient = ctx.createLinearGradient(obs.x, rhino.y - 10, obs.x + obs.width, rhino.y - 10 + obs.height);
+                    crateGradient.addColorStop(0, '#cd9b1d');
+                    crateGradient.addColorStop(1, '#8b6f47');
+                    ctx.fillStyle = crateGradient;
+                    ctx.fillRect(obs.x, rhino.y - 10, obs.width, obs.height);
+
+                    // Wood grain
+                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+                    ctx.lineWidth = 1;
+                    for (let i = 0; i < 5; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(obs.x + i * 7, rhino.y - 10);
+                        ctx.lineTo(obs.x + i * 7 + obs.width, rhino.y - 10 + obs.height);
+                        ctx.stroke();
+                    }
+
+                    // X mark
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x + 5, rhino.y - 5);
+                    ctx.lineTo(obs.x + obs.width - 5, rhino.y - 10 + obs.height - 5);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x + obs.width - 5, rhino.y - 5);
+                    ctx.lineTo(obs.x + 5, rhino.y - 10 + obs.height - 5);
+                    ctx.stroke();
+
+                } else if (obs.type === 'boulder') {
+                    // Boulder with gradient and highlights
+                    const boulderGradient = ctx.createRadialGradient(obs.x - 10, rhino.y - 30, 5, obs.x, rhino.y - 15, obs.width);
+                    boulderGradient.addColorStop(0, '#808080');
+                    boulderGradient.addColorStop(1, '#404040');
+                    ctx.fillStyle = boulderGradient;
+                    ctx.beginPath();
+                    ctx.arc(obs.x + obs.width / 2, rhino.y - 20, obs.width / 2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Outline
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    // Highlight spot
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.beginPath();
+                    ctx.arc(obs.x - 5, rhino.y - 30, 6, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Cracks
+                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.bezierCurveTo(obs.x + 5, rhino.y - 25, obs.x + 15, rhino.y - 15, obs.x + 20, rhino.y - 10);
+                    ctx.stroke();
+
+                } else if (obs.type === 'wall') {
+                    // Wall with brick pattern
+                    const wallGradient = ctx.createLinearGradient(obs.x, rhino.y - 60, obs.x + obs.width, rhino.y - 60);
+                    wallGradient.addColorStop(0, '#c84c1a');
+                    wallGradient.addColorStop(1, '#8b2e0c');
+                    ctx.fillStyle = wallGradient;
+                    ctx.fillRect(obs.x, rhino.y - 60, obs.width, obs.height);
+
+                    // Bricks with mortar
+                    ctx.strokeStyle = '#d4a574';
+                    ctx.lineWidth = 2;
+                    for (let i = 0; i < 3; i++) {
+                        for (let j = 0; j < 2; j++) {
+                            ctx.strokeRect(obs.x + j * 25, rhino.y - 60 + i * 20, 25, 20);
+                        }
+                    }
+
+                    // Drop shadow
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                    ctx.fillRect(obs.x, rhino.y - 60 + obs.height, obs.width, 5);
+
+                } else if (obs.type === 'mud') {
+                    // Mud
+                    const mudGradient = ctx.createLinearGradient(obs.x, rhino.y + 20, obs.x, rhino.y + 40);
+                    mudGradient.addColorStop(0, '#6b5344');
+                    mudGradient.addColorStop(1, '#4a3d33');
+                    ctx.fillStyle = mudGradient;
+                    ctx.fillRect(obs.x, rhino.y + 20, obs.width, obs.height);
+
+                    // Mud splatter pattern
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+                    for (let i = 0; i < 5; i++) {
+                        ctx.beginPath();
+                        ctx.arc(obs.x + Math.random() * obs.width, rhino.y + 25 + Math.random() * 10, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            });
+
+            // ─── Draw Rhino ─────────────────────────────────────────────
+            const rx = rhino.x;
+            const ry = rhino.y;
+            const legFrame = Math.floor(rhino.baseLegFrame / 8) % 4;
+
+            // Body bob during gallop
+            const bodyBob = [0, -3, 0, -3][legFrame];
+
+            // Charge aura BEHIND body
+            if (rhino.charge > 0) {
+                const ci = (rhino.charge / 100);
+                const auraGrad = ctx.createRadialGradient(rx, ry - 10 + bodyBob, 5, rx, ry - 10 + bodyBob, 40 + ci * 20);
+                auraGrad.addColorStop(0, `rgba(251,191,36,${ci * 0.5})`);
+                auraGrad.addColorStop(1, 'rgba(251,191,36,0)');
+                ctx.fillStyle = auraGrad;
+                ctx.beginPath();
+                ctx.arc(rx, ry - 10 + bodyBob, 40 + ci * 20, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.18)';
+            ctx.beginPath();
+            ctx.ellipse(rx, ry + 36, 30, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ── Legs (behind body) ──
+            // Gallop cycle: front pair and back pair alternate
+            const rhinoLegAngles = [
+                { fl: 0.3,  fr: -0.2, bl: -0.25, br: 0.2  },  // frame 0
+                { fl: 0.1,  fr: 0.3,  bl: 0.2,   br: -0.25 }, // frame 1
+                { fl: -0.2, fr: 0.3,  bl: 0.2,   br: -0.25 }, // frame 2
+                { fl: 0.3,  fr: -0.2, bl: -0.1,  br: 0.3  }   // frame 3
+            ][legFrame];
+
+            const rLegs = [
+                { bx: rx + 12, by: ry + 18 + bodyBob, angle: rhinoLegAngles.fr, label: 'fr' },
+                { bx: rx + 4,  by: ry + 18 + bodyBob, angle: rhinoLegAngles.fl, label: 'fl' },
+                { bx: rx - 8,  by: ry + 14 + bodyBob, angle: rhinoLegAngles.br, label: 'br' },
+                { bx: rx - 16, by: ry + 14 + bodyBob, angle: rhinoLegAngles.bl, label: 'bl' }
+            ];
+
+            rLegs.forEach(leg => {
+                ctx.save();
+                ctx.translate(leg.bx, leg.by);
+                ctx.rotate(leg.angle);
+                // Upper leg
+                const ulGrad = ctx.createLinearGradient(-4, 0, 4, 0);
+                ulGrad.addColorStop(0, '#888');
+                ulGrad.addColorStop(1, '#555');
+                ctx.fillStyle = ulGrad;
+                ctx.beginPath();
+                ctx.roundRect(-4, 0, 8, 15, 3);
+                ctx.fill();
+                // Lower leg
+                ctx.translate(0, 15);
+                ctx.rotate(leg.angle * 0.5);
+                const llGrad = ctx.createLinearGradient(-3, 0, 3, 0);
+                llGrad.addColorStop(0, '#777');
+                llGrad.addColorStop(1, '#444');
+                ctx.fillStyle = llGrad;
+                ctx.beginPath();
+                ctx.roundRect(-3, 0, 6, 13, 2);
+                ctx.fill();
+                // Hoof
+                ctx.fillStyle = '#222';
+                ctx.beginPath();
+                ctx.ellipse(0, 13, 4, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // ── Body (massive barrel shape) ──
+            const bGrad = ctx.createRadialGradient(rx - 8, ry - 16 + bodyBob, 4, rx, ry - 8 + bodyBob, 28);
+            bGrad.addColorStop(0, '#c8c8c8');
+            bGrad.addColorStop(0.5, '#a0a0a0');
+            bGrad.addColorStop(1, '#606060');
+            ctx.fillStyle = bGrad;
+            ctx.beginPath();
+            ctx.ellipse(rx, ry - 8 + bodyBob, 28, 22, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Skin fold / wrinkle lines on body
+            ctx.strokeStyle = 'rgba(60,60,60,0.25)';
+            ctx.lineWidth = 1.5;
+            ctx.lineCap = 'round';
+            for (let w = 0; w < 3; w++) {
+                ctx.beginPath();
+                ctx.arc(rx - 8 + w * 6, ry - 5 + bodyBob, 8 + w * 2, 0.8, Math.PI - 0.4, false);
+                ctx.stroke();
+            }
+
+            // Muscular shoulder hump
+            const humpGrad = ctx.createRadialGradient(rx - 14, ry - 22 + bodyBob, 2, rx - 10, ry - 20 + bodyBob, 14);
+            humpGrad.addColorStop(0, '#b8b8b8');
+            humpGrad.addColorStop(1, '#6a6a6a');
+            ctx.fillStyle = humpGrad;
+            ctx.beginPath();
+            ctx.ellipse(rx - 10, ry - 20 + bodyBob, 14, 10, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Belly (slightly lighter underside)
+            ctx.fillStyle = 'rgba(180,180,180,0.3)';
+            ctx.beginPath();
+            ctx.ellipse(rx + 2, ry + 8 + bodyBob, 22, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ── Head ──
+            const hGrad = ctx.createRadialGradient(rx + 15, ry - 18 + bodyBob, 2, rx + 20, ry - 12 + bodyBob, 18);
+            hGrad.addColorStop(0, '#c0c0c0');
+            hGrad.addColorStop(1, '#686868');
+            ctx.fillStyle = hGrad;
+            ctx.beginPath();
+            ctx.ellipse(rx + 22, ry - 12 + bodyBob, 16, 13, 0.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Skull ridge (texture)
+            ctx.strokeStyle = 'rgba(50,50,50,0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(rx + 22, ry - 18 + bodyBob, 10, 0.2, Math.PI - 0.2, false);
+            ctx.stroke();
+
+            // Snout (blunt flat front)
+            ctx.fillStyle = '#888';
+            ctx.beginPath();
+            ctx.ellipse(rx + 36, ry - 10 + bodyBob, 7, 10, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Nostrils
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.ellipse(rx + 40, ry - 8 + bodyBob, 2, 1.5, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(rx + 40, ry - 13 + bodyBob, 2, 1.5, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ── Horn (large, prominent) ──
+            const horGrad = ctx.createLinearGradient(rx + 30, ry - 20 + bodyBob, rx + 34, ry - 48 + bodyBob);
+            horGrad.addColorStop(0, '#7a6040');
+            horGrad.addColorStop(0.5, '#a89060');
+            horGrad.addColorStop(1, '#c8b080');
+            ctx.fillStyle = horGrad;
+            ctx.beginPath();
+            ctx.moveTo(rx + 27, ry - 18 + bodyBob);
+            ctx.bezierCurveTo(rx + 26, ry - 30 + bodyBob, rx + 30, ry - 42 + bodyBob, rx + 34, ry - 48 + bodyBob);
+            ctx.bezierCurveTo(rx + 36, ry - 45 + bodyBob, rx + 37, ry - 32 + bodyBob, rx + 38, ry - 18 + bodyBob);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#5a4020';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            // Horn ridges
+            ctx.strokeStyle = 'rgba(60,40,20,0.4)';
+            ctx.lineWidth = 1;
+            for (let hr = 0; hr < 4; hr++) {
+                ctx.beginPath();
+                ctx.moveTo(rx + 28, ry - 22 - hr * 6 + bodyBob);
+                ctx.lineTo(rx + 37, ry - 22 - hr * 6 + bodyBob);
+                ctx.stroke();
+            }
+
+            // ── Ear ──
+            ctx.fillStyle = '#909090';
+            ctx.save();
+            ctx.translate(rx + 12, ry - 22 + bodyBob);
+            ctx.rotate(-0.4);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 5, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#c08080';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 3, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // ── Eye ──
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(rx + 26, ry - 17 + bodyBob, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#3a2a00';
+            ctx.beginPath();
+            ctx.arc(rx + 27, ry - 17 + bodyBob, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(rx + 27, ry - 17 + bodyBob, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.beginPath();
+            ctx.arc(rx + 28, ry - 18 + bodyBob, 0.9, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ── Tail ──
+            ctx.strokeStyle = '#888';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(rx - 26, ry - 8 + bodyBob);
+            ctx.quadraticCurveTo(rx - 38, ry - 2 + bodyBob, rx - 36, ry + 12 + bodyBob);
+            ctx.stroke();
+            ctx.fillStyle = '#555';
+            ctx.beginPath();
+            ctx.arc(rx - 36, ry + 12 + bodyBob, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ── Sprint effect ──
+            if (rhino.isSprinting) {
+                // Speed lines
+                ctx.lineCap = 'round';
+                for (let i = 0; i < 5; i++) {
+                    const lineAlpha = 0.6 - i * 0.1;
+                    ctx.strokeStyle = `rgba(251,191,36,${lineAlpha})`;
+                    ctx.lineWidth = 3 - i * 0.4;
+                    ctx.beginPath();
+                    ctx.moveTo(rx - 30 - i * 12, ry - 8 + bodyBob + (i - 2) * 10);
+                    ctx.lineTo(rx - 55 - i * 12, ry - 8 + bodyBob + (i - 2) * 10);
+                    ctx.stroke();
+                }
+                // Sprint ring
+                ctx.strokeStyle = 'rgba(251,191,36,0.5)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.ellipse(rx, ry - 8 + bodyBob, 38, 28, 0, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // Mud splatter on rhino when in mud
+            if (rhino.inMud) {
+                ctx.fillStyle = 'rgba(90,70,50,0.5)';
+                for (let m = 0; m < 4; m++) {
+                    ctx.beginPath();
+                    ctx.arc(rx - 10 + m * 8, ry + 10 + bodyBob, 3 + m, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Invincibility blink
+            if (rhino.invincibilityFrames > 0 && Math.floor(rhino.invincibilityFrames / 4) % 2 === 0) {
+                ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.ellipse(rx, ry - 8 + bodyBob, 38, 28, 0, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // Draw particles
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life / p.maxLife;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+                ctx.globalAlpha = 1;
+            });
+
+            // Shockwave effect
+            particles.forEach(p => {
+                if (p.isShockwave) {
+                    ctx.globalAlpha = p.life / p.maxLife * 0.6;
+                    ctx.strokeStyle = 'rgba(251, 191, 36, 0.8)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                }
+            });
+
+            // Hit flash
+            if (hitFlashFrames > 0) {
+                ctx.globalAlpha = hitFlashFrames / 8 * 0.5;
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, width, height);
+                ctx.globalAlpha = 1;
+                hitFlashFrames--;
+            }
+
+            ctx.restore();
+
+            // Update charge bar
+            chargeBarEl.style.width = `${rhino.charge}%`;
+
+            requestAnimationFrame(update);
+        }
+
+        function createObstacleParticles(x, y, type) {
+            const colorMap = {
+                crate: '#8b6f47',
+                boulder: '#808080',
+                wall: '#c84c1a'
+            };
+            const color = colorMap[type] || '#999';
+
+            for (let i = 0; i < 12; i++) {
+                const angle = (Math.PI * 2 * i) / 12;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * 4,
+                    vy: Math.sin(angle) * 4 - 2,
+                    life: 40,
+                    maxLife: 40,
+                    size: 6,
+                    color: color
+                });
+            }
+        }
+
+        function createShockwave(x, y) {
+            for (let i = 0; i < 3; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    radius: 0,
+                    life: 50,
+                    maxLife: 50,
+                    isShockwave: true
+                });
+                particles[particles.length - 1].radius = i * 10;
+            }
+        }
+
+        function createGroundCrack(x, y) {
+            cracks.push({
+                x: x,
+                y: y,
+                life: 40,
+                maxLife: 40
+            });
+        }
+
+        function updateHUD() {
+            scoreEl.textContent = `Score: ${score}`;
+            livesEl.textContent = '🦏'.repeat(Math.max(0, lives));
+        }
+
+        function gameOver() {
+            gameActive = false;
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('chargeHighScore', highScore);
+            }
+            finalScoreEl.textContent = `Score: ${score}\nHigh Score: ${highScore}`;
+            gameoverOverlay.classList.remove('hidden');
+        }
+
+        init();
+    </script>
+</body>
+</html>

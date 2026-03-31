@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Slide & Dive - K2 games</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --accent: #7dd3fc;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            overflow: hidden;
+            height: 100dvh;
+            background: var(--bg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text);
+        }
+
+        #home-btn {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            text-decoration: none;
+            z-index: 1000;
+            transition: all 0.2s;
+        }
+
+        #home-btn:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100dvh;
+            max-width: 600px;
+            margin: 0 auto;
+            background: linear-gradient(180deg, #0369a1 0%, #06b6d4 50%, #cffafe 100%);
+            box-sizing: border-box;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #0369a1 0%, #06b6d4 60%, #e0f2fe 100%);
+        }
+
+        #hud {
+            position: absolute;
+            top: 60px;
+            left: 16px;
+            right: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #score, #high-score {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        #lives {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.2rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        #distance-display {
+            position: absolute;
+            top: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.85rem;
+            color: var(--accent);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        #combo-display {
+            position: absolute;
+            top: 140px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.8rem;
+            color: #fbbf24;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        #mobile-controls {
+            display: none;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 30%;
+            gap: 0;
+        }
+
+        .touch-zone {
+            flex: 1;
+            background: transparent;
+            border: 2px solid rgba(125, 211, 252, 0.2);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: rgba(125, 211, 252, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            #mobile-controls {
+                display: flex;
+            }
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 100;
+            font-weight: bold;
+        }
+
+        .overlay h2 {
+            font-size: 2rem;
+            color: var(--accent);
+            text-align: center;
+        }
+
+        .overlay p {
+            font-size: 0.9rem;
+            color: var(--muted);
+            text-align: center;
+            max-width: 80%;
+        }
+
+        button {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(125, 211, 252, 0.3);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" id="home-btn">← HUB</a>
+    <div id="game-container">
+        <div id="hud">
+            <div id="score">Score: 0</div>
+            <div id="high-score">High: 0</div>
+        </div>
+        <div id="lives">🐧🐧🐧</div>
+        <div id="distance-display">Distance: 0m</div>
+        <div id="combo-display">Combo: 0</div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="mobile-controls">
+            <div class="touch-zone" id="jump-zone">JUMP</div>
+            <div class="touch-zone" id="slide-zone">SLIDE</div>
+        </div>
+        <div id="menu-overlay" class="overlay">
+            <h2>Slide & Dive</h2>
+            <p>Slide down the ice, jump over rocks and duck under icicles!</p>
+            <p style="font-size: 0.8rem; color: var(--muted);">SPACE/UP to jump, DOWN to belly slide. Collect fish!</p>
+            <button onclick="startGame()">Start Game</button>
+        </div>
+        <div id="gameover-overlay" class="overlay hidden">
+            <h2>Game Over!</h2>
+            <p id="final-score">Score: 0</p>
+            <button onclick="location.reload()">Play Again</button>
+            <button onclick="location.href='index.html'">Back to Hub</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const highScoreEl = document.getElementById('high-score');
+        const livesEl = document.getElementById('lives');
+        const distanceEl = document.getElementById('distance-display');
+        const comboEl = document.getElementById('combo-display');
+        const menuOverlay = document.getElementById('menu-overlay');
+        const gameoverOverlay = document.getElementById('gameover-overlay');
+        const finalScoreEl = document.getElementById('final-score');
+
+        let width, height;
+        let gameActive = false;
+        let score = 0;
+        let highScore = parseInt(localStorage.getItem('slideDiveHighScore') || '0');
+        let lives = 3;
+        let distance = 0;
+        let distanceSinceBonus = 0;
+        let spacePressed = false;
+        let downPressed = false;
+        let touchJumpPressed = false;
+        let touchSlidePressed = false;
+        let shakeAmount = 0;
+        let hitFlashFrames = 0;
+        let snowflakes = [];
+
+        const penguin = {
+            x: 60,
+            y: 0,
+            width: 30,
+            height: 40,
+            isSliding: false,
+            slideTimer: 0,
+            slideDuration: 60,
+            isJumping: false,
+            velocityY: 0,
+            jumpPower: 12,
+            gravity: 0.5,
+            walkFrame: 0,
+            combo: 0,
+            landingFrame: 0,
+            jumpFrame: 0,
+            invincibilityFrames: 0
+        };
+
+        let obstacles = [];
+        let fish = [];
+        let particles = [];
+        let popups = [];
+        let cracks = [];
+        let nextObstacleTime = 0;
+        let nextFishTime = 0;
+        let obstacleSpawnRate = 100;
+        let fishSpawnRate = 80;
+        let gameSpeed = 3;
+
+        function resize() {
+            const container = document.getElementById('game-container');
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+            penguin.y = height - 120;
+        }
+
+        function initSnowflakes() {
+            snowflakes = [];
+            for (let i = 0; i < 25; i++) {
+                snowflakes.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    vx: -gameSpeed * 0.3 + (Math.random() - 0.5) * 0.5,
+                    vy: 0.5 + Math.random() * 1,
+                    size: 2 + Math.random() * 3,
+                    opacity: 0.4 + Math.random() * 0.6
+                });
+            }
+        }
+
+        function init() {
+            resize();
+            initSnowflakes();
+            highScoreEl.textContent = `High: ${highScore}`;
+            window.addEventListener('resize', resize);
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' || e.code === 'ArrowUp') {
+                    e.preventDefault();
+                    spacePressed = true;
+                }
+                if (e.code === 'ArrowDown') {
+                    e.preventDefault();
+                    downPressed = true;
+                }
+            });
+            window.addEventListener('keyup', (e) => {
+                if (e.code === 'Space' || e.code === 'ArrowUp') {
+                    spacePressed = false;
+                }
+                if (e.code === 'ArrowDown') {
+                    downPressed = false;
+                }
+            });
+
+            document.getElementById('jump-zone').addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                touchJumpPressed = true;
+            });
+            document.getElementById('jump-zone').addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touchJumpPressed = false;
+            });
+
+            document.getElementById('slide-zone').addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                touchSlidePressed = true;
+            });
+            document.getElementById('slide-zone').addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touchSlidePressed = false;
+            });
+        }
+
+        function startGame() {
+            menuOverlay.classList.add('hidden');
+            gameActive = true;
+            score = 0;
+            lives = 3;
+            distance = 0;
+            distanceSinceBonus = 0;
+            obstacles = [];
+            fish = [];
+            particles = [];
+            popups = [];
+            cracks = [];
+            nextObstacleTime = 0;
+            nextFishTime = 0;
+            gameSpeed = 3;
+            penguin.isSliding = false;
+            penguin.isJumping = false;
+            penguin.velocityY = 0;
+            penguin.combo = 0;
+            penguin.invincibilityFrames = 0;
+            updateHUD();
+            requestAnimationFrame(update);
+        }
+
+        function update() {
+            if (!gameActive) return;
+
+            // Jump logic
+            if ((spacePressed || touchJumpPressed) && !penguin.isJumping && !penguin.isSliding && penguin.invincibilityFrames <= 0) {
+                penguin.isJumping = true;
+                penguin.jumpFrame = 10;
+                penguin.velocityY = -penguin.jumpPower;
+            }
+
+            // Slide logic
+            if ((downPressed || touchSlidePressed) && !penguin.isSliding && !penguin.isJumping && penguin.invincibilityFrames <= 0) {
+                penguin.isSliding = true;
+                penguin.slideTimer = penguin.slideDuration;
+            }
+
+            // Update slide timer
+            if (penguin.isSliding) {
+                penguin.slideTimer--;
+                if (penguin.slideTimer <= 0) {
+                    penguin.isSliding = false;
+                }
+            }
+
+            // Apply gravity and jump
+            if (penguin.isJumping) {
+                penguin.velocityY += penguin.gravity;
+                penguin.y -= penguin.velocityY;
+
+                if (penguin.y >= height - 120) {
+                    penguin.y = height - 120;
+                    penguin.isJumping = false;
+                    penguin.velocityY = 0;
+                    penguin.landingFrame = 6;
+                    createLandingParticles();
+                }
+            }
+
+            if (penguin.jumpFrame > 0) penguin.jumpFrame--;
+            if (penguin.landingFrame > 0) penguin.landingFrame--;
+            if (penguin.invincibilityFrames > 0) penguin.invincibilityFrames--;
+
+            // Slide ice spray
+            if (penguin.isSliding) {
+                for (let i = 0; i < 3; i++) {
+                    particles.push({
+                        x: penguin.x + Math.random() * 20 - 10,
+                        y: penguin.y + 30,
+                        vx: (Math.random() - 0.5) * 2,
+                        vy: Math.random() * 0.5 + 0.5,
+                        life: 20,
+                        maxLife: 20,
+                        radius: 2,
+                        color: 'rgba(255, 255, 255, 0.8)'
+                    });
+                }
+            }
+
+            // Update game speed
+            gameSpeed = Math.min(6, 3 + distance / 500);
+            distance += gameSpeed / 10;
+            distanceSinceBonus += gameSpeed / 10;
+
+            // Distance bonus
+            if (distanceSinceBonus >= 100) {
+                score += 50;
+                distanceSinceBonus = 0;
+                updateHUD();
+            }
+
+            // Spawn obstacles
+            nextObstacleTime++;
+            if (nextObstacleTime > obstacleSpawnRate) {
+                const type = Math.random() > 0.5 ? 'rock' : 'icicle';
+                obstacles.push({
+                    x: width,
+                    y: type === 'icicle' ? height - 160 : 0,
+                    type: type,
+                    width: type === 'rock' ? 30 : 35,
+                    height: type === 'rock' ? 25 : 40,
+                    hit: false
+                });
+                nextObstacleTime = 0;
+                obstacleSpawnRate = Math.max(60, 100 - distance / 100);
+            }
+
+            // Spawn fish
+            nextFishTime++;
+            if (nextFishTime > fishSpawnRate) {
+                fish.push({
+                    x: width,
+                    y: height - 160 - Math.random() * 80,
+                    collected: false,
+                    bobOffset: Math.random() * Math.PI * 2
+                });
+                nextFishTime = 0;
+                fishSpawnRate = Math.max(70, 120 - distance / 200);
+            }
+
+            // Update obstacles
+            obstacles = obstacles.filter(obs => {
+                obs.x -= gameSpeed;
+
+                // Collision detection
+                if (!obs.hit && penguin.invincibilityFrames <= 0) {
+                    const penguinBottom = penguin.y + (penguin.isSliding ? 20 : penguin.height);
+                    const penguinTop = penguin.isSliding ? penguin.y + 30 : penguin.y;
+                    const penguinLeft = penguin.x;
+                    const penguinRight = penguin.x + penguin.width;
+
+                    if (obs.x < penguinRight && obs.x + obs.width > penguinLeft) {
+                        let hit = false;
+
+                        if (obs.type === 'rock') {
+                            if (penguinBottom >= obs.y && penguinTop < obs.y + obs.height) {
+                                hit = true;
+                            }
+                        } else if (obs.type === 'icicle') {
+                            if (penguinTop <= obs.y + obs.height && !penguin.isSliding) {
+                                hit = true;
+                            }
+                        }
+
+                        if (hit) {
+                            lives--;
+                            penguin.combo = 0;
+                            penguin.invincibilityFrames = 60;
+                            hitFlashFrames = 8;
+                            shakeAmount = 6;
+                            updateHUD();
+                            if (lives <= 0) {
+                                gameOver();
+                            }
+                            obs.hit = true;
+                        }
+                    }
+                }
+
+                return obs.x > -40;
+            });
+
+            // Update fish
+            fish = fish.filter(f => {
+                f.x -= gameSpeed;
+
+                if (!f.collected) {
+                    if (f.x < penguin.x + penguin.width && f.x + 20 > penguin.x) {
+                        if (f.y < penguin.y + penguin.height && f.y + 20 > penguin.y) {
+                            f.collected = true;
+                            score += 10;
+                            penguin.combo++;
+                            createFishParticles(f.x, f.y);
+                            updateHUD();
+                        }
+                    }
+                }
+
+                return f.x > -20;
+            });
+
+            // Update particles
+            particles = particles.filter(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.1;
+                p.life--;
+                return p.life > 0;
+            });
+
+            // Update popups
+            popups = popups.filter(p => {
+                p.y -= 1;
+                p.life--;
+                return p.life > 0;
+            });
+
+            // Update cracks
+            cracks = cracks.filter(c => c.life-- > 0);
+
+            // Update snowflakes
+            snowflakes.forEach(s => {
+                s.y += s.vy;
+                s.x += s.vx;
+                if (s.y > height) s.y = -10;
+                if (s.x > width) s.x = -10;
+                if (s.x < -10) s.x = width + 10;
+            });
+
+            // Update walk animation
+            penguin.walkFrame++;
+
+            // Apply screen shake
+            const shakeX = shakeAmount > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
+            const shakeY = shakeAmount > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
+            shakeAmount *= 0.8;
+
+            // Draw
+            ctx.save();
+            ctx.translate(shakeX, shakeY);
+
+            // Ice background
+            const iceGradient = ctx.createLinearGradient(0, 0, 0, height);
+            iceGradient.addColorStop(0, '#0369a1');
+            iceGradient.addColorStop(0.5, '#06b6d4');
+            iceGradient.addColorStop(1, '#e0f2fe');
+            ctx.fillStyle = iceGradient;
+            ctx.fillRect(0, 0, width, height);
+
+            // Star field (far)
+            ctx.fillStyle = '#fff';
+            for (let i = 0; i < 10; i++) {
+                const starX = (i * width / 10) + ((distance * 0.05) % (width / 10));
+                const starY = 30 + (i % 3) * 20;
+                ctx.beginPath();
+                ctx.arc(starX, starY, 1, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Distant icebergs (very slow parallax)
+            ctx.fillStyle = 'rgba(30, 58, 138, 0.3)';
+            for (let i = 0; i < 3; i++) {
+                const ix = (i * width / 2) - ((distance * 0.05) % (width / 2));
+                ctx.beginPath();
+                ctx.moveTo(ix, height * 0.3);
+                ctx.lineTo(ix + 80, height * 0.15);
+                ctx.lineTo(ix + 100, height * 0.3);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Draw icicles ceiling (mid parallax)
+            ctx.fillStyle = 'rgba(148, 163, 184, 0.4)';
+            for (let i = 0; i < 8; i++) {
+                const icicleX = (i * width / 8) - ((distance * 0.15) % (width / 8));
+                ctx.beginPath();
+                ctx.moveTo(icicleX, 0);
+                ctx.lineTo(icicleX - 12, 35);
+                ctx.lineTo(icicleX + 12, 35);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Ground ice with shine
+            ctx.fillStyle = '#f0f9ff';
+            ctx.fillRect(0, height - 100, width, 100);
+
+            // Ice shine line
+            const shineGradient = ctx.createLinearGradient(0, height - 90, 0, height - 80);
+            shineGradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+            shineGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = shineGradient;
+            ctx.fillRect(0, height - 90, width, 10);
+
+            // Ice cracks
+            ctx.strokeStyle = 'rgba(6, 182, 212, 0.25)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 4; i++) {
+                ctx.beginPath();
+                ctx.moveTo((i * width / 4) - ((distance * 0.2) % (width / 4)), height - 100);
+                ctx.quadraticCurveTo((i * width / 4) + 20 - ((distance * 0.2) % (width / 4)), height - 50, (i * width / 4) + 40 - ((distance * 0.2) % (width / 4)), height);
+                ctx.stroke();
+            }
+
+            // Draw crack effects
+            cracks.forEach(c => {
+                ctx.strokeStyle = `rgba(99, 102, 241, ${c.life / c.maxLife * 0.5})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(c.x, c.y);
+                for (let i = 1; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI;
+                    const dist = 40;
+                    ctx.lineTo(c.x + Math.cos(angle) * dist, c.y + Math.sin(angle) * dist);
+                }
+                ctx.stroke();
+            });
+
+            // Draw snowflakes
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            snowflakes.forEach(s => {
+                ctx.globalAlpha = s.opacity;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+
+            // Draw obstacles
+            obstacles.forEach(obs => {
+                if (obs.type === 'rock') {
+                    // Multi-facet rock
+                    const rockGrad = ctx.createRadialGradient(obs.x - 8, height - 120, 0, obs.x, height - 115, 20);
+                    rockGrad.addColorStop(0, '#94a3b8');
+                    rockGrad.addColorStop(1, '#475569');
+                    ctx.fillStyle = rockGrad;
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x - 15, height - 110);
+                    ctx.lineTo(obs.x + 5, height - 120);
+                    ctx.lineTo(obs.x + 15, height - 105);
+                    ctx.lineTo(obs.x + 8, height - 115);
+                    ctx.lineTo(obs.x - 5, height - 100);
+                    ctx.closePath();
+                    ctx.fill();
+                    // Highlight
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.beginPath();
+                    ctx.arc(obs.x - 5, height - 118, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (obs.type === 'icicle') {
+                    // Glassy icicle
+                    const iceGrad = ctx.createLinearGradient(obs.x - 10, obs.y, obs.x + 10, obs.y + obs.height);
+                    iceGrad.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+                    iceGrad.addColorStop(0.5, 'rgba(148, 191, 255, 0.6)');
+                    iceGrad.addColorStop(1, 'rgba(148, 191, 255, 0.2)');
+                    ctx.fillStyle = iceGrad;
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x, obs.y);
+                    ctx.lineTo(obs.x - obs.width / 2, obs.y + obs.height);
+                    ctx.lineTo(obs.x + obs.width / 2, obs.y + obs.height);
+                    ctx.closePath();
+                    ctx.fill();
+                    // Outline
+                    ctx.strokeStyle = 'rgba(100, 200, 255, 0.6)';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                    // Drip
+                    ctx.fillStyle = 'rgba(200, 230, 255, 0.7)';
+                    ctx.beginPath();
+                    ctx.arc(obs.x, obs.y + obs.height + 3, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            // Draw fish
+            fish.forEach(f => {
+                if (!f.collected) {
+                    const bob = Math.sin((penguin.walkFrame + f.bobOffset) * 0.05) * 3;
+                    // Fish glow
+                    ctx.fillStyle = 'rgba(251, 191, 36, 0.2)';
+                    ctx.beginPath();
+                    ctx.arc(f.x + 5, f.y + 5 + bob, 12, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Fish body
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.beginPath();
+                    ctx.ellipse(f.x + 5, f.y + 5 + bob, 8, 5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Fish tail
+                    ctx.beginPath();
+                    ctx.moveTo(f.x, f.y + 5 + bob);
+                    ctx.lineTo(f.x - 8, f.y);
+                    ctx.lineTo(f.x - 8, f.y + 10 + bob);
+                    ctx.closePath();
+                    ctx.fill();
+                    // Eye
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.arc(f.x + 8, f.y + 3 + bob, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            // Draw jump shadow
+            if (penguin.isJumping || penguin.velocityY < 0) {
+                const heightAboveGround = (height - 120) - penguin.y;
+                const shadowAlpha = Math.max(0, 0.5 - (heightAboveGround / 150));
+                ctx.fillStyle = `rgba(0, 0, 0, ${shadowAlpha * 0.3})`;
+                ctx.beginPath();
+                ctx.ellipse(penguin.x + 15, height - 95, 15 - (heightAboveGround / 100) * 15, 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw penguin (emperor penguin style)
+            const px = penguin.x + penguin.width / 2;  // center x
+            const py = penguin.y;
+            const penguinScale = penguin.landingFrame > 0 ? 1 - (penguin.landingFrame / 6) * 0.15 : 1;
+            const jumpStretch = penguin.jumpFrame > 0 ? 1 + (penguin.jumpFrame / 10) * 0.2 : 1;
+
+            ctx.save();
+            ctx.translate(px, py + (penguin.isSliding ? 20 : 28));
+            ctx.scale(penguinScale, penguinScale * jumpStretch);
+            ctx.translate(-px, -(py + (penguin.isSliding ? 20 : 28)));
+
+            if (penguin.isSliding) {
+                // Belly-slide mode: flattened penguin going horizontal
+                const sx = penguin.x;
+                const sy = penguin.y + 10;
+
+                // Ice spray trail
+                ctx.fillStyle = 'rgba(200, 240, 255, 0.3)';
+                ctx.beginPath();
+                ctx.ellipse(sx - 10, sy + 8, 20, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Back (black cape)
+                ctx.fillStyle = '#1a1a2e';
+                ctx.beginPath();
+                ctx.ellipse(sx + 22, sy + 8, 22, 9, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Belly (white)
+                const bellyGrad = ctx.createLinearGradient(sx + 5, sy + 4, sx + 35, sy + 14);
+                bellyGrad.addColorStop(0, '#f0f0f0');
+                bellyGrad.addColorStop(1, '#d0d0d0');
+                ctx.fillStyle = bellyGrad;
+                ctx.beginPath();
+                ctx.ellipse(sx + 22, sy + 8, 18, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Flipper trailing back
+                ctx.fillStyle = '#1a1a2e';
+                ctx.beginPath();
+                ctx.ellipse(sx + 38, sy + 6, 10, 4, 0.3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Head
+                const headGrad = ctx.createRadialGradient(sx + 5, sy + 5, 1, sx + 8, sy + 8, 9);
+                headGrad.addColorStop(0, '#2a2a3e');
+                headGrad.addColorStop(1, '#0a0a1e');
+                ctx.fillStyle = headGrad;
+                ctx.beginPath();
+                ctx.arc(sx + 8, sy + 8, 9, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Eye
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(sx + 12, sy + 6, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(sx + 13, sy + 6, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.beginPath();
+                ctx.arc(sx + 14, sy + 5, 0.7, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Beak (orange, flat side view)
+                ctx.fillStyle = '#f97316';
+                ctx.beginPath();
+                ctx.moveTo(sx + 16, sy + 9);
+                ctx.lineTo(sx + 21, sy + 10);
+                ctx.lineTo(sx + 16, sy + 11);
+                ctx.closePath();
+                ctx.fill();
+
+            } else {
+                // Standing/waddling mode
+                const wx = penguin.x + 15; // center
+
+                // --- Left flipper (back, draw first) ---
+                const leftFlapAngle = penguin.isJumping
+                    ? -Math.PI / 3
+                    : Math.sin(penguin.walkFrame * 0.1) * 0.35 - 0.1;
+                ctx.save();
+                ctx.translate(wx - 12, py + 20);
+                ctx.rotate(leftFlapAngle - 0.2);
+                const lfGrad = ctx.createLinearGradient(0, 0, -5, 18);
+                lfGrad.addColorStop(0, '#1a1a2e');
+                lfGrad.addColorStop(1, '#374151');
+                ctx.fillStyle = lfGrad;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.bezierCurveTo(-8, 5, -10, 14, -5, 20);
+                ctx.bezierCurveTo(-2, 22, 2, 20, 3, 15);
+                ctx.bezierCurveTo(4, 8, 2, 2, 0, 0);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+
+                // --- Body (main large oval, black back) ---
+                const bodyGrad = ctx.createRadialGradient(wx - 3, py + 22, 2, wx, py + 26, 18);
+                bodyGrad.addColorStop(0, '#2d2d3e');
+                bodyGrad.addColorStop(1, '#0d0d1a');
+                ctx.fillStyle = bodyGrad;
+                ctx.beginPath();
+                ctx.ellipse(wx, py + 26, 17, 22, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // --- White belly patch ---
+                const bellyGrad = ctx.createRadialGradient(wx + 1, py + 28, 1, wx + 2, py + 29, 12);
+                bellyGrad.addColorStop(0, '#ffffff');
+                bellyGrad.addColorStop(0.7, '#e8e8e8');
+                bellyGrad.addColorStop(1, '#cccccc');
+                ctx.fillStyle = bellyGrad;
+                ctx.beginPath();
+                ctx.ellipse(wx + 2, py + 28, 10, 15, 0.1, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Yellow breast patch (king penguin style)
+                ctx.fillStyle = '#fde68a';
+                ctx.beginPath();
+                ctx.ellipse(wx + 2, py + 18, 7, 5, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Scarf
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(wx - 10, py + 11);
+                ctx.bezierCurveTo(wx - 4, py + 8, wx + 4, py + 8, wx + 10, py + 11);
+                ctx.stroke();
+                // Scarf tail hanging
+                ctx.beginPath();
+                ctx.moveTo(wx + 8, py + 11);
+                ctx.lineTo(wx + 10, py + 18);
+                ctx.stroke();
+
+                // --- Head ---
+                const headGrad = ctx.createRadialGradient(wx - 2, py + 3, 1, wx, py + 6, 12);
+                headGrad.addColorStop(0, '#2a2a3e');
+                headGrad.addColorStop(1, '#0a0a1e');
+                ctx.fillStyle = headGrad;
+                ctx.beginPath();
+                ctx.arc(wx, py + 6, 12, 0, Math.PI * 2);
+                ctx.fill();
+
+                // White face patch
+                ctx.fillStyle = '#e5e5e5';
+                ctx.beginPath();
+                ctx.ellipse(wx + 4, py + 7, 7, 9, 0.15, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Yellow stripe on head sides
+                ctx.fillStyle = '#fbbf24';
+                ctx.beginPath();
+                ctx.ellipse(wx - 5, py + 5, 3, 7, 0.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(wx + 10, py + 5, 2, 5, -0.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Eye
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(wx + 7, py + 5, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(wx + 8, py + 5, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                ctx.beginPath();
+                ctx.arc(wx + 9, py + 4, 0.9, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Beak (two-tone orange beak)
+                ctx.fillStyle = '#f97316';
+                ctx.beginPath();
+                ctx.moveTo(wx + 10, py + 7);
+                ctx.lineTo(wx + 18, py + 8);
+                ctx.lineTo(wx + 10, py + 10);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = '#fed7aa';
+                ctx.beginPath();
+                ctx.moveTo(wx + 10, py + 8);
+                ctx.lineTo(wx + 17, py + 8.5);
+                ctx.lineTo(wx + 10, py + 9);
+                ctx.closePath();
+                ctx.fill();
+
+                // --- Right flipper (front) ---
+                const rightFlapAngle = penguin.isJumping
+                    ? Math.PI / 3
+                    : -Math.sin(penguin.walkFrame * 0.1) * 0.35 + 0.1;
+                ctx.save();
+                ctx.translate(wx + 12, py + 20);
+                ctx.rotate(rightFlapAngle + 0.2);
+                const rfGrad = ctx.createLinearGradient(0, 0, 8, 18);
+                rfGrad.addColorStop(0, '#2d2d3e');
+                rfGrad.addColorStop(1, '#4b5563');
+                ctx.fillStyle = rfGrad;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.bezierCurveTo(8, 5, 10, 14, 6, 20);
+                ctx.bezierCurveTo(3, 22, -1, 20, -2, 15);
+                ctx.bezierCurveTo(-3, 8, -1, 2, 0, 0);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+
+                // --- Feet / flippers ---
+                const legFrame = Math.floor(penguin.walkFrame / 8) % 2;
+                ctx.fillStyle = '#f97316';
+                // Left foot
+                ctx.save();
+                ctx.translate(wx - 6, py + 48);
+                ctx.rotate(legFrame === 0 ? 0.2 : -0.1);
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 5, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                // Right foot
+                ctx.save();
+                ctx.translate(wx + 6, py + 47);
+                ctx.rotate(legFrame === 0 ? -0.1 : 0.2);
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 5, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // Invincibility blink
+            if (penguin.invincibilityFrames > 0 && Math.floor(penguin.invincibilityFrames / 4) % 2 === 0) {
+                ctx.strokeStyle = 'rgba(255, 220, 80, 0.8)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.ellipse(penguin.x + 15, penguin.y + 25, 22, 28, 0, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+
+            // Draw particles
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life / p.maxLife;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+
+            // Draw popups
+            popups.forEach(p => {
+                ctx.globalAlpha = p.life / p.maxLife;
+                ctx.fillStyle = p.color;
+                ctx.font = 'bold 14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(p.text, p.x, p.y);
+                ctx.globalAlpha = 1;
+            });
+
+            // Hit flash
+            if (hitFlashFrames > 0) {
+                ctx.globalAlpha = hitFlashFrames / 8 * 0.5;
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(0, 0, width, height);
+                ctx.globalAlpha = 1;
+                hitFlashFrames--;
+            }
+
+            ctx.restore();
+
+            distanceEl.textContent = `Distance: ${Math.floor(distance)}m`;
+            comboEl.textContent = penguin.combo > 0 ? `Combo: ${penguin.combo}🐟` : '';
+
+            requestAnimationFrame(update);
+        }
+
+        function createFishParticles(x, y) {
+            for (let i = 0; i < 8; i++) {
+                const angle = (Math.PI * 2 * i) / 8;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * 2.5,
+                    vy: Math.sin(angle) * 2.5,
+                    life: 30,
+                    maxLife: 30,
+                    radius: 3,
+                    color: '#7dd3fc'
+                });
+            }
+            popups.push({
+                x: x,
+                y: y,
+                text: '+10 🐟',
+                color: '#fbbf24',
+                life: 30,
+                maxLife: 30
+            });
+        }
+
+        function createLandingParticles() {
+            for (let i = 0; i < 5; i++) {
+                particles.push({
+                    x: penguin.x + penguin.width / 2 + (Math.random() - 0.5) * 20,
+                    y: height - 100,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: -Math.random() * 1.5,
+                    life: 25,
+                    maxLife: 25,
+                    radius: 2,
+                    color: 'rgba(255, 255, 255, 0.8)'
+                });
+            }
+        }
+
+        function updateHUD() {
+            scoreEl.textContent = `Score: ${score}`;
+            livesEl.textContent = '🐧'.repeat(Math.max(0, lives));
+        }
+
+        function gameOver() {
+            gameActive = false;
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('slideDiveHighScore', highScore);
+            }
+            finalScoreEl.textContent = `Score: ${score}\nHigh Score: ${highScore}`;
+            gameoverOverlay.classList.remove('hidden');
+        }
+
+        init();
+    </script>
+</body>
+</html>

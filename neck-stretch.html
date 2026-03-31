@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Neck Stretch - K2 games</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --accent: #86efac;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            overflow: hidden;
+            height: 100dvh;
+            background: var(--bg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text);
+        }
+
+        #home-btn {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            text-decoration: none;
+            z-index: 1000;
+            transition: all 0.2s;
+        }
+
+        #home-btn:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100dvh;
+            max-width: 600px;
+            margin: 0 auto;
+            background: linear-gradient(180deg, #92400e 0%, #ea580c 30%, #f59e0b 50%, #fbbf24 100%);
+            box-sizing: border-box;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #fbbf24 0%, #fcd34d 40%, #f59e0b 100%);
+        }
+
+        #hud {
+            position: absolute;
+            top: 60px;
+            left: 16px;
+            right: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #score, #high-score {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        #lives {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.2rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        #combo-display {
+            position: absolute;
+            top: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.8rem;
+            color: var(--accent);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        #mobile-controls {
+            display: none;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 30%;
+            gap: 0;
+        }
+
+        .touch-zone {
+            flex: 1;
+            background: transparent;
+            border: 2px solid rgba(134, 239, 172, 0.2);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: rgba(134, 239, 172, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            #mobile-controls {
+                display: flex;
+            }
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 100;
+            font-weight: bold;
+        }
+
+        .overlay h2 {
+            font-size: 2rem;
+            color: var(--accent);
+            text-align: center;
+        }
+
+        .overlay p {
+            font-size: 0.9rem;
+            color: var(--muted);
+            text-align: center;
+            max-width: 80%;
+        }
+
+        button {
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(134, 239, 172, 0.3);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" id="home-btn">← HUB</a>
+    <div id="game-container">
+        <div id="hud">
+            <div id="score">Score: 0</div>
+            <div id="high-score">High: 0</div>
+        </div>
+        <div id="lives">🦒🦒🦒</div>
+        <div id="combo-display">Combo: 1x</div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="mobile-controls">
+            <div class="touch-zone" id="extend-zone">EXTEND</div>
+        </div>
+        <div id="menu-overlay" class="overlay">
+            <h2>Neck Stretch</h2>
+            <p>Help the giraffe reach the leaves!</p>
+            <p style="font-size: 0.8rem; color: var(--muted);">Hold SPACE or tap to extend your neck and eat leaves from passing trees.</p>
+            <button onclick="startGame()">Start Game</button>
+        </div>
+        <div id="gameover-overlay" class="overlay hidden">
+            <h2>Game Over!</h2>
+            <p id="final-score">Score: 0</p>
+            <button onclick="location.reload()">Play Again</button>
+            <button onclick="location.href='index.html'">Back to Hub</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const highScoreEl = document.getElementById('high-score');
+        const livesEl = document.getElementById('lives');
+        const comboEl = document.getElementById('combo-display');
+        const menuOverlay = document.getElementById('menu-overlay');
+        const gameoverOverlay = document.getElementById('gameover-overlay');
+        const finalScoreEl = document.getElementById('final-score');
+
+        let width, height;
+        let gameActive = false;
+        let score = 0;
+        let highScore = parseInt(localStorage.getItem('neckStretchHighScore') || '0');
+        let lives = 3;
+        let combo = 1;
+        let spacePressed = false;
+        let touchPressed = false;
+        let gameSpeed = 2;
+        let shakeAmount = 0;
+        let hitFlashFrames = 0;
+
+        const giraffe = {
+            x: 50,
+            y: 0,
+            neckLength: 60,
+            minNeck: 60,
+            maxNeck: 250,
+            neckExtendSpeed: 8,
+            segments: 8,
+            walkFrame: 0,
+            invincibilityFrames: 0
+        };
+
+        let trees = [];
+        let particles = [];
+        let popups = [];
+        let nextTreeTime = 0;
+        let treeSpawnRate = 120;
+
+        function resize() {
+            const container = document.getElementById('game-container');
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+            giraffe.y = height - 120;
+        }
+
+        function init() {
+            resize();
+            highScoreEl.textContent = `High: ${highScore}`;
+            window.addEventListener('resize', resize);
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    spacePressed = true;
+                }
+            });
+            window.addEventListener('keyup', (e) => {
+                if (e.code === 'Space') {
+                    spacePressed = false;
+                }
+            });
+
+            document.getElementById('extend-zone').addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                touchPressed = true;
+            });
+            document.getElementById('extend-zone').addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touchPressed = false;
+            });
+        }
+
+        function startGame() {
+            menuOverlay.classList.add('hidden');
+            gameActive = true;
+            score = 0;
+            lives = 3;
+            combo = 1;
+            trees = [];
+            particles = [];
+            popups = [];
+            nextTreeTime = 0;
+            gameSpeed = 2;
+            giraffe.neckLength = giraffe.minNeck;
+            giraffe.invincibilityFrames = 0;
+            updateHUD();
+            requestAnimationFrame(update);
+        }
+
+        function update() {
+            if (!gameActive) return;
+
+            // Handle neck extension/retraction
+            const shouldExtend = spacePressed || touchPressed;
+            if (shouldExtend && giraffe.neckLength < giraffe.maxNeck) {
+                giraffe.neckLength += giraffe.neckExtendSpeed;
+            } else if (!shouldExtend && giraffe.neckLength > giraffe.minNeck) {
+                giraffe.neckLength -= giraffe.neckExtendSpeed * 0.6;
+            }
+
+            // Spawn trees
+            nextTreeTime++;
+            if (nextTreeTime > treeSpawnRate) {
+                const leafY = Math.random() * (height - 300) + 80;
+                const hasSecondLeaf = Math.random() > 0.6;
+                const treeVariant = Math.floor(Math.random() * 3);
+                trees.push({
+                    x: width,
+                    speed: gameSpeed,
+                    leafY: leafY,
+                    leafY2: hasSecondLeaf ? leafY + 40 + Math.random() * 40 : null,
+                    hit: false,
+                    hit2: false,
+                    variant: treeVariant,
+                    trunkHeight: 60 + treeVariant * 20,
+                    canopySize: 35 + treeVariant * 10
+                });
+                nextTreeTime = 0;
+                treeSpawnRate = Math.max(60, 120 - score / 50);
+                gameSpeed = Math.min(6, 2 + score / 200);
+            }
+
+            // Update trees
+            trees = trees.filter(tree => {
+                tree.x -= tree.speed;
+
+                // Check for leaf hits
+                const giraffNeckTipY = giraffe.y - giraffe.neckLength;
+                const leafCollisionX = giraffe.x + 20;
+                const leafCollisionRadius = 15;
+
+                if (!tree.hit && tree.x - 20 < leafCollisionX && tree.x + 20 > leafCollisionX) {
+                    if (Math.abs(tree.leafY - giraffNeckTipY) < leafCollisionRadius) {
+                        tree.hit = true;
+                        score += 10 * combo;
+                        combo = Math.min(5, combo + 1);
+                        createLeafParticles(tree.x, tree.leafY);
+                        createScorePopup(tree.x, tree.leafY, `+${10 * combo / combo}`);
+                        updateHUD();
+                    }
+                }
+
+                if (tree.leafY2 && !tree.hit2 && tree.x - 20 < leafCollisionX && tree.x + 20 > leafCollisionX) {
+                    if (Math.abs(tree.leafY2 - giraffNeckTipY) < leafCollisionRadius) {
+                        tree.hit2 = true;
+                        score += 10 * combo;
+                        combo = Math.min(5, combo + 1);
+                        createLeafParticles(tree.x, tree.leafY2);
+                        createScorePopup(tree.x, tree.leafY2, `+${10 * combo / combo}`);
+                        updateHUD();
+                    }
+                }
+
+                // Check for miss
+                if (tree.x < leafCollisionX - 40) {
+                    if ((!tree.hit && tree.leafY) || (!tree.hit2 && tree.leafY2)) {
+                        if (giraffe.invincibilityFrames <= 0) {
+                            lives--;
+                            combo = 1;
+                            giraffe.invincibilityFrames = 60;
+                            hitFlashFrames = 8;
+                            shakeAmount = 4;
+                            updateHUD();
+                            if (lives <= 0) {
+                                gameOver();
+                            }
+                        }
+                    }
+                }
+
+                return tree.x > -50;
+            });
+
+            // Update particles
+            particles = particles.filter(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.15;
+                p.life--;
+                return p.life > 0;
+            });
+
+            // Update popups
+            popups = popups.filter(p => {
+                p.y -= 1.5;
+                p.life--;
+                return p.life > 0;
+            });
+
+            // Update animation
+            giraffe.walkFrame++;
+            if (giraffe.invincibilityFrames > 0) giraffe.invincibilityFrames--;
+
+            // Apply screen shake
+            const shakeX = shakeAmount > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
+            const shakeY = shakeAmount > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
+            shakeAmount *= 0.8;
+
+            // Draw
+            ctx.save();
+            ctx.translate(shakeX, shakeY);
+
+            // Sky gradient
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, height * 0.6);
+            skyGradient.addColorStop(0, '#f59e0b');
+            skyGradient.addColorStop(0.3, '#fcd34d');
+            skyGradient.addColorStop(1, '#fbbf24');
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, width, height * 0.6);
+
+            // Sun with rays
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.3)';
+            ctx.beginPath();
+            ctx.arc(width - 80, 60, 50, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(width - 80, 60, 35, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Sun rays
+            ctx.strokeStyle = 'rgba(255, 200, 0, 0.5)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 12; i++) {
+                const angle = (i / 12) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(width - 80 + Math.cos(angle) * 40, 60 + Math.sin(angle) * 40);
+                ctx.lineTo(width - 80 + Math.cos(angle) * 55, 60 + Math.sin(angle) * 55);
+                ctx.stroke();
+            }
+
+            // Distant horizon
+            ctx.fillStyle = 'rgba(120, 80, 0, 0.2)';
+            ctx.fillRect(0, height * 0.5, width, 5);
+
+            // Distant tree line (parallax)
+            ctx.fillStyle = 'rgba(80, 60, 20, 0.15)';
+            for (let i = 0; i < 8; i++) {
+                const treeX = (i * width / 4) - ((score / 5) % (width / 4));
+                ctx.beginPath();
+                ctx.moveTo(treeX, height * 0.45);
+                ctx.lineTo(treeX - 15, height * 0.35);
+                ctx.lineTo(treeX + 15, height * 0.35);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Ground
+            ctx.fillStyle = '#b8860b';
+            ctx.fillRect(0, height - 100, width, 100);
+
+            // Ground texture
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.lineWidth = 1;
+            const groundPattern = Math.floor((score / 10) % (width / 40)) * 40;
+            for (let i = 0; i < width / 40 + 2; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * 40 - groundPattern, height - 100);
+                ctx.lineTo(i * 40 - groundPattern + 20, height - 80);
+                ctx.stroke();
+            }
+
+            // Scrolling bushes (mid parallax)
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.25)';
+            for (let i = 0; i < 5; i++) {
+                const bushX = ((score / 3) + i * 150) % (width + 200) - 100;
+                ctx.beginPath();
+                ctx.arc(bushX, height - 105, 35, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw trees
+            trees.forEach(tree => {
+                // Trunk shadow
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                ctx.fillRect(tree.x - 15, height - 100 + tree.trunkHeight, 30, 5);
+
+                // Trunk
+                const trunkGradient = ctx.createLinearGradient(tree.x - 15, height - 100, tree.x + 15, height - 100);
+                trunkGradient.addColorStop(0, '#8b4513');
+                trunkGradient.addColorStop(0.5, '#a0522d');
+                trunkGradient.addColorStop(1, '#654321');
+                ctx.fillStyle = trunkGradient;
+                ctx.fillRect(tree.x - 15, height - 100, 30, tree.trunkHeight);
+
+                // Trunk outline
+                ctx.strokeStyle = '#3d2817';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(tree.x - 15, height - 100, 30, tree.trunkHeight);
+
+                // Foliage (layered circles)
+                const canopyY = height - 100 - tree.trunkHeight;
+                const canopyGradient = ctx.createRadialGradient(tree.x - 5, canopyY - 10, 5, tree.x, canopyY - 5, tree.canopySize);
+                canopyGradient.addColorStop(0, '#7cb342');
+                canopyGradient.addColorStop(1, '#33691e');
+                ctx.fillStyle = canopyGradient;
+
+                // Triple-circle foliage
+                ctx.beginPath();
+                ctx.arc(tree.x - 10, canopyY + 10, tree.canopySize * 0.8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(tree.x + 10, canopyY + 5, tree.canopySize * 0.9, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(tree.x, canopyY - 15, tree.canopySize, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Leaf targets with pulsing glow
+                const glowScale = 1 + Math.sin((giraffe.walkFrame + tree.x) * 0.05) * 0.15;
+                ctx.fillStyle = 'rgba(74, 222, 128, 0.4)';
+                ctx.beginPath();
+                ctx.ellipse(tree.x, tree.leafY, 15 * glowScale, 20 * glowScale, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#4ade80';
+                ctx.beginPath();
+                ctx.ellipse(tree.x, tree.leafY, 12, 16, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (tree.leafY2) {
+                    ctx.fillStyle = 'rgba(74, 222, 128, 0.4)';
+                    ctx.beginPath();
+                    ctx.ellipse(tree.x, tree.leafY2, 15 * glowScale, 20 * glowScale, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#4ade80';
+                    ctx.beginPath();
+                    ctx.ellipse(tree.x, tree.leafY2, 12, 16, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Leaf stem
+                ctx.strokeStyle = '#8b7355';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(tree.x, height - 110);
+                ctx.lineTo(tree.x, tree.leafY);
+                ctx.stroke();
+            });
+
+            // ─── Draw Giraffe ───────────────────────────────────────────
+            const gx = giraffe.x;   // center x
+            const gy = giraffe.y;
+            const nt = giraffe.neckLength;
+            const legWalkFrame = Math.floor(giraffe.walkFrame / 8) % 4;
+
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.beginPath();
+            ctx.ellipse(gx, gy + 78, 28, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ── Legs (drawn before body so body overlaps) ──
+            // Leg positions: front-right, front-left, back-right, back-left
+            const legAngles = [
+                [0.15, -0.15, 0.1, -0.1],   // frame 0
+                [0.35, -0.05, -0.1, 0.25],   // frame 1
+                [0.15, -0.15, 0.1, -0.1],   // frame 2
+                [-0.05, 0.35, 0.25, -0.1]    // frame 3
+            ][legWalkFrame];
+
+            const legDefs = [
+                { bx: gx + 14, by: gy + 44 },  // front-right
+                { bx: gx + 6,  by: gy + 44 },  // front-left
+                { bx: gx - 6,  by: gy + 38 },  // back-right
+                { bx: gx - 14, by: gy + 38 }   // back-left
+            ];
+
+            legDefs.forEach((leg, i) => {
+                const angle = legAngles[i];
+                const legLen = 48;
+                // Upper leg
+                ctx.save();
+                ctx.translate(leg.bx, leg.by);
+                ctx.rotate(angle * 0.5);
+                const upperGrad = ctx.createLinearGradient(0, 0, 0, legLen * 0.5);
+                upperGrad.addColorStop(0, '#e8a030');
+                upperGrad.addColorStop(1, '#c87820');
+                ctx.fillStyle = upperGrad;
+                ctx.beginPath();
+                ctx.roundRect(-4, 0, 8, legLen * 0.55, 3);
+                ctx.fill();
+                // Lower leg + hoof
+                ctx.translate(0, legLen * 0.55);
+                ctx.rotate(angle * 0.4);
+                const lowerGrad = ctx.createLinearGradient(0, 0, 0, legLen * 0.5);
+                lowerGrad.addColorStop(0, '#c87820');
+                lowerGrad.addColorStop(1, '#8b4513');
+                ctx.fillStyle = lowerGrad;
+                ctx.beginPath();
+                ctx.roundRect(-3, 0, 6, legLen * 0.45, 2);
+                ctx.fill();
+                // Hoof
+                ctx.fillStyle = '#333';
+                ctx.beginPath();
+                ctx.ellipse(0, legLen * 0.45, 5, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // ── Body ──
+            const bGrad = ctx.createRadialGradient(gx - 5, gy + 18, 4, gx, gy + 28, 24);
+            bGrad.addColorStop(0, '#f5c040');
+            bGrad.addColorStop(0.6, '#e8980c');
+            bGrad.addColorStop(1, '#a0620a');
+            ctx.fillStyle = bGrad;
+            ctx.beginPath();
+            ctx.ellipse(gx, gy + 28, 22, 26, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#7a4010';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // ── Giraffe spots on body (irregular polygons) ──
+            const bodySpots = [
+                { cx: gx - 5, cy: gy + 15, pts: [[-7,-4],[2,-8],[8,-2],[6,5],[-2,7],[-8,3]] },
+                { cx: gx + 10, cy: gy + 28, pts: [[-5,-3],[3,-6],[7,0],[4,5],[-3,6],[-6,2]] },
+                { cx: gx - 10, cy: gy + 38, pts: [[-6,-3],[2,-7],[7,-1],[5,5],[-1,7],[-7,2]] },
+            ];
+            ctx.fillStyle = '#7a3c0a';
+            bodySpots.forEach(spot => {
+                ctx.beginPath();
+                ctx.moveTo(spot.cx + spot.pts[0][0], spot.cy + spot.pts[0][1]);
+                spot.pts.slice(1).forEach(p => ctx.lineTo(spot.cx + p[0], spot.cy + p[1]));
+                ctx.closePath();
+                ctx.fill();
+            });
+
+            // ── Tail ──
+            ctx.strokeStyle = '#a0620a';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(gx - 20, gy + 28);
+            ctx.quadraticCurveTo(gx - 38, gy + 20, gx - 36, gy + 40);
+            ctx.stroke();
+            // Tail tuft
+            ctx.fillStyle = '#6b3a08';
+            ctx.beginPath();
+            ctx.arc(gx - 36, gy + 40, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ── Neck ──
+            // Draw neck as a smooth tapered quadrilateral with patches
+            const neckBaseW = 20;
+            const neckTipW = 10;
+            const neckTopY = gy - nt;
+            const neckBotY = gy + 4;
+
+            // Neck fill
+            const neckGrad = ctx.createLinearGradient(gx - neckBaseW / 2, neckBotY, gx + neckBaseW / 2, neckBotY);
+            neckGrad.addColorStop(0, '#c87820');
+            neckGrad.addColorStop(0.4, '#f5c040');
+            neckGrad.addColorStop(1, '#a0620a');
+            ctx.fillStyle = neckGrad;
+            ctx.beginPath();
+            ctx.moveTo(gx - neckBaseW / 2, neckBotY);
+            ctx.lineTo(gx - neckTipW / 2, neckTopY);
+            ctx.lineTo(gx + neckTipW / 2, neckTopY);
+            ctx.lineTo(gx + neckBaseW / 2, neckBotY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#7a4010';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Neck mane (dorsal ridge)
+            ctx.fillStyle = '#c87820';
+            const maneCount = 6;
+            for (let m = 0; m < maneCount; m++) {
+                const t = m / (maneCount - 1);
+                const my = neckBotY + (neckTopY - neckBotY) * t;
+                const mw = neckBaseW / 2 * (1 - t * 0.5) + neckTipW / 2 * t * 0.5;
+                ctx.beginPath();
+                ctx.moveTo(gx - mw, my);
+                ctx.lineTo(gx - mw - 3, my - 5);
+                ctx.lineTo(gx - mw - 1, my - 2);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Giraffe neck patches (irregular)
+            const neckSpots = [];
+            for (let s = 0; s < 5; s++) {
+                const t = (s + 0.5) / 5;
+                const sy = neckBotY + (neckTopY - neckBotY) * t;
+                const sw = neckBaseW * (1 - t * 0.5) * 0.35;
+                const side = s % 2 === 0 ? 1 : -1;
+                neckSpots.push({ cx: gx + side * sw * 0.5, cy: sy, r: sw * 0.6 });
+            }
+            ctx.fillStyle = '#7a3c0a';
+            neckSpots.forEach(s => {
+                ctx.beginPath();
+                ctx.arc(s.cx, s.cy, s.r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // ── Head ──
+            const hx = gx + 3;
+            const hy = neckTopY;
+
+            // Head skull
+            const headGrad = ctx.createRadialGradient(hx - 4, hy - 5, 2, hx, hy, 14);
+            headGrad.addColorStop(0, '#f5c040');
+            headGrad.addColorStop(1, '#b06818');
+            ctx.fillStyle = headGrad;
+            ctx.beginPath();
+            ctx.ellipse(hx, hy, 10, 12, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#7a4010';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Snout (elongated jaw area)
+            ctx.fillStyle = '#e89828';
+            ctx.beginPath();
+            ctx.ellipse(hx + 3, hy + 8, 7, 5, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Nostrils
+            ctx.fillStyle = '#5a2808';
+            ctx.beginPath();
+            ctx.ellipse(hx + 2, hy + 11, 1.5, 1, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(hx + 6, hy + 11, 1.5, 1, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Ears (droopy leaf shape)
+            ctx.fillStyle = '#d08020';
+            ctx.save();
+            ctx.translate(hx - 8, hy - 5);
+            ctx.rotate(-0.4);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 4, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#f0a8a0';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 2, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            ctx.fillStyle = '#d08020';
+            ctx.save();
+            ctx.translate(hx + 8, hy - 5);
+            ctx.rotate(0.4);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 4, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#f0a8a0';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 2, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // Ossicones (horns) - two proper bumpy protrusions
+            ctx.fillStyle = '#8b5c10';
+            ctx.beginPath();
+            ctx.roundRect(hx - 7, hy - 20, 5, 14, 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.roundRect(hx + 3, hy - 20, 5, 14, 2);
+            ctx.fill();
+            // Tips
+            ctx.fillStyle = '#555';
+            ctx.beginPath();
+            ctx.arc(hx - 4.5, hy - 20, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(hx + 5.5, hy - 20, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Eye (large, expressive)
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.ellipse(hx + 5, hy - 4, 4, 4.5, 0.1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#4a2000';
+            ctx.beginPath();
+            ctx.arc(hx + 6, hy - 3.5, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            // Pupil
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(hx + 6.2, hy - 3.5, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            // Catchlight
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.beginPath();
+            ctx.arc(hx + 7, hy - 4.5, 0.9, 0, Math.PI * 2);
+            ctx.fill();
+            // Eyelash
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            for (let el = 0; el < 4; el++) {
+                const ex = hx + 3 + el * 2;
+                ctx.beginPath();
+                ctx.moveTo(ex, hy - 7.5);
+                ctx.lineTo(ex - 0.5, hy - 10 - el * 0.5);
+                ctx.stroke();
+            }
+
+            // ── Neck extension glow ──
+            if (nt > giraffe.maxNeck * 0.8) {
+                const glowI = (nt - giraffe.maxNeck * 0.8) / (giraffe.maxNeck * 0.2);
+                ctx.fillStyle = `rgba(134, 239, 172, ${glowI * 0.35})`;
+                ctx.beginPath();
+                ctx.arc(gx, neckTopY, 22, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Invincibility blink
+            if (giraffe.invincibilityFrames > 0 && Math.floor(giraffe.invincibilityFrames / 4) % 2 === 0) {
+                ctx.strokeStyle = 'rgba(134, 239, 172, 0.8)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.ellipse(gx, gy + 28, 36, 40, 0, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // Draw particles
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life / p.maxLife;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+
+            // Draw popups
+            popups.forEach(p => {
+                ctx.globalAlpha = p.life / p.maxLife;
+                ctx.fillStyle = p.color;
+                const scale = 1 + (1 - p.life / p.maxLife) * 0.3;
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.scale(scale, scale);
+                ctx.font = 'bold 16px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(p.text, 0, 0);
+                ctx.restore();
+                ctx.globalAlpha = 1;
+            });
+
+            // Hit flash
+            if (hitFlashFrames > 0) {
+                ctx.globalAlpha = hitFlashFrames / 8 * 0.5;
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(0, 0, width, height);
+                ctx.globalAlpha = 1;
+                hitFlashFrames--;
+            }
+
+            ctx.restore();
+
+            requestAnimationFrame(update);
+        }
+
+        function createLeafParticles(x, y) {
+            for (let i = 0; i < 12; i++) {
+                const angle = (Math.PI * 2 * i) / 12;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * 3,
+                    vy: Math.sin(angle) * 3 - 1,
+                    life: 30,
+                    maxLife: 30,
+                    radius: 4,
+                    color: '#4ade80'
+                });
+            }
+        }
+
+        function createScorePopup(x, y, text) {
+            popups.push({
+                x: x,
+                y: y - 20,
+                text: text,
+                color: '#7c3aed',
+                life: 40,
+                maxLife: 40
+            });
+        }
+
+        function updateHUD() {
+            scoreEl.textContent = `Score: ${score}`;
+            livesEl.textContent = '🦒'.repeat(Math.max(0, lives));
+            comboEl.textContent = `Combo: ${combo}x`;
+        }
+
+        function gameOver() {
+            gameActive = false;
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('neckStretchHighScore', highScore);
+            }
+            finalScoreEl.textContent = `Score: ${score}\nHigh Score: ${highScore}`;
+            gameoverOverlay.classList.remove('hidden');
+        }
+
+        init();
+    </script>
+</body>
+</html>
