@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Street Guess — Single File</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root{--gap:12px;--bg:#0f1724;--card:#0b1220;--accent:#60a5fa;--muted:#94a3b8}
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
+    body{background:linear-gradient(180deg,#071126 0%, #081421 100%);color:#e6eef8}
+    .container{display:flex;gap:var(--gap);padding:16px;height:100%;box-sizing:border-box}
+    .panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:8px;box-shadow:0 6px 18px rgba(2,6,23,0.6);padding:12px;display:flex;flex-direction:column}
+    .left{flex:1;min-width:320px}
+    .right{flex:1;min-width:320px}
+    .photo-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+    .photo{max-width:100%;max-height:60vh;border-radius:6px;box-shadow:0 8px 20px rgba(2,6,23,0.6)}
+    .caption{color:var(--muted);font-size:14px;display:none}
+    #map{height:60vh;border-radius:6px;overflow:hidden}
+    .controls{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+    button{background:var(--accent);border:none;padding:8px 12px;border-radius:6px;color:#07203a;font-weight:600;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-weight:600}
+    .status{display:flex;gap:12px;align-items:center;margin-bottom:8px}
+    .pill{background:rgba(255,255,255,0.03);padding:6px 10px;border-radius:999px;font-size:14px;color:var(--muted)}
+    .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--card);padding:16px;border-radius:8px;box-shadow:0 8px 40px rgba(2,6,23,0.7);z-index:999;min-width:280px}
+    .hidden{display:none}
+    .leaderboard{max-height:60vh;overflow:auto;margin-top:8px}
+    .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed rgba(255,255,255,0.02)}
+    footer{position:fixed;left:16px;bottom:16px;color:var(--muted);font-size:13px}
+    @media(max-width:900px){.container{flex-direction:column}.photo{max-height:40vh}#map{height:40vh}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="panel left">
+      <div class="status">
+        <div class="pill" id="roundPill">Round 0 / 5</div>
+        <div class="pill" id="timerPill">30s</div>
+        <div class="pill">Score: <span id="scoreVal">0</span></div>
+      </div>
+      <div class="photo-wrap">
+        <img id="photo" class="photo" src="" alt="Street photo" />
+        <div class="caption" id="caption"></div>
+      </div>
+      <div class="controls">
+        <button id="btnConfirm">Confirm Guess</button>
+        <button id="btnSkip" class="ghost">Skip</button>
+        <button id="btnNext" class="ghost">Next</button>
+        <button id="btnLeaderboard" class="ghost">Leaderboard</button>
+        <button id="btnResetLead" class="ghost">Clear Leaderboard</button>
+      </div>
+    </div>
+    <div class="panel right">
+      <div id="map"></div>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center;justify-content:space-between">
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="pill" id="hintPill">Click map to place marker</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="pill" id="latlngPill">Lat: --, Lng: --</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="resultModal" class="modal hidden">
+    <div id="resultText"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+      <button id="resultNext">Next</button>
+    </div>
+  </div>
+
+  <div id="leaderModal" class="modal hidden">
+    <h3>Leaderboard</h3>
+    <div class="leaderboard" id="leaderboardList"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:space-between">
+      <div>
+        <input id="playerName" placeholder="Your name" style="padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#e6eef8" />
+        <button id="saveScore" class="ghost">Save Score</button>
+      </div>
+      <div>
+        <button id="closeLead">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>Street Guess — Single-file demo</footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // Embedded photo list (url, lat, lng, caption) — expanded to 100+ famous places
+    const PHOTOS = [
+      {url:'https://upload.wikimedia.org/wikipedia/commons/a/a8/Tour_Eiffel_Wikimedia_Commons.jpg',lat:48.8584,lng:2.2945,caption:'Eiffel Tower, Paris, France'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/47/Times_Square_%282014%29.jpg',lat:40.7580,lng:-73.9855,caption:'Times Square, New York, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/40/Sydney_Opera_House_Sails.jpg',lat:-33.8568,lng:151.2153,caption:'Sydney Opera House, Australia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/d/da/Taj-Mahal.jpg',lat:27.1751,lng:78.0421,caption:'Taj Mahal, Agra, India'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/6e/Cristo_Redentor_-_Rio_de_Janeiro%2C_Brazil.jpg',lat:-22.9519,lng:-43.2105,caption:'Christ the Redeemer, Rio de Janeiro, Brazil'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/d/d5/Colosseo_2020.jpg',lat:41.8902,lng:12.4922,caption:'Colosseum, Rome, Italy'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/e/eb/Machu_Picchu%2C_Peru.jpg',lat:-13.1631,lng:-72.5450,caption:'Machu Picchu, Peru'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/e/e3/Kheops-Pyramid.jpg',lat:29.9792,lng:31.1342,caption:'Great Pyramid of Giza, Egypt'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/0/0c/GoldenGateBridge-001.jpg',lat:37.8199,lng:-122.4783,caption:'Golden Gate Bridge, San Francisco, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/d/d1/Great_Wall_of_China_Jinshanling_2004.jpg',lat:40.6769,lng:117.2365,caption:'Great Wall (Jinshanling), China'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/4d/Statue_of_Liberty_%28New_York_City%29.jpg',lat:40.6892,lng:-74.0445,caption:'Statue of Liberty, New York, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/95/Buckingham_Palace%2C_London_%28Unsplash%29.jpg',lat:51.5014,lng:-0.1419,caption:'Buckingham Palace, London, UK'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/6d/Louvre_Museum_Wikimedia_Commons.jpg',lat:48.8606,lng:2.3376,caption:'Louvre Museum, Paris, France'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/8f/CN_Tower_from_Lakeshore.jpg',lat:43.6426,lng:-79.3871,caption:'CN Tower, Toronto, Canada'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/93/Burj_Khalifa.jpg',lat:25.1972,lng:55.2744,caption:'Burj Khalifa, Dubai, UAE'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/82/Angkor_Wat_Bayon.jpg',lat:13.4125,lng:103.8667,caption:'Angkor Wat, Siem Reap, Cambodia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/0/00/Notre_Dame_de_Paris%2C_August_2014.jpg',lat:48.852968,lng:2.349902,caption:'Notre-Dame Cathedral, Paris, France'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/90/Leaning_tower_of_pisa_2008.jpg',lat:43.7230,lng:10.3966,caption:'Leaning Tower of Pisa, Italy'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/1/12/Mount_Fuji_from_Kawaguchiko.jpg',lat:35.3606,lng:138.7274,caption:'Mount Fuji, Japan'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/0/09/Grand_Canyon_view_from_Pima_Point_2010.jpg',lat:36.1069,lng:-112.1129,caption:'Grand Canyon (South Rim), USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/6b/Niagara_Falls%2C_Niagara_Falls_Canada.jpg',lat:43.0962,lng:-79.0377,caption:'Niagara Falls, Canada/USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/8b/Petra_Jordan_Al_Khazneh.jpg',lat:30.3285,lng:35.4444,caption:'Petra, Jordan'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/1/10/Red_Square%2C_Moscow.jpg',lat:55.7539,lng:37.6208,caption:'Red Square & Kremlin, Moscow, Russia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/6f/Saint_Basil%27s_Cathedral_2012.jpg',lat:55.7525,lng:37.6231,caption:'St. Basil\'s Cathedral, Moscow, Russia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/2/23/Sagrada_Familia_01.jpg',lat:41.4036,lng:2.1744,caption:'Sagrada Familia, Barcelona, Spain'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/7/79/Alhambra_Night.jpg',lat:37.1761,lng:-3.5881,caption:'Alhambra, Granada, Spain'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/69/Acropolis_of_Athens_2018.jpg',lat:37.9715,lng:23.7257,caption:'Acropolis of Athens, Greece'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/5/55/Hagia_Sophia_Mars_2016.jpg',lat:41.0086,lng:28.9802,caption:'Hagia Sophia, Istanbul, Turkey'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/97/Blue_Mosque_Istanbul.jpg',lat:41.0055,lng:28.9768,caption:'Blue Mosque, Istanbul, Turkey'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/5/5f/Chichen_Itza_El_Castillo.jpg',lat:20.6843,lng:-88.5678,caption:'Chichén Itzá, Yucatán, Mexico'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/5/5a/Stonehenge.jpg',lat:51.1789,lng:-1.8262,caption:'Stonehenge, Wiltshire, UK'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/3c/Borobudur_Nov_2008-2.jpg',lat:-7.6079,lng:110.2038,caption:'Borobudur, Java, Indonesia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/3e/Jerusalem_old_city_from_Mount_of_Olives.jpg',lat:31.7775,lng:35.2350,caption:'Old City, Jerusalem'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/35/Blue_Lagoon_Iceland_2014.jpg',lat:63.8804,lng:-22.4495,caption:'Blue Lagoon, Iceland'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/86/Harbin_Snow_and_Ice_Sculpture.jpg',lat:45.8038,lng:126.5350,caption:'Harbin Ice Festival, China'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/1/1b/Brandenburg_Gate_at_night.jpg',lat:52.5163,lng:13.3777,caption:'Brandenburg Gate, Berlin, Germany'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/45/Prague_Castle_from_Charles_Bridge.jpg',lat:50.0909,lng:14.4000,caption:'Prague Castle, Czech Republic'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/5/5f/Neuschwanstein_Castle_Ludwigss.jpg',lat:47.5576,lng:10.7498,caption:'Neuschwanstein Castle, Germany'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/5/5b/Topkapi_Palace.jpg',lat:41.0115,lng:28.9833,caption:'Topkapi Palace, Istanbul, Turkey'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/1/12/Amalfi_Coast_Italy.jpg',lat:40.6340,lng:14.6020,caption:'Amalfi Coast, Italy'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/9e/Flatiron_Building%2C_NYC.jpg',lat:40.7411,lng:-73.9897,caption:'Flatiron Building, New York, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/e/e4/Forbidden_City_Beijing.jpg',lat:39.9163,lng:116.3971,caption:'Forbidden City, Beijing, China'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/33/Tower_Bridge%2C_London.jpg',lat:51.5055,lng:-0.0754,caption:'Tower Bridge, London, UK'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/86/Angels_Stake_Lisboa.jpg',lat:38.7071,lng:-9.1355,caption:'Belem Tower, Lisbon, Portugal'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/95/Grand_Palace_Bangkok.jpg',lat:13.7500,lng:100.4913,caption:'Grand Palace, Bangkok, Thailand'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/7/7d/Himeji_Castle_2015.jpg',lat:34.8394,lng:134.6939,caption:'Himeji Castle, Japan'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/47/Palace_of_Versailles_Gardens.jpg',lat:48.8049,lng:2.1204,caption:'Palace of Versailles, France'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/30/La_Sagrada_Familia_Barcelona.jpg',lat:41.4036,lng:2.1744,caption:'La Sagrada Familia, Barcelona, Spain'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/2/2f/Yosemite_Valley_Panorama.jpg',lat:37.8651,lng:-119.5383,caption:'Yosemite Valley, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/9b/Las_Vegas_Strip_at_Night.jpg',lat:36.1147,lng:-115.1728,caption:'Las Vegas Strip, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/0/0c/Chennai_Marina_Beach.jpg',lat:13.0500,lng:80.2820,caption:'Marina Beach, Chennai, India'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/2/23/Mount_Everest_from_Gokyo_Ri.jpg',lat:27.9881,lng:86.9250,caption:'Mount Everest region, Nepal'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/b/bf/Uluru_Ayers_Rock.jpg',lat:-25.3444,lng:131.0369,caption:'Uluru (Ayers Rock), Australia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/2/2a/Monument_Valley_sunset.jpg',lat:36.9989,lng:-110.0985,caption:'Monument Valley, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/46/Ha_Long_Bay%2C_Vietnam.jpg',lat:20.9101,lng:107.1839,caption:'Ha Long Bay, Vietnam'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/e/e5/Blue_Mosque_%28Istanbul%29.jpg',lat:41.0055,lng:28.9768,caption:'Sultanahmet (Blue) Mosque, Istanbul, Turkey'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/49/Seattle_Space_Needle.jpg',lat:47.6205,lng:-122.3493,caption:'Space Needle, Seattle, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/8f/Rio_de_Janeiro_Panorama.jpg',lat:-22.9068,lng:-43.1729,caption:'Rio de Janeiro, Brazil'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/7/74/Florence_Duomo_1.jpg',lat:43.7731,lng:11.2560,caption:'Florence Cathedral (Duomo), Italy'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/6c/Montreal_Notre_Dame.jpg',lat:45.5048,lng:-73.5564,caption:'Notre-Dame Basilica, Montreal, Canada'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/1/17/St_Paul%27s_Cathedral_London.jpg',lat:51.5138,lng:-0.0984,caption:'St. Paul\'s Cathedral, London, UK'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/9d/La_Paz_Bolivia_view.jpg',lat:-16.4897,lng:-68.1193,caption:'La Paz, Bolivia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/3c/Christchurch_Cathedral_New_Zealand.jpg',lat:-43.5321,lng:172.6362,caption:'Christchurch Cathedral, New Zealand'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/1/19/Great_Synagogue_of_Budapest.jpg',lat:47.4980,lng:19.0632,caption:'Great Synagogue, Budapest, Hungary'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/43/Canal_Bruges.jpg',lat:51.2093,lng:3.2247,caption:'Bruges Canals, Belgium'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/6b/Plaza_de_Espana_Seville.jpg',lat:37.3754,lng:-5.9901,caption:'Plaza de España, Seville, Spain'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/33/Edinburgh_Castle_from_the_Mound.jpg',lat:55.9486,lng:-3.1999,caption:'Edinburgh Castle, Scotland'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/1/14/Hagia_Irene_in_Istanbul.jpg',lat:41.0116,lng:28.9799,caption:'Hagia Irene, Istanbul, Turkey'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/3b/Plaza_Mayor_Madrid.jpg',lat:40.4154,lng:-3.7074,caption:'Plaza Mayor, Madrid, Spain'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/2/20/Yellowstone_Geyser.jpg',lat:44.4280,lng:-110.5885,caption:'Yellowstone National Park, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/6a/Flat_iron_building.jpg',lat:40.7411,lng:-73.9897,caption:'Flatiron, New York, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/95/San_Miguel_de_Allende.jpg',lat:20.9140,lng:-100.7433,caption:'San Miguel de Allende, Mexico'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/c/c6/Blue_Horseman_Perth.jpg',lat:-31.9523,lng:115.8613,caption:'Perth, Australia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/45/Alaska_Denali.jpg',lat:63.1148,lng:-151.1926,caption:'Denali, Alaska, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/8b/Yellow_Dune_Namibia.jpg',lat:-23.9884,lng:15.6015,caption:'Namib Desert Dunes, Namibia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/7/7d/Bagan_Temples.jpg',lat:21.1717,lng:94.8585,caption:'Temples of Bagan, Myanmar'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/d/d4/Old_Quebec_City.jpg',lat:46.8139,lng:-71.2080,caption:'Old Quebec City, Canada'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/7/78/Niamey_Market_Niger.jpg',lat:13.5120,lng:2.1126,caption:'Niamey, Niger'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/7/71/Skyline_Dubai.jpg',lat:25.2048,lng:55.2708,caption:'Dubai Skyline, UAE'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/3f/Torres_del_Paine.jpg',lat:-50.9423,lng:-73.4068,caption:'Torres del Paine, Chile'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/e/e9/Valparaiso_Hills.jpg',lat:-33.0472,lng:-71.6127,caption:'Valparaíso, Chile'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/f/f2/Arashiyama_Bamboo_Grove.jpg',lat:35.0094,lng:135.6670,caption:'Arashiyama Bamboo Grove, Japan'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/9e/Seoraksan_National_Park.jpg',lat:38.1198,lng:128.4656,caption:'Seoraksan National Park, South Korea'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/5/55/Old_Havana_Cuba.jpg',lat:23.1136,lng:-82.3666,caption:'Old Havana, Cuba'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/98/La_Guaira_Venezuela.jpg',lat:10.6000,lng:-66.9333,caption:'Venezuela Coastline'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/0/02/Stone_Buildings_Guanajuato.jpg',lat:21.0190,lng:-101.2574,caption:'Guanajuato, Mexico'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/6b/Yellow_City_Jaisalmer.jpg',lat:26.9157,lng:70.9083,caption:'Jaisalmer, India'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/7/76/Inner_Harbour_Baltimore.jpg',lat:39.2904,lng:-76.6122,caption:'Inner Harbor, Baltimore, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/5/57/Patagonia_El_Chalten.jpg',lat:-49.3266,lng:-72.8860,caption:'El Chaltén, Argentina'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/85/Bled_Island.jpg',lat:46.3625,lng:14.0944,caption:'Lake Bled, Slovenia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/66/Bratislava_Castle.jpg',lat:48.1486,lng:17.1077,caption:'Bratislava, Slovakia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/0/09/Sydney_Bondi_Beach.jpg',lat:-33.8915,lng:151.2767,caption:'Bondi Beach, Australia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/38/Manchester_Town_Hall.jpg',lat:53.4808,lng:-2.2426,caption:'Manchester, UK'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/5/5f/Antelope_Canyon.jpg',lat:36.8619,lng:-111.3743,caption:'Antelope Canyon, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/0/08/Cappadocia_Balloons.jpg',lat:38.6400,lng:34.8277,caption:'Cappadocia, Turkey'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/6d/Sevilla_Alcazar.jpg',lat:37.3833,lng:-5.9903,caption:'Real Alcázar, Seville, Spain'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/7/7c/Monument_Northern_Ireland.jpg',lat:54.5973,lng:-5.9301,caption:'Belfast, Northern Ireland'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/7/78/Brazilian_Amazon.jpg',lat:-3.4653,lng:-62.2159,caption:'Amazon Rainforest region'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/2/2b/Medina_of_Fes.jpg',lat:34.0181,lng:-5.0078,caption:'Fes Medina, Morocco'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/1/19/Amritsar_Golden_Temple.jpg',lat:31.6200,lng:74.8765,caption:'Golden Temple, Amritsar, India'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/2/2a/Milford_Sound.jpg',lat:-44.6712,lng:167.9250,caption:'Milford Sound, New Zealand'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/4b/Panama_Canal_Miraflores.jpg',lat:8.9510,lng:-79.5586,caption:'Panama Canal, Panama'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/85/Prambanan_Temple_%28Yogyakarta%29.jpg',lat:-7.7520,lng:110.4916,caption:'Prambanan, Indonesia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/0/01/San_Francisco_Cable_Car.jpg',lat:37.7946,lng:-122.4079,caption:'San Francisco Cable Car, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/3d/Gothenburg_City_Hall.jpg',lat:57.7089,lng:11.9746,caption:'Gothenburg, Sweden'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/b/be/Robben_Island.jpg',lat:-33.8060,lng:18.3660,caption:'Robben Island, South Africa'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/2/2f/Cinque_Terre_Manarola.jpg',lat:44.1076,lng:9.7243,caption:'Cinque Terre, Italy'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/60/Kyoto_Fushimi_Inari_torii.jpg',lat:34.9671,lng:135.7727,caption:'Fushimi Inari, Kyoto, Japan'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/87/Island_of_Skye.jpg',lat:57.3229,lng:-6.2059,caption:'Isle of Skye, Scotland'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/97/Bosphorus_Bridge_Istanbul.jpg',lat:41.0436,lng:29.0060,caption:'Bosphorus, Istanbul, Turkey'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/86/Tikal_Temple.jpg',lat:17.2210,lng:-89.6237,caption:'Tikal, Guatemala'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/5/5f/Old_Market_Square_Bratislava.jpg',lat:48.1486,lng:17.1077,caption:'Bratislava Old Town, Slovakia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/34/Bangkok_Rooftop_View.jpg',lat:13.7563,lng:100.5018,caption:'Bangkok skyline, Thailand'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/1/10/Rainbow_Mountain_Peru.jpg',lat:-14.1239,lng:-71.5225,caption:'Rainbow Mountain, Peru'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/5/5a/Skopje_statues.jpg',lat:41.9973,lng:21.4280,caption:'Skopje, North Macedonia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/7/72/Sydney_Harbour_Bridge.jpg',lat:-33.8523,lng:151.2108,caption:'Sydney Harbour Bridge, Australia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/36/Ho_Chi_Minh_City_night.jpg',lat:10.8231,lng:106.6297,caption:'Ho Chi Minh City, Vietnam'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/1/12/Rio_Oceanarium.jpg',lat:-22.9121,lng:-43.2302,caption:'Rio Oceanarium area, Brazil'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/c/c0/Casa_Batllo%2C_Barcelona.jpg',lat:41.3917,lng:2.1649,caption:'Casa Batlló, Barcelona, Spain'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/0/03/Medina_Tunis.jpg',lat:36.8065,lng:10.1815,caption:'Medina of Tunis, Tunisia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/4e/Baku_Flame_Towers.jpg',lat:40.4093,lng:49.8671,caption:'Flame Towers, Baku, Azerbaijan'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/2/2c/Havana_Plaza_de_la_Revolucion.jpg',lat:23.1333,lng:-82.3833,caption:'Plaza de la Revolución, Havana, Cuba'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/d/d9/Quaint_Village_Portugal.jpg',lat:39.3999,lng:-8.2245,caption:'Portugal countryside'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/47/Mesa_Verde.jpg',lat:37.2309,lng:-108.4618,caption:'Mesa Verde, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/7/7e/Lima_Plaza_de_Armas.jpg',lat:-12.0464,lng:-77.0428,caption:'Plaza Mayor, Lima, Peru'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/1/1a/Changi_Airport_Singapore.jpg',lat:1.3644,lng:103.9915,caption:'Changi, Singapore'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/66/Auckland_Sky_Tower.jpg',lat:-36.8485,lng:174.7633,caption:'Auckland Sky Tower, New Zealand'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/43/Bo-Kaap_Cape_Town.jpg',lat:-33.9249,lng:18.4241,caption:'Bo-Kaap, Cape Town, South Africa'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/8a/Valencia_City_of_Arts_and_Sciences.jpg',lat:39.4699,lng:-0.3763,caption:'City of Arts and Sciences, Valencia, Spain'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/6/62/Maputo_Avenida.jpg',lat:-25.9653,lng:32.5892,caption:'Maputo, Mozambique'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/3/3f/Seville_Cathedral.jpg',lat:37.3861,lng:-5.9923,caption:'Seville Cathedral, Spain'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/2/24/Osaka_Castle.jpg',lat:34.6873,lng:135.5262,caption:'Osaka Castle, Japan'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/9c/Porto_Ribeira.jpg',lat:41.1496,lng:-8.6110,caption:'Ribeira, Porto, Portugal'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/1/10/Gili_islands.jpg',lat:-8.3500,lng:116.0825,caption:'Gili Islands, Indonesia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/d/d6/Grand_Bazaar_Istanbul.jpg',lat:41.0106,lng:28.9681,caption:'Grand Bazaar, Istanbul, Turkey'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/2/26/Manhattan_from_Hoboken.jpg',lat:40.7128,lng:-74.0060,caption:'Manhattan Skyline, USA'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/49/Torii_in_Miyajima.jpg',lat:34.2950,lng:132.3190,caption:'Itsukushima (Miyajima), Japan'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/5/59/Mosque_of_Cordoba.jpg',lat:37.8882,lng:-4.7794,caption:'Mezquita (Cordoba), Spain'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/9/94/Hanoi_Old_Quarter.jpg',lat:21.0278,lng:105.8342,caption:'Hanoi Old Quarter, Vietnam'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/8d/Minsk_Panorama.jpg',lat:53.9045,lng:27.5615,caption:'Minsk, Belarus'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/7/79/Oslo_Fjord.jpg',lat:59.9139,lng:10.7522,caption:'Oslo, Norway'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/0/06/Zurich_Limmat.jpg',lat:47.3769,lng:8.5417,caption:'Zurich, Switzerland'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/2/2a/Tiananmen_Square.jpg',lat:39.9087,lng:116.3975,caption:'Tiananmen Square, Beijing, China'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/4/4b/AlUla_Madah.jpg',lat:26.6971,lng:38.0246,caption:'AlUla, Saudi Arabia'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/8/82/Nairobi_City.jpg',lat:-1.2921,lng:36.8219,caption:'Nairobi, Kenya'},
+      {url:'https://upload.wikimedia.org/wikipedia/commons/5/5b/Dubrovnik_walls.jpg',lat:42.6403,lng:18.1084,caption:'Dubrovnik Old Town, Croatia'}
+    ];
+
+    // Configurable constants
+    const TOTAL_ROUNDS = 5;
+    const ROUND_TIME = 30; // seconds
+    const BASE_POINTS = 5000;
+    const DEDUCTION_PER_KM = 200;
+    const BONUS_CLOSE_KM = 0.5;
+    const BONUS_VERY_CLOSE_KM = 0.1;
+    const BONUS_CLOSE = 1000;
+    const BONUS_VERY_CLOSE = 2000;
+
+    // State
+    let rounds = [];
+    let currentIndex = 0; // index in rounds
+    let score = 0;
+    let timer = null;
+    let timeLeft = ROUND_TIME;
+    let map, guessMarker = null, trueMarker = null, polyline = null;
+
+    // UI refs
+    const photoEl = document.getElementById('photo');
+    const captionEl = document.getElementById('caption');
+    const roundPill = document.getElementById('roundPill');
+    const timerPill = document.getElementById('timerPill');
+    const scoreVal = document.getElementById('scoreVal');
+    const latlngPill = document.getElementById('latlngPill');
+    const btnConfirm = document.getElementById('btnConfirm');
+    const btnSkip = document.getElementById('btnSkip');
+    const btnNext = document.getElementById('btnNext');
+    const btnLeaderboard = document.getElementById('btnLeaderboard');
+    const btnResetLead = document.getElementById('btnResetLead');
+    const resultModal = document.getElementById('resultModal');
+    const resultText = document.getElementById('resultText');
+    const resultNext = document.getElementById('resultNext');
+    const leaderModal = document.getElementById('leaderModal');
+    const leaderboardList = document.getElementById('leaderboardList');
+    const closeLead = document.getElementById('closeLead');
+    const saveScore = document.getElementById('saveScore');
+    const playerName = document.getElementById('playerName');
+
+    function init(){
+      // prepare rounds (random sample)
+      rounds = shuffleArray(PHOTOS).slice(0, TOTAL_ROUNDS);
+      currentIndex = 0; score = 0; scoreVal.textContent = '0';
+      initMap();
+      loadRound();
+      btnConfirm.addEventListener('click', onConfirm);
+      btnSkip.addEventListener('click', onSkip);
+      btnNext.addEventListener('click', onNext);
+      btnLeaderboard.addEventListener('click', showLeaderboard);
+      btnResetLead.addEventListener('click', clearLeaderboard);
+      resultNext.addEventListener('click', onNext);
+      closeLead.addEventListener('click', ()=>leaderModal.classList.add('hidden'));
+      saveScore.addEventListener('click', saveScoreToLeaderboard);
+    }
+
+    function initMap(){
+      map = L.map('map',{scrollWheelZoom:true}).setView([20,0],2);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+      map.on('click', function(e){
+        placeGuessMarker(e.latlng);
+      });
+    }
+
+    function loadRound(){
+      clearResult();
+      const item = rounds[currentIndex];
+      // preload image and use fallback if it fails
+      preloadImage(item.url).then(u=>{
+        photoEl.src = u;
+        photoEl.alt = item.caption || 'Street photo';
+      });
+      captionEl.textContent = item.caption || '';
+      roundPill.textContent = `Round ${currentIndex+1} / ${TOTAL_ROUNDS}`;
+      scoreVal.textContent = score;
+      btnNext.disabled = true;
+      enableConfirm(true);
+      timeLeft = ROUND_TIME; updateTimerUI();
+      startTimer();
+      // center map a bit away global
+      map.setView([20,0],2);
+      if(guessMarker){ map.removeLayer(guessMarker); guessMarker=null; }
+      if(trueMarker){ map.removeLayer(trueMarker); trueMarker=null; }
+      if(polyline){ map.removeLayer(polyline); polyline=null; }
+      latlngPill.textContent = 'Lat: --, Lng: --';
+    }
+
+    // Image preloader with proxy fallback and SVG placeholder
+    const PLACEHOLDER_SVG = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="100%" height="100%" fill="%23071a2b"/><text x="50%" y="50%" fill="%23ffffff" font-family="Arial,Helvetica,sans-serif" font-size="28" text-anchor="middle">Image unavailable</text></svg>';
+    function imagesWeservProxy(u){
+      try{
+        // strip protocol
+        const noProto = u.replace(/^https?:\/\//, '');
+        return 'https://images.weserv.nl/?url=' + encodeURIComponent(noProto) + '&w=1600&h=900&fit=cover';
+      }catch(e){ return u; }
+    }
+    function preloadImage(url){
+      return new Promise((resolve)=>{
+        let resolved = false;
+        const tidy = (u)=>{ if(!resolved){ resolved=true; resolve(u); } };
+
+        const tryLoad = (src, onFail)=>{
+          const img = new Image();
+          img.onload = ()=> tidy(src);
+          img.onerror = ()=> { if(typeof onFail==='function') onFail(); else tidy(PLACEHOLDER_SVG); };
+          // don't set crossOrigin — some hosts reject anonymous CORS requests
+          img.src = src;
+        };
+
+        // first attempt: direct URL (no crossOrigin)
+        tryLoad(url, ()=>{
+          // second attempt: use images.weserv.nl proxy to avoid CORS/hotlink blocks
+          tryLoad(imagesWeservProxy(url), ()=>{
+            // final fallback: placeholder
+            tidy(PLACEHOLDER_SVG);
+          });
+        });
+
+        // ultimate timeout
+        setTimeout(()=> tidy(PLACEHOLDER_SVG), 12000);
+      });
+    }
+
+    function placeGuessMarker(latlng){
+      if(guessMarker){ guessMarker.setLatLng(latlng); }
+      else{ guessMarker = L.marker(latlng,{draggable:true}).addTo(map); guessMarker.on('drag', (e)=> {const p=e.target.getLatLng(); latlngPill.textContent = `Lat: ${p.lat.toFixed(4)}, Lng: ${p.lng.toFixed(4)}`}); }
+      latlngPill.textContent = `Lat: ${latlng.lat.toFixed(4)}, Lng: ${latlng.lng.toFixed(4)}`;
+    }
+
+    function onConfirm(){
+      if(!guessMarker){ // no guess placed
+        // treat as skip / zero points
+        revealAnswer(null, true);
+      } else {
+        const g = guessMarker.getLatLng();
+        revealAnswer({lat:g.lat,lng:g.lng}, false);
+      }
+    }
+
+    function onSkip(){
+      revealAnswer(null, true);
+    }
+
+    function onNext(){
+      stopTimer();
+      currentIndex++;
+      if(currentIndex >= rounds.length){
+        // game over
+        showGameOver();
+      } else {
+        loadRound();
+      }
+    }
+
+    function revealAnswer(guess, skipped){
+      stopTimer(); enableConfirm(false); btnNext.disabled = false;
+      const item = rounds[currentIndex];
+      const truth = {lat:item.lat,lng:item.lng};
+      // show true marker and polyline
+      trueMarker = L.marker([truth.lat, truth.lng],{icon: L.icon({iconUrl:'https://upload.wikimedia.org/wikipedia/commons/e/ec/RedDot.svg',iconSize:[12,12]})}).addTo(map);
+      if(guess){
+        polyline = L.polyline([[guess.lat,guess.lng],[truth.lat,truth.lng]],{color:'yellow'}).addTo(map);
+        const distKm = haversine(guess.lat,guess.lng,truth.lat,truth.lng);
+        const pts = computePoints(distKm);
+        score += pts;
+        resultText.innerHTML = `<strong>${item.caption}</strong><br>Distance: ${distKm.toFixed(2)} km<br>Points: ${pts}`;
+      } else {
+        resultText.innerHTML = `<strong>${item.caption}</strong><br>No guess placed — 0 points`;
+      }
+      scoreVal.textContent = score;
+      resultModal.classList.remove('hidden');
+      map.fitBounds([[truth.lat,truth.lng],[guess?guess.lat:truth.lat,guess?guess.lng:truth.lng]],{padding:[60,60]});
+    }
+
+    function clearResult(){ resultModal.classList.add('hidden'); }
+
+    function computePoints(distanceKm){
+      let deduction = Math.round(DEDUCTION_PER_KM * distanceKm);
+      let bonus = 0;
+      if(distanceKm <= BONUS_VERY_CLOSE_KM) bonus = BONUS_VERY_CLOSE;
+      else if(distanceKm <= BONUS_CLOSE_KM) bonus = BONUS_CLOSE;
+      let pts = Math.max(0, BASE_POINTS - deduction + bonus);
+      return pts;
+    }
+
+    function showGameOver(){
+      resultText.innerHTML = `<strong>Game Over</strong><br>Your final score: ${score}`;
+      resultModal.classList.remove('hidden');
+      resultNext.textContent = 'View Leaderboard';
+      resultNext.onclick = ()=>{ showLeaderboard(); resultNext.textContent='Next'; resultNext.onclick = onNext; };
+    }
+
+    function showLeaderboard(){
+      leaderModal.classList.remove('hidden');
+      populateLeaderboard();
+    }
+
+    function getLeaderboard(){
+      try{ return JSON.parse(localStorage.getItem('streetGuess_leaderboard')||'[]'); }catch(e){return []}
+    }
+    function saveLeaderboard(arr){ localStorage.setItem('streetGuess_leaderboard', JSON.stringify(arr)); }
+
+    function populateLeaderboard(){
+      const lb = getLeaderboard(); leaderboardList.innerHTML='';
+      if(lb.length===0){ leaderboardList.innerHTML='<div class="row">No scores yet.</div>'; return; }
+      lb.forEach((r,idx)=>{
+        const row = document.createElement('div'); row.className='row';
+        row.innerHTML = `<div>${idx+1}. ${escapeHtml(r.name)}</div><div>${r.score}</div>`;
+        leaderboardList.appendChild(row);
+      });
+    }
+
+    function saveScoreToLeaderboard(){
+      const name = (playerName.value||'Anonymous').trim();
+      if(!name) return alert('Enter a name');
+      const lb = getLeaderboard();
+      lb.push({name:name,score:score,date:new Date().toISOString()});
+      lb.sort((a,b)=>b.score-a.score);
+      while(lb.length>10) lb.pop();
+      saveLeaderboard(lb);
+      populateLeaderboard();
+    }
+
+    function clearLeaderboard(){ if(confirm('Clear leaderboard?')){ localStorage.removeItem('streetGuess_leaderboard'); populateLeaderboard(); }}
+
+    function startTimer(){ stopTimer(); timer = setInterval(()=>{ timeLeft--; updateTimerUI(); if(timeLeft<=0){ onConfirm(); } },1000); }
+    function stopTimer(){ if(timer){ clearInterval(timer); timer=null; } }
+    function updateTimerUI(){ timerPill.textContent = `${timeLeft}s`; }
+
+    function haversine(lat1,lon1,lat2,lon2){
+      const R = 6371; // km
+      const toRad = x=>x*Math.PI/180;
+      const dLat = toRad(lat2-lat1);
+      const dLon = toRad(lon2-lon1);
+      const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)*Math.sin(dLon/2);
+      const c = 2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+      return R*c;
+    }
+
+    // Utils
+    function shuffleArray(a){ return a.slice().sort(()=>Math.random()-0.5); }
+    function escapeHtml(s){ return (s+'').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+    function enableConfirm(v){ btnConfirm.disabled = !v; }
+
+    // init app
+    init();
+  </script>
+</body>
+</html>

@@ -2,23 +2,336 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>Countdown Catch</title>
-<style>/* trimmed from new-years-ball-drop.html */
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#000;display:flex;justify-content:center;align-items:center;height:100dvh;overflow:hidden;font-family:Arial,sans-serif;touch-action:none}
-#wrap{position:relative;width:100vw;height:100dvh}
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Countdown Catch - K2 Games</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-tap-highlight-color:transparent}
+body{background:#000;display:flex;justify-content:center;align-items:center;height:100dvh;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;touch-action:none}
+#gc{position:relative;width:100%;max-width:480px;height:100dvh;overflow:hidden}
 canvas{display:block;width:100%;height:100%}
-#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:12px 16px;pointer-events:none;z-index:5}
-.pill{background:rgba(0,0,15,.7);backdrop-filter:blur(6px);border:1px solid rgba(255,215,0,.35);border-radius:20px;padding:6px 14px;color:#fff;font-size:16px;font-weight:700}.pill span{color:#ffd700}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:14px 16px;pointer-events:none;z-index:10}
+.pill{background:rgba(0,0,15,.75);backdrop-filter:blur(8px);border:1px solid rgba(255,215,0,.35);border-radius:22px;padding:7px 16px;color:#fff;font-size:16px;font-weight:700}
+.pill span{color:#ffd700}
+#overlay{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,15,.92);backdrop-filter:blur(12px);z-index:20}
+#overlay.hide{display:none}
+.card{background:linear-gradient(145deg,#000830,#0a0a2e);border:2px solid rgba(255,215,0,.45);border-radius:28px;padding:36px 28px;max-width:340px;width:92%;text-align:center;box-shadow:0 0 60px rgba(255,150,0,.2),0 24px 50px rgba(0,0,0,.7)}
+.icon{font-size:64px;animation:bob 1.3s ease-in-out infinite;display:block;margin-bottom:6px}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+h1{color:#ffd700;font-size:27px;font-weight:900;margin:6px 0 4px;text-shadow:0 0 18px rgba(255,200,0,.6);letter-spacing:2px}
+.sub{color:#e8d5b7;font-size:13px;margin-bottom:14px;line-height:1.6}
+.tips{background:rgba(255,255,255,.06);border-radius:12px;padding:12px 14px;margin-bottom:18px;text-align:left}
+.tips div{color:#f5e0c0;font-size:13px;margin:4px 0}
+.tips b{color:#ffd700;margin-right:6px}
+.btn{background:linear-gradient(135deg,#cc7700,#ffaa00);color:#fff;border:none;border-radius:50px;padding:14px 44px;font-size:18px;font-weight:800;cursor:pointer;box-shadow:0 6px 20px rgba(255,150,0,.45);letter-spacing:1px;transition:transform .1s;width:100%}
+.btn:active{transform:scale(.96)}
+.fscore{color:#ffd700;font-size:52px;font-weight:900;margin:8px 0;text-shadow:0 0 24px rgba(255,200,0,.7)}
+#home{position:absolute;top:14px;right:16px;z-index:30;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;padding:7px 14px;border-radius:8px;cursor:pointer;text-decoration:none;font-size:13px;font-weight:600;backdrop-filter:blur(4px)}
 </style>
 </head>
 <body>
-<div id="wrap">
+<div id="gc">
   <canvas id="c"></canvas>
-  <div id="hud"><div class="pill">⭐ <span id="sc">0</span></div><div class="pill">🏆 <span id="bs">0</span></div><div class="pill">⏱ <span id="tm">60</span>s</div></div>
-  <div id="modal"><div class="card" id="card"><div class="icon">🎊</div><h1>COUNTDOWN CATCH</h1><p class="sub">Catch falling numbers in the right lane!<br>Build your combo to drop the ball at midnight!</p><button class="btn" id="startBtn">CATCH! 🎊</button></div></div>
+  <div id="hud">
+    <div class="pill">🎊 <span id="sc">0</span></div>
+    <div class="pill">⭐ <span id="bs">0</span></div>
+    <div class="pill">⏱ <span id="tm">60</span>s</div>
+    <div class="pill" id="lv" style="display:none"></div>
+  </div>
+  <div id="overlay">
+    <div class="card" id="card">
+      <span class="icon">🎊</span>
+      <h1>COUNTDOWN CATCH</h1>
+      <p class="sub">Numbers fall from the sky on New Year's Eve!<br>Move your basket to catch them all!</p>
+      <div class="tips">
+        <div><b>👆</b>Drag or move mouse = steer basket</div>
+        <div><b>🔢</b>Catch numbers to score their value</div>
+        <div><b>💥</b>Catch bombs = lose a life!</div>
+        <div><b>⚡</b>Hit 5 in a row = x2 Combo multiplier!</div>
+      </div>
+      <button class="btn" id="startBtn">CATCH! 🎊</button>
+    </div>
+  </div>
+  <a href="index.html" id="home">🏠 Home</a>
 </div>
-<script>document.getElementById('startBtn').onclick=function(){document.getElementById('modal').classList.add('hide');};</script>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+const gc=document.getElementById('gc');
+let W,H,dpr;
+function resize(){
+  dpr=devicePixelRatio||1;
+  W=gc.clientWidth; H=gc.clientHeight;
+  C.width=W*dpr; C.height=H*dpr;
+  C.style.width=W+'px'; C.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize',resize); resize();
+
+let gameActive=false,score=0,bestScore=parseInt(localStorage.getItem('cc_best')||'0');
+let gameTime=60,lives=3,combo=0,streak=0,frameN=0;
+
+let basket={x:0,y:0,w:80,h:28,targetX:0};
+let fallers=[],particles=[],bgStars=[];
+let spawnTimer=0,ballY=0,ballDropping=false;
+
+function makeBgStars(){
+  bgStars=[];
+  for(let i=0;i<60;i++) bgStars.push({x:Math.random()*W,y:Math.random()*H,s:Math.random()*1.5+.3,t:Math.random()*100});
+}
+
+class Faller{
+  constructor(){
+    this.x=30+Math.random()*(W-60);
+    this.y=-40;
+    this.r=22;
+    this.isBomb=Math.random()<0.12;
+    this.isGolden=!this.isBomb&&Math.random()<0.08;
+    this.value=this.isBomb?0:this.isGolden?0:Math.floor(Math.random()*9)+1;
+    this.speed=1.8+Math.random()*2.5+(60-gameTime)*0.03;
+    this.spin=0; this.spinSpeed=(Math.random()-.5)*0.08;
+    this.bobPhase=Math.random()*Math.PI*2;
+    this.color=this.isBomb?'#ff3333':this.isGolden?'#ffd700':
+      `hsl(${this.value*30+120},90%,60%)`;
+    this.glowPhase=Math.random()*Math.PI*2;
+    this.caught=false;
+  }
+  update(){
+    this.y+=this.speed;
+    this.spin+=this.spinSpeed;
+    this.glowPhase+=0.1;
+    this.bobPhase+=0.05;
+    this.x+=Math.sin(this.bobPhase)*0.8;
+  }
+  draw(){
+    ctx.save();
+    ctx.translate(this.x,this.y);
+    ctx.rotate(this.spin);
+    if(this.isBomb){
+      ctx.font='36px serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('💣',0,0);
+    } else {
+      const glow=Math.sin(this.glowPhase)*0.3+0.7;
+      ctx.shadowBlur=this.isGolden?20:12;
+      ctx.shadowColor=this.color;
+      const g=ctx.createRadialGradient(0,-4,2,0,0,this.r);
+      g.addColorStop(0,'#fff');
+      g.addColorStop(0.3,this.color);
+      g.addColorStop(1,this.color.replace('60%','30%'));
+      ctx.fillStyle=g;
+      ctx.beginPath(); ctx.arc(0,0,this.r,0,Math.PI*2); ctx.fill();
+      if(this.isGolden){
+        ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+        ctx.stroke();
+      }
+      ctx.shadowBlur=0;
+      ctx.fillStyle='#fff';
+      ctx.font=`bold ${this.isGolden?22:18}px Arial`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(this.isGolden?'⭐':this.value,0,1);
+    }
+    ctx.restore();
+  }
+}
+
+class Particle{
+  constructor(x,y,color,text){
+    this.x=x; this.y=y; this.text=text||'';
+    this.vy=-4-Math.random()*3;
+    this.vx=(Math.random()-.5)*4;
+    this.life=1; this.color=color;
+  }
+  update(){this.y+=this.vy; this.x+=this.vx; this.vy+=0.15; this.life-=0.03; return this.life>0;}
+  draw(){
+    ctx.globalAlpha=this.life;
+    if(this.text){
+      ctx.fillStyle=this.color;
+      ctx.font='bold 20px Arial'; ctx.textAlign='center';
+      ctx.fillText(this.text,this.x,this.y);
+    } else {
+      ctx.fillStyle=this.color;
+      ctx.beginPath(); ctx.arc(this.x,this.y,5*this.life,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+}
+
+function burst(x,y,color,text){
+  for(let i=0;i<12;i++) particles.push(new Particle(x+(-20+Math.random()*40),y+(-10+Math.random()*20),color));
+  if(text) particles.push(new Particle(x,y-20,color,text));
+}
+
+function startGame(){
+  score=0; gameTime=60; lives=3; combo=0; streak=0; frameN=0;
+  basket.x=W/2; basket.targetX=W/2; basket.y=H-60;
+  fallers=[]; particles=[]; spawnTimer=0; ballY=-60; ballDropping=false;
+  makeBgStars();
+  document.getElementById('bs').textContent=bestScore;
+  document.getElementById('overlay').classList.add('hide');
+  gameActive=true;
+}
+
+function endGame(){
+  gameActive=false;
+  if(score>bestScore){bestScore=score;localStorage.setItem('cc_best',bestScore);}
+  const card=document.getElementById('card');
+  card.innerHTML=`<span class="icon">🎊</span><h1>HAPPY NEW YEAR!</h1><p class="fscore">${score}</p><p class="sub">Best: ${bestScore}</p><button class="btn" id="startBtn">CATCH AGAIN! 🎊</button>`;
+  document.getElementById('overlay').classList.remove('hide');
+  document.getElementById('startBtn').onclick=startGame;
+}
+
+function update(){
+  if(!gameActive)return;
+  frameN++;
+  gameTime-=1/60;
+  if(gameTime<=0){endGame();return;}
+
+  // smooth basket
+  basket.x+=(basket.targetX-basket.x)*0.18;
+  basket.x=Math.max(basket.w/2,Math.min(W-basket.w/2,basket.x));
+
+  // spawn fallers
+  spawnTimer--;
+  if(spawnTimer<0){
+    fallers.push(new Faller());
+    spawnTimer=Math.max(18,40-score*0.05);
+  }
+
+  // ball drop visual (celebratory)
+  if(gameTime<10&&!ballDropping){ballDropping=true;ballY=-40;}
+  if(ballDropping){ballY+=2;}
+
+  fallers.forEach(f=>f.update());
+  particles=particles.filter(p=>p.update());
+
+  // catch check
+  for(let i=fallers.length-1;i>=0;i--){
+    const f=fallers[i];
+    const bLeft=basket.x-basket.w/2, bRight=basket.x+basket.w/2;
+    const bTop=basket.y-basket.h/2, bBot=basket.y+basket.h/2;
+    if(f.x>bLeft&&f.x<bRight&&f.y+f.r>bTop&&f.y-f.r<bBot){
+      if(f.isBomb){
+        lives--; streak=0; combo=0;
+        burst(f.x,f.y,'#ff4444');
+        particles.push(new Particle(f.x,f.y-30,'#ff4444','-LIFE!'));
+        if(lives<=0){endGame();return;}
+      } else {
+        streak++;
+        if(streak>=5){combo=Math.min(4,Math.floor(streak/5)+1);}
+        const pts=f.isGolden?50:f.value;
+        const total=pts*(combo||1);
+        score+=total;
+        const label=combo>1?`+${total} x${combo}!`:`+${pts}`;
+        burst(f.x,f.y,f.color,label);
+      }
+      fallers.splice(i,1);
+    } else if(f.y-f.r>H){
+      if(!f.isBomb){streak=0;combo=0;}
+      fallers.splice(i,1);
+    }
+  }
+
+  document.getElementById('sc').textContent=score;
+  document.getElementById('tm').textContent=Math.ceil(gameTime);
+  document.getElementById('bs').textContent=bestScore;
+}
+
+function draw(){
+  const sky=ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#000010');
+  sky.addColorStop(0.7,'#00001a');
+  sky.addColorStop(1,'#001830');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
+
+  // bg stars
+  bgStars.forEach(s=>{
+    const tw=0.2+0.8*Math.abs(Math.sin(Date.now()*0.0006+s.t));
+    ctx.globalAlpha=tw;
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.s,0,Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha=1;
+
+  // city skyline
+  ctx.fillStyle='#0a0a1a';
+  const buildings=[
+    {x:0,w:60,h:120},{x:55,w:40,h:160},{x:90,w:70,h:100},
+    {x:155,w:50,h:140},{x:200,w:80,h:110},{x:270,w:40,h:170},
+    {x:300,w:60,h:125},{x:350,w:90,h:90},{x:430,w:50,h:150},
+  ];
+  buildings.forEach(b=>{
+    ctx.fillRect(b.x,H-b.h,b.w,b.h);
+    // windows
+    ctx.fillStyle='rgba(255,255,100,0.3)';
+    for(let wy=H-b.h+10;wy<H-10;wy+=18){
+      for(let wx=b.x+8;wx<b.x+b.w-8;wx+=14){
+        if(Math.random()>0.4) ctx.fillRect(wx,wy,8,10);
+      }
+    }
+    ctx.fillStyle='#0a0a1a';
+  });
+
+  // ball drop
+  if(ballDropping&&ballY>0){
+    ctx.shadowBlur=20; ctx.shadowColor='#ffd700';
+    ctx.fillStyle='#ffd700';
+    ctx.beginPath(); ctx.arc(W/2,Math.min(ballY,H/4),18,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
+  // fallers
+  fallers.forEach(f=>f.draw());
+  particles.forEach(p=>p.draw());
+
+  // basket
+  const bx=basket.x-basket.w/2, by=basket.y-basket.h/2;
+  ctx.fillStyle='rgba(255,215,0,0.15)';
+  ctx.strokeStyle='#ffd700'; ctx.lineWidth=3;
+  ctx.shadowBlur=12; ctx.shadowColor='#ffd700';
+  ctx.beginPath();
+  ctx.moveTo(bx+8,by);
+  ctx.lineTo(bx+basket.w-8,by);
+  ctx.lineTo(bx+basket.w,by+basket.h);
+  ctx.lineTo(bx,by+basket.h);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.shadowBlur=0;
+
+  // lives as hearts at bottom
+  ctx.font='20px serif';
+  ctx.textAlign='center';
+  for(let i=0;i<lives;i++) ctx.fillText('❤️',W/2-lives*12+i*24,H-18);
+
+  // combo indicator
+  if(combo>1){
+    ctx.fillStyle='#ffff00';
+    ctx.font='bold 18px Arial'; ctx.textAlign='left';
+    ctx.shadowBlur=8; ctx.shadowColor='#ffff00';
+    ctx.fillText(`x${combo} COMBO!`,10,H-20);
+    ctx.shadowBlur=0;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+function loop(){update();draw();}
+
+// Controls
+C.addEventListener('mousemove',e=>{
+  const r=C.getBoundingClientRect();
+  basket.targetX=(e.clientX-r.left)*(W/r.width);
+});
+C.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const r=C.getBoundingClientRect();
+  basket.targetX=(e.touches[0].clientX-r.left)*(W/r.width);
+},{passive:false});
+document.addEventListener('keydown',e=>{
+  if(e.code==='ArrowLeft') basket.targetX=Math.max(basket.w/2,basket.targetX-30);
+  if(e.code==='ArrowRight') basket.targetX=Math.min(W-basket.w/2,basket.targetX+30);
+});
+
+document.getElementById('startBtn').onclick=startGame;
+loop();
+</script>
 </body>
 </html>

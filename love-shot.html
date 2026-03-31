@@ -2,19 +2,365 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>Love Shot</title>
-<style>/* minimal copy from cupids-arrow-challenge.html */
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#ff2266;display:flex;justify-content:center;align-items:center;height:100dvh;overflow:hidden;font-family:Arial,sans-serif;touch-action:none}
-#wrap{position:relative;width:100vw;height:100dvh}
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Love Shot - K2 Games</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-tap-highlight-color:transparent}
+body{background:#ff2266;display:flex;justify-content:center;align-items:center;height:100dvh;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;touch-action:none}
+#gc{position:relative;width:100%;max-width:480px;height:100dvh;overflow:hidden}
 canvas{display:block;width:100%;height:100%}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:14px 16px;pointer-events:none;z-index:10}
+.pill{background:rgba(100,0,50,.72);backdrop-filter:blur(8px);border:1px solid rgba(255,100,150,.35);border-radius:22px;padding:7px 16px;color:#fff;font-size:16px;font-weight:700}
+.pill span{color:#ff99cc}
+#overlay{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(80,0,40,.92);backdrop-filter:blur(12px);z-index:20}
+#overlay.hide{display:none}
+.card{background:linear-gradient(145deg,#4a001a,#2e000f);border:2px solid rgba(255,100,150,.45);border-radius:28px;padding:36px 28px;max-width:340px;width:92%;text-align:center;box-shadow:0 0 60px rgba(255,50,100,.2),0 24px 50px rgba(0,0,0,.7)}
+.icon{font-size:64px;animation:bob 1.3s ease-in-out infinite;display:block;margin-bottom:6px}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+h1{color:#ff6699;font-size:27px;font-weight:900;margin:6px 0 4px;text-shadow:0 0 18px rgba(255,100,150,.6);letter-spacing:2px}
+.sub{color:#ffaacc;font-size:13px;margin-bottom:14px;line-height:1.6}
+.tips{background:rgba(255,255,255,.06);border-radius:12px;padding:12px 14px;margin-bottom:18px;text-align:left}
+.tips div{color:#ffddee;font-size:13px;margin:4px 0}
+.tips b{color:#ff6699;margin-right:6px}
+.btn{background:linear-gradient(135deg,#ff1166,#ff6699);color:#fff;border:none;border-radius:50px;padding:14px 44px;font-size:18px;font-weight:800;cursor:pointer;box-shadow:0 6px 20px rgba(255,50,100,.45);letter-spacing:1px;transition:transform .1s;width:100%}
+.btn:active{transform:scale(.96)}
+.fscore{color:#ff99cc;font-size:52px;font-weight:900;margin:8px 0;text-shadow:0 0 24px rgba(255,100,150,.7)}
+#home{position:absolute;top:14px;right:16px;z-index:30;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;padding:7px 14px;border-radius:8px;cursor:pointer;text-decoration:none;font-size:13px;font-weight:600;backdrop-filter:blur(4px)}
+#aimline{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);color:rgba(255,200,220,.5);font-size:12px;pointer-events:none;z-index:10;letter-spacing:1px}
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="c"></canvas>
-<div id="modal"><div class="card" id="card"><div class="icon">💘</div><h1>LOVE SHOT</h1><p class="sub">Pull Cupid's bowstring and fire arrows at hearts!</p><button id="startBtn" class="btn">LOVE SHOT! 💘</button></div></div>
+<div id="gc">
+  <canvas id="c"></canvas>
+  <div id="hud">
+    <div class="pill">💘 <span id="sc">0</span></div>
+    <div class="pill">⭐ <span id="bs">0</span></div>
+    <div class="pill">⏱ <span id="tm">60</span>s</div>
+  </div>
+  <div id="aimline">HOLD &amp; DRAG TO AIM · RELEASE TO SHOOT</div>
+  <div id="overlay">
+    <div class="card" id="card">
+      <span class="icon">💘</span>
+      <h1>LOVE SHOT</h1>
+      <p class="sub">Cupid's on duty! Pull the bowstring and fire<br>arrows at floating hearts to score big!</p>
+      <div class="tips">
+        <div><b>👆</b>Hold &amp; drag back = charge the bow</div>
+        <div><b>🎯</b>Aim at hearts — release to fire!</div>
+        <div><b>💕</b>Big hearts = more points!</div>
+        <div><b>⚡</b>Multi-hit chains boost your score!</div>
+      </div>
+      <button class="btn" id="startBtn">LOVE SHOT! 💘</button>
+    </div>
+  </div>
+  <a href="index.html" id="home">🏠 Home</a>
 </div>
-<script>document.getElementById('startBtn').onclick=function(){document.getElementById('modal').classList.add('hide');};</script>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+const gc=document.getElementById('gc');
+let W,H,dpr;
+function resize(){
+  dpr=devicePixelRatio||1;
+  W=gc.clientWidth; H=gc.clientHeight;
+  C.width=W*dpr; C.height=H*dpr;
+  C.style.width=W+'px'; C.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize',resize); resize();
+
+let gameActive=false,score=0,bestScore=parseInt(localStorage.getItem('ls_best')||'0');
+let gameTime=60,frameN=0;
+
+let cupid={x:0,y:0};
+let isDown=false,downX=0,downY=0,curX=0,curY=0;
+let arrows=[],hearts=[],particles=[],bgHearts=[];
+let spawnTimer=0;
+
+function initCupid(){cupid.x=W/2;cupid.y=H-70;}
+initCupid();
+
+class Heart{
+  constructor(){
+    this.r=20+Math.random()*18;
+    this.x=Math.random()*(W-this.r*2)+this.r;
+    this.y=-this.r;
+    this.vx=(Math.random()-.5)*1.5;
+    this.vy=0.8+Math.random()*1.2;
+    this.rot=Math.random()*Math.PI*2;
+    this.rotV=(Math.random()-.5)*0.05;
+    this.pts=Math.round(this.r);
+    this.color=`hsl(${340+Math.random()*30},100%,${55+Math.random()*20}%)`;
+    this.hit=false;
+    this.pulse=Math.random()*Math.PI*2;
+  }
+  update(){
+    this.x+=this.vx; this.y+=this.vy; this.rot+=this.rotV;
+    this.pulse+=0.08;
+    this.x=Math.max(this.r,Math.min(W-this.r,this.x));
+    if(this.x===this.r||this.x===W-this.r) this.vx*=-1;
+    return this.y<H+50&&!this.hit;
+  }
+  draw(){
+    ctx.save();
+    ctx.translate(this.x,this.y);
+    ctx.rotate(this.rot);
+    const ps=Math.sin(this.pulse)*2;
+    const r=this.r+ps;
+    ctx.shadowBlur=12; ctx.shadowColor=this.color;
+    drawHeart(ctx,0,0,r,this.color);
+    ctx.shadowBlur=0;
+    ctx.fillStyle='rgba(255,255,255,0.8)';
+    ctx.font=`bold ${Math.round(r*0.55)}px Arial`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(this.pts,0,2);
+    ctx.restore();
+  }
+}
+
+function drawHeart(ctx,x,y,size,color){
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.moveTo(x,y+size*0.3);
+  ctx.bezierCurveTo(x,y-size*0.1,x-size,y-size*0.1,x-size,y+size*0.3);
+  ctx.bezierCurveTo(x-size,y+size*0.7,x,y+size,x,y+size);
+  ctx.bezierCurveTo(x,y+size,x+size,y+size*0.7,x+size,y+size*0.3);
+  ctx.bezierCurveTo(x+size,y-size*0.1,x,y-size*0.1,x,y+size*0.3);
+  ctx.fill();
+}
+
+class Arrow{
+  constructor(x,y,vx,vy){
+    this.x=x; this.y=y;
+    this.vx=vx; this.vy=vy;
+    this.trail=[];
+  }
+  update(){
+    this.vy+=0.2;
+    this.trail.push({x:this.x,y:this.y,life:1});
+    this.x+=this.vx; this.y+=this.vy;
+    this.trail=this.trail.filter(t=>(t.life-=0.08)>0);
+    return this.x>-10&&this.x<W+10&&this.y<H+20;
+  }
+  draw(){
+    this.trail.forEach(t=>{
+      ctx.globalAlpha=t.life*0.5;
+      ctx.fillStyle='#ffaacc';
+      ctx.beginPath(); ctx.arc(t.x,t.y,3*t.life,0,Math.PI*2); ctx.fill();
+    });
+    ctx.globalAlpha=1;
+    const angle=Math.atan2(this.vy,this.vx);
+    ctx.save();
+    ctx.translate(this.x,this.y);
+    ctx.rotate(angle);
+    ctx.fillStyle='#c8a000';
+    ctx.fillRect(-14,-2,28,4);
+    ctx.fillStyle='#ff3366';
+    ctx.beginPath();
+    ctx.moveTo(14,0); ctx.lineTo(7,-7); ctx.lineTo(7,7); ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle='#ffcc00';
+    ctx.fillRect(-14,-5,6,4);
+    ctx.fillRect(-14,1,6,4);
+    ctx.restore();
+  }
+}
+
+class Particle{
+  constructor(x,y,color,text){
+    this.x=x;this.y=y;this.text=text||'';
+    this.vy=-6-Math.random()*4;
+    this.vx=(Math.random()-.5)*8;
+    this.life=1; this.color=color; this.r=5+Math.random()*5;
+  }
+  update(){this.y+=this.vy;this.x+=this.vx;this.vy+=0.15;this.life-=0.025;return this.life>0;}
+  draw(){
+    ctx.globalAlpha=this.life;
+    ctx.fillStyle=this.color;
+    if(this.text){
+      ctx.font='bold 24px Arial'; ctx.textAlign='center';
+      ctx.shadowBlur=8; ctx.shadowColor=this.color;
+      ctx.fillText(this.text,this.x,this.y);
+      ctx.shadowBlur=0;
+    } else {
+      ctx.beginPath(); ctx.arc(this.x,this.y,this.r*this.life,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+}
+
+function makeBgHearts(){
+  bgHearts=[];
+  for(let i=0;i<15;i++){
+    bgHearts.push({x:Math.random()*W,y:Math.random()*H,r:6+Math.random()*8,vy:0.3+Math.random()*0.5,phase:Math.random()*Math.PI*2,op:0.05+Math.random()*0.12});
+  }
+}
+
+function startGame(){
+  score=0; gameTime=60; frameN=0;
+  arrows=[]; hearts=[]; particles=[]; spawnTimer=0;
+  initCupid(); makeBgHearts();
+  document.getElementById('bs').textContent=bestScore;
+  document.getElementById('overlay').classList.add('hide');
+  gameActive=true;
+}
+
+function endGame(){
+  gameActive=false;
+  if(score>bestScore){bestScore=score;localStorage.setItem('ls_best',bestScore);}
+  const card=document.getElementById('card');
+  card.innerHTML=`<span class="icon">💘</span><h1>LOVE FADES!</h1><p class="fscore">${score}</p><p class="sub">Best: ${bestScore}</p><button class="btn" id="startBtn">LOVE SHOT! 💘</button>`;
+  document.getElementById('overlay').classList.remove('hide');
+  document.getElementById('startBtn').onclick=startGame;
+}
+
+function shoot(fromX,fromY,toX,toY){
+  const dx=toX-fromX, dy=toY-fromY;
+  const dist=Math.sqrt(dx*dx+dy*dy)||1;
+  const power=Math.min(18,Math.max(6,dist*0.06));
+  const angle=Math.atan2(dy,dx);
+  arrows.push(new Arrow(fromX,fromY,Math.cos(angle)*power,Math.sin(angle)*power));
+}
+
+function update(){
+  if(!gameActive)return;
+  frameN++;
+  gameTime-=1/60;
+  if(gameTime<=0){endGame();return;}
+
+  // spawn hearts
+  spawnTimer--;
+  if(spawnTimer<0){
+    hearts.push(new Heart());
+    spawnTimer=Math.max(20,45-score*0.03);
+  }
+
+  // bg hearts drift
+  bgHearts.forEach(h=>{h.y+=h.vy;h.phase+=0.04;if(h.y>H+20)h.y=-20;});
+
+  hearts=hearts.filter(h=>h.update());
+  arrows=arrows.filter(a=>a.update());
+  particles=particles.filter(p=>p.update());
+
+  // hit check
+  for(let a of arrows){
+    for(let h of hearts){
+      if(h.hit)continue;
+      const dx=a.x-h.x,dy=a.y-h.y;
+      if(Math.sqrt(dx*dx+dy*dy)<h.r+5){
+        h.hit=true;
+        score+=h.pts;
+        for(let i=0;i<18;i++) particles.push(new Particle(h.x+(Math.random()-.5)*20,h.y+(Math.random()-.5)*20,h.color));
+        particles.push(new Particle(h.x,h.y-20,h.color,`+${h.pts}`));
+        // chain reaction: nearby hearts hit too
+        hearts.forEach(h2=>{
+          if(!h2.hit&&Math.hypot(h2.x-h.x,h2.y-h.y)<h.r+h2.r+30){
+            h2.hit=true; score+=Math.round(h2.pts*0.5);
+            particles.push(new Particle(h2.x,h2.y-20,h2.color,`+${Math.round(h2.pts*0.5)}`));
+          }
+        });
+      }
+    }
+  }
+
+  document.getElementById('sc').textContent=score;
+  document.getElementById('tm').textContent=Math.ceil(gameTime);
+  document.getElementById('bs').textContent=bestScore;
+}
+
+function draw(){
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#cc0044');
+  bg.addColorStop(1,'#880022');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+
+  // bg floating hearts
+  bgHearts.forEach(h=>{
+    ctx.globalAlpha=h.op*(0.6+0.4*Math.abs(Math.sin(h.phase)));
+    drawHeart(ctx,h.x,h.y,h.r,'#ffbbcc');
+  });
+  ctx.globalAlpha=1;
+
+  hearts.forEach(h=>h.draw());
+  arrows.forEach(a=>a.draw());
+  particles.forEach(p=>p.draw());
+
+  // bow charging indicator
+  const charge=isDown?Math.min(1,Math.hypot(curX-downX,curY-downY)/100):0;
+
+  // cupid
+  ctx.font='36px serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('💘',cupid.x,cupid.y);
+
+  // bow string visual when charging
+  if(isDown&&charge>0.05){
+    const dx=curX-downX, dy=curY-downY;
+    const angle=Math.atan2(dy,dx);
+    const pull=Math.min(60,Math.hypot(dx,dy));
+
+    ctx.strokeStyle=`rgba(255,200,200,${0.3+charge*0.7})`;
+    ctx.lineWidth=2+charge*2;
+    ctx.lineCap='round';
+    ctx.beginPath();
+    // bow arc
+    const perpX=-Math.sin(angle)*25, perpY=Math.cos(angle)*25;
+    ctx.moveTo(cupid.x+perpX,cupid.y+perpY);
+    ctx.quadraticCurveTo(cupid.x-Math.cos(angle)*pull,cupid.y-Math.sin(angle)*pull,cupid.x-perpX,cupid.y-perpY);
+    ctx.stroke();
+    // string to pull point
+    ctx.strokeStyle=`rgba(255,255,200,${0.5+charge*0.5})`;
+    ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.moveTo(cupid.x+perpX,cupid.y+perpY);
+    ctx.lineTo(curX,curY);
+    ctx.lineTo(cupid.x-perpX,cupid.y-perpY);
+    ctx.stroke();
+
+    // power ring
+    ctx.strokeStyle=`rgba(255,100,150,${charge})`;
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.arc(cupid.x,cupid.y,12+charge*20,0,Math.PI*2);
+    ctx.stroke();
+
+    // aim direction dot
+    ctx.fillStyle=`rgba(255,255,200,${charge})`;
+    ctx.beginPath();
+    ctx.arc(curX,curY,5,0,Math.PI*2);
+    ctx.fill();
+  }
+
+  requestAnimationFrame(loop);
+}
+
+function loop(){update();draw();}
+
+function getPos(e){
+  const r=C.getBoundingClientRect();
+  const scX=W/r.width,scY=H/r.height;
+  if(e.touches){return{x:(e.touches[0].clientX-r.left)*scX,y:(e.touches[0].clientY-r.top)*scY};}
+  return{x:(e.clientX-r.left)*scX,y:(e.clientY-r.top)*scY};
+}
+
+C.addEventListener('mousedown',e=>{if(!gameActive)return;const p=getPos(e);isDown=true;downX=p.x;downY=p.y;curX=p.x;curY=p.y;});
+C.addEventListener('mousemove',e=>{if(!isDown)return;const p=getPos(e);curX=p.x;curY=p.y;});
+C.addEventListener('mouseup',e=>{
+  if(!isDown||!gameActive)return;
+  const p=getPos(e);
+  // shoot opposite direction of drag (slingshot style)
+  shoot(cupid.x,cupid.y,downX*2-p.x,downY*2-p.y);
+  isDown=false;
+});
+C.addEventListener('touchstart',e=>{e.preventDefault();if(!gameActive)return;const p=getPos(e);isDown=true;downX=p.x;downY=p.y;curX=p.x;curY=p.y;},{passive:false});
+C.addEventListener('touchmove',e=>{e.preventDefault();if(!isDown)return;const p=getPos(e);curX=p.x;curY=p.y;},{passive:false});
+C.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(!isDown||!gameActive)return;
+  shoot(cupid.x,cupid.y,downX*2-curX,downY*2-curY);
+  isDown=false;
+},{passive:false});
+
+document.getElementById('startBtn').onclick=startGame;
+loop();
+</script>
 </body>
 </html>

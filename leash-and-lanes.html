@@ -2,19 +2,325 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>Leash and Lanes</title>
-<style>/* copy from dog-walk.html */
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#3a7d1e;display:flex;justify-content:center;align-items:center;height:100dvh;overflow:hidden;font-family:Arial,sans-serif;touch-action:none}
-#wrap{position:relative;width:100vw;height:100dvh}
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Leash and Lanes - K2 Games</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-tap-highlight-color:transparent}
+body{background:#3a7d1e;display:flex;justify-content:center;align-items:center;height:100dvh;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;touch-action:none}
+#gc{position:relative;width:100%;max-width:480px;height:100dvh;overflow:hidden}
 canvas{display:block;width:100%;height:100%}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:14px 16px;pointer-events:none;z-index:10}
+.pill{background:rgba(10,50,10,.72);backdrop-filter:blur(6px);border:1px solid rgba(120,220,80,.4);border-radius:22px;padding:7px 16px;color:#fff;font-size:16px;font-weight:700}
+.pill span{color:#aaffaa}
+#overlay{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(10,50,10,.92);backdrop-filter:blur(12px);z-index:20}
+#overlay.hide{display:none}
+.card{background:linear-gradient(145deg,#1a4418,#0d2e0d);border:2px solid rgba(120,220,120,.5);border-radius:28px;padding:36px 28px;max-width:340px;width:92%;text-align:center;box-shadow:0 0 50px rgba(60,200,60,.2),0 24px 50px rgba(0,0,0,.6)}
+.icon{font-size:64px;animation:bob 1.3s ease-in-out infinite;display:block;margin-bottom:6px}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+h1{color:#44ff66;font-size:27px;font-weight:900;margin:6px 0 4px;text-shadow:0 0 18px rgba(100,200,100,.6);letter-spacing:2px}
+.sub{color:#88dd88;font-size:13px;margin-bottom:14px;line-height:1.6}
+.tips{background:rgba(255,255,255,.06);border-radius:12px;padding:12px 14px;margin-bottom:18px;text-align:left}
+.tips div{color:#ccffcc;font-size:13px;margin:4px 0}
+.tips b{color:#44ff66;margin-right:6px}
+.btn{background:linear-gradient(135deg,#00aa44,#00ff66);color:#000;border:none;border-radius:50px;padding:14px 44px;font-size:18px;font-weight:800;cursor:pointer;box-shadow:0 6px 20px rgba(100,200,100,.45);letter-spacing:1px;transition:transform .1s;width:100%}
+.btn:active{transform:scale(.96)}
+.fscore{color:#44ff66;font-size:52px;font-weight:900;margin:8px 0;text-shadow:0 0 24px rgba(100,200,100,.7)}
+#home{position:absolute;top:14px;right:16px;z-index:30;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;padding:7px 14px;border-radius:8px;cursor:pointer;text-decoration:none;font-size:13px;font-weight:600;backdrop-filter:blur(4px)}
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="c"></canvas>
-<div id="modal"><div class="card" id="card"><div class="icon">🐕</div><h1>LEASH AND LANES</h1><p class="sub">You're a dog on a walk! Guide your human to the good spots and away from the bad ones!</p><button id="startBtn" class="btn">LEASH & LANE! 🐕</button></div></div>
+<div id="gc">
+  <canvas id="c"></canvas>
+  <div id="hud">
+    <div class="pill">🐕 <span id="sc">0</span></div>
+    <div class="pill">⭐ <span id="bs">0</span></div>
+    <div class="pill">⏱ <span id="tm">60</span>s</div>
+  </div>
+  <div id="overlay">
+    <div class="card" id="card">
+      <span class="icon">🐕</span>
+      <h1>LEASH & LANES</h1>
+      <p class="sub">You're the dog! Drag your human to good spots<br>and away from bad ones before time runs out!</p>
+      <div class="tips">
+        <div><b>👆</b>Drag / move mouse = steer the HUMAN</div>
+        <div><b>🌺🌳🏠</b>Good spots = +points when dog reaches!</div>
+        <div><b>🗑️🐱⚡</b>Danger spots = avoid at all costs!</div>
+        <div><b>🦮</b>Leash pulls dog — guide them smartly!</div>
+      </div>
+      <button class="btn" id="startBtn">WALKIES! 🐕</button>
+    </div>
+  </div>
+  <a href="index.html" id="home">🏠 Home</a>
 </div>
-<script>document.getElementById('startBtn').onclick=function(){document.getElementById('modal').classList.add('hide');};</script>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+const gc=document.getElementById('gc');
+let W,H,dpr;
+function resize(){
+  dpr=devicePixelRatio||1;
+  W=gc.clientWidth; H=gc.clientHeight;
+  C.width=W*dpr; C.height=H*dpr;
+  C.style.width=W+'px'; C.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize',resize); resize();
+
+let gameActive=false,score=0,bestScore=parseInt(localStorage.getItem('ll_best')||'0');
+let gameTime=60,frameN=0;
+
+const LEASH=90;
+let human={x:0,y:0,targetX:0,targetY:0};
+let dog={x:0,y:0,vx:1.5,vy:1,r:18};
+let zones=[],particles=[];
+let spawnTimer=0;
+
+const GOOD_ICONS=['🌺','🌳','🏠','🦴','🌸'];
+const BAD_ICONS=['🗑️','🐱','⚡','🌵','💢'];
+
+class Zone{
+  constructor(){
+    this.w=64; this.h=64;
+    this.x=Math.random()*(W-this.w);
+    this.y=Math.random()*(H-this.h-80)+40;
+    this.isGood=Math.random()>0.38;
+    this.icon=this.isGood?GOOD_ICONS[Math.floor(Math.random()*GOOD_ICONS.length)]:BAD_ICONS[Math.floor(Math.random()*BAD_ICONS.length)];
+    this.life=1;
+    this.maxTime=this.isGood?5:7;
+    this.age=0;
+    this.pulse=Math.random()*Math.PI*2;
+    this.triggered=false;
+  }
+  update(){
+    this.age+=1/60;
+    this.pulse+=0.1;
+    this.life=1-this.age/this.maxTime;
+    return this.life>0&&!this.triggered;
+  }
+  draw(){
+    const glow=Math.sin(this.pulse)*0.3+0.7;
+    ctx.globalAlpha=this.life*0.8;
+    ctx.fillStyle=this.isGood?`rgba(100,255,100,${0.15*glow})`:`rgba(255,100,100,${0.15*glow})`;
+    ctx.strokeStyle=this.isGood?`rgba(100,255,100,${0.7*glow})`:`rgba(255,100,100,${0.7*glow})`;
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.roundRect(this.x,this.y,this.w,this.h,12);
+    ctx.fill(); ctx.stroke();
+    ctx.globalAlpha=this.life;
+    ctx.font='34px serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(this.icon,this.x+this.w/2,this.y+this.h/2);
+    // timer bar
+    ctx.fillStyle=this.isGood?'#44ff88':'#ff4444';
+    ctx.fillRect(this.x,this.y+this.h+4,this.w*this.life,4);
+    ctx.globalAlpha=1;
+  }
+  get cx(){return this.x+this.w/2;}
+  get cy(){return this.y+this.h/2;}
+}
+
+class Particle{
+  constructor(x,y,color,text){
+    this.x=x;this.y=y;this.text=text||'';
+    this.vy=-5-Math.random()*3;
+    this.vx=(Math.random()-.5)*5;
+    this.life=1; this.color=color;
+  }
+  update(){this.y+=this.vy;this.x+=this.vx;this.vy+=0.2;this.life-=0.025;return this.life>0;}
+  draw(){
+    ctx.globalAlpha=this.life;
+    ctx.fillStyle=this.color;
+    if(this.text){
+      ctx.font='bold 22px Arial'; ctx.textAlign='center';
+      ctx.shadowBlur=8; ctx.shadowColor=this.color;
+      ctx.fillText(this.text,this.x,this.y);
+      ctx.shadowBlur=0;
+    } else {
+      ctx.beginPath(); ctx.arc(this.x,this.y,6*this.life,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+}
+
+function startGame(){
+  score=0; gameTime=60; frameN=0; zones=[]; particles=[];
+  human.x=W/2; human.y=H/2; human.targetX=W/2; human.targetY=H/2;
+  dog.x=W/2-40; dog.y=H/2; dog.vx=2; dog.vy=1;
+  spawnTimer=0;
+  document.getElementById('bs').textContent=bestScore;
+  document.getElementById('overlay').classList.add('hide');
+  gameActive=true;
+}
+
+function endGame(){
+  gameActive=false;
+  if(score>bestScore){bestScore=score;localStorage.setItem('ll_best',bestScore);}
+  const card=document.getElementById('card');
+  card.innerHTML=`<span class="icon">🐕</span><h1>WALK DONE!</h1><p class="fscore">${score}</p><p class="sub">Best: ${bestScore}</p><button class="btn" id="startBtn">WALKIES AGAIN! 🐕</button>`;
+  document.getElementById('overlay').classList.remove('hide');
+  document.getElementById('startBtn').onclick=startGame;
+}
+
+function update(){
+  if(!gameActive)return;
+  frameN++;
+  gameTime-=1/60;
+  if(gameTime<=0){endGame();return;}
+
+  // smooth human movement
+  human.x+=(human.targetX-human.x)*0.12;
+  human.y+=(human.targetY-human.y)*0.12;
+  human.x=Math.max(20,Math.min(W-20,human.x));
+  human.y=Math.max(20,Math.min(H-20,human.y));
+
+  // dog moves toward nearest good zone or away from nearest bad
+  let targetX=dog.x+dog.vx*3;
+  let targetY=dog.y+dog.vy*3;
+
+  // dog is attracted to good zones
+  let bestDist=999;
+  for(let z of zones){
+    if(!z.isGood)continue;
+    const d=Math.hypot(z.cx-dog.x,z.cy-dog.y);
+    if(d<200&&d<bestDist){
+      bestDist=d;
+      targetX=z.cx; targetY=z.cy;
+    }
+  }
+  // dog wanders if no target
+  if(bestDist===999){
+    dog.vx+=(Math.random()-.5)*0.4;
+    dog.vy+=(Math.random()-.5)*0.4;
+    dog.vx=Math.max(-3,Math.min(3,dog.vx));
+    dog.vy=Math.max(-3,Math.min(3,dog.vy));
+    targetX=dog.x+dog.vx;
+    targetY=dog.y+dog.vy;
+  }
+
+  // leash constraint: dog can't be too far from human
+  const dx=dog.x-human.x, dy=dog.y-human.y;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  if(dist>LEASH){
+    const angle=Math.atan2(dy,dx);
+    dog.x=human.x+Math.cos(angle)*LEASH;
+    dog.y=human.y+Math.sin(angle)*LEASH;
+    dog.vx*=0.5; dog.vy*=0.5;
+  }
+
+  // move dog toward target
+  const tdx=targetX-dog.x, tdy=targetY-dog.y;
+  const td=Math.sqrt(tdx*tdx+tdy*tdy)||1;
+  dog.x+=tdx/td*2.5;
+  dog.y+=tdy/td*2.5;
+  dog.x=Math.max(dog.r,Math.min(W-dog.r,dog.x));
+  dog.y=Math.max(dog.r,Math.min(H-dog.r,dog.y));
+
+  // zone check
+  zones=zones.filter(z=>{
+    const inZone=dog.x>z.x&&dog.x<z.x+z.w&&dog.y>z.y&&dog.y<z.y+z.h;
+    if(inZone&&!z.triggered){
+      z.triggered=true;
+      if(z.isGood){
+        score+=20;
+        for(let i=0;i<8;i++) particles.push(new Particle(z.cx+(Math.random()-.5)*30,z.cy+(Math.random()-.5)*20,'#44ff88'));
+        particles.push(new Particle(z.cx,z.cy-20,'#44ff88','+20'));
+      } else {
+        score=Math.max(0,score-10);
+        for(let i=0;i<8;i++) particles.push(new Particle(z.cx+(Math.random()-.5)*30,z.cy+(Math.random()-.5)*20,'#ff4444'));
+        particles.push(new Particle(z.cx,z.cy-20,'#ff4444','-10'));
+      }
+    }
+    return z.update();
+  });
+
+  // spawn zones
+  spawnTimer--;
+  if(spawnTimer<0){
+    if(zones.length<6) zones.push(new Zone());
+    spawnTimer=60+Math.random()*40;
+  }
+
+  particles=particles.filter(p=>p.update());
+
+  document.getElementById('sc').textContent=score;
+  document.getElementById('tm').textContent=Math.ceil(gameTime);
+  document.getElementById('bs').textContent=bestScore;
+}
+
+function draw(){
+  // grass background
+  ctx.fillStyle='#3a7d1e'; ctx.fillRect(0,0,W,H);
+
+  // grass texture lines
+  ctx.strokeStyle='rgba(0,0,0,0.05)'; ctx.lineWidth=1;
+  for(let i=0;i<H;i+=6){
+    ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(W,i); ctx.stroke();
+  }
+
+  // sidewalk
+  ctx.fillStyle='#aaa';
+  ctx.fillRect(W*0.1,0,W*0.8,H);
+  ctx.fillStyle='rgba(0,0,0,0.05)';
+  for(let i=0;i<H;i+=50) ctx.fillRect(W*0.1,i,W*0.8,2);
+  ctx.fillStyle='rgba(0,0,0,0.03)';
+  for(let i=0;i<W;i+=40) ctx.fillRect(i,0,2,H);
+
+  // grass edges
+  ctx.fillStyle='#3a7d1e';
+  ctx.fillRect(0,0,W*0.1,H);
+  ctx.fillRect(W*0.9,0,W*0.1,H);
+
+  // zones
+  zones.forEach(z=>z.draw());
+  particles.forEach(p=>p.draw());
+
+  // leash
+  const dx=dog.x-human.x, dy=dog.y-human.y;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  const tension=Math.min(1,dist/LEASH);
+  ctx.strokeStyle=`rgba(${Math.floor(tension*200)},${Math.floor((1-tension)*200)},50,0.8)`;
+  ctx.lineWidth=3;
+  ctx.lineCap='round';
+  // curvy leash
+  const mx=(human.x+dog.x)/2, my=(human.y+dog.y)/2+20;
+  ctx.beginPath();
+  ctx.moveTo(human.x,human.y);
+  ctx.quadraticCurveTo(mx,my,dog.x,dog.y);
+  ctx.stroke();
+
+  // human
+  ctx.font='36px serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('🧍',human.x,human.y);
+
+  // dog
+  ctx.fillText('🐕',dog.x,dog.y);
+
+  requestAnimationFrame(loop);
+}
+
+function loop(){update();draw();}
+
+// Controls
+C.addEventListener('mousemove',e=>{
+  const r=C.getBoundingClientRect();
+  human.targetX=(e.clientX-r.left)*(W/r.width);
+  human.targetY=(e.clientY-r.top)*(H/r.height);
+});
+C.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const r=C.getBoundingClientRect();
+  human.targetX=(e.touches[0].clientX-r.left)*(W/r.width);
+  human.targetY=(e.touches[0].clientY-r.top)*(H/r.height);
+},{passive:false});
+C.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const r=C.getBoundingClientRect();
+  human.targetX=(e.touches[0].clientX-r.left)*(W/r.width);
+  human.targetY=(e.touches[0].clientY-r.top)*(H/r.height);
+},{passive:false});
+
+document.getElementById('startBtn').onclick=startGame;
+loop();
+</script>
 </body>
 </html>
