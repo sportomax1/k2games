@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Wave Ripper — Lake Powell</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { overflow:hidden; background:#0a1628; font-family:system-ui,-apple-system,sans-serif; user-select:none; touch-action:none; }
+canvas { display:block; width:100vw; height:100vh; }
+
+/* HUD */
+#hud {
+    position:fixed; top:16px; left:50%; transform:translateX(-50%);
+    display:flex; gap:20px; align-items:center;
+    background:rgba(10,22,40,0.75); border:1px solid rgba(255,255,255,0.15);
+    border-radius:20px; padding:10px 24px; backdrop-filter:blur(12px);
+    pointer-events:none; z-index:30;
+}
+.hud-item { text-align:center; }
+.hud-val { font-size:1.5rem; font-weight:800; color:#38bdf8; line-height:1; }
+.hud-lab { font-size:0.55rem; text-transform:uppercase; letter-spacing:0.1em; opacity:0.5; color:#fff; margin-top:2px; }
+.hud-sep { width:1px; height:36px; background:rgba(255,255,255,0.15); }
+#air-bar-wrap { display:none; }
+#air-bar-wrap.active { display:flex; flex-direction:column; align-items:center; }
+#air-bar { width:80px; height:8px; background:rgba(255,255,255,0.15); border-radius:4px; overflow:hidden; margin-top:4px; }
+#air-bar-fill { height:100%; width:0%; background:linear-gradient(90deg,#f59e0b,#ef4444); border-radius:4px; transition:width 0.1s; }
+
+/* Combo float */
+#combo-float {
+    position:fixed; top:80px; left:50%; transform:translateX(-50%);
+    font-size:2.2rem; font-weight:900; color:#f59e0b;
+    text-shadow:0 0 20px rgba(245,158,11,0.8), 0 2px 0 rgba(0,0,0,0.5);
+    pointer-events:none; z-index:35; opacity:0;
+    transition:opacity 0.3s, transform 0.3s;
+}
+#combo-float.show { opacity:1; transform:translateX(-50%) translateY(-8px); }
+
+/* On-screen controls */
+#osc {
+    position:fixed; bottom:0; left:0; right:0;
+    display:flex; justify-content:space-between; align-items:flex-end;
+    padding:10px 14px 20px; z-index:40; pointer-events:none;
+}
+.osc-pad { display:flex; flex-direction:column; gap:8px; pointer-events:auto; }
+.osc-row { display:flex; gap:8px; }
+.ctrl-btn {
+    width:64px; height:64px;
+    background:rgba(10,22,40,0.82); border:2px solid rgba(56,189,248,0.5);
+    color:#7dd3fc; font-size:1.5rem; font-weight:700; border-radius:14px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    cursor:pointer; touch-action:none;
+    backdrop-filter:blur(10px); box-shadow:0 4px 14px rgba(0,0,0,0.45);
+    transition:background 0.07s, transform 0.07s; line-height:1;
+}
+.ctrl-btn .cl { font-size:0.5rem; opacity:0.6; margin-top:3px; text-transform:uppercase; letter-spacing:0.05em; }
+.ctrl-btn.active { background:rgba(56,189,248,0.4); transform:scale(0.91); border-color:#7dd3fc; }
+.ctrl-btn.jump-btn {
+    width:80px; height:56px; font-size:0.8rem; letter-spacing:0.08em;
+    align-self:flex-end; margin-bottom:4px; border-color:rgba(245,158,11,0.6); color:#fcd34d;
+}
+.ctrl-btn.jump-btn.active { background:rgba(245,158,11,0.4); border-color:#fcd34d; }
+.osc-mid { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; pointer-events:auto; padding-bottom:2px; }
+
+/* Overlay screens */
+#overlay {
+    position:fixed; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; z-index:50;
+    background:rgba(0,0,0,0.7); backdrop-filter:blur(6px);
+}
+#overlay h1 { font-size:2.8rem; font-weight:900; color:#38bdf8; text-shadow:0 0 30px rgba(56,189,248,0.6); margin-bottom:6px; }
+#overlay .sub { font-size:1rem; color:rgba(255,255,255,0.6); margin-bottom:28px; }
+#overlay .score-line { font-size:1.3rem; color:#f59e0b; margin-bottom:24px; font-weight:700; }
+.play-btn {
+    background:linear-gradient(135deg,#0ea5e9,#0284c7); border:none; color:#fff;
+    font-size:1.1rem; font-weight:700; padding:16px 48px; border-radius:50px;
+    cursor:pointer; box-shadow:0 8px 24px rgba(14,165,233,0.4);
+    transition:transform 0.1s, box-shadow 0.1s; letter-spacing:0.05em; text-transform:uppercase;
+}
+.play-btn:active { transform:scale(0.96); }
+
+/* Crash FX */
+#crash-flash {
+    position:fixed; inset:0; background:#fff;
+    pointer-events:none; z-index:60; opacity:0;
+    transition:opacity 0.06s ease-in, opacity 0.55s 0.06s ease-out;
+}
+#crash-msg {
+    position:fixed; top:38%; left:50%; transform:translate(-50%,-50%);
+    font-size:3.2rem; font-weight:900;
+    color:#ff2200; text-shadow:0 0 30px rgba(255,50,50,0.95), 0 3px 0 rgba(0,0,0,0.8);
+    pointer-events:none; z-index:62; opacity:0;
+    transition:opacity 0.15s; white-space:nowrap;
+}
+#crash-msg.show { opacity:1; }
+
+/* Controls hint */
+#hint {
+    position:fixed; bottom:160px; left:50%; transform:translateX(-50%);
+    font-size:0.7rem; color:rgba(255,255,255,0.35); pointer-events:none;
+    text-align:center; z-index:25; letter-spacing:0.05em;
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="crash-flash"></div>
+<div id="crash-msg"></div>
+
+<!-- HUD -->
+<div id="hud">
+    <div class="hud-item"><div class="hud-val" id="hud-speed">0</div><div class="hud-lab">MPH</div></div>
+    <div class="hud-sep"></div>
+    <div class="hud-item"><div class="hud-val" id="hud-score">0</div><div class="hud-lab">Score</div></div>
+    <div class="hud-sep"></div>
+    <div class="hud-item"><div class="hud-val" id="hud-dist">0</div><div class="hud-lab">Meters</div></div>
+    <div class="hud-sep" id="air-sep" style="display:none"></div>
+    <div id="air-bar-wrap">
+        <div class="hud-val" id="hud-air" style="color:#f59e0b">AIR</div>
+        <div id="air-bar"><div id="air-bar-fill"></div></div>
+    </div>
+</div>
+
+<!-- Combo popup -->
+<div id="combo-float" id="combo-float"></div>
+
+<!-- On-screen controls -->
+<div id="osc">
+    <!-- Left: Steer -->
+    <div class="osc-pad">
+        <div class="osc-row">
+            <button class="ctrl-btn" id="btn-left">◀<span class="cl">Left</span></button>
+            <button class="ctrl-btn" id="btn-right">▶<span class="cl">Right</span></button>
+        </div>
+    </div>
+    <!-- Center: Jump -->
+    <div class="osc-mid">
+        <button class="ctrl-btn jump-btn" id="btn-jump">JUMP ↑</button>
+    </div>
+    <!-- Right: Throttle -->
+    <div class="osc-pad">
+        <button class="ctrl-btn" id="btn-gas">▲<span class="cl">Gas</span></button>
+        <button class="ctrl-btn" id="btn-brake">▼<span class="cl">Brake</span></button>
+    </div>
+</div>
+
+<div id="hint">W/A/D or ↑/←/→ = Drive &nbsp;|&nbsp; SPACE = Jump off waves</div>
+
+<!-- Start / Game Over overlay -->
+<div id="overlay">
+    <h1>WAVE RIPPER</h1>
+    <div class="sub">Lake Powell Canyon — Endless Run</div>
+    <div class="score-line" id="overlay-score" style="display:none"></div>
+    <button class="play-btn" id="play-btn">🚤 START RIDING</button>
+    <div style="margin-top:20px;font-size:0.72rem;color:rgba(255,255,255,0.35);text-align:center;">
+        Jump waves from other boats for AIR TIME &amp; score!<br>
+        Steer through the canyon — avoid the red rock walls
+    </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ─────────────────────────────────────────────
+//  CONSTANTS
+// ─────────────────────────────────────────────
+const CHANNEL_WIDTH   = 120;   // playable water width
+const WALL_THICKNESS  = 40;
+const WALL_DEPTH      = 80;    // length of each wall chunk
+const NUM_WALL_CHUNKS = 40;    // pool size
+const CHANNEL_CURVE   = 0.006; // sinusoidal bend frequency
+const CURVE_AMP       = 60;    // x-offset amplitude of channel center
+const WATER_SEGS      = 80;
+const WATER_SIZE      = 800;
+const OFFSHOOT_EVERY  = 600;   // z-interval between offshoots
+const NPC_COUNT       = 4;
+const GRAVITY         = 0.018;
+const MAX_SPEED       = 1.2;
+const ACCEL           = 0.022;
+const STEER_POWER     = 0.048;
+const FRICTION_FWD    = 0.975;
+const FRICTION_SIDE   = 0.82;
+
+// ─────────────────────────────────────────────
+//  RENDERER / SCENE
+// ─────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x5b9bd5);
+scene.fog = new THREE.FogExp2(0x4a8fc4, 0.0045);
+
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1200);
+
+// ─────────────────────────────────────────────
+//  LIGHTING
+// ─────────────────────────────────────────────
+const ambient = new THREE.AmbientLight(0xffeedd, 0.9);
+scene.add(ambient);
+
+const sun = new THREE.DirectionalLight(0xfff5e0, 2.2);
+sun.position.set(200, 300, -100);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = 800;
+sun.shadow.camera.left = -300;
+sun.shadow.camera.right = 300;
+sun.shadow.camera.top = 200;
+sun.shadow.camera.bottom = -200;
+scene.add(sun);
+
+const fillLight = new THREE.DirectionalLight(0x88bbff, 0.5);
+fillLight.position.set(-100, 100, 50);
+scene.add(fillLight);
+
+// ─────────────────────────────────────────────
+//  SKY / ATMOSPHERE
+// ─────────────────────────────────────────────
+// Gradient sky dome
+(function buildSky() {
+    const geo = new THREE.SphereGeometry(900, 16, 8);
+    geo.scale(-1, 1, 1); // invert normals
+    const skyColors = [
+        { stop: 0.0, color: new THREE.Color(0x1a6bb5) },   // horizon
+        { stop: 0.3, color: new THREE.Color(0x3585cc) },
+        { stop: 0.7, color: new THREE.Color(0x5ba8e8) },
+        { stop: 1.0, color: new THREE.Color(0x8cc4f0) }    // zenith
+    ];
+    // Simple vertical gradient using vertex colors
+    const posAttr = geo.attributes.position;
+    const colors = new Float32Array(posAttr.count * 3);
+    for (let i = 0; i < posAttr.count; i++) {
+        const y = posAttr.getY(i);
+        const t = THREE.MathUtils.clamp((y + 900) / 1800, 0, 1);
+        const c = new THREE.Color();
+        if (t < 0.3) c.lerpColors(skyColors[0].color, skyColors[1].color, t / 0.3);
+        else if (t < 0.7) c.lerpColors(skyColors[1].color, skyColors[2].color, (t - 0.3) / 0.4);
+        else c.lerpColors(skyColors[2].color, skyColors[3].color, (t - 0.7) / 0.3);
+        colors[i * 3]     = c.r;
+        colors[i * 3 + 1] = c.g;
+        colors[i * 3 + 2] = c.b;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide });
+    scene.add(new THREE.Mesh(geo, mat));
+})();
+
+// Sun disc
+const sunDisc = new THREE.Mesh(
+    new THREE.CircleGeometry(28, 24),
+    new THREE.MeshBasicMaterial({ color: 0xfff5c0 })
+);
+sunDisc.position.set(200, 260, -700);
+scene.add(sunDisc);
+
+// ─────────────────────────────────────────────
+//  WATER PLANE
+// ─────────────────────────────────────────────
+const waterGeo = new THREE.PlaneGeometry(WATER_SIZE, WATER_SIZE * 4, WATER_SEGS, WATER_SEGS * 2);
+waterGeo.rotateX(-Math.PI / 2);
+const waterMat = new THREE.MeshPhongMaterial({
+    color: 0x1a6a8a, specular: 0x88ddff, shininess: 120,
+    transparent: true, opacity: 0.88
+});
+const waterMesh = new THREE.Mesh(waterGeo, waterMat);
+waterMesh.receiveShadow = true;
+scene.add(waterMesh);
+
+// ─────────────────────────────────────────────
+//  CHANNEL MATH – channel X center at given Z
+// ─────────────────────────────────────────────
+function channelCenterX(z) {
+    return Math.sin(z * CHANNEL_CURVE) * CURVE_AMP
+         + Math.sin(z * CHANNEL_CURVE * 0.43 + 1.1) * CURVE_AMP * 0.5;
+}
+
+// ─────────────────────────────────────────────
+//  CANYON WALLS (pooled chunk system)
+// ─────────────────────────────────────────────
+const redRockColors = [0xc1440e, 0xb83d0c, 0xd4560f, 0xe06020, 0xa03208, 0xcc4a15];
+
+function randomRockColor() {
+    return redRockColors[Math.floor(Math.random() * redRockColors.length)];
+}
+
+function makeWallMesh(isLeft) {
+    const group = new THREE.Group();
+    // Base slab
+    const h = 50 + Math.random() * 80;
+    const geo = new THREE.BoxGeometry(WALL_THICKNESS, h, WALL_DEPTH);
+    const mat = new THREE.MeshPhongMaterial({ color: randomRockColor() });
+    const slab = new THREE.Mesh(geo, mat);
+    slab.castShadow = true;
+    slab.receiveShadow = true;
+    slab.position.y = h / 2;
+    group.add(slab);
+    // Jagged top layers for silhouette
+    for (let l = 0; l < 3; l++) {
+        const lh = 10 + Math.random() * 30;
+        const lw = WALL_THICKNESS * (0.4 + Math.random() * 0.5);
+        const lgeo = new THREE.BoxGeometry(lw, lh, WALL_DEPTH * (0.5 + Math.random() * 0.5));
+        const lmat = new THREE.MeshPhongMaterial({ color: randomRockColor() });
+        const lm = new THREE.Mesh(lgeo, lmat);
+        lm.castShadow = true;
+        const offX = (Math.random() - 0.5) * (WALL_THICKNESS - lw);
+        lm.position.set(offX, h + lh / 2, (Math.random() - 0.5) * WALL_DEPTH * 0.3);
+        group.add(lm);
+    }
+    return group;
+}
+
+// Pool: left walls, right walls
+const poolL = [], poolR = [];
+for (let i = 0; i < NUM_WALL_CHUNKS; i++) {
+    const wl = makeWallMesh(true);
+    const wr = makeWallMesh(false);
+    scene.add(wl); scene.add(wr);
+    poolL.push(wl); poolR.push(wr);
+}
+
+// Assign initial Z positions
+function placeChunk(wl, wr, chunkIndex, playerZ) {
+    const z = -playerZ - (chunkIndex * WALL_DEPTH);
+    const cx = channelCenterX(playerZ + chunkIndex * WALL_DEPTH);
+    wl.position.set(cx - CHANNEL_WIDTH / 2 - WALL_THICKNESS / 2, 0, z);
+    wr.position.set(cx + CHANNEL_WIDTH / 2 + WALL_THICKNESS / 2, 0, z);
+}
+
+for (let i = 0; i < NUM_WALL_CHUNKS; i++) {
+    placeChunk(poolL[i], poolR[i], i, 0);
+}
+
+// ─────────────────────────────────────────────
+//  OFFSHOOT SIDE PASSAGES
+// ─────────────────────────────────────────────
+const offshoots = [];
+function spawnOffshoot(z) {
+    const side = Math.random() < 0.5 ? -1 : 1; // left or right
+    const cx = channelCenterX(z);
+    const wallX = side < 0 ? cx - CHANNEL_WIDTH / 2 - WALL_THICKNESS / 2
+                           : cx + CHANNEL_WIDTH / 2 + WALL_THICKNESS / 2;
+    // Gap in wall: two short wall segments flanking the opening
+    const gapWidth = 40 + Math.random() * 30;
+    const segLen = 60;
+    for (let s = 0; s < 2; s++) {
+        const zOff = s === 0 ? z - segLen / 2 - gapWidth / 2 : z + segLen / 2 + gapWidth / 2;
+        const h = 35 + Math.random() * 50;
+        const geo = new THREE.BoxGeometry(WALL_THICKNESS * 0.6, h, segLen);
+        const mat = new THREE.MeshPhongMaterial({ color: randomRockColor() });
+        const m = new THREE.Mesh(geo, mat);
+        m.position.set(wallX, h / 2, -zOff);
+        m.castShadow = true;
+        scene.add(m);
+        offshoots.push({ mesh: m, z: zOff });
+    }
+    // Deep canyon visual extending outward
+    const depthGeo = new THREE.BoxGeometry(80, 60, gapWidth);
+    const depthMat = new THREE.MeshPhongMaterial({ color: 0x7a2d08 });
+    const depthM = new THREE.Mesh(depthGeo, depthMat);
+    depthM.position.set(wallX + side * 60, 30, -z);
+    scene.add(depthM);
+    offshoots.push({ mesh: depthM, z });
+}
+
+let nextOffshotZ = OFFSHOOT_EVERY;
+
+// ─────────────────────────────────────────────
+//  PLAYER JET SKI
+// ─────────────────────────────────────────────
+function buildJetSki() {
+    const g = new THREE.Group();
+
+    // Hull base — vivid blue with high shininess
+    const hullMat = new THREE.MeshPhongMaterial({ color: 0x1155cc, specular: 0xaaccff, shininess: 130 });
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.68, 6.2), hullMat);
+    hull.position.y = 0.34;
+    hull.castShadow = true;
+    g.add(hull);
+
+    // Hull bottom runner (dark keel strip)
+    const runner = new THREE.Mesh(
+        new THREE.BoxGeometry(1.6, 0.22, 6.0),
+        new THREE.MeshPhongMaterial({ color: 0x0a1f44 })
+    );
+    runner.position.y = 0.11;
+    g.add(runner);
+
+    // Racing stripe along hull top
+    const stripe = new THREE.Mesh(
+        new THREE.BoxGeometry(2.62, 0.14, 5.0),
+        new THREE.MeshPhongMaterial({ color: 0xff2200, shininess: 80 })
+    );
+    stripe.position.set(0, 0.7, 0.3);
+    g.add(stripe);
+
+    // White accent stripe below red
+    const stripe2 = new THREE.Mesh(
+        new THREE.BoxGeometry(2.62, 0.1, 5.0),
+        new THREE.MeshPhongMaterial({ color: 0xffffff })
+    );
+    stripe2.position.set(0, 0.56, 0.3);
+    g.add(stripe2);
+
+    // Nose cowl (tapered cone)
+    const noseMat = new THREE.MeshPhongMaterial({ color: 0xff2200, shininess: 150 });
+    const noseGeo = new THREE.ConeGeometry(1.3, 2.6, 6);
+    noseGeo.rotateX(-Math.PI / 2);
+    const nose = new THREE.Mesh(noseGeo, noseMat);
+    nose.position.set(0, 0.55, 4.0);
+    nose.castShadow = true;
+    g.add(nose);
+
+    // Seat pad
+    const seat = new THREE.Mesh(
+        new THREE.BoxGeometry(1.4, 0.32, 2.6),
+        new THREE.MeshPhongMaterial({ color: 0x111111 })
+    );
+    seat.position.set(0, 1.04, -0.5);
+    g.add(seat);
+
+    // Rider torso
+    const riderTorso = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.36, 0.40, 1.2, 7),
+        new THREE.MeshPhongMaterial({ color: 0x1a1a66 })
+    );
+    riderTorso.position.set(0, 1.78, -0.4);
+    g.add(riderTorso);
+
+    // Rider arms leaning forward
+    const armMat = new THREE.MeshPhongMaterial({ color: 0x1a1a66 });
+    for (const side of [-0.7, 0.7]) {
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 1.2), armMat);
+        arm.position.set(side, 1.65, 0.55);
+        arm.rotation.x = -0.3;
+        g.add(arm);
+    }
+
+    // Helmet
+    const helmet = new THREE.Mesh(
+        new THREE.SphereGeometry(0.38, 9, 9),
+        new THREE.MeshPhongMaterial({ color: 0xff4400, shininess: 90 })
+    );
+    helmet.position.set(0, 2.56, -0.35);
+    g.add(helmet);
+
+    // Visor (dark front of helmet)
+    const visor = new THREE.Mesh(
+        new THREE.SphereGeometry(0.28, 7, 7),
+        new THREE.MeshPhongMaterial({ color: 0x111133, transparent: true, opacity: 0.8 })
+    );
+    visor.position.set(0, 2.56, -0.08);
+    g.add(visor);
+
+    // Windshield
+    const shieldGeo = new THREE.BoxGeometry(1.8, 0.9, 0.08);
+    const shield = new THREE.Mesh(shieldGeo,
+        new THREE.MeshPhongMaterial({ color: 0x88ccff, transparent: true, opacity: 0.42, shininess: 220 })
+    );
+    shield.position.set(0, 1.44, 1.45);
+    shield.rotation.x = -0.38;
+    g.add(shield);
+
+    // Handlebars
+    const bar = new THREE.Mesh(
+        new THREE.BoxGeometry(2.4, 0.16, 0.16),
+        new THREE.MeshPhongMaterial({ color: 0xaaaaaa, shininess: 60 })
+    );
+    bar.position.set(0, 1.5, 1.2);
+    g.add(bar);
+
+    // Exhaust pipe
+    const exhaust = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.14, 0.14, 1.1, 6),
+        new THREE.MeshPhongMaterial({ color: 0x555555 })
+    );
+    exhaust.position.set(0.72, 0.42, -2.8);
+    exhaust.rotation.z = 0.22;
+    g.add(exhaust);
+
+    // Wake spray particles
+    const wakeGroup = new THREE.Group();
+    for (let w = 0; w < 20; w++) {
+        const ws = new THREE.Mesh(
+            new THREE.SphereGeometry(0.1 + Math.random() * 0.18, 4, 4),
+            new THREE.MeshBasicMaterial({ color: 0xddf6ff, transparent: true, opacity: 0.85 })
+        );
+        ws.visible = false;
+        wakeGroup.add(ws);
+    }
+    g.add(wakeGroup);
+    g.userData.wakeGroup = wakeGroup;
+
+    return g;
+}
+
+const player = buildJetSki();
+player.position.set(0, 0.5, 0);
+scene.add(player);
+
+// ─────────────────────────────────────────────
+//  NPC BOATS + WAVE SOURCES
+// ─────────────────────────────────────────────
+function buildNPCBoat() {
+    const g = new THREE.Group();
+    const bodyColors = [0xffe0c0, 0xc8e0ff, 0xf8f8f8, 0xd0f0d0, 0xfff0d8];
+    const accentColors = [0xcc2200, 0x0044cc, 0x229933, 0xcc8800, 0x660099];
+    const bc = bodyColors[Math.floor(Math.random() * bodyColors.length)];
+    const ac = accentColors[Math.floor(Math.random() * accentColors.length)];
+
+    // Main hull
+    const hull = new THREE.Mesh(
+        new THREE.BoxGeometry(4.2, 1.4, 10),
+        new THREE.MeshPhongMaterial({ color: bc, shininess: 60 })
+    );
+    hull.position.y = 0.7;
+    hull.castShadow = true;
+    g.add(hull);
+
+    // Bow taper — raised pointed prow using a squashed cone
+    const bowGeo = new THREE.ConeGeometry(2.1, 3.2, 4);
+    bowGeo.rotateX(-Math.PI / 2);
+    bowGeo.rotateY(Math.PI / 4);
+    const bow = new THREE.Mesh(bowGeo, new THREE.MeshPhongMaterial({ color: bc }));
+    bow.position.set(0, 0.65, 6.0);
+    bow.castShadow = true;
+    g.add(bow);
+
+    // Hull accent stripe
+    const stripe = new THREE.Mesh(
+        new THREE.BoxGeometry(4.25, 0.28, 9.6),
+        new THREE.MeshPhongMaterial({ color: ac })
+    );
+    stripe.position.set(0, 1.15, -0.2);
+    g.add(stripe);
+
+    // Cabin body
+    const cabin = new THREE.Mesh(
+        new THREE.BoxGeometry(3.4, 1.9, 4.8),
+        new THREE.MeshPhongMaterial({ color: 0x2a3a4a })
+    );
+    cabin.position.set(0, 2.35, -0.9);
+    g.add(cabin);
+
+    // Cabin roof (slightly wider)
+    const roof = new THREE.Mesh(
+        new THREE.BoxGeometry(3.6, 0.22, 5.0),
+        new THREE.MeshPhongMaterial({ color: 0x44576a })
+    );
+    roof.position.set(0, 3.3, -0.9);
+    g.add(roof);
+
+    // Windshield glass
+    const windshield = new THREE.Mesh(
+        new THREE.BoxGeometry(3.2, 0.9, 0.1),
+        new THREE.MeshPhongMaterial({ color: 0x88ccff, transparent: true, opacity: 0.48, shininess: 160 })
+    );
+    windshield.position.set(0, 2.88, 1.52);
+    windshield.rotation.x = -0.18;
+    g.add(windshield);
+
+    // Running lights (port red, starboard green)
+    const greenLight = new THREE.Mesh(
+        new THREE.SphereGeometry(0.17, 6, 6),
+        new THREE.MeshBasicMaterial({ color: 0x00ff55 })
+    );
+    greenLight.position.set(2.2, 1.35, 5.2);
+    g.add(greenLight);
+
+    const redLight = new THREE.Mesh(
+        new THREE.SphereGeometry(0.17, 6, 6),
+        new THREE.MeshBasicMaterial({ color: 0xff1111 })
+    );
+    redLight.position.set(-2.2, 1.35, 5.2);
+    g.add(redLight);
+
+    // Stern light (white)
+    const sternLight = new THREE.Mesh(
+        new THREE.SphereGeometry(0.14, 6, 6),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    sternLight.position.set(0, 1.6, -5.4);
+    g.add(sternLight);
+
+    // Antenna mast
+    const antMast = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, 4.2, 5),
+        new THREE.MeshPhongMaterial({ color: 0x999999 })
+    );
+    antMast.position.set(-1.4, 5.3, -2.2);
+    g.add(antMast);
+
+    // Flag on antenna
+    const flag = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.35, 0.04),
+        new THREE.MeshPhongMaterial({ color: ac })
+    );
+    flag.position.set(-1.1, 7.3, -2.2);
+    g.add(flag);
+
+    // Stern swim platform
+    const stern = new THREE.Mesh(
+        new THREE.BoxGeometry(4.2, 0.14, 1.6),
+        new THREE.MeshPhongMaterial({ color: 0x8a6a50 })
+    );
+    stern.position.set(0, 1.45, -5.7);
+    g.add(stern);
+
+    // V-wake planes fanning out from stern
+    const wakeMat = new THREE.MeshBasicMaterial({ color: 0xddeeff, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+    const wakeL = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 16), wakeMat.clone());
+    wakeL.rotation.x = -Math.PI / 2;
+    wakeL.position.set(-4.5, 0.08, -10);
+    wakeL.rotation.z = -0.3;
+    g.add(wakeL);
+
+    const wakeR = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 16), wakeMat.clone());
+    wakeR.rotation.x = -Math.PI / 2;
+    wakeR.position.set(4.5, 0.08, -10);
+    wakeR.rotation.z = 0.3;
+    g.add(wakeR);
+
+    return g;
+}
+
+const npcs = [];
+const waveObjects = []; // active wave events
+
+// ─────────────────────────────────────────────
+//  CRASH FX SYSTEM
+// ─────────────────────────────────────────────
+const crashParticles = [];
+for (let i = 0; i < 50; i++) {
+    const size = 0.1 + Math.random() * 0.36;
+    const cp = new THREE.Mesh(
+        new THREE.SphereGeometry(size, 4, 4),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 })
+    );
+    cp.visible = false;
+    scene.add(cp);
+    crashParticles.push({ mesh: cp, vel: new THREE.Vector3(), gravity: 0.028, life: 0, maxLife: 80 });
+}
+
+let cameraShake = 0;
+let crashEndTimer = 0;
+const flashEl    = document.getElementById('crash-flash');
+const crashMsgEl = document.getElementById('crash-msg');
+
+function triggerCrash(x, y, z, type) {
+    if (crashed) return;
+    crashed = true;
+    cameraShake = 32;
+    crashEndTimer = 110;
+
+    // Screen flash
+    flashEl.style.opacity = '0.92';
+    setTimeout(() => { flashEl.style.opacity = '0'; }, 90);
+
+    // Crash label
+    crashMsgEl.textContent = type === 'wall' ? '💥 ROCK WALL!' : '💥 BOAT COLLISION!';
+    crashMsgEl.classList.add('show');
+    setTimeout(() => crashMsgEl.classList.remove('show'), 2000);
+
+    // Particle burst
+    const wallColors = [0xffddaa, 0xcc7744, 0xffffff, 0xe8a060, 0xddbb88];
+    const waterColors = [0xaaddff, 0xffffff, 0x88ccff, 0xddf8ff, 0xcceeFF];
+    const palette = type === 'wall' ? wallColors : waterColors;
+    crashParticles.forEach((p, i) => {
+        p.mesh.position.set(
+            x + (Math.random() - 0.5) * 3,
+            y + Math.random() * 0.5,
+            z + (Math.random() - 0.5) * 3
+        );
+        p.mesh.visible = true;
+        const angle = (i / crashParticles.length) * Math.PI * 2 + Math.random() * 0.6;
+        const spd   = 0.18 + Math.random() * 0.55;
+        p.vel.set(
+            Math.cos(angle) * spd,
+            0.28 + Math.random() * 0.58,
+            Math.sin(angle) * spd
+        );
+        p.gravity  = 0.022 + Math.random() * 0.016;
+        p.life     = 60 + Math.random() * 40;
+        p.maxLife  = p.life;
+        p.mesh.material.color.setHex(palette[i % palette.length]);
+        p.mesh.material.opacity = 1;
+    });
+}
+
+for (let i = 0; i < NPC_COUNT; i++) {
+    const boat = buildNPCBoat();
+    const zStart = -(80 + i * 140);
+    const cx = channelCenterX(-zStart);
+    const side = (Math.random() < 0.5 ? -1 : 1) * (10 + Math.random() * 20);
+    boat.position.set(cx + side, 0.4, zStart);
+    scene.add(boat);
+    const goingSameDir = Math.random() < 0.55; // mostly oncoming for drama
+    npcs.push({
+        mesh: boat,
+        speed: (0.28 + Math.random() * 0.35) * (goingSameDir ? 1 : -1),
+        waveTimer: Math.random() * 60,
+        side
+    });
+}
+
+// Wave event pool — each event has 2 expanding rings + a vertical crest fin + surface foam
+const waveEventPool = [];
+for (let w = 0; w < 24; w++) {
+    const grp = new THREE.Group();
+
+    // Outer ring: large, fast-expanding
+    const r1 = new THREE.Mesh(
+        new THREE.TorusGeometry(2.2, 0.55, 6, 20),
+        new THREE.MeshPhongMaterial({ color: 0xbbddff, transparent: true, opacity: 0.82, shininess: 80 })
+    );
+    r1.rotation.x = Math.PI / 2;
+
+    // Inner ring: thicker, slower
+    const r2 = new THREE.Mesh(
+        new THREE.TorusGeometry(1.2, 0.42, 6, 18),
+        new THREE.MeshPhongMaterial({ color: 0xffffff, transparent: true, opacity: 0.65 })
+    );
+    r2.rotation.x = Math.PI / 2;
+
+    // Vertical crest fin (simulates breaking wave)
+    const fin = new THREE.Mesh(
+        new THREE.PlaneGeometry(10, 1.8),
+        new THREE.MeshPhongMaterial({ color: 0xddf5ff, transparent: true, opacity: 0.7, side: THREE.DoubleSide })
+    );
+    fin.position.y = 0.9;
+
+    // Surface foam (flat ellipse on water)
+    const foam = new THREE.Mesh(
+        new THREE.PlaneGeometry(13, 4),
+        new THREE.MeshBasicMaterial({ color: 0xfafeff, transparent: true, opacity: 0.42 })
+    );
+    foam.rotation.x = -Math.PI / 2;
+    foam.position.y = 0.06;
+
+    grp.add(r1); grp.add(r2); grp.add(fin); grp.add(foam);
+    grp.visible = false;
+    grp.userData = { r1, r2, fin, foam };
+    scene.add(grp);
+    waveEventPool.push(grp);
+}
+
+function getWaveGroup() {
+    return waveEventPool.find(g => !g.visible) || waveEventPool[0];
+}
+
+// ─────────────────────────────────────────────
+//  INPUT
+// ─────────────────────────────────────────────
+const keys = {};
+window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ─────────────────────────────────────────────
+//  GAME STATE
+// ─────────────────────────────────────────────
+let running = false;
+let score = 0;
+let distanceTraveled = 0;
+let speed = 0;           // current forward speed
+let lateralVel = 0;      // X velocity
+let vertY = 0;           // Y velocity for jump
+let onGround = true;
+let airTime = 0;
+let maxAirTime = 0;
+let groundY = 0.5;       // base Y (water level + ski draft)
+let crashed = false;
+let playerZOffset = 0;   // how far player has traveled along Z
+
+// Camera bob
+let camBob = 0;
+
+// ─────────────────────────────────────────────
+//  WAVE ANIMATION HELPER
+// ─────────────────────────────────────────────
+function animateWater(t) {
+    const pos = waterGeo.attributes.position;
+    const count = pos.count;
+    for (let i = 0; i < count; i++) {
+        const x = pos.getX(i);
+        const zv = pos.getZ(i);
+        const wave = Math.sin(x * 0.055 + t * 1.8) * 1.1
+                   + Math.sin(zv * 0.045 + t * 1.35 + 0.8) * 0.7
+                   + Math.sin((x + zv) * 0.04 + t * 2.3) * 0.45
+                   + Math.sin(x * 0.12 - t * 2.8 + zv * 0.02) * 0.28;
+        pos.setY(i, wave);
+    }
+    pos.needsUpdate = true;
+    waterGeo.computeVertexNormals();
+}
+
+// ─────────────────────────────────────────────
+//  JUMP logic
+// ─────────────────────────────────────────────
+let jumpCooldown = 0;
+let jumpCombo = 0;
+
+function tryJump() {
+    if (!onGround || jumpCooldown > 0) return;
+    // Reward if near a wave crest
+    const px = player.position.x, pz = player.position.z;
+    let nearWave = false;
+    for (const wo of waveObjects) {
+        if (!wo.group.visible) continue;
+        const dx = wo.group.position.x - px;
+        const dz = wo.group.position.z - pz;
+        if (Math.sqrt(dx * dx + dz * dz) < 18) { nearWave = true; break; }
+    }
+    vertY = nearWave ? 0.36 : 0.22;
+    onGround = false;
+    jumpCooldown = 40;
+    if (nearWave) { jumpCombo++; showCombo(); }
+    else jumpCombo = 0;
+}
+
+const comboEl = document.getElementById('combo-float');
+function showCombo() {
+    if (jumpCombo < 1) return;
+    comboEl.textContent = jumpCombo === 1 ? '🚀 WAVE JUMP!' : `🔥 x${jumpCombo} COMBO!`;
+    comboEl.classList.add('show');
+    setTimeout(() => comboEl.classList.remove('show'), 1400);
+}
+
+// ─────────────────────────────────────────────
+//  WALL RECYCLING
+// ─────────────────────────────────────────────
+let chunksPlaced = NUM_WALL_CHUNKS;
+
+function recycleWalls() {
+    const camZ = -playerZOffset;
+    for (let i = 0; i < NUM_WALL_CHUNKS; i++) {
+        const wl = poolL[i], wr = poolR[i];
+        // If chunk has scrolled past camera, move to front
+        if (wl.position.z > camZ + WALL_DEPTH * 2) {
+            const newZ = camZ - (NUM_WALL_CHUNKS - 2) * WALL_DEPTH;
+            const dist = -newZ;
+            const cx = channelCenterX(dist);
+            wl.position.set(cx - CHANNEL_WIDTH / 2 - WALL_THICKNESS / 2, 0, newZ);
+            wr.position.set(cx + CHANNEL_WIDTH / 2 + WALL_THICKNESS / 2, 0, newZ);
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+//  CRASH / COLLISION
+// ─────────────────────────────────────────────
+function checkWallCollision() {
+    if (crashed) return;
+    const px = player.position.x, pz = player.position.z;
+    const cx = channelCenterX(-pz);
+    const halfW = CHANNEL_WIDTH / 2 + 1;
+    if (Math.abs(px - cx) > halfW) {
+        const wallX = px > cx
+            ? cx + CHANNEL_WIDTH / 2 + WALL_THICKNESS * 0.4
+            : cx - CHANNEL_WIDTH / 2 - WALL_THICKNESS * 0.4;
+        triggerCrash(wallX, 2, pz, 'wall');
+    }
+}
+
+function checkNPCCollision() {
+    if (crashed) return;
+    // Airborne players clear boats (if high enough)
+    if (!onGround && player.position.y > 3.5) return;
+    const px = player.position.x, pz = player.position.z;
+    for (const npc of npcs) {
+        const dx = npc.mesh.position.x - px;
+        const dz = npc.mesh.position.z - pz;
+        if (Math.sqrt(dx * dx + dz * dz) < 6.5) {
+            triggerCrash(px + dx * 0.5, player.position.y + 1, pz + dz * 0.5, 'boat');
+            return;
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+//  HUD UPDATE
+// ─────────────────────────────────────────────
+const hudSpeed = document.getElementById('hud-speed');
+const hudScore = document.getElementById('hud-score');
+const hudDist  = document.getElementById('hud-dist');
+const airWrap  = document.getElementById('air-bar-wrap');
+const airSep   = document.getElementById('air-sep');
+const airFill  = document.getElementById('air-bar-fill');
+
+function updateHUD() {
+    hudSpeed.textContent = Math.round(speed * 60);
+    hudScore.textContent = Math.round(score).toLocaleString();
+    hudDist.textContent  = Math.round(distanceTraveled);
+    if (!onGround) {
+        airWrap.classList.add('active');
+        airSep.style.display = '';
+        airFill.style.width = Math.min(airTime / 90 * 100, 100) + '%';
+    } else {
+        airWrap.classList.remove('active');
+        airSep.style.display = 'none';
+    }
+}
+
+// ─────────────────────────────────────────────
+//  GAME LOOP
+// ─────────────────────────────────────────────
+let clock = new THREE.Clock();
+
+function gameLoop() {
+    requestAnimationFrame(gameLoop);
+    const t = clock.getElapsedTime();
+    const dt = clock.getDelta ? clock.getDelta() : 0.016;
+
+    if (!running) {
+        // Still animate scene for start screen eye candy
+        waterMesh.position.z = -(player.position.z); // keep water centered
+        animateWater(t * 0.5);
+        renderer.render(scene, camera);
+        return;
+    }
+
+    // ── INPUT: steer ──
+    const steerLeft  = keys['KeyA']     || keys['ArrowLeft'];
+    const steerRight = keys['KeyD']     || keys['ArrowRight'];
+    const throttleOn = keys['KeyW']     || keys['ArrowUp'];
+    const brakeOn    = keys['KeyS']     || keys['ArrowDown'];
+    const jumpPressed = keys['Space'];
+
+    // Jump
+    if (jumpPressed) tryJump();
+    if (jumpCooldown > 0) jumpCooldown--;
+
+    // Throttle
+    if (throttleOn) speed = Math.min(speed + ACCEL, MAX_SPEED);
+    else if (brakeOn) speed = Math.max(speed - ACCEL * 1.4, 0);
+    else speed *= FRICTION_FWD;
+
+    // Steer
+    if (steerLeft)  lateralVel -= STEER_POWER * (speed / MAX_SPEED + 0.3);
+    if (steerRight) lateralVel += STEER_POWER * (speed / MAX_SPEED + 0.3);
+    lateralVel *= FRICTION_SIDE;
+
+    // ── MOVE PLAYER ──
+    playerZOffset += speed;
+    player.position.z -= speed;
+    player.position.x += lateralVel;
+
+    // Bank sprite to steer direction
+    player.rotation.z = THREE.MathUtils.lerp(player.rotation.z, -lateralVel * 1.8, 0.25);
+    player.rotation.y = THREE.MathUtils.lerp(player.rotation.y, lateralVel * 0.6, 0.2);
+
+    // ── JUMP / GRAVITY ──
+    if (!onGround) {
+        vertY -= GRAVITY;
+        player.position.y += vertY;
+        airTime++;
+        if (player.position.y <= groundY) {
+            player.position.y = groundY;
+            onGround = true;
+            if (airTime > 8) {
+                const bonus = airTime * (1 + jumpCombo * 0.5) * 2;
+                score += bonus;
+                maxAirTime = Math.max(maxAirTime, airTime);
+            }
+            vertY = 0;
+            airTime = 0;
+        }
+    } else {
+        player.position.y = THREE.MathUtils.lerp(player.position.y, groundY, 0.18);
+    }
+
+    // ── SCORE FROM DISTANCE ──
+    distanceTraveled += speed;
+    score += speed * 0.4;
+
+    // ── COLLISION CHECKS ──
+    checkWallCollision();
+    checkNPCCollision();
+
+    // ── CRASH FX UPDATE (runs even when crashed, until timer expires) ──
+    if (crashed) {
+        cameraShake = Math.max(0, cameraShake - 0.7);
+        crashEndTimer--;
+        for (const p of crashParticles) {
+            if (!p.mesh.visible) continue;
+            p.mesh.position.add(p.vel);
+            p.vel.y -= p.gravity;
+            p.life--;
+            p.mesh.material.opacity = Math.max(0, p.life / p.maxLife);
+            if (p.life <= 0) p.mesh.visible = false;
+        }
+        // Apply camera shake
+        camera.position.x += (Math.random() - 0.5) * cameraShake * 0.14;
+        camera.position.y += (Math.random() - 0.5) * cameraShake * 0.07;
+        renderer.render(scene, camera);
+        if (crashEndTimer <= 0) endGame();
+        return;
+    }
+
+    // ── CHANNEL BOBBING (water motion) ──
+    if (onGround) {
+        camBob = Math.sin(t * 4.5 + playerZOffset * 0.3) * 0.04 * speed;
+        player.position.y = groundY + camBob * 0.5;
+    }
+
+    // ── RECYCLE WALLS ──
+    recycleWalls();
+
+    // ── WATER follows player ──
+    waterMesh.position.set(
+        player.position.x,
+        -0.1,
+        player.position.z
+    );
+    animateWater(t);
+
+    // ── OFFSHOOTS ──
+    while (playerZOffset + 200 > nextOffshotZ) {
+        spawnOffshoot(nextOffshotZ);
+        nextOffshotZ += OFFSHOOT_EVERY + Math.random() * 300;
+    }
+
+    // ── NPC BOATS ──
+    for (const npc of npcs) {
+        npc.mesh.position.z -= npc.speed;
+
+        // Keep NPC in channel
+        const npcZ = npc.mesh.position.z;
+        const npcCX = channelCenterX(-npcZ);
+        npc.mesh.position.x = THREE.MathUtils.lerp(npc.mesh.position.x, npcCX + npc.side, 0.04);
+        npc.mesh.rotation.y = npc.speed < 0 ? Math.PI : 0;
+
+        // Recycle NPC if too far behind
+        if (npc.mesh.position.z > player.position.z + 200) {
+            const fwd = player.position.z - 150 - Math.random() * 100;
+            const fwdCX = channelCenterX(-fwd);
+            npc.mesh.position.set(fwdCX + npc.side, 0.4, fwd);
+        }
+        if (npc.mesh.position.z < player.position.z - 500) {
+            const bk = player.position.z + 60 + Math.random() * 80;
+            const bkCX = channelCenterX(-bk);
+            npc.mesh.position.set(bkCX + npc.side, 0.4, bk);
+        }
+
+        // Emit waves from NPC wake
+        npc.waveTimer--;
+        if (npc.waveTimer <= 0) {
+            const wg = getWaveGroup();
+            wg.position.set(npc.mesh.position.x, 0, npc.mesh.position.z);
+            wg.rotation.y = Math.random() * Math.PI * 2;
+            const ud = wg.userData;
+            ud.r1.scale.set(1, 1, 1);
+            ud.r2.scale.set(1, 1, 1);
+            ud.fin.scale.set(1, 1, 1);
+            ud.foam.scale.set(1, 1, 1);
+            wg.visible = true;
+            waveObjects.push({ group: wg, life: 130, maxLife: 130 });
+            npc.waveTimer = 22 + Math.random() * 30;
+        }
+    }
+
+    // ── WAVE CREST ANIMATION ──
+    for (let i = waveObjects.length - 1; i >= 0; i--) {
+        const wo = waveObjects[i];
+        wo.life--;
+        const progress = 1 - wo.life / wo.maxLife;  // 0→1 over lifetime
+        const { r1, r2, fin, foam } = wo.group.userData;
+
+        // Rings expand outward at different rates
+        const s1 = 1 + progress * 5.8;
+        const s2 = 1 + progress * 3.4;
+        r1.scale.set(s1, s1, 1);
+        r2.scale.set(s2, s2, 1);
+
+        // Fin rises, expands sideways, then falls
+        const finArc = Math.sin(progress * Math.PI);
+        fin.scale.set(1 + progress * 3.5, Math.max(0.01, finArc), 1);
+        fin.position.y = 0.6 + finArc * 1.5;
+
+        // Foam expands and flattens out
+        foam.scale.set(1 + progress * 4.2, 1, 1 + progress * 2.5);
+
+        // Opacity fades throughout
+        const fade = wo.life / wo.maxLife;
+        r1.material.opacity  = fade * 0.8;
+        r2.material.opacity  = fade * 0.6;
+        fin.material.opacity = finArc * 0.72;
+        foam.material.opacity = fade * 0.38;
+
+        if (wo.life <= 0) {
+            wo.group.visible = false;
+            waveObjects.splice(i, 1);
+        }
+    }
+
+    // ── WAKE SPRAY on player ──
+    const wake = player.userData.wakeGroup;
+    const showWake = speed > 0.15;
+    wake.children.forEach((ws, i) => {
+        ws.visible = showWake;
+        if (showWake) {
+            ws.position.set(
+                (Math.random() - 0.5) * 2.5,
+                Math.random() * 0.6,
+                2.5 + Math.random() * 3
+            );
+        }
+    });
+
+    // ── CAMERA ──
+    const camTargetX = player.position.x + lateralVel * 5;
+    const camTargetY = player.position.y + 5.5 + (onGround ? 0 : player.position.y * 0.4);
+    const camTargetZ = player.position.z + 14;
+
+    camera.position.lerp(new THREE.Vector3(camTargetX, camTargetY, camTargetZ), 0.12);
+    camera.lookAt(player.position.x, player.position.y + 1.2, player.position.z - 8);
+
+    // ── HUD ──
+    updateHUD();
+
+    renderer.render(scene, camera);
+}
+
+// ─────────────────────────────────────────────
+//  START / END GAME
+// ─────────────────────────────────────────────
+const overlay = document.getElementById('overlay');
+const overlayScore = document.getElementById('overlay-score');
+const playBtn = document.getElementById('play-btn');
+
+function startGame() {
+    overlay.style.display = 'none';
+    running = true;
+    crashed = false;
+    score = 0;
+    distanceTraveled = 0;
+    speed = 0;
+    lateralVel = 0;
+    vertY = 0;
+    onGround = true;
+    airTime = 0;
+    playerZOffset = 0;
+    jumpCombo = 0;
+    jumpCooldown = 0;
+    nextOffshotZ = OFFSHOOT_EVERY;
+
+    player.position.set(0, groundY, 0);
+    player.rotation.set(0, 0, 0);
+
+    // Reset crash FX
+    crashed = false;
+    crashEndTimer = 0;
+    cameraShake = 0;
+    crashParticles.forEach(p => { p.mesh.visible = false; });
+    crashMsgEl.classList.remove('show');
+
+    // Reset wall chunks
+    for (let i = 0; i < NUM_WALL_CHUNKS; i++) {
+        placeChunk(poolL[i], poolR[i], i, 0);
+    }
+
+    // Reset NPCs
+    npcs.forEach((npc, i) => {
+        const zp = -(80 + i * 140);
+        const cx = channelCenterX(-zp);
+        npc.mesh.position.set(cx + npc.side, 0.4, zp);
+    });
+
+    waveObjects.forEach(wo => { wo.group.visible = false; });
+    waveObjects.length = 0;
+
+    clock = new THREE.Clock();
+}
+
+function endGame() {
+    running = false;
+    playBtn.textContent = '🚤 RIDE AGAIN';
+    overlayScore.style.display = '';
+    overlayScore.textContent = `Score: ${Math.round(score).toLocaleString()} pts  |  Distance: ${Math.round(distanceTraveled)}m`;
+    overlay.style.display = '';
+}
+
+playBtn.addEventListener('click', startGame);
+window.addEventListener('keydown', e => { if (e.code === 'Enter' && !running) startGame(); });
+
+// ─────────────────────────────────────────────
+//  ON-SCREEN CONTROL WIRING
+// ─────────────────────────────────────────────
+[
+    ['btn-left',  'ArrowLeft'],
+    ['btn-right', 'ArrowRight'],
+    ['btn-gas',   'ArrowUp'],
+    ['btn-brake', 'ArrowDown'],
+    ['btn-jump',  'Space']
+].forEach(([id, code]) => {
+    const btn = document.getElementById(id);
+    const press   = e => { e.preventDefault(); keys[code] = true;  btn.classList.add('active'); };
+    const release = e => {                      keys[code] = false; btn.classList.remove('active'); };
+    btn.addEventListener('pointerdown',   press);
+    btn.addEventListener('pointerup',     release);
+    btn.addEventListener('pointercancel', release);
+    btn.addEventListener('pointerleave',  release);
+});
+
+// ─────────────────────────────────────────────
+//  RESIZE
+// ─────────────────────────────────────────────
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ─────────────────────────────────────────────
+//  INITIAL CAMERA POSITION
+// ─────────────────────────────────────────────
+camera.position.set(0, 6, 16);
+camera.lookAt(0, 1, -8);
+
+// Start loop
+gameLoop();
+</script>
+</body>
+</html>

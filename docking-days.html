@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Houseboat Docking Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0c4a6e;
+            font-family: system-ui, -apple-system, sans-serif;
+            user-select: none;
+            touch-action: none;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        canvas {
+            display: block;
+        }
+        .ui-overlay {
+            position: absolute;
+            pointer-events: none;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            color: white;
+        }
+        .vibe-card {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(255,255,255,0.15);
+            padding: 1rem;
+            border-radius: 1rem;
+            backdrop-filter: blur(12px);
+            pointer-events: auto;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        kbd {
+            background: #334155;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            border-bottom: 3px solid #1e293b;
+            color: #60a5fa;
+            font-weight: bold;
+            transition: all 0.1s;
+        }
+        .wind-gauge-container {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 50%;
+            background: rgba(0,0,0,0.3);
+        }
+        #wind-needle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2px;
+            height: 35px;
+            background: #ef4444;
+            transform-origin: bottom center;
+            transform: translate(-50%, -100%) rotate(0deg);
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+        }
+        /* On-screen touch controls */
+        #osc-controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 12px 16px 18px;
+            z-index: 60;
+            pointer-events: none;
+        }
+        .osc-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: auto;
+        }
+        .osc-center-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-bottom: 4px;
+            pointer-events: auto;
+        }
+        .osc-btn {
+            background: rgba(15, 23, 42, 0.82);
+            border: 2px solid rgba(96, 165, 250, 0.55);
+            color: #93c5fd;
+            font-size: 1.4rem;
+            font-weight: bold;
+            border-radius: 14px;
+            width: 68px;
+            height: 68px;
+            cursor: pointer;
+            touch-action: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-user-select: none;
+            transition: background 0.08s, transform 0.08s;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            line-height: 1;
+        }
+        .osc-btn .osc-label {
+            font-size: 0.55rem;
+            opacity: 0.65;
+            letter-spacing: 0.05em;
+            margin-top: 3px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .osc-btn.pressed {
+            background: rgba(59, 130, 246, 0.55);
+            transform: scale(0.9);
+            border-color: rgba(147, 197, 253, 0.9);
+        }
+        .osc-brake {
+            width: 90px;
+            height: 56px;
+            font-size: 0.8rem;
+            letter-spacing: 0.08em;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="ui-overlay">
+        <!-- Top Bar: Info & Wind -->
+        <div class="flex justify-between items-start">
+            <div class="vibe-card flex items-center gap-6">
+                <div>
+                    <h1 class="text-lg font-bold leading-tight">Marina Master</h1>
+                    <p class="text-[10px] opacity-60 uppercase tracking-widest">Docking Simulation</p>
+                </div>
+                <div class="h-10 w-[1px] bg-white/20"></div>
+                <div class="flex items-center gap-3">
+                    <div class="wind-gauge-container">
+                        <div id="wind-needle"></div>
+                        <div class="absolute inset-0 flex items-center justify-center text-[10px] font-bold mt-8">WIND</div>
+                    </div>
+                    <div>
+                        <div id="wind-speed-text" class="text-xl font-mono font-bold text-blue-400">0 kts</div>
+                        <div class="text-[10px] opacity-60">Gusting</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="vibe-card">
+                <button onclick="location.reload()" class="flex items-center gap-2 hover:text-blue-400 transition-colors">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+                    <span class="text-xs font-bold uppercase">Reset</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Bottom Bar: Permanent Controls -->
+        <div class="flex justify-center mb-4">
+            <div class="vibe-card flex gap-8 items-center px-8 py-4 border-t-4 border-blue-500">
+                <div class="flex flex-col items-center">
+                    <div class="flex gap-1 mb-2">
+                        <kbd id="key-W">W</kbd>
+                        <kbd id="key-S">S</kbd>
+                    </div>
+                    <span class="text-[10px] font-bold uppercase opacity-50">Left Engine</span>
+                </div>
+
+                <div class="flex flex-col items-center border-x border-white/10 px-8">
+                    <div class="flex gap-1 mb-2">
+                        <kbd id="key-Space" class="px-4">SPACE</kbd>
+                    </div>
+                    <span class="text-[10px] font-bold uppercase opacity-50">Brake</span>
+                </div>
+
+                <div class="flex flex-col items-center">
+                    <div class="flex gap-1 mb-2">
+                        <kbd id="key-Up">↑</kbd>
+                        <kbd id="key-Down">↓</kbd>
+                    </div>
+                    <span class="text-[10px] font-bold uppercase opacity-50">Right Engine</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- On-Screen Controls -->
+    <div id="osc-controls">
+        <!-- Left Engine: W / S -->
+        <div class="osc-group">
+            <button class="osc-btn" id="osc-W">W<span class="osc-label">Fwd L</span></button>
+            <button class="osc-btn" id="osc-S">S<span class="osc-label">Rev L</span></button>
+        </div>
+        <!-- Center: Brake -->
+        <div class="osc-center-group">
+            <button class="osc-btn osc-brake" id="osc-Space">BRAKE</button>
+        </div>
+        <!-- Right Engine: ↑ / ↓ -->
+        <div class="osc-group">
+            <button class="osc-btn" id="osc-Up">↑<span class="osc-label">Fwd R</span></button>
+            <button class="osc-btn" id="osc-Down">↓<span class="osc-label">Rev R</span></button>
+        </div>
+    </div>
+
+    <!-- Feedback Message -->
+    <div id="message-box" class="vibe-card w-80 shadow-2xl hidden text-center">
+        <h2 id="msg-title" class="text-2xl font-bold mb-2"></h2>
+        <p id="msg-body" class="mb-6 opacity-90 text-sm"></p>
+        <button onclick="location.reload()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95">Try Again</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const msgBox = document.getElementById('message-box');
+    const msgTitle = document.getElementById('msg-title');
+    const msgBody = document.getElementById('msg-body');
+
+    const BOAT_WIDTH = 34; 
+    const BOAT_HEIGHT = 110;
+    const SLIP_WIDTH = 80; 
+    const FRICTION = 0.985;
+    const BRAKE_FRICTION = 0.92;
+    const THRUST_POWER = 0.045;
+    const TURN_POWER = 0.0018;
+    const WIND_COEFF = 0.01;
+
+    let width, height;
+    let boat = {
+        x: 0, y: 0, angle: 0,
+        velX: 0, velY: 0, angVel: 0,
+        leftEng: 0, rightEng: 0,
+        collided: false, docked: false,
+        braking: false
+    };
+
+    let wind = {
+        angle: (Math.random() * 0.4 - 0.2) * Math.PI + Math.PI/2, // Mostly coming from the side
+        speed: 5 + Math.random() * 10
+    };
+
+    let docks = [];
+    let otherBoats = [];
+    let targetSlip = null;
+    const keys = {};
+
+    function init() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+
+        // START POSITION: Top center, safe from all docks
+        boat.x = width * 0.5;
+        boat.y = height * 0.15;
+        boat.angle = Math.PI; // Facing "down" the channel
+        boat.velX = 0; boat.velY = 0; boat.angVel = 0;
+        boat.collided = false; boat.docked = false;
+        
+        docks = [];
+        otherBoats = [];
+        
+        const centerX = width * 0.55;
+        const slipCount = 7;
+        const totalPierHeight = slipCount * SLIP_WIDTH;
+        const startY = (height - totalPierHeight) / 2 + 50; // Shifted down to clear top start
+
+        // RIGHT ROW (Row 1)
+        docks.push({ x: centerX + 130, y: startY, w: 30, h: totalPierHeight }); // Main Pier
+        for(let i = 0; i < slipCount; i++) {
+            const y = startY + (i * SLIP_WIDTH);
+            docks.push({ x: centerX, y: y, w: 140, h: 8 }); // Divider
+            
+            if (i === 3) {
+                targetSlip = { x: centerX, y: y + 8, w: 140, h: SLIP_WIDTH - 8 };
+            } else {
+                otherBoats.push({
+                    x: centerX + 65, 
+                    y: y + (SLIP_WIDTH/2) + 4,
+                    angle: Math.PI / 2, // Facing right pier
+                    color: '#f1f5f9'
+                });
+            }
+        }
+
+        // LEFT ROW (Row 2) - Mirrored
+        const leftRowX = centerX - 350;
+        docks.push({ x: leftRowX - 30, y: startY, w: 30, h: totalPierHeight }); // Left Main Pier
+        for(let i = 0; i < slipCount; i++) {
+            const y = startY + (i * SLIP_WIDTH);
+            docks.push({ x: leftRowX - 110, y: y, w: 140, h: 8 }); // Divider
+            
+            if (i !== 2) {
+                otherBoats.push({
+                    x: leftRowX - 35, 
+                    y: y + (SLIP_WIDTH/2) + 4,
+                    angle: -Math.PI / 2, // Flipped 180 (facing left pier)
+                    color: i % 2 === 0 ? '#cbd5e1' : '#94a3b8'
+                });
+            }
+        }
+        updateWindUI();
+    }
+
+    function updateWindUI() {
+        const needle = document.getElementById('wind-needle');
+        const speedText = document.getElementById('wind-speed-text');
+        needle.style.transform = `translate(-50%, -100%) rotate(${wind.angle}rad)`;
+        speedText.innerText = `${Math.round(wind.speed)} kts`;
+    }
+
+    window.addEventListener('keydown', e => {
+        keys[e.code] = true;
+        const kbd = document.getElementById('key-' + e.code.replace('Key', '').replace('Arrow', ''));
+        if (kbd) kbd.style.transform = 'translateY(2px)';
+        if(["ArrowUp","ArrowDown","Space"].includes(e.code)) e.preventDefault();
+    });
+    
+    window.addEventListener('keyup', e => {
+        keys[e.code] = false;
+        const kbd = document.getElementById('key-' + e.code.replace('Key', '').replace('Arrow', ''));
+        if (kbd) kbd.style.transform = 'translateY(0)';
+    });
+
+    function getCorners(x, y, angle) {
+        return [
+            { x: -BOAT_WIDTH/2, y: -BOAT_HEIGHT/2 },
+            { x: BOAT_WIDTH/2, y: -BOAT_HEIGHT/2 },
+            { x: BOAT_WIDTH/2, y: BOAT_HEIGHT/2 },
+            { x: -BOAT_WIDTH/2, y: BOAT_HEIGHT/2 }
+        ].map(p => ({
+            x: x + p.x * Math.cos(angle) - p.y * Math.sin(angle),
+            y: y + p.x * Math.sin(angle) + p.y * Math.cos(angle)
+        }));
+    }
+
+    function update() {
+        if(boat.collided || boat.docked) return;
+
+        boat.leftEng = keys['KeyW'] ? 1 : (keys['KeyS'] ? -1 : 0);
+        boat.rightEng = keys['ArrowUp'] ? 1 : (keys['ArrowDown'] ? -1 : 0);
+        boat.braking = !!keys['Space'];
+
+        const thrust = (boat.leftEng + boat.rightEng) * THRUST_POWER;
+        const diff = (boat.rightEng - boat.leftEng) * TURN_POWER;
+
+        boat.angVel += diff;
+        boat.angle += boat.angVel;
+        boat.angVel *= 0.94;
+
+        boat.velX += Math.cos(boat.angle + Math.PI/2) * thrust;
+        boat.velY += Math.sin(boat.angle + Math.PI/2) * thrust;
+
+        // Wind drift logic
+        boat.velX += Math.cos(wind.angle) * (wind.speed * WIND_COEFF * 0.035);
+        boat.velY += Math.sin(wind.angle) * (wind.speed * WIND_COEFF * 0.035);
+
+        boat.x += boat.velX;
+        boat.y += boat.velY;
+        
+        const curFriction = boat.braking ? BRAKE_FRICTION : FRICTION;
+        boat.velX *= curFriction;
+        boat.velY *= curFriction;
+
+        const corners = getCorners(boat.x, boat.y, boat.angle);
+        
+        // Dock collision detection
+        for(let d of docks) {
+            if(corners.some(c => c.x > d.x && c.x < d.x + d.w && c.y > d.y && c.y < d.y + d.h)) {
+                boat.collided = true;
+                msgTitle.innerText = "Hull Damage!";
+                msgBody.innerText = "You hit the pier. Use Reverse or Brake to manage your speed!";
+                msgBox.classList.remove('hidden');
+                return;
+            }
+        }
+
+        // Moored boat collision detection
+        for(let ob of otherBoats) {
+            const obX1 = ob.x - BOAT_HEIGHT/2;
+            const obX2 = ob.x + BOAT_HEIGHT/2;
+            const obY1 = ob.y - BOAT_WIDTH/2;
+            const obY2 = ob.y + BOAT_WIDTH/2;
+            if(corners.some(c => c.x > obX1 && c.x < obX2 && c.y > obY1 && c.y < obY2)) {
+                boat.collided = true;
+                msgTitle.innerText = "Fender Bender!";
+                msgBody.innerText = "You scraped a neighbor's boat. That's gonna cost you!";
+                msgBox.classList.remove('hidden');
+                return;
+            }
+        }
+
+        // Docking Success logic
+        if(targetSlip && boat.x > targetSlip.x + 60 && boat.x < targetSlip.x + targetSlip.w + 35 &&
+           boat.y > targetSlip.y && boat.y < targetSlip.y + targetSlip.h) {
+            const speed = Math.sqrt(boat.velX**2 + boat.velY**2);
+            const normalizedAngle = Math.abs((boat.angle) % (Math.PI*2));
+            // Facing pier (angle ~0 or ~2PI) at low speed
+            if(speed < 0.28 && (normalizedAngle < 0.3 || normalizedAngle > 5.9)) {
+                boat.docked = true;
+                msgTitle.innerText = "Nice Docking!";
+                msgBody.innerText = "You're safely in the slip. Time for a cold drink!";
+                msgBox.classList.remove('hidden');
+            }
+        }
+    }
+
+    function drawBoat(x, y, angle, color = '#ffffff', isPlayer = false) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+
+        // Hull
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.roundRect(-BOAT_WIDTH/2, -BOAT_HEIGHT/2, BOAT_WIDTH, BOAT_HEIGHT, 5);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Cabin
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(-BOAT_WIDTH/2 + 4, -BOAT_HEIGHT/2 + 30, BOAT_WIDTH - 8, 55);
+        ctx.strokeStyle = '#94a3b8';
+        ctx.strokeRect(-BOAT_WIDTH/2 + 4, -BOAT_HEIGHT/2 + 30, BOAT_WIDTH - 8, 55);
+
+        // Windows
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(-BOAT_WIDTH/2 + 6, -BOAT_HEIGHT/2 + 35, BOAT_WIDTH - 12, 10);
+        
+        // Propulsion effects
+        if(isPlayer && (Math.abs(boat.leftEng) > 0 || Math.abs(boat.rightEng) > 0)) {
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            for(let i=0; i<3; i++) {
+                ctx.beginPath();
+                ctx.arc(-8 + (Math.random()*16), BOAT_HEIGHT/2 + 2 + (Math.random()*10), 4, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+    }
+
+    function drawWaves() {
+        const time = Date.now() * 0.0008;
+        ctx.lineWidth = 1.5;
+        for(let i = 0; i < 12; i++) {
+            const yBase = (i * height/11 + time * 30) % (height + 60) - 30;
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(255, 255, 255, ${0.02 + Math.sin(i + time)*0.015})`;
+            for(let x = 0; x <= width; x += 50) {
+                const y = yBase + Math.sin(x * 0.008 + time + i) * 12;
+                if(x === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+    }
+
+    function draw() {
+        const grad = ctx.createLinearGradient(0, 0, width, height);
+        grad.addColorStop(0, '#0c4a6e');
+        grad.addColorStop(1, '#075985');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0,0,width,height);
+
+        drawWaves();
+
+        if(targetSlip) {
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.15)';
+            ctx.fillRect(targetSlip.x, targetSlip.y, targetSlip.w, targetSlip.h);
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)';
+            ctx.setLineDash([8, 4]);
+            ctx.strokeRect(targetSlip.x, targetSlip.y, targetSlip.w, targetSlip.h);
+            ctx.setLineDash([]);
+        }
+
+        // Draw Docks
+        ctx.fillStyle = '#2d1b0e';
+        for(let d of docks) {
+            ctx.fillRect(d.x, d.y, d.w, d.h);
+            ctx.fillStyle = 'rgba(0,0,0,0.1)';
+            if(d.h > d.w) {
+                for(let py = d.y; py < d.y + d.h; py += 12) ctx.fillRect(d.x, py, d.w, 1);
+            } else {
+                for(let px = d.x; px < d.x + d.w; px += 12) ctx.fillRect(px, d.y, 1, d.h);
+            }
+            ctx.fillStyle = '#2d1b0e';
+        }
+
+        // Draw NPCs
+        for(let b of otherBoats) {
+            drawBoat(b.x, b.y, b.angle, b.color);
+        }
+
+        // Draw Player
+        drawBoat(boat.x, boat.y, boat.angle, '#ffffff', true);
+
+        update();
+        requestAnimationFrame(draw);
+    }
+
+    window.addEventListener('resize', init);
+    init();
+    draw();
+
+    // Wire on-screen control buttons
+    [
+        ['osc-W',    'KeyW'],
+        ['osc-S',    'KeyS'],
+        ['osc-Up',   'ArrowUp'],
+        ['osc-Down', 'ArrowDown'],
+        ['osc-Space','Space']
+    ].forEach(([id, code]) => {
+        const btn = document.getElementById(id);
+        const press = e => { e.preventDefault(); keys[code] = true;  btn.classList.add('pressed'); };
+        const release = e => {                    keys[code] = false; btn.classList.remove('pressed'); };
+        btn.addEventListener('pointerdown',   press);
+        btn.addEventListener('pointerup',     release);
+        btn.addEventListener('pointercancel', release);
+        btn.addEventListener('pointerleave',  release);
+    });
+</script>
+</body>
+</html>
