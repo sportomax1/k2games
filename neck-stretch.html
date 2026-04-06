@@ -3,927 +3,1140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Neck Stretch - K2 games</title>
+    <title>Neck Stretch - K2 Games</title>
     <style>
-        :root {
-            --primary: #6366f1;
-            --accent: #86efac;
-            --bg: #0f172a;
-            --surface: #1e293b;
-            --text: #f8fafc;
-            --muted: #94a3b8;
-            --border: rgba(255, 255, 255, 0.1);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            touch-action: none;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        body {
-            overflow: hidden;
-            height: 100dvh;
-            background: var(--bg);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: var(--text);
-        }
+        * { margin:0; padding:0; box-sizing:border-box; touch-action:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+        body { overflow:hidden; height:100dvh; background:#0d0620; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; color:#f8fafc; }
 
         #home-btn {
-            position: fixed;
-            top: 16px;
-            left: 16px;
-            background: var(--surface);
-            color: var(--text);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 8px 12px;
-            font-size: 0.85rem;
-            text-decoration: none;
-            z-index: 1000;
-            transition: all 0.2s;
+            position:fixed; top:16px; left:16px;
+            background:rgba(13,6,32,0.75); color:#f8fafc;
+            border:1px solid rgba(255,255,255,0.18); border-radius:8px;
+            padding:8px 12px; font-size:0.85rem; text-decoration:none;
+            z-index:1000; transition:all 0.2s; backdrop-filter:blur(6px);
         }
-
-        #home-btn:hover {
-            background: var(--primary);
-            border-color: var(--primary);
-            transform: translateY(-2px);
-        }
+        #home-btn:hover { background:#f97316; border-color:#f97316; transform:translateY(-2px); }
 
         #game-container {
-            position: relative;
-            width: 100%;
-            height: 100dvh;
-            max-width: 600px;
-            margin: 0 auto;
-            background: linear-gradient(180deg, #92400e 0%, #ea580c 30%, #f59e0b 50%, #fbbf24 100%);
-            box-sizing: border-box;
+            position:relative; width:100%; height:100dvh;
+            max-width:600px; margin:0 auto; overflow:hidden;
         }
+        canvas { display:block; width:100%; height:100%; }
 
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(180deg, #fbbf24 0%, #fcd34d 40%, #f59e0b 100%);
-        }
-
+        /* ─── HUD ─── */
         #hud {
-            position: absolute;
-            top: 60px;
-            left: 16px;
-            right: 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.9rem;
-            z-index: 10;
-            pointer-events: none;
+            position:absolute; top:50px; left:0; right:0;
+            display:flex; justify-content:space-between; align-items:flex-start;
+            padding:0 14px; z-index:10; pointer-events:none;
+        }
+        .hud-pill {
+            background:rgba(0,0,0,0.5); backdrop-filter:blur(8px);
+            border:1px solid rgba(255,255,255,0.12); padding:5px 11px;
+            border-radius:20px; font-size:0.82rem; font-weight:700;
+            color:#f8fafc; letter-spacing:0.5px;
+        }
+        #score-display { font-size:1rem; }
+        #lives-row { display:flex; gap:5px; align-items:center; padding:6px 10px; }
+        .heart { font-size:1.1rem; transition:all 0.2s; filter:drop-shadow(0 0 4px #ef4444); }
+        .heart.lost { opacity:0.2; filter:none; }
+
+        /* combo bar */
+        #combo-wrap {
+            position:absolute; top:96px; left:50%; transform:translateX(-50%);
+            display:flex; flex-direction:column; align-items:center; gap:3px;
+            z-index:10; pointer-events:none;
+        }
+        #combo-text { font-size:0.78rem; font-weight:800; color:#fbbf24; letter-spacing:2px; text-shadow:0 0 8px rgba(251,191,36,0.7); }
+        #combo-track { width:110px; height:5px; background:rgba(0,0,0,0.4); border-radius:3px; overflow:hidden; }
+        #combo-bar { height:100%; width:0%; background:linear-gradient(90deg,#4ade80,#facc15,#f97316); border-radius:3px; transition:width 0.15s; }
+
+        /* power-up label */
+        #power-label {
+            position:absolute; bottom:130px; left:50%; transform:translateX(-50%);
+            background:rgba(96,165,250,0.2); border:1px solid rgba(96,165,250,0.5);
+            backdrop-filter:blur(6px); border-radius:20px; padding:5px 14px;
+            font-size:0.75rem; font-weight:800; color:#93c5fd; letter-spacing:1px;
+            z-index:10; pointer-events:none; display:none;
+            text-shadow:0 0 8px rgba(96,165,250,0.8);
         }
 
-        #score, #high-score {
-            background: rgba(0, 0, 0, 0.4);
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-weight: bold;
+        /* mobile touch zone */
+        #mobile-hint {
+            display:none; position:absolute; bottom:0; width:100%; height:26%;
+            border-top:1px solid rgba(255,255,255,0.06);
+            align-items:center; justify-content:center;
+            font-size:0.7rem; color:rgba(255,255,255,0.2); letter-spacing:3px;
+        }
+        @media (max-width:768px) { #mobile-hint { display:flex; } }
+
+        /* countdown */
+        #countdown {
+            position:absolute; inset:0; display:flex;
+            align-items:center; justify-content:center;
+            z-index:80; pointer-events:none;
+        }
+        #countdown-num {
+            font-size:9rem; font-weight:900; color:#f97316;
+            text-shadow:0 0 60px rgba(249,115,22,0.7);
+            transition:transform 0.25s ease, opacity 0.25s ease;
         }
 
-        #lives {
-            position: absolute;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 1.2rem;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-        }
-
-        #combo-display {
-            position: absolute;
-            top: 120px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 0.8rem;
-            color: var(--accent);
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-        }
-
-        #mobile-controls {
-            display: none;
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            height: 30%;
-            gap: 0;
-        }
-
-        .touch-zone {
-            flex: 1;
-            background: transparent;
-            border: 2px solid rgba(134, 239, 172, 0.2);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.7rem;
-            color: rgba(134, 239, 172, 0.4);
-        }
-
-        @media (max-width: 768px) {
-            #mobile-controls {
-                display: flex;
-            }
-        }
-
+        /* overlays */
         .overlay {
-            position: absolute;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(4px);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            gap: 20px;
-            z-index: 100;
-            font-weight: bold;
+            position:absolute; inset:0;
+            background:rgba(5,2,18,0.9); backdrop-filter:blur(10px);
+            display:flex; flex-direction:column;
+            justify-content:center; align-items:center; gap:14px; z-index:100;
         }
-
         .overlay h2 {
-            font-size: 2rem;
-            color: var(--accent);
-            text-align: center;
+            font-size:2.4rem; font-weight:900; letter-spacing:2px;
+            background:linear-gradient(135deg,#fbbf24,#f97316);
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent;
         }
-
-        .overlay p {
-            font-size: 0.9rem;
-            color: var(--muted);
-            text-align: center;
-            max-width: 80%;
+        .overlay p { font-size:0.88rem; color:#94a3b8; text-align:center; max-width:82%; line-height:1.65; }
+        .tip-box {
+            background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1);
+            border-radius:12px; padding:12px 20px; font-size:0.78rem;
+            color:#94a3b8; line-height:2; text-align:left;
         }
-
-        button {
-            background: var(--accent);
-            color: var(--bg);
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s;
+        .btn {
+            background:linear-gradient(135deg,#f97316,#c2410c);
+            color:#fff; border:none; padding:13px 30px; border-radius:12px;
+            font-size:1rem; font-weight:800; cursor:pointer;
+            transition:all 0.2s; letter-spacing:1px;
+            box-shadow:0 4px 24px rgba(249,115,22,0.45);
         }
-
-        button:hover {
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(134, 239, 172, 0.3);
+        .btn:hover { transform:scale(1.06); box-shadow:0 6px 32px rgba(249,115,22,0.65); }
+        .btn:active { transform:scale(0.96); }
+        .btn-ghost {
+            background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18);
+            color:#f8fafc; box-shadow:none;
         }
-
-        button:active {
-            transform: scale(0.98);
-        }
-
-        .hidden {
-            display: none !important;
-        }
+        .btn-ghost:hover { background:rgba(255,255,255,0.15); box-shadow:none; }
+        .score-big { font-size:2.6rem; font-weight:900; color:#fbbf24; }
+        .score-sub { font-size:0.78rem; color:#64748b; margin-top:2px; }
+        .hidden { display:none !important; }
     </style>
 </head>
 <body>
-    <a href="index.html" id="home-btn">← HUB</a>
-    <div id="game-container">
-        <div id="hud">
-            <div id="score">Score: 0</div>
-            <div id="high-score">High: 0</div>
+<a href="index.html" id="home-btn">← HUB</a>
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="hud">
+        <div class="hud-pill" id="score-display">0</div>
+        <div class="hud-pill" id="lives-row">
+            <span class="heart" id="h1">♥</span>
+            <span class="heart" id="h2">♥</span>
+            <span class="heart" id="h3">♥</span>
         </div>
-        <div id="lives">🦒🦒🦒</div>
-        <div id="combo-display">Combo: 1x</div>
-        <canvas id="gameCanvas"></canvas>
-        <div id="mobile-controls">
-            <div class="touch-zone" id="extend-zone">EXTEND</div>
-        </div>
-        <div id="menu-overlay" class="overlay">
-            <h2>Neck Stretch</h2>
-            <p>Help the giraffe reach the leaves!</p>
-            <p style="font-size: 0.8rem; color: var(--muted);">Hold SPACE or tap to extend your neck and eat leaves from passing trees.</p>
-            <button onclick="startGame()">Start Game</button>
-        </div>
-        <div id="gameover-overlay" class="overlay hidden">
-            <h2>Game Over!</h2>
-            <p id="final-score">Score: 0</p>
-            <button onclick="location.reload()">Play Again</button>
-            <button onclick="location.href='index.html'">Back to Hub</button>
-        </div>
+        <div class="hud-pill" id="hs-display">BEST: 0</div>
     </div>
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const scoreEl = document.getElementById('score');
-        const highScoreEl = document.getElementById('high-score');
-        const livesEl = document.getElementById('lives');
-        const comboEl = document.getElementById('combo-display');
-        const menuOverlay = document.getElementById('menu-overlay');
-        const gameoverOverlay = document.getElementById('gameover-overlay');
-        const finalScoreEl = document.getElementById('final-score');
+    <div id="combo-wrap">
+        <div id="combo-text">1×</div>
+        <div id="combo-track"><div id="combo-bar"></div></div>
+    </div>
 
-        let width, height;
-        let gameActive = false;
-        let score = 0;
-        let highScore = parseInt(localStorage.getItem('neckStretchHighScore') || '0');
-        let lives = 3;
-        let combo = 1;
-        let spacePressed = false;
-        let touchPressed = false;
-        let gameSpeed = 2;
-        let shakeAmount = 0;
-        let hitFlashFrames = 0;
+    <div id="power-label">⚡ MEGA STRETCH</div>
+    <div id="mobile-hint">▲ HOLD TO STRETCH ▲</div>
 
-        const giraffe = {
-            x: 50,
-            y: 0,
-            neckLength: 60,
-            minNeck: 60,
-            maxNeck: 250,
-            neckExtendSpeed: 8,
-            segments: 8,
-            walkFrame: 0,
-            invincibilityFrames: 0
-        };
+    <div id="countdown" class="hidden"><div id="countdown-num">3</div></div>
 
-        let trees = [];
-        let particles = [];
-        let popups = [];
-        let nextTreeTime = 0;
-        let treeSpawnRate = 120;
+    <div id="menu-overlay" class="overlay">
+        <h2>NECK STRETCH</h2>
+        <p>Guide your giraffe across the savanna.<br>Extend your neck to eat the leaves!</p>
+        <div class="tip-box">
+            🍃 Green leaves — +10 pts (required!)<br>
+            ⭐ Gold leaves — +30 pts (bonus)<br>
+            💎 Blue gems — +60 pts + Mega Stretch
+        </div>
+        <p style="font-size:0.75rem;color:#64748b">Hold SPACE or tap to extend neck</p>
+        <button class="btn" onclick="beginCountdown()">PLAY</button>
+    </div>
 
-        function resize() {
-            const container = document.getElementById('game-container');
-            width = container.clientWidth;
-            height = container.clientHeight;
-            canvas.width = width;
-            canvas.height = height;
-            giraffe.y = height - 120;
-        }
+    <div id="gameover-overlay" class="overlay hidden">
+        <h2 id="go-title">GAME OVER</h2>
+        <div style="text-align:center">
+            <div class="score-big" id="go-score">0</div>
+            <div class="score-sub" id="go-hs">BEST: 0</div>
+        </div>
+        <button class="btn" onclick="location.reload()">PLAY AGAIN</button>
+        <button class="btn btn-ghost" onclick="location.href='index.html'">← HUB</button>
+    </div>
+</div>
 
-        function init() {
-            resize();
-            highScoreEl.textContent = `High: ${highScore}`;
-            window.addEventListener('resize', resize);
-            window.addEventListener('keydown', (e) => {
-                if (e.code === 'Space') {
-                    e.preventDefault();
-                    spacePressed = true;
-                }
-            });
-            window.addEventListener('keyup', (e) => {
-                if (e.code === 'Space') {
-                    spacePressed = false;
-                }
-            });
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// CANVAS
+// ─────────────────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
 
-            document.getElementById('extend-zone').addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                touchPressed = true;
-            });
-            document.getElementById('extend-zone').addEventListener('touchend', (e) => {
-                e.preventDefault();
-                touchPressed = false;
-            });
-        }
+// ─────────────────────────────────────────────────────────────────────────────
+// GAME STATE
+// ─────────────────────────────────────────────────────────────────────────────
+let W, H, groundY;
+let gameActive = false;
+let score      = 0;
+let highScore  = +localStorage.getItem('ns_hs2') || 0;
+let lives      = 3;
+let combo      = 1;
+let comboMeter = 0;      // 0-1, decays over time
+const MAX_COMBO = 5;
+let isPressed  = false;
+let gameSpeed  = 2.5;
+let frame      = 0;
+let shakeAmt   = 0;
+let flashFrames= 0;
+let flashColor = 'rgba(255,0,0,0.4)';
+let died       = false;  // set when lives reach 0
 
-        function startGame() {
-            menuOverlay.classList.add('hidden');
-            gameActive = true;
-            score = 0;
-            lives = 3;
-            combo = 1;
-            trees = [];
-            particles = [];
-            popups = [];
-            nextTreeTime = 0;
-            gameSpeed = 2;
-            giraffe.neckLength = giraffe.minNeck;
-            giraffe.invincibilityFrames = 0;
-            updateHUD();
-            requestAnimationFrame(update);
-        }
+// ─────────────────────────────────────────────────────────────────────────────
+// GIRAFFE
+// ─────────────────────────────────────────────────────────────────────────────
+const G = {
+    x: 90,
+    bodyY: 0,       // center of body, set in resize()
+    neck: 80,
+    minNeck: 80,
+    maxNeck: 305,
+    extSpeed: 11,
+    retSpeed: 8,
+    walkF: 0,
+    inv: 0,         // invincibility frames after hit
+    mega: 0         // mega-stretch power-up frames
+};
 
-        function update() {
-            if (!gameActive) return;
+// ─────────────────────────────────────────────────────────────────────────────
+// BACKGROUND PARALLAX
+// ─────────────────────────────────────────────────────────────────────────────
+let cloudOff = 0;
+let bgOff    = 0;
+let mtOff    = 0;
+let birds    = [];
 
-            // Handle neck extension/retraction
-            const shouldExtend = spacePressed || touchPressed;
-            if (shouldExtend && giraffe.neckLength < giraffe.maxNeck) {
-                giraffe.neckLength += giraffe.neckExtendSpeed;
-            } else if (!shouldExtend && giraffe.neckLength > giraffe.minNeck) {
-                giraffe.neckLength -= giraffe.neckExtendSpeed * 0.6;
-            }
+// ─────────────────────────────────────────────────────────────────────────────
+// GAME OBJECTS
+// ─────────────────────────────────────────────────────────────────────────────
+let trees     = [];
+let particles = [];
+let popups    = [];
+let nextTree  = 90;
+let spawnRate = 115;
 
-            // Spawn trees
-            nextTreeTime++;
-            if (nextTreeTime > treeSpawnRate) {
-                const leafY = Math.random() * (height - 300) + 80;
-                const hasSecondLeaf = Math.random() > 0.6;
-                const treeVariant = Math.floor(Math.random() * 3);
-                trees.push({
-                    x: width,
-                    speed: gameSpeed,
-                    leafY: leafY,
-                    leafY2: hasSecondLeaf ? leafY + 40 + Math.random() * 40 : null,
-                    hit: false,
-                    hit2: false,
-                    variant: treeVariant,
-                    trunkHeight: 60 + treeVariant * 20,
-                    canopySize: 35 + treeVariant * 10
-                });
-                nextTreeTime = 0;
-                treeSpawnRate = Math.max(60, 120 - score / 50);
-                gameSpeed = Math.min(6, 2 + score / 200);
-            }
+// ─────────────────────────────────────────────────────────────────────────────
+// UTILITIES
+// ─────────────────────────────────────────────────────────────────────────────
+const rnd    = (a, b) => a + Math.random() * (b - a);
+const rndI   = (a, b) => Math.floor(rnd(a, b + 1));
+const lerp   = (a, b, t) => a + (b - a) * t;
+const clamp  = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-            // Update trees
-            trees = trees.filter(tree => {
-                tree.x -= tree.speed;
+// ─────────────────────────────────────────────────────────────────────────────
+// RESIZE
+// ─────────────────────────────────────────────────────────────────────────────
+function resize() {
+    const c = document.getElementById('game-container');
+    W = c.clientWidth;
+    H = c.clientHeight;
+    canvas.width  = W;
+    canvas.height = H;
+    groundY  = H * 0.80;
+    G.bodyY  = groundY - 54;
+    birds = Array.from({ length: 6 }, (_, i) => ({
+        x: rnd(60, W),
+        y: H * 0.08 + i * H * 0.055,
+        spd: rnd(0.38, 0.65),
+        phase: rnd(0, Math.PI * 2)
+    }));
+}
 
-                // Check for leaf hits
-                const giraffNeckTipY = giraffe.y - giraffe.neckLength;
-                const leafCollisionX = giraffe.x + 20;
-                const leafCollisionRadius = 15;
+// ─────────────────────────────────────────────────────────────────────────────
+// DRAW: BACKGROUND
+// ─────────────────────────────────────────────────────────────────────────────
+function drawBackground() {
+    // ── Sky gradient (African sunset) ──
+    const sky = ctx.createLinearGradient(0, 0, 0, groundY);
+    sky.addColorStop(0,    '#0d0620');
+    sky.addColorStop(0.22, '#3d0f35');
+    sky.addColorStop(0.50, '#b52d0c');
+    sky.addColorStop(0.75, '#e86010');
+    sky.addColorStop(0.90, '#f5a028');
+    sky.addColorStop(1,    '#fdd070');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, groundY + 2);
 
-                if (!tree.hit && tree.x - 20 < leafCollisionX && tree.x + 20 > leafCollisionX) {
-                    if (Math.abs(tree.leafY - giraffNeckTipY) < leafCollisionRadius) {
-                        tree.hit = true;
-                        score += 10 * combo;
-                        combo = Math.min(5, combo + 1);
-                        createLeafParticles(tree.x, tree.leafY);
-                        createScorePopup(tree.x, tree.leafY, `+${10 * combo / combo}`);
-                        updateHUD();
-                    }
-                }
+    // ── Sun (with atmospheric glow) ──
+    const sx = W * 0.74, sy = groundY * 0.36;
+    const sg = ctx.createRadialGradient(sx, sy, 10, sx, sy, W * 0.52);
+    sg.addColorStop(0,   'rgba(255,220,100,0.32)');
+    sg.addColorStop(0.45,'rgba(240,100,20,0.14)');
+    sg.addColorStop(1,   'rgba(180,40,5,0)');
+    ctx.fillStyle = sg;
+    ctx.fillRect(0, 0, W, groundY + 5);
 
-                if (tree.leafY2 && !tree.hit2 && tree.x - 20 < leafCollisionX && tree.x + 20 > leafCollisionX) {
-                    if (Math.abs(tree.leafY2 - giraffNeckTipY) < leafCollisionRadius) {
-                        tree.hit2 = true;
-                        score += 10 * combo;
-                        combo = Math.min(5, combo + 1);
-                        createLeafParticles(tree.x, tree.leafY2);
-                        createScorePopup(tree.x, tree.leafY2, `+${10 * combo / combo}`);
-                        updateHUD();
-                    }
-                }
+    const sd = ctx.createRadialGradient(sx - 7, sy - 8, 4, sx, sy, 40);
+    sd.addColorStop(0,   '#fff8d0');
+    sd.addColorStop(0.3, '#ffe060');
+    sd.addColorStop(0.7, '#ffa020');
+    sd.addColorStop(1,   '#d85000');
+    ctx.fillStyle = sd;
+    ctx.beginPath(); ctx.arc(sx, sy, 40, 0, Math.PI * 2); ctx.fill();
 
-                // Check for miss
-                if (tree.x < leafCollisionX - 40) {
-                    if ((!tree.hit && tree.leafY) || (!tree.hit2 && tree.leafY2)) {
-                        if (giraffe.invincibilityFrames <= 0) {
-                            lives--;
-                            combo = 1;
-                            giraffe.invincibilityFrames = 60;
-                            hitFlashFrames = 8;
-                            shakeAmount = 4;
-                            updateHUD();
-                            if (lives <= 0) {
-                                gameOver();
-                            }
-                        }
-                    }
-                }
+    // Bright core
+    ctx.fillStyle = 'rgba(255,250,200,0.85)';
+    ctx.beginPath(); ctx.arc(sx, sy, 16, 0, Math.PI * 2); ctx.fill();
 
-                return tree.x > -50;
-            });
+    // ── Clouds ──
+    cloudOff = (cloudOff + 0.22) % (W + 260);
+    const cDefs = [[0, 0.14, 0.75], [W * 0.38, 0.22, 0.88], [W * 0.7, 0.10, 0.62]];
+    cDefs.forEach(([base, yFrac, sc]) => {
+        const cx = ((base - cloudOff + W + 260) % (W + 260)) - 130;
+        drawCloud(cx, groundY * yFrac, sc);
+    });
 
-            // Update particles
-            particles = particles.filter(p => {
-                p.x += p.vx;
-                p.y += p.vy;
-                p.vy += 0.15;
-                p.life--;
-                return p.life > 0;
-            });
+    // ── Far mountains ──
+    mtOff = (mtOff + 0.17) % (W * 0.65);
+    drawMountains(mtOff);
 
-            // Update popups
-            popups = popups.filter(p => {
-                p.y -= 1.5;
-                p.life--;
-                return p.life > 0;
-            });
+    // ── Mid background acacia silhouettes ──
+    bgOff = (bgOff + gameSpeed * 0.38) % (W * 0.55);
+    drawBgAcacias(bgOff);
 
-            // Update animation
-            giraffe.walkFrame++;
-            if (giraffe.invincibilityFrames > 0) giraffe.invincibilityFrames--;
+    // ── Background birds ──
+    birds.forEach(b => {
+        b.x -= b.spd;
+        if (b.x < -20) b.x = W + 20;
+        b.phase += 0.09;
+        const flap = Math.sin(b.phase) * 5;
+        ctx.strokeStyle = 'rgba(60,20,5,0.55)';
+        ctx.lineWidth = 1.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(b.x - 9, b.y);
+        ctx.quadraticCurveTo(b.x - 4.5, b.y - flap, b.x, b.y);
+        ctx.quadraticCurveTo(b.x + 4.5, b.y - flap, b.x + 9, b.y);
+        ctx.stroke();
+    });
+}
 
-            // Apply screen shake
-            const shakeX = shakeAmount > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
-            const shakeY = shakeAmount > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
-            shakeAmount *= 0.8;
+function drawCloud(x, y, sc) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(sc, sc * 0.55);
+    ctx.fillStyle = 'rgba(255,195,120,0.5)';
+    [[-36,0,28],[-9,-14,35],[23,-7,30],[50,0,25],[21,12,33],[-18,10,27]].forEach(([cx,cy,r]) => {
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.restore();
+}
 
-            // Draw
+function drawMountains(off) {
+    ctx.fillStyle = 'rgba(55,12,42,0.52)';
+    const mw = W * 0.62;
+    ctx.beginPath();
+    ctx.moveTo(-10, groundY);
+    for (let i = -1; i < 5; i++) {
+        const mx = i * mw - off;
+        ctx.lineTo(mx,              groundY - mw * 0.30 * 0.35);
+        ctx.lineTo(mx + mw * 0.28,  groundY - mw * 0.30);
+        ctx.lineTo(mx + mw * 0.50,  groundY - mw * 0.18);
+        ctx.lineTo(mx + mw * 0.66,  groundY - mw * 0.24);
+        ctx.lineTo(mx + mw,         groundY - mw * 0.10 * 0.4);
+    }
+    ctx.lineTo(W + 10, groundY);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function drawBgAcacias(off) {
+    const slots = [0, 0.20, 0.42, 0.62, 0.84, 1.05];
+    slots.forEach((p, i) => {
+        const x = ((p * W - off + W * 1.2) % (W * 1.2)) - 24;
+        const h = 55 + (i % 3) * 18;
+        const cw = 50 + (i % 2) * 28;
+        ctx.fillStyle = 'rgba(18,8,4,0.48)';
+        ctx.fillRect(x - 3, groundY - h, 6, h);
+        ctx.fillStyle = 'rgba(14,35,6,0.44)';
+        ctx.beginPath();
+        ctx.ellipse(x, groundY - h, cw * 0.5, 11, 0, 0, Math.PI * 2);
+        ctx.fill();
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DRAW: GROUND
+// ─────────────────────────────────────────────────────────────────────────────
+function drawGround() {
+    const gg = ctx.createLinearGradient(0, groundY, 0, H);
+    gg.addColorStop(0,    '#cc8a28');
+    gg.addColorStop(0.12, '#b07020');
+    gg.addColorStop(0.5,  '#9a5f16');
+    gg.addColorStop(1,    '#7a4608');
+    ctx.fillStyle = gg;
+    ctx.fillRect(0, groundY, W, H - groundY);
+
+    // Rim highlight
+    ctx.fillStyle = 'rgba(255,210,80,0.28)';
+    ctx.fillRect(0, groundY, W, 3);
+
+    // Dirt lines (scrolling)
+    const dOff = (frame * gameSpeed * 0.75) % 48;
+    ctx.strokeStyle = 'rgba(0,0,0,0.07)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < W / 48 + 2; i++) {
+        const tx = i * 48 - dOff;
+        ctx.beginPath();
+        ctx.moveTo(tx, groundY + 7);
+        ctx.lineTo(tx + 24, groundY + 18);
+        ctx.stroke();
+    }
+
+    // Grass tufts (scrolling)
+    const gOff = (frame * gameSpeed) % 78;
+    for (let i = 0; i < W / 78 + 3; i++) {
+        drawGrassTuft(i * 78 - gOff,      groundY);
+        drawGrassTuft(i * 78 - gOff + 38, groundY + 4);
+    }
+}
+
+function drawGrassTuft(x, y) {
+    ctx.strokeStyle = '#4a7a18';
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    for (let b = 0; b < 4; b++) {
+        const bx   = x + (b - 1.5) * 4.5;
+        const lean = (b - 1.5) * 0.3;
+        ctx.beginPath();
+        ctx.moveTo(bx, y);
+        ctx.quadraticCurveTo(bx + lean * 3, y - 8, bx + lean * 7, y - 14);
+        ctx.stroke();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DRAW: GAME TREES (Acacia style)
+// ─────────────────────────────────────────────────────────────────────────────
+function drawGameTree(tree) {
+    const tx = tree.x;
+    const trunkTop = groundY - tree.trunkH;
+
+    // Shadow ellipse
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(tx, groundY + 3, tree.canopyW * 0.42, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Trunk (tapered)
+    const tg = ctx.createLinearGradient(tx - 9, 0, tx + 9, 0);
+    tg.addColorStop(0,   '#3a1a06');
+    tg.addColorStop(0.38,'#70380c');
+    tg.addColorStop(1,   '#2a0e04');
+    ctx.fillStyle = tg;
+    ctx.beginPath();
+    ctx.moveTo(tx - 9,  groundY);
+    ctx.lineTo(tx + 9,  groundY);
+    ctx.lineTo(tx + 5,  trunkTop + 12);
+    ctx.lineTo(tx - 5,  trunkTop + 12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#1e0a02'; ctx.lineWidth = 1; ctx.stroke();
+
+    // Trunk bark rings
+    ctx.strokeStyle = 'rgba(0,0,0,0.14)'; ctx.lineWidth = 0.8;
+    for (let b = 1; b < 4; b++) {
+        const by = groundY - tree.trunkH * b / 4;
+        const bw = 9 - b * 1.4;
+        ctx.beginPath();
+        ctx.moveTo(tx - bw, by);
+        ctx.bezierCurveTo(tx - bw * 0.3, by - 7, tx + bw * 0.3, by - 7, tx + bw, by);
+        ctx.stroke();
+    }
+
+    // Branches
+    tree.branches.forEach(br => {
+        ctx.strokeStyle = '#4a2808'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(tx, trunkTop + br.fromY);
+        ctx.bezierCurveTo(
+            tx + br.dir * 14, trunkTop + br.fromY - 10,
+            tx + br.dir * 28, trunkTop + br.fromY - 4,
+            tx + br.dir * tree.canopyW * 0.44, trunkTop + br.fromY + br.endOff
+        );
+        ctx.stroke();
+    });
+
+    // Canopy underside
+    const cy = trunkTop;
+    const cw = tree.canopyW;
+    const ch = 22;
+    ctx.fillStyle = '#182c08';
+    ctx.beginPath();
+    ctx.moveTo(tx - cw / 2, cy + 7);
+    ctx.bezierCurveTo(tx - cw/3, cy + ch, tx + cw/3, cy + ch, tx + cw/2, cy + 7);
+    ctx.lineTo(tx + cw / 2, cy);
+    ctx.bezierCurveTo(tx + cw/3, cy - 5, tx - cw/3, cy - 5, tx - cw/2, cy);
+    ctx.closePath();
+    ctx.fill();
+
+    // Canopy top surface
+    const cg = ctx.createLinearGradient(tx, cy - ch, tx, cy + ch / 2);
+    cg.addColorStop(0,   '#4a8c1e');
+    cg.addColorStop(0.5, '#357014');
+    cg.addColorStop(1,   '#1e480a');
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.ellipse(tx, cy - 4, cw / 2, ch * 0.68, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Canopy highlight streak
+    ctx.fillStyle = 'rgba(110,220,55,0.12)';
+    ctx.beginPath();
+    ctx.ellipse(tx - cw * 0.12, cy - 10, cw / 3, ch * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ── Leaf clusters ──
+    tree.clusters.forEach(cl => {
+        if (cl.hit) return;
+
+        const pulse = 1 + Math.sin(frame * 0.1 + tx * 0.04) * 0.14;
+        let glowCol, leafCol, rimCol;
+        if      (cl.type === 'green') { glowCol = 'rgba(74,222,128,0.35)';  leafCol = '#4ade80'; rimCol = '#86efac'; }
+        else if (cl.type === 'gold')  { glowCol = 'rgba(250,204,21,0.45)';  leafCol = '#facc15'; rimCol = '#fde68a'; }
+        else                          { glowCol = 'rgba(96,165,250,0.55)';  leafCol = '#60a5fa'; rimCol = '#bfdbfe'; }
+
+        // Outer glow
+        ctx.fillStyle = glowCol;
+        ctx.beginPath(); ctx.arc(tx, cl.y, 22 * pulse, 0, Math.PI * 2); ctx.fill();
+
+        // Leaf petals
+        cl.leaves.forEach(lf => {
             ctx.save();
-            ctx.translate(shakeX, shakeY);
-
-            // Sky gradient
-            const skyGradient = ctx.createLinearGradient(0, 0, 0, height * 0.6);
-            skyGradient.addColorStop(0, '#f59e0b');
-            skyGradient.addColorStop(0.3, '#fcd34d');
-            skyGradient.addColorStop(1, '#fbbf24');
-            ctx.fillStyle = skyGradient;
-            ctx.fillRect(0, 0, width, height * 0.6);
-
-            // Sun with rays
-            ctx.fillStyle = 'rgba(255, 200, 0, 0.3)';
+            ctx.translate(tx + lf[0], cl.y + lf[1]);
+            ctx.rotate(lf[2]);
+            ctx.fillStyle = leafCol;
             ctx.beginPath();
-            ctx.arc(width - 80, 60, 50, 0, Math.PI * 2);
+            ctx.ellipse(0, 0, lf[3], lf[4], 0, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = '#fbbf24';
-            ctx.beginPath();
-            ctx.arc(width - 80, 60, 35, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.restore();
+        });
 
-            // Sun rays
-            ctx.strokeStyle = 'rgba(255, 200, 0, 0.5)';
-            ctx.lineWidth = 2;
-            for (let i = 0; i < 12; i++) {
-                const angle = (i / 12) * Math.PI * 2;
-                ctx.beginPath();
-                ctx.moveTo(width - 80 + Math.cos(angle) * 40, 60 + Math.sin(angle) * 40);
-                ctx.lineTo(width - 80 + Math.cos(angle) * 55, 60 + Math.sin(angle) * 55);
-                ctx.stroke();
-            }
+        // Rim highlight
+        ctx.strokeStyle = rimCol; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(tx, cl.y, 14, 0, Math.PI * 2); ctx.stroke();
 
-            // Distant horizon
-            ctx.fillStyle = 'rgba(120, 80, 0, 0.2)';
-            ctx.fillRect(0, height * 0.5, width, 5);
+        // Icon labels
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 10px sans-serif';
+        if (cl.type === 'gold') {
+            ctx.fillStyle = '#fffbe0'; ctx.fillText('★', tx, cl.y + 3.5);
+        } else if (cl.type === 'blue') {
+            ctx.fillStyle = '#e0f0ff'; ctx.fillText('◆', tx, cl.y + 3.5);
+        }
 
-            // Distant tree line (parallax)
-            ctx.fillStyle = 'rgba(80, 60, 20, 0.15)';
-            for (let i = 0; i < 8; i++) {
-                const treeX = (i * width / 4) - ((score / 5) % (width / 4));
-                ctx.beginPath();
-                ctx.moveTo(treeX, height * 0.45);
-                ctx.lineTo(treeX - 15, height * 0.35);
-                ctx.lineTo(treeX + 15, height * 0.35);
-                ctx.closePath();
-                ctx.fill();
-            }
+        // Stem
+        ctx.strokeStyle = 'rgba(70,40,15,0.55)'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(tx, cl.stemY);
+        ctx.lineTo(tx, cl.y - 10);
+        ctx.stroke();
+    });
+}
 
-            // Ground
-            ctx.fillStyle = '#b8860b';
-            ctx.fillRect(0, height - 100, width, 100);
+// ─────────────────────────────────────────────────────────────────────────────
+// DRAW: GIRAFFE
+// ─────────────────────────────────────────────────────────────────────────────
+function drawGiraffe() {
+    const gx = G.x;
+    const by = G.bodyY;
+    const nt = G.neck;
+    const wf = Math.floor(G.walkF / 7) % 4;
 
-            // Ground texture
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
-            ctx.lineWidth = 1;
-            const groundPattern = Math.floor((score / 10) % (width / 40)) * 40;
-            for (let i = 0; i < width / 40 + 2; i++) {
-                ctx.beginPath();
-                ctx.moveTo(i * 40 - groundPattern, height - 100);
-                ctx.lineTo(i * 40 - groundPattern + 20, height - 80);
-                ctx.stroke();
-            }
+    const blinking = G.inv > 0 && Math.floor(G.inv / 5) % 2 === 0;
+    if (blinking) { ctx.save(); ctx.globalAlpha = 0.42; }
 
-            // Scrolling bushes (mid parallax)
-            ctx.fillStyle = 'rgba(34, 197, 94, 0.25)';
-            for (let i = 0; i < 5; i++) {
-                const bushX = ((score / 3) + i * 150) % (width + 200) - 100;
-                ctx.beginPath();
-                ctx.arc(bushX, height - 105, 35, 0, Math.PI * 2);
-                ctx.fill();
-            }
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(gx, groundY + 4, 33, 7, 0, 0, Math.PI * 2); ctx.fill();
 
-            // Draw trees
-            trees.forEach(tree => {
-                // Trunk shadow
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-                ctx.fillRect(tree.x - 15, height - 100 + tree.trunkHeight, 30, 5);
+    // ── Legs ──
+    const legAngSets = [
+        [ 0.12, -0.12,  0.08, -0.08],
+        [ 0.33, -0.04, -0.08,  0.24],
+        [ 0.12, -0.12,  0.08, -0.08],
+        [-0.04,  0.33,  0.24, -0.08],
+    ][wf];
 
-                // Trunk
-                const trunkGradient = ctx.createLinearGradient(tree.x - 15, height - 100, tree.x + 15, height - 100);
-                trunkGradient.addColorStop(0, '#8b4513');
-                trunkGradient.addColorStop(0.5, '#a0522d');
-                trunkGradient.addColorStop(1, '#654321');
-                ctx.fillStyle = trunkGradient;
-                ctx.fillRect(tree.x - 15, height - 100, 30, tree.trunkHeight);
+    const legDefs = [
+        { bx: gx + 17, by: by + 28 },
+        { bx: gx +  8, by: by + 28 },
+        { bx: gx -  8, by: by + 24 },
+        { bx: gx - 17, by: by + 24 },
+    ];
 
-                // Trunk outline
-                ctx.strokeStyle = '#3d2817';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(tree.x - 15, height - 100, 30, tree.trunkHeight);
+    legDefs.forEach((leg, i) => {
+        const ang = legAngSets[i];
+        ctx.save();
+        ctx.translate(leg.bx, leg.by);
+        ctx.rotate(ang * 0.5);
 
-                // Foliage (layered circles)
-                const canopyY = height - 100 - tree.trunkHeight;
-                const canopyGradient = ctx.createRadialGradient(tree.x - 5, canopyY - 10, 5, tree.x, canopyY - 5, tree.canopySize);
-                canopyGradient.addColorStop(0, '#7cb342');
-                canopyGradient.addColorStop(1, '#33691e');
-                ctx.fillStyle = canopyGradient;
+        // Upper leg
+        const ug = ctx.createLinearGradient(-5, 0, 5, 0);
+        ug.addColorStop(0, '#c07018'); ug.addColorStop(0.5, '#e88828'); ug.addColorStop(1, '#9a5810');
+        ctx.fillStyle = ug;
+        ctx.beginPath(); ctx.roundRect(-4.5, 0, 9, 31, 3); ctx.fill();
 
-                // Triple-circle foliage
-                ctx.beginPath();
-                ctx.arc(tree.x - 10, canopyY + 10, tree.canopySize * 0.8, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(tree.x + 10, canopyY + 5, tree.canopySize * 0.9, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(tree.x, canopyY - 15, tree.canopySize, 0, Math.PI * 2);
-                ctx.fill();
+        ctx.translate(0, 31);
+        ctx.rotate(ang * 0.45);
 
-                // Leaf targets with pulsing glow
-                const glowScale = 1 + Math.sin((giraffe.walkFrame + tree.x) * 0.05) * 0.15;
-                ctx.fillStyle = 'rgba(74, 222, 128, 0.4)';
-                ctx.beginPath();
-                ctx.ellipse(tree.x, tree.leafY, 15 * glowScale, 20 * glowScale, 0, 0, Math.PI * 2);
-                ctx.fill();
+        // Lower leg
+        const lg = ctx.createLinearGradient(-4, 0, 4, 0);
+        lg.addColorStop(0, '#a86016'); lg.addColorStop(0.5, '#cc7820'); lg.addColorStop(1, '#884808');
+        ctx.fillStyle = lg;
+        ctx.beginPath(); ctx.roundRect(-3.5, 0, 7, 27, 2); ctx.fill();
 
-                ctx.fillStyle = '#4ade80';
-                ctx.beginPath();
-                ctx.ellipse(tree.x, tree.leafY, 12, 16, 0, 0, Math.PI * 2);
-                ctx.fill();
+        // Sock
+        ctx.fillStyle = '#f5e8c0';
+        ctx.beginPath(); ctx.roundRect(-3.5, 20, 7, 7, 2); ctx.fill();
 
-                if (tree.leafY2) {
-                    ctx.fillStyle = 'rgba(74, 222, 128, 0.4)';
-                    ctx.beginPath();
-                    ctx.ellipse(tree.x, tree.leafY2, 15 * glowScale, 20 * glowScale, 0, 0, Math.PI * 2);
-                    ctx.fill();
+        // Hoof
+        ctx.fillStyle = '#252520';
+        ctx.beginPath(); ctx.ellipse(0, 27, 5, 3.5, 0, 0, Math.PI * 2); ctx.fill();
 
-                    ctx.fillStyle = '#4ade80';
-                    ctx.beginPath();
-                    ctx.ellipse(tree.x, tree.leafY2, 12, 16, 0, 0, Math.PI * 2);
-                    ctx.fill();
-                }
+        ctx.restore();
+    });
 
-                // Leaf stem
-                ctx.strokeStyle = '#8b7355';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(tree.x, height - 110);
-                ctx.lineTo(tree.x, tree.leafY);
-                ctx.stroke();
-            });
+    // ── Body ──
+    const bg2 = ctx.createRadialGradient(gx - 9, by + 3, 4, gx, by + 6, 32);
+    bg2.addColorStop(0,   '#f8d060');
+    bg2.addColorStop(0.42,'#e08818');
+    bg2.addColorStop(0.80,'#bf6c0e');
+    bg2.addColorStop(1,   '#8a4408');
+    ctx.fillStyle = bg2;
+    ctx.beginPath(); ctx.ellipse(gx, by + 6, 26, 32, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#6a3608'; ctx.lineWidth = 1.5; ctx.stroke();
 
-            // ─── Draw Giraffe ───────────────────────────────────────────
-            const gx = giraffe.x;   // center x
-            const gy = giraffe.y;
-            const nt = giraffe.neckLength;
-            const legWalkFrame = Math.floor(giraffe.walkFrame / 8) % 4;
+    // Body spots
+    const bSpots = [
+        { cx: gx - 4,  cy: by - 2,  pts: [[-9,-5],[1,-11],[11,-3],[8,5],[-1,9],[-9,4]] },
+        { cx: gx + 12, cy: by + 13, pts: [[-6,-4],[4,-8],[10,-1],[7,6],[-1,8],[-7,3]] },
+        { cx: gx - 9,  cy: by + 24, pts: [[-7,-4],[2,-9],[8,0],[6,7],[-1,8],[-8,3]] },
+        { cx: gx + 5,  cy: by + 32, pts: [[-5,-3],[3,-7],[8,0],[5,5],[-1,7],[-6,2]] },
+    ];
+    ctx.fillStyle = 'rgba(98,46,6,0.68)';
+    bSpots.forEach(s => {
+        ctx.beginPath();
+        ctx.moveTo(s.cx + s.pts[0][0], s.cy + s.pts[0][1]);
+        s.pts.slice(1).forEach(p => ctx.lineTo(s.cx + p[0], s.cy + p[1]));
+        ctx.closePath(); ctx.fill();
+    });
 
-            // Shadow
-            ctx.fillStyle = 'rgba(0,0,0,0.15)';
-            ctx.beginPath();
-            ctx.ellipse(gx, gy + 78, 28, 5, 0, 0, Math.PI * 2);
-            ctx.fill();
+    // ── Tail ──
+    const tailSwing = Math.sin(frame * 0.08) * 5;
+    ctx.strokeStyle = '#bf6c0e'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(gx - 24, by + 16);
+    ctx.quadraticCurveTo(gx - 44 + tailSwing, by + 8 + tailSwing, gx - 42 + tailSwing, by + 34);
+    ctx.stroke();
+    for (let t = 0; t < 5; t++) {
+        const ta = (t / 5) * Math.PI - Math.PI / 2;
+        ctx.strokeStyle = '#7a3608'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(gx - 42 + tailSwing, by + 34);
+        ctx.lineTo(gx - 42 + tailSwing + Math.cos(ta) * 7, by + 34 + Math.sin(ta) * 7);
+        ctx.stroke();
+    }
 
-            // ── Legs (drawn before body so body overlaps) ──
-            // Leg positions: front-right, front-left, back-right, back-left
-            const legAngles = [
-                [0.15, -0.15, 0.1, -0.1],   // frame 0
-                [0.35, -0.05, -0.1, 0.25],   // frame 1
-                [0.15, -0.15, 0.1, -0.1],   // frame 2
-                [-0.05, 0.35, 0.25, -0.1]    // frame 3
-            ][legWalkFrame];
+    // ── Neck ──
+    const nTopY  = by - nt;
+    const nBotY  = by - 14;
+    const nBaseW = 22, nTipW = 10;
 
-            const legDefs = [
-                { bx: gx + 14, by: gy + 44 },  // front-right
-                { bx: gx + 6,  by: gy + 44 },  // front-left
-                { bx: gx - 6,  by: gy + 38 },  // back-right
-                { bx: gx - 14, by: gy + 38 }   // back-left
+    const ng = ctx.createLinearGradient(gx - nBaseW / 2, 0, gx + nBaseW / 2, 0);
+    ng.addColorStop(0,   '#be6c0e');
+    ng.addColorStop(0.32,'#f0bc3c');
+    ng.addColorStop(0.68,'#d08018');
+    ng.addColorStop(1,   '#8a4408');
+    ctx.fillStyle = ng;
+    ctx.beginPath();
+    ctx.moveTo(gx - nBaseW / 2, nBotY);
+    ctx.lineTo(gx - nTipW  / 2, nTopY);
+    ctx.lineTo(gx + nTipW  / 2, nTopY);
+    ctx.lineTo(gx + nBaseW / 2, nBotY);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#6a3608'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    // Neck patches
+    for (let s = 0; s < 6; s++) {
+        const t  = (s + 0.5) / 6;
+        const py = nBotY + (nTopY - nBotY) * t;
+        const pw = lerp(nBaseW, nTipW, t) * 0.3;
+        const sd = s % 2 === 0 ? 1 : -1;
+        ctx.fillStyle = 'rgba(98,46,6,0.62)';
+        ctx.beginPath();
+        ctx.ellipse(gx + sd * pw, py, pw * 0.9, pw * 0.72, sd * 0.18, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Mane
+    ctx.fillStyle = '#c87010';
+    for (let m = 0; m < 9; m++) {
+        const t  = m / 9;
+        const my = nBotY + (nTopY - nBotY) * t;
+        const mw = lerp(nBaseW, nTipW, t) / 2;
+        ctx.beginPath();
+        ctx.moveTo(gx - mw - 1, my);
+        ctx.lineTo(gx - mw - 6, my - 7);
+        ctx.lineTo(gx - mw + 1, my - 2);
+        ctx.closePath(); ctx.fill();
+    }
+
+    // ── Head ──
+    const hx = gx + 4, hy = nTopY;
+
+    const hg = ctx.createRadialGradient(hx - 5, hy - 7, 2, hx, hy, 16);
+    hg.addColorStop(0,   '#f8d060');
+    hg.addColorStop(0.55,'#df8c1c');
+    hg.addColorStop(1,   '#9e5c0e');
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.ellipse(hx, hy, 13, 15, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#6a3608'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    // Head spot
+    ctx.fillStyle = 'rgba(98,46,6,0.52)';
+    ctx.beginPath(); ctx.ellipse(hx - 2, hy + 2, 5, 8, 0.15, 0, Math.PI * 2); ctx.fill();
+
+    // Snout
+    ctx.fillStyle = '#e08c1c';
+    ctx.beginPath(); ctx.ellipse(hx + 4, hy + 10, 9, 6.5, 0.22, 0, Math.PI * 2); ctx.fill();
+
+    // Nostrils
+    ctx.fillStyle = '#581e06';
+    [[hx + 1, hy + 13], [hx + 6, hy + 13]].forEach(([nx, ny]) => {
+        ctx.beginPath(); ctx.ellipse(nx, ny, 2, 1.3, 0, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // Smile
+    ctx.strokeStyle = '#7a3608'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(hx + 3, hy + 13, 5.5, 0.2, Math.PI - 0.2); ctx.stroke();
+
+    // Ears
+    [[-1, -0.45], [1, 0.45]].forEach(([side, rot]) => {
+        ctx.save(); ctx.translate(hx + side * 11, hy - 5); ctx.rotate(rot);
+        ctx.fillStyle = '#d08020';
+        ctx.beginPath(); ctx.ellipse(0, 0, 5.5, 10, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f0a8a0';
+        ctx.beginPath(); ctx.ellipse(0, 1, 3, 7, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    });
+
+    // Ossicones
+    ctx.fillStyle = '#8a5210';
+    [[hx - 8, hy - 18], [hx + 2, hy - 18]].forEach(([ox, oy]) => {
+        ctx.beginPath(); ctx.roundRect(ox, oy, 6, 15, 2); ctx.fill();
+    });
+    ctx.fillStyle = '#3c2610';
+    [[hx - 5,  hy - 19], [hx + 5, hy - 19]].forEach(([ox, oy]) => {
+        ctx.beginPath(); ctx.arc(ox, oy, 4, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // Eye white
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    ctx.beginPath(); ctx.ellipse(hx + 6.5, hy - 5, 5.5, 6, 0.08, 0, Math.PI * 2); ctx.fill();
+    // Iris
+    ctx.fillStyle = '#4a1e00';
+    ctx.beginPath(); ctx.arc(hx + 7.5, hy - 4.5, 3.5, 0, Math.PI * 2); ctx.fill();
+    // Pupil
+    ctx.fillStyle = '#0a0a0a';
+    ctx.beginPath(); ctx.arc(hx + 7.7, hy - 4.5, 2.2, 0, Math.PI * 2); ctx.fill();
+    // Catchlight
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.beginPath(); ctx.arc(hx + 9, hy - 5.8, 1.2, 0, Math.PI * 2); ctx.fill();
+    // Eyelashes
+    ctx.strokeStyle = '#1e0e04'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+    for (let el = 0; el < 5; el++) {
+        const ex = hx + 4 + el * 1.8;
+        ctx.beginPath(); ctx.moveTo(ex, hy - 9.5); ctx.lineTo(ex - 0.8, hy - 13 - el * 0.45); ctx.stroke();
+    }
+
+    // ── Neck extension glow (near max) ──
+    if (nt > G.maxNeck * 0.82) {
+        const gi = (nt - G.maxNeck * 0.82) / (G.maxNeck * 0.18);
+        const gcol = G.mega > 0 ? `rgba(96,165,250,${gi * 0.38})` : `rgba(134,239,172,${gi * 0.32})`;
+        ctx.fillStyle = gcol;
+        ctx.beginPath(); ctx.arc(hx, hy, 30, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // ── Mega stretch aura ──
+    if (G.mega > 0) {
+        const a = (Math.sin(frame * 0.22) * 0.1 + 0.28) * Math.min(1, G.mega / 20);
+        ctx.strokeStyle = `rgba(96,165,250,${a})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(gx, by + 6, 42, 55, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = `rgba(147,197,253,${a * 0.45})`;
+        ctx.lineWidth = 7;
+        ctx.beginPath(); ctx.ellipse(gx, by + 6, 50, 63, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // Invincibility shield
+    if (G.inv > 0 && !blinking) {
+        ctx.strokeStyle = 'rgba(134,239,172,0.8)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(gx, by + 6, 44, 57, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (blinking) ctx.restore();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPAWN TREE
+// ─────────────────────────────────────────────────────────────────────────────
+function spawnTree() {
+    const trunkH  = rnd(88, 150);
+    const canopyW = rnd(82, 138);
+    const minCY   = G.bodyY - G.maxNeck + 14;
+    const maxCY   = G.bodyY - G.minNeck - 14;
+
+    const clusterCount = rndI(1, 3);
+    const clusters = [];
+    for (let i = 0; i < clusterCount; i++) {
+        const clY = rnd(minCY + (maxCY - minCY) * 0.08, maxCY - (maxCY - minCY) * 0.08);
+
+        // Type distribution gets harder as score rises
+        let type;
+        const r = Math.random();
+        if      (score < 80)  { type = r < 0.9  ? 'green' : 'gold'; }
+        else if (score < 250) { type = r < 0.65 ? 'green' : r < 0.88 ? 'gold' : 'blue'; }
+        else                  { type = r < 0.52 ? 'green' : r < 0.76 ? 'gold' : 'blue'; }
+
+        // Precompute leaf offsets
+        const lc = rndI(5, 8);
+        const leaves = Array.from({ length: lc }, (_, l) => {
+            const ang = (l / lc) * Math.PI * 2;
+            return [
+                Math.cos(ang) * rnd(4, 12),
+                Math.sin(ang) * rnd(4, 12),
+                rnd(0, Math.PI),
+                rnd(4.5, 9),
+                rnd(2.5, 5.5)
             ];
+        });
 
-            legDefs.forEach((leg, i) => {
-                const angle = legAngles[i];
-                const legLen = 48;
-                // Upper leg
-                ctx.save();
-                ctx.translate(leg.bx, leg.by);
-                ctx.rotate(angle * 0.5);
-                const upperGrad = ctx.createLinearGradient(0, 0, 0, legLen * 0.5);
-                upperGrad.addColorStop(0, '#e8a030');
-                upperGrad.addColorStop(1, '#c87820');
-                ctx.fillStyle = upperGrad;
-                ctx.beginPath();
-                ctx.roundRect(-4, 0, 8, legLen * 0.55, 3);
-                ctx.fill();
-                // Lower leg + hoof
-                ctx.translate(0, legLen * 0.55);
-                ctx.rotate(angle * 0.4);
-                const lowerGrad = ctx.createLinearGradient(0, 0, 0, legLen * 0.5);
-                lowerGrad.addColorStop(0, '#c87820');
-                lowerGrad.addColorStop(1, '#8b4513');
-                ctx.fillStyle = lowerGrad;
-                ctx.beginPath();
-                ctx.roundRect(-3, 0, 6, legLen * 0.45, 2);
-                ctx.fill();
-                // Hoof
-                ctx.fillStyle = '#333';
-                ctx.beginPath();
-                ctx.ellipse(0, legLen * 0.45, 5, 3, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
+        clusters.push({
+            y: clY,
+            type,
+            hit: false,
+            leaves,
+            stemY: Math.min(groundY - trunkH + 32, clY - 28)
+        });
+    }
+
+    trees.push({
+        x: W + 22,
+        speed: gameSpeed,
+        trunkH,
+        canopyW,
+        branches: [
+            { fromY: trunkH * 0.08, dir:  1, endOff: rnd(-6, 10) },
+            { fromY: trunkH * 0.22, dir: -1, endOff: rnd(-6, 10) },
+        ],
+        clusters,
+        passed: false
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PARTICLES
+// ─────────────────────────────────────────────────────────────────────────────
+function spawnBurst(x, y, type) {
+    const cols = { green:'#4ade80', gold:'#facc15', blue:'#60a5fa' };
+    const col  = cols[type] || '#4ade80';
+    for (let i = 0; i < 18; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const spd = rnd(1.8, 5.2);
+        particles.push({
+            x, y, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 1.8,
+            life: rndI(22, 38), maxLife: 38,
+            r: rnd(3, 6.5), color: col, kind: 'circle'
+        });
+    }
+    if (type === 'gold' || type === 'blue') {
+        for (let i = 0; i < 8; i++) {
+            const ang = (i / 8) * Math.PI * 2;
+            particles.push({
+                x, y, vx: Math.cos(ang) * 7, vy: Math.sin(ang) * 7 - 2.5,
+                life: 22, maxLife: 22, r: 5, color: '#ffffff', kind: 'star'
             });
+        }
+    }
+}
 
-            // ── Body ──
-            const bGrad = ctx.createRadialGradient(gx - 5, gy + 18, 4, gx, gy + 28, 24);
-            bGrad.addColorStop(0, '#f5c040');
-            bGrad.addColorStop(0.6, '#e8980c');
-            bGrad.addColorStop(1, '#a0620a');
-            ctx.fillStyle = bGrad;
-            ctx.beginPath();
-            ctx.ellipse(gx, gy + 28, 22, 26, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#7a4010';
-            ctx.lineWidth = 1;
-            ctx.stroke();
+function spawnPopup(x, y, text, color) {
+    popups.push({ x, y, text, color, life: 44, maxLife: 44 });
+}
 
-            // ── Giraffe spots on body (irregular polygons) ──
-            const bodySpots = [
-                { cx: gx - 5, cy: gy + 15, pts: [[-7,-4],[2,-8],[8,-2],[6,5],[-2,7],[-8,3]] },
-                { cx: gx + 10, cy: gy + 28, pts: [[-5,-3],[3,-6],[7,0],[4,5],[-3,6],[-6,2]] },
-                { cx: gx - 10, cy: gy + 38, pts: [[-6,-3],[2,-7],[7,-1],[5,5],[-1,7],[-7,2]] },
-            ];
-            ctx.fillStyle = '#7a3c0a';
-            bodySpots.forEach(spot => {
-                ctx.beginPath();
-                ctx.moveTo(spot.cx + spot.pts[0][0], spot.cy + spot.pts[0][1]);
-                spot.pts.slice(1).forEach(p => ctx.lineTo(spot.cx + p[0], spot.cy + p[1]));
-                ctx.closePath();
-                ctx.fill();
-            });
+function drawStar5(cx, cy, r1, r2) {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+        const ang = (i / 10) * Math.PI * 2 - Math.PI / 2;
+        const r   = i % 2 === 0 ? r2 : r1;
+        ctx[i === 0 ? 'moveTo' : 'lineTo'](cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
+    }
+    ctx.closePath();
+}
 
-            // ── Tail ──
-            ctx.strokeStyle = '#a0620a';
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(gx - 20, gy + 28);
-            ctx.quadraticCurveTo(gx - 38, gy + 20, gx - 36, gy + 40);
-            ctx.stroke();
-            // Tail tuft
-            ctx.fillStyle = '#6b3a08';
-            ctx.beginPath();
-            ctx.arc(gx - 36, gy + 40, 4, 0, Math.PI * 2);
-            ctx.fill();
-
-            // ── Neck ──
-            // Draw neck as a smooth tapered quadrilateral with patches
-            const neckBaseW = 20;
-            const neckTipW = 10;
-            const neckTopY = gy - nt;
-            const neckBotY = gy + 4;
-
-            // Neck fill
-            const neckGrad = ctx.createLinearGradient(gx - neckBaseW / 2, neckBotY, gx + neckBaseW / 2, neckBotY);
-            neckGrad.addColorStop(0, '#c87820');
-            neckGrad.addColorStop(0.4, '#f5c040');
-            neckGrad.addColorStop(1, '#a0620a');
-            ctx.fillStyle = neckGrad;
-            ctx.beginPath();
-            ctx.moveTo(gx - neckBaseW / 2, neckBotY);
-            ctx.lineTo(gx - neckTipW / 2, neckTopY);
-            ctx.lineTo(gx + neckTipW / 2, neckTopY);
-            ctx.lineTo(gx + neckBaseW / 2, neckBotY);
-            ctx.closePath();
-            ctx.fill();
-            ctx.strokeStyle = '#7a4010';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            // Neck mane (dorsal ridge)
-            ctx.fillStyle = '#c87820';
-            const maneCount = 6;
-            for (let m = 0; m < maneCount; m++) {
-                const t = m / (maneCount - 1);
-                const my = neckBotY + (neckTopY - neckBotY) * t;
-                const mw = neckBaseW / 2 * (1 - t * 0.5) + neckTipW / 2 * t * 0.5;
-                ctx.beginPath();
-                ctx.moveTo(gx - mw, my);
-                ctx.lineTo(gx - mw - 3, my - 5);
-                ctx.lineTo(gx - mw - 1, my - 2);
-                ctx.closePath();
-                ctx.fill();
-            }
-
-            // Giraffe neck patches (irregular)
-            const neckSpots = [];
-            for (let s = 0; s < 5; s++) {
-                const t = (s + 0.5) / 5;
-                const sy = neckBotY + (neckTopY - neckBotY) * t;
-                const sw = neckBaseW * (1 - t * 0.5) * 0.35;
-                const side = s % 2 === 0 ? 1 : -1;
-                neckSpots.push({ cx: gx + side * sw * 0.5, cy: sy, r: sw * 0.6 });
-            }
-            ctx.fillStyle = '#7a3c0a';
-            neckSpots.forEach(s => {
-                ctx.beginPath();
-                ctx.arc(s.cx, s.cy, s.r, 0, Math.PI * 2);
-                ctx.fill();
-            });
-
-            // ── Head ──
-            const hx = gx + 3;
-            const hy = neckTopY;
-
-            // Head skull
-            const headGrad = ctx.createRadialGradient(hx - 4, hy - 5, 2, hx, hy, 14);
-            headGrad.addColorStop(0, '#f5c040');
-            headGrad.addColorStop(1, '#b06818');
-            ctx.fillStyle = headGrad;
-            ctx.beginPath();
-            ctx.ellipse(hx, hy, 10, 12, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#7a4010';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            // Snout (elongated jaw area)
-            ctx.fillStyle = '#e89828';
-            ctx.beginPath();
-            ctx.ellipse(hx + 3, hy + 8, 7, 5, 0.3, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Nostrils
-            ctx.fillStyle = '#5a2808';
-            ctx.beginPath();
-            ctx.ellipse(hx + 2, hy + 11, 1.5, 1, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(hx + 6, hy + 11, 1.5, 1, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Ears (droopy leaf shape)
-            ctx.fillStyle = '#d08020';
-            ctx.save();
-            ctx.translate(hx - 8, hy - 5);
-            ctx.rotate(-0.4);
-            ctx.beginPath();
-            ctx.ellipse(0, 0, 4, 8, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#f0a8a0';
-            ctx.beginPath();
-            ctx.ellipse(0, 0, 2, 5, 0, 0, Math.PI * 2);
-            ctx.fill();
+function drawParticles() {
+    particles.forEach(p => {
+        const a = p.life / p.maxLife;
+        ctx.globalAlpha = a;
+        ctx.fillStyle = p.color;
+        if (p.kind === 'star') {
+            ctx.save(); ctx.translate(p.x, p.y); ctx.scale(a, a);
+            drawStar5(0, 0, p.r * 0.45, p.r); ctx.fill();
             ctx.restore();
-
-            ctx.fillStyle = '#d08020';
-            ctx.save();
-            ctx.translate(hx + 8, hy - 5);
-            ctx.rotate(0.4);
-            ctx.beginPath();
-            ctx.ellipse(0, 0, 4, 8, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#f0a8a0';
-            ctx.beginPath();
-            ctx.ellipse(0, 0, 2, 5, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-
-            // Ossicones (horns) - two proper bumpy protrusions
-            ctx.fillStyle = '#8b5c10';
-            ctx.beginPath();
-            ctx.roundRect(hx - 7, hy - 20, 5, 14, 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.roundRect(hx + 3, hy - 20, 5, 14, 2);
-            ctx.fill();
-            // Tips
-            ctx.fillStyle = '#555';
-            ctx.beginPath();
-            ctx.arc(hx - 4.5, hy - 20, 3, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(hx + 5.5, hy - 20, 3, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Eye (large, expressive)
-            ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.ellipse(hx + 5, hy - 4, 4, 4.5, 0.1, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#4a2000';
-            ctx.beginPath();
-            ctx.arc(hx + 6, hy - 3.5, 2.5, 0, Math.PI * 2);
-            ctx.fill();
-            // Pupil
-            ctx.fillStyle = '#000';
-            ctx.beginPath();
-            ctx.arc(hx + 6.2, hy - 3.5, 1.5, 0, Math.PI * 2);
-            ctx.fill();
-            // Catchlight
-            ctx.fillStyle = 'rgba(255,255,255,0.9)';
-            ctx.beginPath();
-            ctx.arc(hx + 7, hy - 4.5, 0.9, 0, Math.PI * 2);
-            ctx.fill();
-            // Eyelash
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 1;
-            for (let el = 0; el < 4; el++) {
-                const ex = hx + 3 + el * 2;
-                ctx.beginPath();
-                ctx.moveTo(ex, hy - 7.5);
-                ctx.lineTo(ex - 0.5, hy - 10 - el * 0.5);
-                ctx.stroke();
-            }
-
-            // ── Neck extension glow ──
-            if (nt > giraffe.maxNeck * 0.8) {
-                const glowI = (nt - giraffe.maxNeck * 0.8) / (giraffe.maxNeck * 0.2);
-                ctx.fillStyle = `rgba(134, 239, 172, ${glowI * 0.35})`;
-                ctx.beginPath();
-                ctx.arc(gx, neckTopY, 22, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            // Invincibility blink
-            if (giraffe.invincibilityFrames > 0 && Math.floor(giraffe.invincibilityFrames / 4) % 2 === 0) {
-                ctx.strokeStyle = 'rgba(134, 239, 172, 0.8)';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.ellipse(gx, gy + 28, 36, 40, 0, 0, Math.PI * 2);
-                ctx.stroke();
-            }
-
-            // Draw particles
-            particles.forEach(p => {
-                ctx.globalAlpha = p.life / p.maxLife;
-                ctx.fillStyle = p.color;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1;
-            });
-
-            // Draw popups
-            popups.forEach(p => {
-                ctx.globalAlpha = p.life / p.maxLife;
-                ctx.fillStyle = p.color;
-                const scale = 1 + (1 - p.life / p.maxLife) * 0.3;
-                ctx.save();
-                ctx.translate(p.x, p.y);
-                ctx.scale(scale, scale);
-                ctx.font = 'bold 16px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText(p.text, 0, 0);
-                ctx.restore();
-                ctx.globalAlpha = 1;
-            });
-
-            // Hit flash
-            if (hitFlashFrames > 0) {
-                ctx.globalAlpha = hitFlashFrames / 8 * 0.5;
-                ctx.fillStyle = '#ff0000';
-                ctx.fillRect(0, 0, width, height);
-                ctx.globalAlpha = 1;
-                hitFlashFrames--;
-            }
-
-            ctx.restore();
-
-            requestAnimationFrame(update);
+        } else {
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.r * a, 0, Math.PI * 2); ctx.fill();
         }
+    });
+    ctx.globalAlpha = 1;
+}
 
-        function createLeafParticles(x, y) {
-            for (let i = 0; i < 12; i++) {
-                const angle = (Math.PI * 2 * i) / 12;
-                particles.push({
-                    x: x,
-                    y: y,
-                    vx: Math.cos(angle) * 3,
-                    vy: Math.sin(angle) * 3 - 1,
-                    life: 30,
-                    maxLife: 30,
-                    radius: 4,
-                    color: '#4ade80'
-                });
+function drawPopups() {
+    popups.forEach(p => {
+        const a = p.life / p.maxLife;
+        const s = 1 + (1 - a) * 0.45;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.translate(p.x, p.y); ctx.scale(s, s);
+        ctx.font = 'bold 15px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 3;
+        ctx.strokeText(p.text, 0, 0);
+        ctx.fillStyle = p.color; ctx.fillText(p.text, 0, 0);
+        ctx.restore();
+    });
+    ctx.globalAlpha = 1;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HUD
+// ─────────────────────────────────────────────────────────────────────────────
+function updateHUD() {
+    document.getElementById('score-display').textContent = score.toLocaleString();
+    document.getElementById('hs-display').textContent    = 'BEST: ' + highScore.toLocaleString();
+    for (let i = 1; i <= 3; i++) {
+        document.getElementById('h' + i).classList.toggle('lost', i > lives);
+    }
+    document.getElementById('combo-text').textContent        = combo + '×';
+    document.getElementById('combo-bar').style.width         = (comboMeter * 100) + '%';
+}
+
+function updatePowerLabel() {
+    const el = document.getElementById('power-label');
+    if (G.mega > 0) {
+        el.style.display = 'block';
+        el.textContent   = '⚡ MEGA STRETCH (' + Math.ceil(G.mega / 60) + 's)';
+    } else {
+        el.style.display = 'none';
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GAME LOOP
+// ─────────────────────────────────────────────────────────────────────────────
+function update() {
+    if (!gameActive) return;
+    frame++;
+    G.walkF++;
+
+    // ── Neck control ──
+    const maxN    = G.mega > 0 ? G.maxNeck * 1.26 : G.maxNeck;
+    const extSpd  = G.mega > 0 ? G.extSpeed * 1.5  : G.extSpeed;
+    if  (isPressed && G.neck < maxN)       G.neck = Math.min(maxN, G.neck + extSpd);
+    else if (!isPressed && G.neck > G.minNeck) G.neck = Math.max(G.minNeck, G.neck - G.retSpeed);
+
+    if (G.inv  > 0) G.inv--;
+    if (G.mega > 0) { G.mega--; updatePowerLabel(); }
+
+    // ── Spawn trees ──
+    if (--nextTree <= 0) {
+        spawnTree();
+        spawnRate = Math.max(52, 115 - score / 38);
+        nextTree  = spawnRate;
+        gameSpeed = Math.min(7.5, 2.5 + score / 170);
+    }
+
+    // ── Collision & miss detection ──
+    const neckTipY = G.bodyY - G.neck;
+    const neckTipX = G.x + 6;
+    const hitR     = 16;
+    died           = false;
+
+    trees.forEach(tree => {
+        tree.x -= tree.speed;
+
+        // Leaf collision
+        tree.clusters.forEach(cl => {
+            if (cl.hit) return;
+            const dx = tree.x - neckTipX, dy = cl.y - neckTipY;
+            if (Math.hypot(dx, dy) < hitR + 12) {
+                cl.hit = true;
+                const pts = cl.type === 'green' ? 10 : cl.type === 'gold' ? 30 : 60;
+                const earned = pts * combo;
+                score += earned;
+                combo = Math.min(MAX_COMBO, combo + 1);
+                comboMeter = Math.min(1, comboMeter + 0.32);
+
+                if (cl.type === 'blue') { G.mega = 180; updatePowerLabel(); }
+
+                spawnBurst(tree.x, cl.y, cl.type);
+                const comboLabels = ['', '', 'NICE!', 'GREAT!', 'AMAZING!', 'PERFECT! 🔥'];
+                spawnPopup(tree.x, cl.y - 18, '+' + earned,
+                    cl.type === 'gold' ? '#fbbf24' : cl.type === 'blue' ? '#93c5fd' : '#86efac');
+                if (combo >= 2) spawnPopup(tree.x + 20, cl.y - 36,
+                    comboLabels[Math.min(combo, 5)], '#fbbf24');
+
+                if (score > highScore) { highScore = score; localStorage.setItem('ns_hs2', highScore); }
+                updateHUD();
+            }
+        });
+
+        // Miss check (only green leaves are required)
+        if (!tree.passed && tree.x < neckTipX - 55) {
+            tree.passed = true;
+            const missedGreen = tree.clusters.some(cl => !cl.hit && cl.type === 'green');
+            if (missedGreen && G.inv <= 0) {
+                lives--;
+                G.inv      = 70;
+                combo      = 1;
+                comboMeter = 0;
+                shakeAmt   = 6;
+                flashFrames= 10;
+                flashColor = 'rgba(220,30,0,0.4)';
+                updateHUD();
+                if (lives <= 0) died = true;
             }
         }
+    });
+    trees = trees.filter(t => t.x > -(t.canopyW + 10));
 
-        function createScorePopup(x, y, text) {
-            popups.push({
-                x: x,
-                y: y - 20,
-                text: text,
-                color: '#7c3aed',
-                life: 40,
-                maxLife: 40
-            });
-        }
+    // Combo meter decay
+    comboMeter = Math.max(0, comboMeter - 0.007);
+    if (comboMeter <= 0 && combo > 1) { combo = 1; updateHUD(); }
 
-        function updateHUD() {
-            scoreEl.textContent = `Score: ${score}`;
-            livesEl.textContent = '🦒'.repeat(Math.max(0, lives));
-            comboEl.textContent = `Combo: ${combo}x`;
-        }
+    // Particle tick
+    particles = particles.filter(p => {
+        p.x += p.vx; p.y += p.vy; p.vy += 0.18;
+        return --p.life > 0;
+    });
+    popups = popups.filter(p => { p.y -= 1.3; return --p.life > 0; });
 
-        function gameOver() {
-            gameActive = false;
-            if (score > highScore) {
-                highScore = score;
-                localStorage.setItem('neckStretchHighScore', highScore);
-            }
-            finalScoreEl.textContent = `Score: ${score}\nHigh Score: ${highScore}`;
-            gameoverOverlay.classList.remove('hidden');
-        }
+    shakeAmt *= 0.80;
 
-        init();
-    </script>
+    // ── Render ──
+    const sx = shakeAmt > 0.3 ? (Math.random() - 0.5) * shakeAmt : 0;
+    const sy = shakeAmt > 0.3 ? (Math.random() - 0.5) * shakeAmt : 0;
+    ctx.save();
+    ctx.translate(sx, sy);
+
+    drawBackground();
+    drawGround();
+    trees.forEach(drawGameTree);
+    drawGiraffe();
+    drawParticles();
+    drawPopups();
+
+    if (flashFrames > 0) {
+        ctx.globalAlpha = (flashFrames / 10) * 0.62;
+        ctx.fillStyle   = flashColor;
+        ctx.fillRect(-5, -5, W + 10, H + 10);
+        ctx.globalAlpha = 1;
+        flashFrames--;
+    }
+    ctx.restore();
+
+    if (died) { setTimeout(showGameOver, 350); return; }
+    requestAnimationFrame(update);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GAME FLOW
+// ─────────────────────────────────────────────────────────────────────────────
+function beginCountdown() {
+    document.getElementById('menu-overlay').classList.add('hidden');
+    const wrap = document.getElementById('countdown');
+    const num  = document.getElementById('countdown-num');
+    wrap.classList.remove('hidden');
+    let n = 3;
+
+    function tick() {
+        num.textContent        = n > 0 ? n : 'GO!';
+        num.style.transform    = 'scale(1.5)';
+        num.style.opacity      = '1';
+        num.style.color        = n > 0 ? '#f97316' : '#4ade80';
+        num.style.textShadow   = n > 0
+            ? '0 0 60px rgba(249,115,22,0.8)'
+            : '0 0 60px rgba(74,222,128,0.8)';
+        setTimeout(() => { num.style.transform = 'scale(0.7)'; num.style.opacity = '0.3'; }, 520);
+        if (n > 0) { n--; setTimeout(tick, 900); }
+        else setTimeout(() => { wrap.classList.add('hidden'); startGame(); }, 700);
+    }
+    tick();
+}
+
+function startGame() {
+    gameActive  = true;
+    score       = 0; lives = 3; combo = 1; comboMeter = 0;
+    trees       = []; particles = []; popups = [];
+    nextTree    = 90; spawnRate = 115;
+    gameSpeed   = 2.5; frame = 0; shakeAmt = 0;
+    G.neck      = G.minNeck; G.inv = 0; G.mega = 0; G.walkF = 0;
+    updateHUD();
+    updatePowerLabel();
+    requestAnimationFrame(update);
+}
+
+function showGameOver() {
+    gameActive = false;
+    const isNew = score >= highScore && score > 0;
+    document.getElementById('go-title').textContent  = isNew ? '🏆 NEW BEST!' : 'GAME OVER';
+    document.getElementById('go-title').style.background = isNew
+        ? 'linear-gradient(135deg,#fbbf24,#facc15)' : 'linear-gradient(135deg,#f97316,#ef4444)';
+    document.getElementById('go-title').style.webkitBackgroundClip = 'text';
+    document.getElementById('go-title').style.webkitTextFillColor  = 'transparent';
+    document.getElementById('go-score').textContent = score.toLocaleString();
+    document.getElementById('go-hs').textContent    = 'BEST: ' + highScore.toLocaleString();
+    document.getElementById('gameover-overlay').classList.remove('hidden');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INPUT
+// ─────────────────────────────────────────────────────────────────────────────
+function initControls() {
+    const press   = e => { if (e.code === 'Space') e.preventDefault(); isPressed = true; };
+    const release = ()  => { isPressed = false; };
+    window.addEventListener('keydown',   press);
+    window.addEventListener('keyup',     release);
+    window.addEventListener('touchstart', press,   { passive: false });
+    window.addEventListener('touchend',   release);
+    canvas.addEventListener('mousedown',  press);
+    window.addEventListener('mouseup',    release);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────────────────
+function init() {
+    resize();
+    window.addEventListener('resize', resize);
+    initControls();
+    document.getElementById('hs-display').textContent = 'BEST: ' + highScore.toLocaleString();
+    // Draw idle background on start screen
+    drawBackground();
+    drawGround();
+}
+
+init();
+</script>
 </body>
 </html>

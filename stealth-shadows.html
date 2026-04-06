@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stealth Shadows: Find or Hide</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a2e;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        #ui {
+            margin-bottom: 10px;
+            display: flex;
+            gap: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            height: 30px;
+        }
+
+        canvas {
+            background: #16213e;
+            border: 4px solid #0f3460;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            max-width: 95vw;
+            max-height: 80vh;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            padding: 2.5rem;
+            border-radius: 1.5rem;
+            text-align: center;
+            width: 80%;
+            max-width: 400px;
+            z-index: 100;
+        }
+
+        .role-choice {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+
+        .role-btn {
+            background: #0f3460;
+            border: 2px solid #e94560;
+            padding: 20px;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: 0.3s;
+            width: 120px;
+        }
+
+        .role-btn:hover { background: #16213e; transform: scale(1.1); }
+        .role-btn.active { background: #e94560; }
+        .role-btn .icon { font-size: 2.5rem; margin-bottom: 10px; }
+
+        .btn {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 2rem;
+            width: 100%;
+        }
+
+        .btn:hover { background: #ff4d6d; }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div id="stats">Found: <span id="count">0</span> / <span id="total">5</span></div>
+    <div>Time: <span id="timer">60</span>s</div>
+</div>
+
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+
+<div id="overlay">
+    <h1 id="overlay-title">Stealth Shadows</h1>
+    <p id="overlay-desc">Pick your role to start:</p>
+    
+    <div id="role-selection" class="role-choice">
+        <div class="role-btn" id="btn-seeker" onclick="selectRole('seeker')">
+            <div class="icon">🔍</div>
+            <div>Seeker</div>
+        </div>
+        <div class="role-btn" id="btn-hider" onclick="selectRole('hider')">
+            <div class="icon">👤</div>
+            <div>Hider</div>
+        </div>
+    </div>
+
+    <button class="btn" id="start-btn" onclick="startGame()">Start Game</button>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const countEl = document.getElementById('count');
+    const totalEl = document.getElementById('total');
+    const timerEl = document.getElementById('timer');
+    const overlay = document.getElementById('overlay');
+    const overlayTitle = document.getElementById('overlay-title');
+    const overlayDesc = document.getElementById('overlay-desc');
+    const statsEl = document.getElementById('stats');
+
+    let player = { x: 400, y: 300, radius: 15, speed: 4 };
+    let seekerAI = { 
+        x: 400, y: 300, radius: 15, angle: 0, 
+        speed: 2.5, targetX: 400, targetY: 300, 
+        state: 'roam', waitTimer: 0 
+    };
+    let hiders = [];
+    let obstacles = [];
+    let gameActive = false;
+    let foundCount = 0;
+    let totalHiders = 5;
+    let timeLeft = 60;
+    let keys = {};
+    let currentRole = 'seeker';
+
+    function init() {
+        obstacles = [];
+        hiders = [];
+        foundCount = 0;
+        timeLeft = currentRole === 'seeker' ? 60 : 45;
+        
+        // Player start
+        player.x = 50;
+        player.y = 50;
+
+        // Stats update
+        if (currentRole === 'seeker') {
+            statsEl.innerHTML = `Found: <span id="count">0</span> / <span id="total">${totalHiders}</span>`;
+            totalEl.innerText = totalHiders;
+        } else {
+            statsEl.innerText = "Don't be seen!";
+            seekerAI.x = 700;
+            seekerAI.y = 500;
+            setNewAIWaypoint();
+        }
+
+        // Obstacles
+        for(let i=0; i<8; i++) {
+            obstacles.push({
+                x: Math.random() * (canvas.width - 150) + 75,
+                y: Math.random() * (canvas.height - 150) + 75,
+                w: Math.random() * 100 + 60,
+                h: Math.random() * 100 + 60
+            });
+        }
+
+        if (currentRole === 'seeker') {
+            for(let i=0; i<totalHiders; i++) {
+                let hx, hy;
+                do {
+                    hx = Math.random() * (canvas.width - 40) + 20;
+                    hy = Math.random() * (canvas.height - 40) + 20;
+                } while (checkCollision(hx, hy, 15) || dist(hx, hy, player.x, player.y) < 200);
+                hiders.push({ x: hx, y: hy, radius: 10, found: false });
+            }
+        }
+
+        timerEl.innerText = timeLeft;
+        gameActive = false;
+    }
+
+    function setNewAIWaypoint() {
+        do {
+            seekerAI.targetX = Math.random() * (canvas.width - 100) + 50;
+            seekerAI.targetY = Math.random() * (canvas.height - 100) + 50;
+        } while (checkCollision(seekerAI.targetX, seekerAI.targetY, 20));
+        seekerAI.state = 'roam';
+        seekerAI.waitTimer = 0;
+    }
+
+    function selectRole(role) {
+        currentRole = role;
+        document.getElementById('btn-seeker').classList.toggle('active', role === 'seeker');
+        document.getElementById('btn-hider').classList.toggle('active', role === 'hider');
+    }
+
+    function checkCollision(x, y, r) {
+        for(let obs of obstacles) {
+            if (x + r > obs.x && x - r < obs.x + obs.w &&
+                y + r > obs.y && y - r < obs.y + obs.h) return true;
+        }
+        return false;
+    }
+
+    function dist(x1, y1, x2, y2) { return Math.sqrt((x2-x1)**2 + (y2-y1)**2); }
+
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    function startGame() {
+        overlay.style.display = 'none';
+        init();
+        gameActive = true;
+        gameLoop();
+        startTimer();
+    }
+
+    function startTimer() {
+        const interval = setInterval(() => {
+            if (!gameActive) { clearInterval(interval); return; }
+            timeLeft--;
+            timerEl.innerText = timeLeft;
+            if (timeLeft <= 0) {
+                currentRole === 'seeker' ? endGame(false) : endGame(true);
+                clearInterval(interval);
+            }
+        }, 1000);
+    }
+
+    function update() {
+        if (!gameActive) return;
+
+        // Player Movement
+        let nextX = player.x;
+        let nextY = player.y;
+        if (keys['ArrowUp'] || keys['KeyW']) nextY -= player.speed;
+        if (keys['ArrowDown'] || keys['KeyS']) nextY += player.speed;
+        if (keys['ArrowLeft'] || keys['KeyA']) nextX -= player.speed;
+        if (keys['ArrowRight'] || keys['KeyD']) nextX += player.speed;
+
+        nextX = Math.max(player.radius, Math.min(canvas.width - player.radius, nextX));
+        nextY = Math.max(player.radius, Math.min(canvas.height - player.radius, nextY));
+
+        if (!checkCollision(nextX, player.y, player.radius)) player.x = nextX;
+        if (!checkCollision(player.x, nextY, player.radius)) player.y = nextY;
+
+        if (currentRole === 'seeker') {
+            hiders.forEach(h => {
+                if (!h.found && dist(player.x, player.y, h.x, h.y) < player.radius + h.radius + 10) {
+                    h.found = true;
+                    foundCount++;
+                    document.getElementById('count').innerText = foundCount;
+                    if (foundCount === totalHiders) endGame(true);
+                }
+            });
+        } else {
+            updateSeekerAI();
+        }
+    }
+
+    function updateSeekerAI() {
+        let distToPlayer = dist(player.x, player.y, seekerAI.x, seekerAI.y);
+        let dx = player.x - seekerAI.x;
+        let dy = player.y - seekerAI.y;
+
+        // Detection check
+        let angleToPlayer = Math.atan2(dy, dx);
+        let angleDiff = Math.abs(angleToPlayer - seekerAI.angle);
+        if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+        if (distToPlayer < 180 && angleDiff < 0.7) {
+            endGame(false); // Caught!
+            return;
+        }
+
+        // Proximity Sensing (Smart)
+        if (distToPlayer < 250 && seekerAI.state !== 'investigate') {
+            seekerAI.state = 'investigate';
+            seekerAI.targetX = player.x + (Math.random() - 0.5) * 100;
+            seekerAI.targetY = player.y + (Math.random() - 0.5) * 100;
+        }
+
+        // Navigation toward target
+        let targetAngle = Math.atan2(seekerAI.targetY - seekerAI.y, seekerAI.targetX - seekerAI.x);
+        
+        // Smooth rotation
+        let angleStep = (targetAngle - seekerAI.angle);
+        while (angleStep > Math.PI) angleStep -= Math.PI * 2;
+        while (angleStep < -Math.PI) angleStep += Math.PI * 2;
+        seekerAI.angle += angleStep * 0.1;
+
+        // Obstacle avoidance (Simple raycasting)
+        let aheadX = seekerAI.x + Math.cos(seekerAI.angle) * 30;
+        let aheadY = seekerAI.y + Math.sin(seekerAI.angle) * 30;
+        if (checkCollision(aheadX, aheadY, seekerAI.radius) || aheadX < 15 || aheadX > 785 || aheadY < 15 || aheadY > 585) {
+            // Try to turn
+            seekerAI.angle += 0.5;
+            seekerAI.targetX = seekerAI.x + Math.cos(seekerAI.angle) * 100;
+            seekerAI.targetY = seekerAI.y + Math.sin(seekerAI.angle) * 100;
+        } else {
+            seekerAI.x += Math.cos(seekerAI.angle) * seekerAI.speed;
+            seekerAI.y += Math.sin(seekerAI.angle) * seekerAI.speed;
+        }
+
+        // Waypoint arrival
+        if (dist(seekerAI.x, seekerAI.y, seekerAI.targetX, seekerAI.targetY) < 30) {
+            if (seekerAI.state === 'investigate') {
+                seekerAI.state = 'roam';
+                setNewAIWaypoint();
+            } else {
+                seekerAI.waitTimer++;
+                if (seekerAI.waitTimer > 60) setNewAIWaypoint();
+            }
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw Obstacles
+        ctx.fillStyle = '#0f3460';
+        obstacles.forEach(obs => ctx.fillRect(obs.x, obs.y, obs.w, obs.h));
+
+        if (currentRole === 'seeker') {
+            hiders.forEach(h => {
+                if (h.found) {
+                    ctx.fillStyle = '#4ecca3';
+                    ctx.beginPath(); ctx.arc(h.x, h.y, h.radius, 0, Math.PI * 2); ctx.fill();
+                } else {
+                    let d = dist(player.x, player.y, h.x, h.y);
+                    if (d < 120) {
+                        ctx.strokeStyle = `rgba(233, 69, 96, ${1 - d/120})`;
+                        ctx.beginPath(); ctx.arc(h.x, h.y, h.radius, 0, Math.PI * 2); ctx.stroke();
+                    }
+                }
+            });
+            // Player Vision
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.beginPath(); ctx.arc(player.x, player.y, 120, 0, Math.PI * 2); ctx.fill();
+        } else {
+            // Seeker AI Flashlight Visuals
+            let gradient = ctx.createRadialGradient(seekerAI.x, seekerAI.y, 10, seekerAI.x, seekerAI.y, 200);
+            gradient.addColorStop(0, seekerAI.state === 'investigate' ? 'rgba(255, 200, 0, 0.4)' : 'rgba(255, 255, 255, 0.2)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(seekerAI.x, seekerAI.y);
+            ctx.arc(seekerAI.x, seekerAI.y, 180, seekerAI.angle - 0.7, seekerAI.angle + 0.7);
+            ctx.lineTo(seekerAI.x, seekerAI.y);
+            ctx.fill();
+
+            // Draw Seeker
+            ctx.fillStyle = seekerAI.state === 'investigate' ? '#ffcc00' : '#e94560';
+            ctx.beginPath(); ctx.arc(seekerAI.x, seekerAI.y, seekerAI.radius, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+        }
+
+        // Draw Player
+        ctx.fillStyle = currentRole === 'seeker' ? '#e94560' : '#4ecca3';
+        ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
+    }
+
+    function endGame(win) {
+        gameActive = false;
+        overlay.style.display = 'block';
+        overlayTitle.innerText = win ? 'Victory!' : 'Caught!';
+        overlayDesc.innerText = win ? `You ${currentRole === 'seeker' ? 'found them all' : 'survived'}!` : `You ${currentRole === 'seeker' ? 'ran out of time' : 'were spotted'}!`;
+        document.getElementById('start-btn').innerText = 'Play Again';
+        document.getElementById('role-selection').style.display = 'flex';
+    }
+
+    function gameLoop() {
+        if (!gameActive) return;
+        update(); draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    selectRole('seeker');
+</script>
+
+    <div id="joystick-container">
+        <div id="joystick-base">
+            <div id="joystick-handle"></div>
+        </div>
+    </div>
+
+    <style>
+        #joystick-container {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            width: 120px;
+            height: 120px;
+            display: none;
+            z-index: 50;
+            touch-action: none;
+        }
+
+        #joystick-base {
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            position: relative;
+        }
+
+        #joystick-handle {
+            width: 50px;
+            height: 50px;
+            background: rgba(233, 69, 96, 0.8);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        @media (max-width: 850px), (pointer: coarse) {
+            #joystick-container { display: block; }
+        }
+    </style>
+
+    <script>
+        const joystickContainer = document.getElementById('joystick-container');
+        const joystickHandle = document.getElementById('joystick-handle');
+        let joystickActive = false;
+        let joystickPos = { x: 0, y: 0 };
+
+        const handleJoystick = (e) => {
+            const touch = e.touches ? e.touches[0] : e;
+            const rect = joystickContainer.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
+            let dx = touch.clientX - centerX;
+            let dy = touch.clientY - centerY;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const maxDist = rect.width / 2;
+
+            if (dist > maxDist) {
+                dx *= maxDist / dist;
+                dy *= maxDist / dist;
+            }
+
+            joystickHandle.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            
+            // Map to keys
+            keys['ArrowLeft'] = dx < -20;
+            keys['ArrowRight'] = dx > 20;
+            keys['ArrowUp'] = dy < -20;
+            keys['ArrowDown'] = dy > 20;
+        };
+
+        joystickContainer.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            joystickActive = true;
+            handleJoystick(e);
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            if (joystickActive) {
+                e.preventDefault();
+                handleJoystick(e);
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchend', () => {
+            joystickActive = false;
+            joystickHandle.style.transform = 'translate(-50%, -50%)';
+            keys['ArrowLeft'] = false;
+            keys['ArrowRight'] = false;
+            keys['ArrowUp'] = false;
+            keys['ArrowDown'] = false;
+        });
+
+        // Click-to-move for non-touch mobile or simple desktop use
+        canvas.addEventListener('mousedown', (e) => {
+            if (!gameActive) return;
+            const rect = canvas.getBoundingClientRect();
+            const tx = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const ty = (e.clientY - rect.top) * (canvas.height / rect.height);
+            
+            // Simple logic: move towards click
+            const dx = tx - player.x;
+            const dy = ty - player.y;
+            
+            if (Math.abs(dx) > 10) keys[dx > 0 ? 'ArrowRight' : 'ArrowLeft'] = true;
+            if (Math.abs(dy) > 10) keys[dy > 0 ? 'ArrowDown' : 'ArrowUp'] = true;
+            
+            const stopMove = () => {
+                keys['ArrowLeft'] = keys['ArrowRight'] = keys['ArrowUp'] = keys['ArrowDown'] = false;
+                window.removeEventListener('mouseup', stopMove);
+            };
+            window.addEventListener('mouseup', stopMove);
+        });
+    </script>
+</body>
+</html>

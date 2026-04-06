@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dragonspire 8-Bit Overhaul</title>
+    <style>
+        :root {
+            --lava: #ff4500;
+            --stone: #444;
+            --gold: #f1c40f;
+            --warrior: #3498db;
+        }
+
+        body {
+            margin: 0;
+            background: #000;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            image-rendering: pixelated;
+        }
+
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            border: 8px solid #333;
+            background: #1a1a1a;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(255, 69, 0, 0.3);
+        }
+
+        #ui {
+            width: 800px;
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 20px;
+            font-size: 1.5rem;
+            background: #111;
+            border: 4px solid #333;
+            border-bottom: none;
+            box-sizing: border-box;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .heart { color: #e74c3c; filter: drop-shadow(2px 2px #000); }
+        #boss-ui { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 300px; display: none; }
+        #boss-bar-bg { width: 100%; height: 12px; background: #222; border: 2px solid #fff; }
+        #boss-bar { width: 100%; height: 100%; background: #e74c3c; transition: width 0.3s; }
+
+        #overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.92);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            box-sizing: border-box;
+            z-index: 100;
+        }
+
+        h1 { color: #f1c40f; font-size: 3.5rem; margin: 0; text-shadow: 4px 4px #c0392b; letter-spacing: 2px; }
+        p { font-size: 1.2rem; line-height: 1.6; color: #aaa; margin: 1rem 0; }
+
+        .btn {
+            background: #c0392b;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-top: 1rem;
+            font-family: inherit;
+            font-weight: bold;
+            box-shadow: 0 4px #8b0000;
+        }
+
+        .btn:hover { background: #e74c3c; transform: translateY(-2px); box-shadow: 0 6px #8b0000; }
+        .btn:active { transform: translateY(2px); box-shadow: 0 2px #8b0000; }
+
+        .controls-hint { font-size: 0.9rem; color: #666; margin-top: 1.5rem; letter-spacing: 1px; }
+
+        /* CRT Scanline Effect */
+        #game-container::after {
+            content: " ";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div id="level-name">STAGE 1-1</div>
+    <div id="health">HP: <span class="heart">❤❤❤</span></div>
+</div>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+    
+    <div id="boss-ui">
+        <div style="text-align:center; font-size: 1rem; margin-bottom: 5px; color: #f1c40f;">ANCIENT DRAGON</div>
+        <div id="boss-bar-bg"><div id="boss-bar"></div></div>
+    </div>
+
+    <div id="overlay">
+        <h1 id="title">DRAGONSPIRE</h1>
+        <p id="desc">8-BIT RESCUE ADVENTURE</p>
+        <button class="btn" id="action-btn">PRESS START</button>
+        <div class="controls-hint">ARROWS: MOVE • SPACE: ATTACK</div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const levelNameEl = document.getElementById('level-name');
+    const healthEl = document.getElementById('health');
+    const overlay = document.getElementById('overlay');
+    const titleEl = document.getElementById('title');
+    const descEl = document.getElementById('desc');
+    const actionBtn = document.getElementById('action-btn');
+    const bossUI = document.getElementById('boss-ui');
+    const bossBar = document.getElementById('boss-bar');
+
+    // 8-BIT ASSETS
+    const PIXEL_SIZE = 4;
+
+    function drawPixelSprite(x, y, data, scale = 1, flip = false) {
+        ctx.save();
+        ctx.translate(x, y);
+        if (flip) {
+            ctx.scale(-1, 1);
+            ctx.translate(-data[0].length * PIXEL_SIZE * scale, 0);
+        }
+        data.forEach((row, r) => {
+            row.forEach((color, c) => {
+                if (color) {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(c * PIXEL_SIZE * scale, r * PIXEL_SIZE * scale, PIXEL_SIZE * scale, PIXEL_SIZE * scale);
+                }
+            });
+        });
+        ctx.restore();
+    }
+
+    const KNIGHT_SPRITE = [
+        [null, null, "#000", "#000", "#000", null, null],
+        [null, "#000", "#3498db", "#3498db", "#3498db", "#000", null],
+        ["#c0392b", "#3498db", "#fff", "#3498db", "#fff", "#3498db", null],
+        ["#c0392b", "#3498db", "#3498db", "#3498db", "#3498db", "#3498db", null],
+        [null, "#000", "#000", "#000", "#000", "#000", null],
+        [null, null, "#3498db", "#3498db", "#3498db", null, null],
+        [null, null, "#3498db", "#3498db", "#3498db", null, null],
+        [null, "#000", null, null, null, "#000", null]
+    ];
+
+    const DRAGON_SPRITE = [
+        [null, null, null, "#c0392b", "#c0392b", "#c0392b", null, null],
+        [null, "#c0392b", "#c0392b", "#c0392b", "#c0392b", "#c0392b", "#c0392b", null],
+        ["#c0392b", "#f1c40f", "#c0392b", "#c0392b", "#c0392b", "#f1c40f", "#c0392b", null],
+        ["#c0392b", "#c0392b", "#c0392b", "#c0392b", "#c0392b", "#c0392b", "#c0392b", null],
+        [null, "#c0392b", "#2ecc71", "#2ecc71", "#2ecc71", "#c0392b", null, null],
+        [null, "#c0392b", "#2ecc71", "#2ecc71", "#2ecc71", "#c0392b", null, null],
+        [null, "#c0392b", "#c0392b", "#c0392b", "#c0392b", "#c0392b", null, null]
+    ];
+
+    const PRINCESS_SPRITE = [
+        [null, null, "#f1c40f", "#f1c40f", null, null],
+        [null, "#ffdbac", "#ffdbac", "#ffdbac", "#ffdbac", null],
+        [null, "#ff69b4", "#ff69b4", "#ff69b4", "#ff69b4", null],
+        ["#ff69b4", "#ff69b4", "#ff69b4", "#ff69b4", "#ff69b4", "#ff69b4"],
+        ["#ff69b4", "#ff69b4", "#ff69b4", "#ff69b4", "#ff69b4", "#ff69b4"],
+        ["#ff69b4", "#ff69b4", "#ff69b4", "#ff69b4", "#ff69b4", "#ff69b4"]
+    ];
+
+    let player = { 
+        x: 50, y: 350, w: 28, h: 32, vx: 0, vy: 0, 
+        grounded: false, health: 3, 
+        attacking: 0, dir: 1, invuln: 0,
+        safeX: 50, safeY: 350,
+        coyoteTime: 0, jumpBuffer: 0
+    };
+
+    let dragon = { x: 550, y: 150, w: 160, h: 120, health: 10, maxHealth: 10, active: false, state: 'idle', timer: 0 };
+    let projectiles = [];
+    let particles = [];
+    let stage = 1;
+    let gameActive = false;
+    let platforms = [];
+    let hazards = [];
+    let goal = { x: 740, y: 380, w: 40, h: 60 };
+    let keys = {};
+    let gravity = 0.5;
+    let friction = 0.85;
+    let shake = 0;
+
+    function initStage(s) {
+        stage = s;
+        platforms = []; hazards = []; projectiles = [];
+        dragon.active = false; bossUI.style.display = 'none';
+
+        if (s === 1) { 
+            levelNameEl.innerText = "STAGE 1-1";
+            player.x = 50; player.y = 418; 
+            platforms.push({ x: 0, y: 450, w: 200, h: 50 });
+            platforms.push({ x: 300, y: 380, w: 120, h: 20, moving: true, range: 100, originX: 300 });
+            platforms.push({ x: 520, y: 320, w: 120, h: 20, moving: true, range: 100, originX: 520 });
+            platforms.push({ x: 680, y: 450, w: 150, h: 50 });
+            hazards.push({ x: 200, y: 480, w: 480, h: 20, type: 'water' });
+            hazards.push({ x: 250, y: 460, w: 32, h: 24, type: 'shark', vx: 2, range: [220, 650] });
+        } else if (s === 2) { 
+            levelNameEl.innerText = "STAGE 1-2";
+            player.x = 40; player.y = 418;
+            platforms.push({ x: 0, y: 450, w: 120, h: 50 });
+            platforms.push({ x: 180, y: 350, w: 100, h: 24 });
+            platforms.push({ x: 350, y: 280, w: 100, h: 24 });
+            platforms.push({ x: 520, y: 350, w: 100, h: 24 });
+            platforms.push({ x: 700, y: 450, w: 100, h: 50 });
+            hazards.push({ x: 0, y: 480, w: 800, h: 20, type: 'lava' });
+            hazards.push({ x: 320, y: 480, w: 40, h: 0, type: 'geyser', timer: 0 });
+            hazards.push({ x: 550, y: 480, w: 40, h: 0, type: 'geyser', timer: 80 });
+        } else if (s === 3) { 
+            levelNameEl.innerText = "BOSS: LAIR";
+            player.x = 50; player.y = 418;
+            platforms.push({ x: 0, y: 450, w: 800, h: 50 });
+            platforms.push({ x: 120, y: 320, w: 120, h: 24 });
+            platforms.push({ x: 350, y: 220, w: 120, h: 24 });
+            dragon.active = true;
+            dragon.health = dragon.maxHealth;
+            bossUI.style.display = 'block';
+            updateBossBar();
+        } else if (s === 4) { 
+            levelNameEl.innerText = "FINAL ESCAPE";
+            player.x = 400; player.y = 418;
+            platforms.push({ x: 320, y: 450, w: 160, h: 24 });
+            platforms.push({ x: 150, y: 350, w: 140, h: 24 });
+            platforms.push({ x: 510, y: 250, w: 140, h: 24 });
+            platforms.push({ x: 330, y: 150, w: 140, h: 24 });
+            platforms.push({ x: 0, y: 60, w: 800, h: 24 });
+            hazards.push({ x: 0, y: 500, w: 800, h: 500, type: 'rising_lava', vy: -1.3 });
+        }
+        player.safeX = player.x; 
+        player.safeY = player.y;
+        player.vx = 0; player.vy = 0;
+        player.grounded = true;
+    }
+
+    function update() {
+        if (!gameActive) return;
+
+        // JUMP BUFFER & COYOTE TIME
+        if (keys['ArrowUp'] || keys['KeyW']) player.jumpBuffer = 10;
+        if (player.jumpBuffer > 0) player.jumpBuffer--;
+
+        if (player.grounded) player.coyoteTime = 10;
+        if (player.coyoteTime > 0) player.coyoteTime--;
+
+        // INPUT
+        if (keys['ArrowLeft'] || keys['KeyA']) { player.vx -= 0.8; player.dir = -1; }
+        if (keys['ArrowRight'] || keys['KeyD']) { player.vx += 0.8; player.dir = 1; }
+        
+        if (player.jumpBuffer > 0 && player.coyoteTime > 0) {
+            player.vy = -12;
+            player.grounded = false;
+            player.coyoteTime = 0;
+            player.jumpBuffer = 0;
+        }
+
+        if (keys['Space'] && player.attacking === 0) {
+            player.attacking = 12;
+            checkAttack();
+        }
+
+        player.vx *= friction;
+        player.vy += gravity;
+        player.x += player.vx;
+        player.y += player.vy;
+        
+        player.grounded = false;
+
+        // PLATFORMS
+        platforms.forEach(p => {
+            if (p.moving) p.x = p.originX + Math.sin(Date.now() / 700) * p.range;
+            
+            // Landing (Improved collision)
+            if (player.vy >= 0 && 
+                player.x + player.w > p.x + 4 && player.x < p.x + p.w - 4 &&
+                player.y + player.h >= p.y && player.y + player.h <= p.y + player.vy + 10) {
+                player.y = p.y - player.h;
+                player.vy = 0;
+                player.grounded = true;
+                player.safeX = player.x; // Keep current X for safer respawn
+                player.safeY = p.y - player.h;
+            }
+        });
+
+        updateHazards();
+        if (dragon.active) updateDragon();
+
+        // PROJECTILES & PARTICLES
+        projectiles.forEach((p, i) => {
+            p.x += p.vx; p.y += p.vy;
+            if (dist(player.x + 14, player.y + 16, p.x, p.y) < 20) takeDamage();
+            if (p.x < -50 || p.x > 850 || p.y < -50 || p.y > 550) projectiles.splice(i, 1);
+        });
+
+        particles.forEach((p, i) => {
+            p.x += p.vx; p.y += p.vy; p.life--;
+            if (p.life <= 0) particles.splice(i, 1);
+        });
+
+        if (player.attacking > 0) player.attacking--;
+        if (player.invuln > 0) player.invuln--;
+        if (shake > 0) shake--;
+
+        // GOAL & FALL
+        if (stage < 4 && dist(player.x + 14, player.y + 16, goal.x + 20, goal.y + 30) < 40) nextStage();
+        if (stage === 4 && player.y < 60) winGame();
+        if (player.y > canvas.height + 100) takeDamage(true);
+    }
+
+    function updateHazards() {
+        hazards.forEach(h => {
+            if (h.type === 'shark') {
+                h.x += h.vx;
+                if (h.x < h.range[0] || h.x > h.range[1]) h.vx *= -1;
+            }
+            if (h.type === 'geyser') {
+                h.timer++;
+                h.h = (h.timer % 180 < 60) ? -280 : 0;
+                if (h.h < 0 && Math.random() < 0.2) spawnParticles(h.x + 20, 480, '#ff4500', 1);
+            }
+            if (h.type === 'rising_lava') {
+                h.y += h.vy;
+                if (player.y + player.h > h.y) takeDamage(true);
+            }
+            // Collision
+            if (player.invuln <= 0 && player.x + player.w - 4 > h.x && player.x + 4 < h.x + h.w &&
+                player.y + player.h > h.y && player.y + 4 < h.y + (h.h < 0 ? Math.abs(h.h) : 50)) {
+                if (h.h < 0 && player.y + player.h < h.y) return; // Geyser safety
+                takeDamage(h.type === 'lava' || h.type === 'water');
+            }
+        });
+    }
+
+    function updateDragon() {
+        dragon.timer--;
+        if (dragon.timer <= 0) {
+            const rand = Math.random();
+            if (rand < 0.5) {
+                dragon.state = 'fire'; dragon.timer = 70;
+                projectiles.push({ x: dragon.x, y: dragon.y + 60, vx: -7, vy: 1 });
+                projectiles.push({ x: dragon.x, y: dragon.y + 60, vx: -7, vy: -1 });
+            } else {
+                dragon.state = 'idle'; dragon.timer = 100;
+            }
+        }
+        dragon.y = 120 + Math.sin(Date.now() / 600) * 40;
+    }
+
+    function checkAttack() {
+        const ar = player.dir === 1 ? { x: player.x + player.w, y: player.y, w: 40, h: player.h } : { x: player.x - 40, y: player.y, w: 40, h: player.h };
+        if (dragon.active && intersect(ar, dragon)) {
+            dragon.health--;
+            updateBossBar();
+            shake = 12;
+            spawnParticles(dragon.x, dragon.y + 60, '#f1c40f', 15);
+            if (dragon.health <= 0) nextStage();
+        }
+    }
+
+    function takeDamage(resetToSafe = false) {
+        if (player.invuln > 0) return;
+        player.health--;
+        player.invuln = 80;
+        shake = 20;
+        updateHealthUI();
+        if (player.health <= 0) gameOver();
+        else if (resetToSafe) {
+            player.x = player.safeX;
+            player.y = player.safeY;
+            player.vx = 0; player.vy = 0;
+        } else {
+            player.vx = -8 * player.dir;
+            player.vy = -6;
+        }
+    }
+
+    function updateHealthUI() {
+        healthEl.innerHTML = `HP: <span class="heart">${"❤❤❤".substring(0, player.health)}</span>`;
+    }
+
+    function updateBossBar() {
+        bossBar.style.width = (dragon.health / dragon.maxHealth * 100) + '%';
+    }
+
+    function nextStage() {
+        gameActive = false;
+        stage++;
+        if (stage > 4) winGame();
+        else showOverlay("STAGE CLEAR", "RESCUE CONTINUES...", "CONTINUE");
+    }
+
+    function gameOver() {
+        gameActive = false;
+        showOverlay("GAME OVER", "THE SPIRE CLAIMS YOU", "RETRY");
+        actionBtn.onclick = () => location.reload();
+    }
+
+    function winGame() {
+        gameActive = false;
+        showOverlay("VICTORY", "PRINCESS RESCUED!", "PLAY AGAIN");
+        actionBtn.onclick = () => location.reload();
+    }
+
+    function showOverlay(t, d, b) {
+        titleEl.innerText = t; descEl.innerText = d; actionBtn.innerText = b;
+        overlay.style.display = 'flex';
+    }
+
+    function spawnParticles(x, y, color, n) {
+        for(let i=0; i<n; i++) {
+            particles.push({ x, y, vx: (Math.random()-0.5)*12, vy: (Math.random()-0.5)*12, life: 20+Math.random()*20, color });
+        }
+    }
+
+    function intersect(r1, r2) {
+        return !(r2.x > r1.x + r1.w || r2.x + r2.w < r1.x || r2.y > r1.y + r1.h || r2.y + r2.h < r1.y);
+    }
+
+    function dist(x1, y1, x2, y2) { return Math.sqrt((x2-x1)**2 + (y2-y1)**2); }
+
+    function draw() {
+        ctx.save();
+        if (shake > 0) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // BACKGROUND
+        ctx.fillStyle = stage === 1 ? "#1a2a6c" : (stage === 2 ? "#2c3e50" : "#0f0c29");
+        ctx.fillRect(0,0,800,500);
+
+        // PLATFORMS (8-BIT BRICK)
+        platforms.forEach(p => {
+            ctx.fillStyle = "#333"; ctx.fillRect(p.x, p.y, p.w, p.h);
+            ctx.fillStyle = "#444";
+            for(let bx=0; bx<p.w; bx+=20) {
+                for(let by=0; by<p.h; by+=10) {
+                    if((bx+by)%40===0) ctx.fillRect(p.x+bx, p.y+by, 18, 8);
+                }
+            }
+        });
+
+        // HAZARDS
+        hazards.forEach(h => {
+            if (h.type === 'water') ctx.fillStyle = "rgba(0, 150, 255, 0.7)";
+            else if (h.type.includes('lava') || h.type === 'geyser') ctx.fillStyle = "#ff4500";
+            else if (h.type === 'shark') {
+                drawPixelSprite(h.x, h.y, [[null, "#555", null],["#555","#555","#555"],["#fff","#555","#fff"]], 1, h.vx < 0);
+                return;
+            }
+            ctx.fillRect(h.x, h.y, h.w, h.h || 500);
+        });
+
+        // SPRITES
+        if (dragon.active) drawPixelSprite(dragon.x, dragon.y, DRAGON_SPRITE, 4);
+        if (stage < 4) drawPixelSprite(goal.x, goal.y, [[null,"#f1c40f",null],["#f1c40f","#f1c40f","#f1c40f"],["#555","#555","#555"]], 3);
+        else drawPixelSprite(400, 20, PRINCESS_SPRITE, 2);
+
+        projectiles.forEach(p => { ctx.fillStyle="#fff"; ctx.fillRect(p.x-4,p.y-4,8,8); });
+        particles.forEach(p => { ctx.fillStyle=p.color; ctx.fillRect(p.x,p.y,4,4); });
+
+        // PLAYER (8-BIT KNIGHT)
+        if (player.invuln % 10 < 5) {
+            drawPixelSprite(player.x, player.y, KNIGHT_SPRITE, 1, player.dir === -1);
+            if (player.attacking > 0) {
+                ctx.fillStyle = "#fff";
+                if (player.dir === 1) ctx.fillRect(player.x + player.w, player.y + 12, 32, 8);
+                else ctx.fillRect(player.x - 32, player.y + 12, 32, 8);
+            }
+        }
+
+        ctx.restore();
+    }
+
+    function gameLoop() {
+        update(); draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    actionBtn.onclick = () => {
+        initStage(stage);
+        overlay.style.display = 'none';
+        gameActive = true;
+    };
+
+    gameLoop();
+</script>
+
+    <div id="touch-controls">
+        <div class="touch-btn" id="btn-left">◀</div>
+        <div class="touch-btn" id="btn-right">▶</div>
+        <div class="touch-btn" id="btn-jump">▲</div>
+        <div class="touch-btn" id="btn-attack">⚔</div>
+    </div>
+
+    <style>
+        #touch-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            display: none;
+            justify-content: space-between;
+            padding: 0 40px;
+            box-sizing: border-box;
+            z-index: 50;
+        }
+
+        .touch-btn {
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 3px solid #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            color: #fff;
+            user-select: none;
+            touch-action: none;
+        }
+
+        .touch-btn:active { background: rgba(255, 255, 255, 0.4); transform: scale(0.9); }
+
+        @media (max-width: 850px), (pointer: coarse) {
+            #touch-controls { display: flex; }
+        }
+    </style>
+
+    <script>
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+        const btnJump = document.getElementById('btn-jump');
+        const btnAttack = document.getElementById('btn-attack');
+
+        const setupTouch = (btn, code) => {
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[code] = true; });
+            btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[code] = false; });
+            btn.addEventListener('mousedown', () => { keys[code] = true; });
+            btn.addEventListener('mouseup', () => { keys[code] = false; });
+            btn.addEventListener('mouseleave', () => { keys[code] = false; });
+        };
+
+        setupTouch(btnLeft, 'ArrowLeft');
+        setupTouch(btnRight, 'ArrowRight');
+        setupTouch(btnJump, 'ArrowUp');
+        setupTouch(btnAttack, 'Space');
+    </script>
