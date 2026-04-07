@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+  <title>Panda Panda – K2 Games</title>
+  <style>
+    :root{--bg:#060d0a;--surf:#0e1c14;--surf2:#162a1e;--border:rgba(255,255,255,.08);--text:#e8f4ec;--muted:#6b8c72;
+          --green:#4ade80;--gold:#fbbf24;--red:#f87171;--blue:#60a5fa;--purple:#c084fc;}
+    *{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+    html,body{height:100%;overflow:hidden;background:var(--bg);
+              font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--text);}
+    a#hub{position:fixed;top:12px;left:12px;background:rgba(14,28,20,.85);color:var(--text);
+          border:1px solid var(--border);border-radius:8px;padding:6px 11px;font-size:.78rem;
+          text-decoration:none;z-index:999;backdrop-filter:blur(8px);transition:all .2s;}
+    a#hub:hover{background:#16a34a;border-color:#16a34a;}
+
+    #wrap{width:100%;height:100%;max-width:540px;margin:0 auto;display:flex;flex-direction:column;position:relative;overflow:hidden;}
+
+    /* ── score strip ── */
+    #sstrip{flex-shrink:0;display:flex;justify-content:space-around;align-items:center;
+            padding:40px 8px 7px;background:var(--surf);border-bottom:1px solid var(--border);gap:6px;}
+    .pp{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;
+        padding:5px 2px;border-radius:9px;border:1.5px solid transparent;transition:all .25s;}
+    .pp.active{border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.05);}
+    .pp.you{border-color:rgba(74,222,128,.3);}
+    .pname{font-size:.6rem;font-weight:700;color:var(--muted);letter-spacing:1px;}
+    .pwins{font-size:1.3rem;line-height:1;}
+    .pcnt{font-size:.58rem;color:var(--muted);}
+
+    /* ── main area ── */
+    #main{flex:1;display:flex;flex-direction:column;padding:8px;gap:8px;overflow:hidden;
+          background:linear-gradient(180deg,#0c1810 0%,#060d0a 100%);}
+
+    /* row: center pile + opponents */
+    #row1{flex-shrink:0;display:flex;align-items:flex-start;justify-content:center;gap:10px;}
+
+    /* deck / discard area */
+    #pilearea{display:flex;flex-direction:column;align-items:center;gap:6px;}
+    #deckpile{width:58px;height:84px;background:linear-gradient(135deg,#1a3a28,#0e2018);
+              border:2px solid rgba(74,222,128,.3);border-radius:10px;display:flex;align-items:center;
+              justify-content:center;cursor:pointer;transition:all .18s;font-size:1.8rem;
+              box-shadow:0 4px 16px rgba(0,0,0,.4);}
+    #deckpile:hover{border-color:rgba(74,222,128,.7);transform:scale(1.05);}
+    #deckpile.empty{opacity:.4;cursor:default;}
+    #decklbl{font-size:.58rem;color:var(--muted);letter-spacing:1px;}
+    #dcnt{font-size:.6rem;color:var(--green);font-weight:700;}
+
+    /* opponent discard piles */
+    #opdiscs{display:flex;flex-direction:column;gap:6px;}
+    .oprow{display:flex;align-items:center;gap:6px;}
+    .oplbl{font-size:.6rem;color:var(--muted);font-weight:700;width:36px;letter-spacing:1px;}
+    .disc-pile{display:flex;gap:3px;flex-wrap:nowrap;overflow:hidden;max-width:180px;}
+    .dcard{width:32px;height:44px;border-radius:6px;border:1.5px solid rgba(255,255,255,.1);
+           background:var(--surf2);display:flex;align-items:center;justify-content:center;
+           font-size:1rem;font-weight:900;cursor:pointer;transition:all .15s;flex-shrink:0;}
+    .dcard:hover.drawable{transform:translateY(-4px);border-color:rgba(255,255,255,.4);}
+    .dcard.a-card{border-color:rgba(248,113,113,.5);color:var(--red);}
+    .dcard.no-draw{opacity:.45;cursor:default;}
+
+    /* hand section */
+    #handarea{flex:1;display:flex;flex-direction:column;gap:6px;min-height:0;}
+    #handlbl{display:flex;justify-content:space-between;align-items:center;padding:0 2px;}
+    #handtitle{font-size:.62rem;font-weight:700;color:var(--muted);letter-spacing:1px;}
+    #handcount{font-size:.62rem;color:var(--green);}
+    #myhand{display:flex;gap:5px;overflow-x:auto;padding:4px 2px 6px;scrollbar-width:none;
+            flex-wrap:wrap;justify-content:center;}
+    #myhand::-webkit-scrollbar{display:none;}
+
+    /* status bar */
+    #statbar{flex-shrink:0;padding:5px 10px;background:var(--surf);border-top:1px solid var(--border);}
+    #statmsg{font-size:.76rem;color:var(--text);text-align:center;padding:5px 14px;
+             background:rgba(255,255,255,.04);border-radius:18px;border:1px solid var(--border);}
+
+    /* panda cards */
+    .pc{width:48px;height:68px;border-radius:9px;border:2px solid rgba(255,255,255,.12);
+        background:var(--surf2);display:flex;flex-direction:column;align-items:center;
+        justify-content:center;cursor:pointer;transition:all .14s;gap:2px;flex-shrink:0;
+        font-weight:800;position:relative;}
+    .pc .ltr{font-size:1.6rem;line-height:1;}
+    .pc .lbl{font-size:.55rem;color:rgba(255,255,255,.45);letter-spacing:1px;}
+    .pc.discardable:hover{transform:translateY(-10px);border-color:rgba(255,255,255,.35);}
+    .pc.selected{border-color:var(--gold)!important;background:rgba(251,191,36,.12);transform:translateY(-10px);}
+    .pc.a-pc{border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08);}
+    .pc.a-pc .ltr{color:var(--red);}
+    .pc.dim{opacity:.4;}
+
+    /* Letter colours */
+    .la{color:var(--red);}       /* A – red/special */
+    .lb{color:#818cf8;}          /* B – indigo */
+    .lc{color:var(--green);}     /* C – green */
+    .ld{color:var(--gold);}      /* D – gold */
+    .le{color:#fb923c;}          /* E – orange */
+    .lf{color:var(--blue);}      /* F – blue */
+    .lg{color:var(--purple);}    /* G – purple */
+
+    /* Overlays */
+    .ov{position:absolute;inset:0;background:rgba(3,8,5,.93);backdrop-filter:blur(12px);
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        gap:14px;z-index:100;}
+    .ov h1{font-size:2.2rem;font-weight:900;letter-spacing:3px;
+           background:linear-gradient(135deg,#4ade80,#16a34a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+    .ov h2{font-size:1.7rem;font-weight:900;}
+    .ov p{font-size:.82rem;color:var(--muted);text-align:center;max-width:86%;line-height:1.75;}
+    .rbox{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:11px;
+          padding:12px 16px;font-size:.72rem;color:#7fa880;line-height:2;max-width:86%;text-align:left;}
+    .rbox strong{color:var(--text);}
+    .rbox .hand-eg{display:inline-flex;gap:3px;vertical-align:middle;align-items:center;}
+    .rbox .ec{width:20px;height:28px;border-radius:4px;border:1px solid rgba(255,255,255,.15);background:var(--surf2);
+              display:inline-flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:800;}
+    .btn{background:linear-gradient(135deg,#16a34a,#064e27);color:#fff;border:none;
+         padding:12px 30px;border-radius:11px;font-size:.95rem;font-weight:800;cursor:pointer;
+         letter-spacing:1.5px;box-shadow:0 4px 18px rgba(22,163,74,.4);transition:all .18s;}
+    .btn:hover{transform:scale(1.05);box-shadow:0 6px 26px rgba(22,163,74,.6);}
+    .btn:active{transform:scale(.97);}
+    .btng{background:rgba(255,255,255,.07);border:1px solid var(--border);box-shadow:none;}
+    .btng:hover{background:rgba(255,255,255,.13);box-shadow:none;}
+
+    /* win announcement */
+    #winfx{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+           z-index:80;pointer-events:none;opacity:0;transition:opacity .25s;}
+    #winfx.show{opacity:1;}
+    #winfx-inner{background:rgba(0,0,0,.88);backdrop-filter:blur(10px);border:2px solid var(--green);
+                 border-radius:16px;padding:18px 32px;text-align:center;}
+    #winfx-inner h3{font-size:1.4rem;font-weight:900;color:var(--green);letter-spacing:2px;}
+    #winfx-inner p{font-size:.78rem;color:var(--muted);}
+
+    /* pass overlay */
+    #passov{position:absolute;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);
+            display:flex;flex-direction:column;align-items:center;justify-content:center;
+            gap:10px;z-index:90;}
+    #passov h3{font-size:1.2rem;font-weight:800;color:var(--red);}
+    #passov p{font-size:.78rem;color:var(--muted);text-align:center;max-width:82%;}
+    #passhand{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;max-width:320px;}
+
+    .hidden{display:none!important;}
+    @keyframes pop{from{opacity:0;transform:scale(.7) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+    .pop{animation:pop .18s ease-out forwards;}
+    @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+    .shake{animation:shake .25s;}
+  </style>
+</head>
+<body>
+<a href="index.html" id="hub">← HUB</a>
+<div id="wrap">
+
+  <!-- MENU -->
+  <div id="menu" class="ov">
+    <h1>🐼 PANDA PANDA</h1>
+    <p>Race to build a winning hand before your opponents!</p>
+    <div class="rbox">
+      <strong>On your turn:</strong> draw 1 OR discard 1<br>
+      <strong>Win a round:</strong> shout Panda Panda at the start of your turn with an exact winning hand<br>
+      <strong>Win the game:</strong> win 2 rounds!<br><br>
+      <strong>Winning hands:</strong><br>
+      2 cards: <strong>CE</strong> / <strong>BF</strong> / <strong>DG</strong><br>
+      3 cards: <strong>DDD</strong><br>
+      4 cards: <strong>CCCC</strong><br>
+      5 cards: <strong>BBBBB</strong><br>
+      6 cards: <strong>AACCEE</strong> / <strong>BBCCDD</strong> / <strong>AAAABBB</strong><br>
+      7 cards: <strong>ABCDEFG</strong><br><br>
+      ⚠️ Discard an <span class="la">A</span>? Everyone passes a card left!
+    </div>
+    <button class="btn" onclick="startGame()">PLAY</button>
+  </div>
+
+  <!-- ROUND WIN -->
+  <div id="roundwin" class="ov hidden">
+    <h2 id="rw-title">🐼 PANDA PANDA!</h2>
+    <p id="rw-body">You won the round!</p>
+    <p id="rw-wins" style="font-size:.9rem;font-weight:800;color:var(--gold)"></p>
+    <button class="btn" id="rw-btn">NEXT ROUND →</button>
+  </div>
+
+  <!-- GAME WIN -->
+  <div id="gamewin" class="ov hidden">
+    <h1 id="gw-title">🎉 YOU WIN!</h1>
+    <p id="gw-body">Congratulations!</p>
+    <button class="btn" onclick="location.reload()">PLAY AGAIN</button>
+    <button class="btn btng" onclick="location.href='index.html'">← HUB</button>
+  </div>
+
+  <!-- PASS OVERLAY (human must pass a card after A discard) -->
+  <div id="passov" class="hidden">
+    <h3>⬅ PASS A CARD LEFT!</h3>
+    <p>Someone discarded an <strong style="color:var(--red)">A</strong> — everyone passes 1 card to the left. Tap the card you want to pass.</p>
+    <div id="passhand"></div>
+  </div>
+
+  <!-- SCORE STRIP -->
+  <div id="sstrip">
+    <div class="pp you" id="pp0"><div class="pname">YOU</div><div class="pwins" id="pw0">○○</div><div class="pcnt" id="pc0">5 cards</div></div>
+    <div class="pp" id="pp1"><div class="pname">ARIA</div><div class="pwins" id="pw1">○○</div><div class="pcnt" id="pc1">5 cards</div></div>
+    <div class="pp" id="pp2"><div class="pname">BLAZE</div><div class="pwins" id="pw2">○○</div><div class="pcnt" id="pc2">5 cards</div></div>
+    <div class="pp" id="pp3"><div class="pname">CLEO</div><div class="pwins" id="pw3">○○</div><div class="pcnt" id="pc3">5 cards</div></div>
+  </div>
+
+  <!-- MAIN AREA -->
+  <div id="main">
+    <div id="row1">
+      <!-- Center: deck + label -->
+      <div id="pilearea">
+        <div id="deckpile" onclick="drawFromDeck()">🐼</div>
+        <div id="decklbl">DECK</div>
+        <div id="dcnt">32 left</div>
+      </div>
+      <!-- Opponent discard piles -->
+      <div id="opdiscs">
+        <div class="oprow"><div class="oplbl">ARIA</div><div class="disc-pile" id="disc1"></div></div>
+        <div class="oprow"><div class="oplbl">BLAZE</div><div class="disc-pile" id="disc2"></div></div>
+        <div class="oprow"><div class="oplbl">CLEO</div><div class="disc-pile" id="disc3"></div></div>
+      </div>
+    </div>
+
+    <!-- Own discard pile label -->
+    <div style="display:flex;align-items:center;gap:8px;padding:0 2px;">
+      <span style="font-size:.6rem;color:var(--muted);font-weight:700;letter-spacing:1px;">YOUR DISCARD</span>
+      <div class="disc-pile" id="disc0"></div>
+    </div>
+
+    <!-- Hand -->
+    <div id="handarea">
+      <div id="handlbl">
+        <span id="handtitle">YOUR HAND</span>
+        <span id="handcount">5 cards</span>
+      </div>
+      <div id="myhand"></div>
+    </div>
+  </div>
+
+  <!-- STATUS -->
+  <div id="statbar"><div id="statmsg">Waiting…</div></div>
+
+  <!-- WIN FX (brief overlay before round-win menu) -->
+  <div id="winfx"><div id="winfx-inner"><h3>🐼 PANDA PANDA!</h3><p id="wfp">Checking hand…</p></div></div>
+</div>
+
+<script>
+// ── CARD DATA ──────────────────────────────────────────────────────────────
+// 32 cards: A×5, B×5, C×5, D×4, E×4, F×4, G×5
+const DIST={A:5,B:5,C:5,D:4,E:4,F:4,G:5};
+const LCOL={A:'la',B:'lb',C:'lc',D:'ld',E:'le',F:'lf',G:'lg'};
+const NAMES=['YOU','ARIA','BLAZE','CLEO'];
+
+// ── WINNING HANDS ─────────────────────────────────────────────────────────
+// Each hand is a sorted string of letters
+const WIN_HANDS=[
+  'CE','BF','DG',        // 2-card pairs
+  'DDD',                  // 3-card set
+  'CCCC',                 // 4-card set
+  'BBBBB',                // 5-card flush
+  'AACCEE','BBCCDD','AAAABBB', // 6-card combos
+  'ABCDEFG',              // 7-card rainbow
+];
+
+function handKey(cards){ return [...cards].map(c=>c.l).sort().join(''); }
+function isWinner(cards){
+  const k=handKey(cards);
+  return WIN_HANDS.includes(k);
+}
+
+// ── DECK ──────────────────────────────────────────────────────────────────
+let gId=0;
+function buildDeck(){
+  const d=[];
+  Object.entries(DIST).forEach(([l,n])=>{for(let i=0;i<n;i++) d.push({l,id:gId++});});
+  return shuffle([...d]);
+}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+let G={};
+
+function initState(){
+  G={phase:'menu',
+     wins:[0,0,0,0],
+     deck:[],
+     hands:[[],[],[],[]],
+     discards:[[],[],[],[]],  // each player's personal discard pile (spread visible)
+     cur:0,       // whose turn
+     first:0,     // who goes first this round
+     phase:'menu',
+     pendingPass:false,   // true when we need everyone to pass after A discard
+     passCards:[null,null,null,null], // cards chosen to pass
+     passResolved:0,
+  };
+}
+
+// ── GAME FLOW ──────────────────────────────────────────────────────────────
+function startGame(){
+  document.getElementById('menu').classList.add('hidden');
+  G=Object.assign(G,{phase:'play',wins:[0,0,0,0],first:0});
+  startRound();
+}
+
+function startRound(){
+  G.deck=buildDeck();
+  G.discards=[[],[],[],[]];
+  G.hands=[[],[],[],[]];
+  for(let p=0;p<4;p++) G.hands[p]=G.deck.splice(0,5);
+  G.cur=G.first; G.phase='play';
+  renderAll();
+  beginTurn();
+}
+
+function beginTurn(){
+  // Check if current player wins
+  if(G.phase!=='play') return;
+  if(isWinner(G.hands[G.cur])){
+    handleWin(G.cur); return;
+  }
+  updateScoreStrip();
+  if(G.cur===0){
+    setMsg('Your turn — draw a card or discard one from your hand');
+    G.phase='human-draw'; renderHand();
+  } else {
+    setMsg(`${NAMES[G.cur]}'s turn…`);
+    setTimeout(aiTurn, 700+Math.random()*400);
+  }
+}
+
+// ── AI TURN ───────────────────────────────────────────────────────────────
+function aiTurn(){
+  const p=G.cur;
+  // AI strategy: try to get closer to a winning hand
+  // Check if discarding any card gets closer, or drawing might help
+  const hand=G.hands[p];
+
+  // Determine best action
+  // 1. Check if we can form a winning hand by discarding (edge case)
+  // 2. Try to draw from any pile that has a useful card on top
+  // 3. Otherwise draw from deck
+
+  // Simple AI: find which letter to discard
+  // Count letter frequencies
+  const freq={};
+  hand.forEach(c=>{ freq[c.l]=(freq[c.l]||0)+1; });
+
+  // Can we win by discarding?
+  for(const card of hand){
+    const tmp=hand.filter(c=>c.id!==card.id);
+    if(isWinner(tmp)){ aiDiscard(p,card); return; }
+  }
+
+  // Try to draw from a discard pile that could help
+  let drew=false;
+  for(let src=0;src<4;src++){
+    if(src===p) {
+      // Can draw from own discard if top is not A and not empty
+      const pile=G.discards[src];
+      if(pile.length>0 && pile[pile.length-1].l!=='A'){
+        const top=pile[pile.length-1];
+        // Only draw if this letter helps
+        const tempHand=[...hand,top];
+        // Check if any discard after drawing would give win
+        if(tempHand.some((_,i)=>isWinner(tempHand.filter((_2,j)=>j!==i)))){
+          aiDrawFrom(p,src); drew=true; break;
+        }
+      }
+      continue;
+    }
+    const pile=G.discards[src];
+    if(pile.length>0 && pile[pile.length-1].l!=='A'){
+      const top=pile[pile.length-1];
+      const tempHand=[...hand,top];
+      if(tempHand.some((_,i)=>isWinner(tempHand.filter((_2,j)=>j!==i)))){
+        aiDrawFrom(p,src); drew=true; break;
+      }
+    }
+  }
+
+  if(!drew){
+    // Draw from deck
+    if(G.deck.length>0){ aiDrawFrom(p,-1); }
+    else {
+      // Reshuffle discards into deck
+      reshuffleDeck();
+      aiDrawFrom(p,-1);
+    }
+  }
+}
+
+function aiDrawFrom(p,src){
+  let card;
+  if(src===-1){
+    if(G.deck.length===0){reshuffleDeck();}
+    card=G.deck.pop();
+    if(!card){aiDiscardWorst(p);return;}
+  } else {
+    const pile=G.discards[src];
+    card=pile.pop();
+  }
+  G.hands[p].push(card);
+  renderDiscPile(src===-1?-1:src);
+  // Now discard worst card
+  setTimeout(()=>aiDiscardWorst(p),400);
+}
+
+function aiDiscardWorst(p){
+  const hand=G.hands[p];
+  if(hand.length===0) return advanceTurn();
+
+  // Count letter freq
+  const freq={};
+  hand.forEach(c=>{ freq[c.l]=(freq[c.l]||0)+1; });
+
+  // Prefer to discard: unique letters that don't contribute to any win pattern
+  // Simple: discard the least frequent letter, prefer non-A if possible
+  let worst=null;
+  let minContrib=999;
+  for(const card of hand){
+    const score=winContrib(hand,card);
+    const nonA=card.l!=='A'?0:10; // prefer not to discard A
+    if(score+nonA<minContrib){ minContrib=score+nonA; worst=card; }
+  }
+
+  if(!worst) worst=hand[0];
+  doDiscard(p,worst);
+}
+
+function winContrib(hand,card){
+  // How many win patterns does removing this card block?
+  const without=hand.filter(c=>c.id!==card.id);
+  let score=0;
+  WIN_HANDS.forEach(wh=>{
+    const wl=wh.split('');
+    const hl=without.map(c=>c.l).sort();
+    // Check if 'without' is a subset progression toward wh
+    const freq={};
+    hl.forEach(l=>freq[l]=(freq[l]||0)+1);
+    const wf={};
+    wl.forEach(l=>wf[l]=(wf[l]||0)+1);
+    // How many letters of wh are covered?
+    let covered=0;
+    Object.entries(wf).forEach(([l,n])=>covered+=Math.min(freq[l]||0,n));
+    score=Math.max(score,covered);
+  });
+  return score;
+}
+
+// ── DISCARD LOGIC ─────────────────────────────────────────────────────────
+function doDiscard(p,card){
+  G.hands[p]=G.hands[p].filter(c=>c.id!==card.id);
+  G.discards[p].push(card);
+  renderDiscPile(p);
+  renderHand();
+  updateScoreStrip();
+
+  if(card.l==='A'){
+    // Special: everyone passes a card to the left
+    triggerAPass(p);
+  } else {
+    advanceTurn();
+  }
+}
+
+// ── A-CARD PASS ──────────────────────────────────────────────────────────
+function triggerAPass(discardingPlayer){
+  setMsg(`⚠️ ${NAMES[discardingPlayer]} discarded an A — everyone passes left!`);
+  G.phase='passing';
+  G.passCards=[null,null,null,null];
+
+  // AI players choose immediately (pick worst card)
+  for(let p=0;p<4;p++){
+    if(p===0) continue; // human picks manually
+    if(G.hands[p].length===0){ G.passCards[p]=null; continue; }
+    // AI picks the card with lowest win contribution
+    const freq={}; G.hands[p].forEach(c=>freq[c.l]=(freq[c.l]||0)+1);
+    let worst=null,minS=999;
+    for(const c of G.hands[p]){const s=winContrib(G.hands[p],c);if(s<minS){minS=s;worst=c;}}
+    G.passCards[p]=worst||G.hands[p][0];
+  }
+
+  if(G.hands[0].length===0){
+    // No card to pass
+    G.passCards[0]=null;
+    executePass();
+  } else {
+    showPassOverlay();
+  }
+}
+
+function showPassOverlay(){
+  const ov=document.getElementById('passov');
+  const ph=document.getElementById('passhand');
+  ph.innerHTML='';
+  G.hands[0].forEach(card=>{
+    const el=mkCardEl(card,false);
+    el.onclick=()=>{
+      humanChoosePass(card);
+    };
+    ph.appendChild(el);
+  });
+  ov.classList.remove('hidden');
+}
+
+function humanChoosePass(card){
+  G.passCards[0]=card;
+  document.getElementById('passov').classList.add('hidden');
+  executePass();
+}
+
+function executePass(){
+  // Each player gives their chosen card to the player on their left (p+1)%4
+  const given=[...G.passCards];
+  for(let p=0;p<4;p++){
+    const c=given[p]; if(!c) continue;
+    G.hands[p]=G.hands[p].filter(x=>x.id!==c.id);
+    const left=(p+3)%4; // pass to left means player index - 1 (wrapping)
+    G.hands[left].push(c);
+  }
+  G.phase='play';
+  renderAll();
+  setMsg(`Cards passed! ${NAMES[G.cur=((G.cur+1)%4)]}'s turn`);
+  // cur was already advancing — actually advance normally after pass
+  advanceTurn();
+}
+
+function advanceTurn(){
+  G.cur=(G.cur+1)%4;
+  renderAll();
+  beginTurn();
+}
+
+// ── HUMAN DRAW / DISCARD ──────────────────────────────────────────────────
+function drawFromDeck(){
+  if(G.phase!=='human-draw'||G.cur!==0) return;
+  if(G.deck.length===0){ reshuffleDeck(); if(G.deck.length===0){setMsg('No cards to draw!');return;} }
+  const card=G.deck.pop();
+  G.hands[0].push(card);
+  document.getElementById('dcnt').textContent=G.deck.length+' left';
+  if(G.deck.length===0) document.getElementById('deckpile').classList.add('empty');
+  G.phase='human-discard';
+  renderHand();
+  setMsg('Now tap a card from your hand to discard it');
+}
+
+function drawFromDiscard(src){
+  if(G.phase!=='human-draw'||G.cur!==0) return;
+  const pile=G.discards[src];
+  if(pile.length===0) return;
+  const top=pile[pile.length-1];
+  if(top.l==='A'){setMsg('❌ Cannot draw from a pile topped by an A card');return;}
+  pile.pop();
+  G.hands[0].push(top);
+  renderDiscPile(src);
+  G.phase='human-discard';
+  renderHand();
+  setMsg('Now tap a card from your hand to discard it');
+}
+
+function humanDiscard(cardId){
+  if(G.phase!=='human-discard'||G.cur!==0) return;
+  const card=G.hands[0].find(c=>c.id===cardId);
+  if(!card) return;
+  doDiscard(0,card);
+  if(G.phase==='play') advanceTurn(); // pass case handled in doDiscard
+}
+
+function reshuffleDeck(){
+  const all=[];
+  G.discards.forEach(pile=>{ all.push(...pile); pile.length=0; });
+  G.deck=shuffle(all);
+  setMsg('♻️ Discards reshuffled into deck');
+  renderAll();
+}
+
+// ── WIN DETECTION ─────────────────────────────────────────────────────────
+function handleWin(p){
+  G.wins[p]++;
+  G.first=p; // winner goes first next round
+  document.getElementById('wfp').textContent=`${NAMES[p]}: ${G.hands[p].map(c=>c.l).sort().join('')}`;
+  const wfx=document.getElementById('winfx');
+  wfx.classList.add('show');
+  setTimeout(()=>{
+    wfx.classList.remove('show');
+    if(G.wins[p]>=2){ showGameWin(p); }
+    else { showRoundWin(p); }
+  },1400);
+}
+
+function showRoundWin(p){
+  document.getElementById('rw-title').textContent=p===0?'🐼 PANDA PANDA!':'🐼 '+NAMES[p]+' wins!';
+  document.getElementById('rw-body').textContent=p===0?`Your hand: ${G.hands[0].map(c=>c.l).sort().join('')}`:`${NAMES[p]}'s hand: ${G.hands[p].map(c=>c.l).sort().join('')}`;
+  const wstr=NAMES.map((_,i)=>'●'.repeat(G.wins[i])+'○'.repeat(Math.max(0,2-G.wins[i]))).join('  ');
+  document.getElementById('rw-wins').textContent=wstr;
+  const btn=document.getElementById('rw-btn');
+  btn.onclick=()=>{ document.getElementById('roundwin').classList.add('hidden'); startRound(); };
+  document.getElementById('roundwin').classList.remove('hidden');
+}
+
+function showGameWin(p){
+  document.getElementById('gw-title').textContent=p===0?'🎉 YOU WIN!':'🐼 '+NAMES[p]+' WINS!';
+  document.getElementById('gw-body').textContent=p===0?'You won 2 rounds — you\'re the Panda champion!':'Better luck next time! Try again?';
+  document.getElementById('gamewin').classList.remove('hidden');
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────────
+function renderAll(){
+  renderHand();
+  for(let p=0;p<4;p++) renderDiscPile(p);
+  updateScoreStrip();
+  document.getElementById('dcnt').textContent=G.deck.length+' left';
+  document.getElementById('deckpile').classList.toggle('empty',G.deck.length===0);
+}
+
+function mkCardEl(card,interactive){
+  const el=document.createElement('div');
+  el.className='pc pop '+(card.l==='A'?'a-pc':'');
+  el.dataset.id=card.id;
+  el.innerHTML=`<div class="ltr ${LCOL[card.l]}">${card.l}</div><div class="lbl">PANDA</div>`;
+  return el;
+}
+
+function renderHand(){
+  const area=document.getElementById('myhand');
+  area.innerHTML='';
+  const isDiscard=G.phase==='human-discard';
+  const isDraw=G.phase==='human-draw';
+  G.hands[0].forEach(card=>{
+    const el=mkCardEl(card,true);
+    if(isDiscard){
+      el.classList.add('discardable');
+      el.onclick=()=>humanDiscard(card.id);
+    } else if(isDraw){
+      el.classList.add('dim');
+    }
+    area.appendChild(el);
+  });
+  document.getElementById('handcount').textContent=G.hands[0].length+' cards';
+
+  // Win indicator
+  if(isWinner(G.hands[0])){
+    const badge=document.createElement('div');
+    badge.style.cssText='position:absolute;top:-8px;right:-8px;background:var(--green);color:#060d0a;border-radius:50%;width:18px;height:18px;font-size:.65rem;font-weight:900;display:flex;align-items:center;justify-content:center;';
+    badge.textContent='✓';
+    area.style.position='relative';
+    area.appendChild(badge);
+  }
+}
+
+function renderDiscPile(p){
+  const id=p<0?'disc-1':'disc'+p;
+  const el=document.getElementById('disc'+p);
+  if(!el) return;
+  el.innerHTML='';
+  const pile=G.discards[p];
+  // Show last 6 cards spread out
+  const show=pile.slice(-6);
+  show.forEach((card,i)=>{
+    const d=document.createElement('div');
+    d.className='dcard pop '+(card.l==='A'?'a-card':'');
+    d.textContent=card.l;
+    d.style.color=`var(--${card.l==='A'?'red':card.l==='B'?'text':card.l==='C'?'green':card.l==='D'?'gold':card.l==='E'?'text':card.l==='F'?'blue':'purple'})`;
+    // Only last card is drawable (and not A)
+    if(p!==0&&i===show.length-1&&card.l!=='A'&&G.phase==='human-draw'){
+      d.classList.add('drawable');
+      d.onclick=()=>drawFromDiscard(p);
+    } else if(i===show.length-1&&card.l==='A'){
+      d.classList.add('no-draw');
+    } else if(p!==0&&i===show.length-1&&G.phase==='human-draw'){
+      d.classList.add('drawable');
+      d.onclick=()=>drawFromDiscard(p);
+    }
+    el.appendChild(d);
+  });
+  if(p===0){
+    document.getElementById('handcount').textContent=G.hands[0].length+' cards';
+  }
+}
+
+function updateScoreStrip(){
+  for(let p=0;p<4;p++){
+    const w=G.wins[p];
+    document.getElementById('pw'+p).textContent='●'.repeat(w)+'○'.repeat(Math.max(0,2-w));
+    document.getElementById('pc'+p).textContent=G.hands[p].length+' cards';
+    document.getElementById('pp'+p).classList.toggle('active',p===G.cur);
+  }
+}
+
+function setMsg(m){ document.getElementById('statmsg').textContent=m; }
+
+// ── BOOT ───────────────────────────────────────────────────────────────────
+initState();
+</script>
+</body>
+</html>

@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Three Steps Ahead - K2 games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --accent: #f59e0b;
+            --border: rgba(255, 255, 255, 0.1);
+            --pink: #ec4899;
+            --cyan: #06b6d4;
+            --lime: #84cc16;
+            --yellow: #eab308;
+            --purple: #a855f7;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: #f8fafc;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 50px;
+            padding: 0 1rem;
+            background: rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo { font-weight: 900; color: var(--accent); font-style: italic; }
+        .restart-btn { background: var(--surface); border: 1px solid var(--border); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+
+        #game-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            gap: 10px;
+            position: relative;
+        }
+
+        /* Players Area */
+        #players-row {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            min-height: 90px;
+            flex-wrap: wrap;
+        }
+
+        .player-info {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 8px;
+            text-align: center;
+            min-width: 90px;
+            flex: 1;
+            max-width: 120px;
+            transition: 0.3s;
+            position: relative;
+            z-index: 50;
+        }
+        .player-info.active { border-color: var(--accent); background: rgba(245, 158, 11, 0.1); box-shadow: 0 0 15px rgba(245, 158, 11, 0.3); }
+        .player-info.out { opacity: 0.4; border-style: dashed; }
+        .player-info .name { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; opacity: 0.7; color: var(--accent); }
+        .player-info .stats { font-size: 1.2rem; font-weight: 900; }
+        .player-info .tricks { font-size: 0.7rem; color: #fff; font-weight: 800; margin-top: 4px; background: rgba(0,0,0,0.2); border-radius: 4px; padding: 2px; }
+
+        /* Table Area */
+        #table {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            perspective: 1000px;
+        }
+
+        #trump-indicator {
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--surface);
+            padding: 5px 15px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            font-size: 0.7rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 60;
+        }
+
+        .card {
+            width: 65px;
+            height: 95px;
+            background: #fff;
+            border-radius: 8px;
+            color: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 1.5rem;
+            position: absolute;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            border: 3px solid #eee;
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+        .card.suit-pink { border-color: var(--pink); color: var(--pink); }
+        .card.suit-cyan { border-color: var(--cyan); color: var(--cyan); }
+        .card.suit-lime { border-color: var(--lime); color: var(--lime); }
+        .card.suit-yellow { border-color: var(--yellow); color: var(--yellow); }
+        .card.suit-purple { border-color: var(--purple); color: var(--purple); }
+        .card .suit-icon { font-size: 0.5rem; margin-top: 2px; text-transform: uppercase; font-weight: 800; }
+        .card.is-star::after { content: '★'; position: absolute; top: 2px; right: 4px; font-size: 0.8rem; }
+
+        /* Hand Area */
+        #hand-container {
+            height: 140px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            z-index: 100;
+            background: rgba(0,0,0,0.2);
+            padding-top: 10px;
+        }
+
+        #hand {
+            display: flex;
+            gap: 5px;
+            padding: 10px;
+            overflow-x: auto;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .hand-card {
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s;
+            pointer-events: auto;
+        }
+        .hand-card:hover { transform: translateY(-15px); z-index: 10; }
+        .hand-card.disabled { opacity: 0.3; pointer-events: none; transform: translateY(0); }
+        .hand-card.invalid { opacity: 0.2; pointer-events: none; filter: grayscale(1); }
+
+        /* Messages */
+        #status-msg {
+            position: absolute;
+            top: 100px;
+            width: 100%;
+            text-align: center;
+            font-weight: 900;
+            font-size: 1.3rem;
+            color: white;
+            text-transform: uppercase;
+            text-shadow: 0 0 15px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 100;
+            height: 1.5em;
+        }
+
+        .overlay {
+            position: absolute; inset: 0;
+            background: rgba(15, 23, 42, 0.98);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 500; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--accent); color: #000; border: none; padding: 1rem 3rem;
+            border-radius: 50px; font-weight: 900; cursor: pointer; margin-top: 1.5rem;
+            font-size: 1.3rem;
+        }
+
+        .suit-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .dot-pink { background: var(--pink); }
+        .dot-cyan { background: var(--cyan); }
+        .dot-lime { background: var(--lime); }
+        .dot-yellow { background: var(--yellow); }
+        .dot-purple { background: var(--purple); }
+
+        @media (max-width: 600px) {
+            .card { width: 55px; height: 80px; font-size: 1.1rem; }
+            .player-info { min-width: 75px; padding: 5px; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">THREE STEPS AHEAD</div>
+        <button class="restart-btn" onclick="location.reload()">RESTART</button>
+    </nav>
+
+    <div id="game-area">
+        <div id="players-row"></div>
+        <div id="status-msg"></div>
+
+        <div id="table">
+            <div id="trump-indicator">
+                TRUMP: <span id="trump-suit-display">None</span>
+            </div>
+        </div>
+
+        <div id="hand-container">
+            <div style="font-size: 0.6rem; font-weight: 800; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px;">Your Hand</div>
+            <div id="hand"></div>
+        </div>
+
+        <div id="start-screen" class="overlay">
+            <h1 style="font-size: 2.5rem; color: var(--accent); font-style: italic;">THREE STEPS AHEAD</h1>
+            <p style="opacity: 0.7; margin-top: 10px; max-width: 400px;">Tactical trick-taking. Win just enough tricks to go out and score based on your opponents!</p>
+            <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                <button class="btn-large" onclick="game.init(3)" style="margin:5px">3 PLAYERS</button>
+                <button class="btn-large" onclick="game.init(4)" style="background: #818cf8; color: white; margin:5px">4 PLAYERS</button>
+                <button class="btn-large" onclick="game.init(5)" style="background: #22c55e; color: white; margin:5px">5 PLAYERS</button>
+            </div>
+        </div>
+
+        <div id="trump-screen" class="overlay" style="display:none">
+            <h2 style="font-size: 2rem;">CHOOSE TRUMP</h2>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                <button class="btn-large" onclick="game.setTrump('pink')" style="background:var(--pink); color:white; margin:0">PINK</button>
+                <button class="btn-large" onclick="game.setTrump('cyan')" style="background:var(--cyan); color:white; margin:0">CYAN</button>
+                <button class="btn-large" onclick="game.setTrump('lime')" style="background:var(--lime); color:white; margin:0">LIME</button>
+                <button class="btn-large" onclick="game.setTrump('yellow')" style="background:var(--yellow); color:white; margin:0">YELLOW</button>
+                <button class="btn-large" onclick="game.setTrump('purple')" style="background:var(--purple); color:white; margin:0">PURPLE</button>
+            </div>
+        </div>
+
+        <div id="win-screen" class="overlay" style="display:none">
+            <h1 id="winner-title" style="font-size: 3rem;">GAME OVER</h1>
+            <div id="final-stats" style="margin-top: 20px; font-size: 1.2rem;"></div>
+            <button class="btn-large" onclick="location.reload()">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const SUITS = ['pink', 'cyan', 'lime', 'yellow', 'purple'];
+        const CONFIG = {
+            3: { toOut: 4, maxRank: 10, cards: 13 },
+            4: { toOut: 3, maxRank: 12, cards: 13 },
+            5: { toOut: 3, maxRank: 15, cards: 14 }
+        };
+
+        class ThreeStepsAhead {
+            constructor() {
+                this.players = [];
+                this.deck = [];
+                this.trump = null;
+                this.lead = null;
+                this.trick = [];
+                this.turn = 0;
+                this.dealer = 0;
+                this.conf = null;
+            }
+
+            init(count) {
+                this.conf = CONFIG[count];
+                this.players = Array(count).fill(0).map((_, i) => ({
+                    id: i,
+                    name: i === 0 ? 'You' : `Robot #${i}`,
+                    score: 0, tricks: 0, hand: [], isOut: false, isBot: i !== 0
+                }));
+                document.getElementById('start-screen').style.display = 'none';
+                this.startRound();
+            }
+
+            startRound() {
+                this.players.forEach(p => { p.tricks = 0; p.isOut = false; p.hand = []; });
+                this.generateDeck();
+                this.deal();
+                this.trick = [];
+                this.lead = null;
+                this.turn = this.dealer;
+
+                if (this.players[this.turn].isBot) {
+                    this.trump = SUITS[Math.floor(Math.random() * SUITS.length)];
+                    this.updateUI();
+                    setTimeout(() => this.botPlay(), 1000);
+                } else {
+                    document.getElementById('trump-screen').style.display = 'flex';
+                }
+            }
+
+            setTrump(suit) {
+                this.trump = suit;
+                document.getElementById('trump-screen').style.display = 'none';
+                this.updateUI();
+            }
+
+            generateDeck() {
+                this.deck = [];
+                SUITS.forEach(suit => {
+                    for (let v = 0; v <= this.conf.maxRank; v++) {
+                        this.deck.push({ val: v, suit: suit, isStar: (v === 5 || v === 7) });
+                    }
+                });
+                this.deck.sort(() => Math.random() - 0.5);
+            }
+
+            deal() {
+                this.players.forEach(p => {
+                    for (let i = 0; i < this.conf.cards; i++) p.hand.push(this.deck.pop());
+                    p.hand.sort((a, b) => SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit) || a.val - b.val);
+                });
+            }
+
+            updateUI() {
+                const row = document.getElementById('players-row');
+                row.innerHTML = '';
+                this.players.forEach(p => {
+                    const div = document.createElement('div');
+                    div.id = `p-chip-${p.id}`;
+                    div.className = `player-info ${this.turn === p.id ? 'active' : ''} ${p.isOut ? 'out' : ''}`;
+                    div.innerHTML = `
+                        <div class="name">${p.name}</div>
+                        <div class="stats">${p.score} pts</div>
+                        <div class="tricks">Tricks: ${p.tricks}/${this.conf.toOut}</div>
+                    `;
+                    row.appendChild(div);
+                });
+
+                const trumpDisp = document.getElementById('trump-suit-display');
+                trumpDisp.innerHTML = `<span class="suit-dot dot-${this.trump}"></span> ${this.trump ? this.trump.toUpperCase() : '???'}`;
+
+                const handEl = document.getElementById('hand');
+                handEl.innerHTML = '';
+                this.players[0].hand.forEach((card, i) => {
+                    const div = document.createElement('div');
+                    div.className = `card hand-card suit-${card.suit} ${card.isStar ? 'is-star' : ''}`;
+                    if (this.turn !== 0) div.classList.add('disabled');
+                    if (this.lead && this.players[0].hand.some(c => c.suit === this.lead) && card.suit !== this.lead) {
+                        div.classList.add('invalid');
+                    }
+                    div.innerHTML = `<div>${card.val}</div><div class="suit-icon">${card.suit}</div>`;
+                    div.onclick = () => this.playCard(0, i);
+                    handEl.appendChild(div);
+                });
+
+                const status = document.getElementById('status-msg');
+                if (this.turn === -1) status.textContent = "";
+                else if (this.players[this.turn]) status.textContent = `${this.players[this.turn].name}'s Turn`;
+            }
+
+            playCard(pIdx, cardIdx) {
+                if (this.turn !== pIdx) return;
+                const p = this.players[pIdx];
+                const cardData = p.hand.splice(cardIdx, 1)[0];
+                
+                if (this.trick.length === 0) this.lead = cardData.suit;
+                
+                const cardEl = document.createElement('div');
+                cardEl.className = `card suit-${cardData.suit} ${cardData.isStar ? 'is-star' : ''}`;
+                cardEl.innerHTML = `<div>${cardData.val}</div><div class="suit-icon">${cardData.suit}</div>`;
+                
+                const chip = document.getElementById(`p-chip-${pIdx}`);
+                const chipRect = chip.getBoundingClientRect();
+                const tableRect = document.getElementById('table').getBoundingClientRect();
+                
+                cardEl.style.left = (chipRect.left + chipRect.width/2 - tableRect.left - 32) + 'px';
+                cardEl.style.top = (chipRect.top + chipRect.height/2 - tableRect.top - 45) + 'px';
+                cardEl.style.transform = 'scale(0.4)';
+                cardEl.style.opacity = '0';
+                
+                document.getElementById('table').appendChild(cardEl);
+                
+                setTimeout(() => {
+                    const angle = (pIdx / this.players.length) * Math.PI * 2 - Math.PI/2;
+                    const radius = 70;
+                    cardEl.style.left = (Math.cos(angle) * radius + tableRect.width/2 - 32) + 'px';
+                    cardEl.style.top = (Math.sin(angle) * radius + tableRect.height/2 - 45) + 'px';
+                    cardEl.style.transform = 'scale(1)';
+                    cardEl.style.opacity = '1';
+                }, 20);
+
+                this.trick.push({ card: cardData, el: cardEl, pId: pIdx });
+                this.nextTurn();
+            }
+
+            nextTurn() {
+                const active = this.players.filter(p => !p.isOut);
+                if (this.trick.length === active.length) {
+                    this.turn = -1;
+                    this.updateUI();
+                    setTimeout(() => this.resolveTrick(), 1000);
+                } else {
+                    do {
+                        this.turn = (this.turn + 1) % this.players.length;
+                    } while (this.players[this.turn].isOut);
+                    this.updateUI();
+                    if (this.players[this.turn].isBot) setTimeout(() => this.botPlay(), 800);
+                }
+            }
+
+            botPlay() {
+                const p = this.players[this.turn];
+                let choices = p.hand;
+                if (this.lead) {
+                    const valid = p.hand.filter(c => c.suit === this.lead);
+                    if (valid.length > 0) choices = valid;
+                }
+                const pick = choices[Math.floor(Math.random() * choices.length)];
+                this.playCard(this.turn, p.hand.indexOf(pick));
+            }
+
+            resolveTrick() {
+                let winner = this.trick[0];
+                this.trick.forEach(t => {
+                    const c = t.card; const w = winner.card;
+                    let beats = false;
+                    if (c.suit === this.trump) {
+                        if (w.suit !== this.trump) beats = true;
+                        else if (c.val > w.val || (c.val === 0 && w.val === this.conf.maxRank)) beats = true;
+                    } else if (c.suit === this.lead && w.suit !== this.trump) {
+                        if (c.val > w.val || (c.val === 0 && w.val === this.conf.maxRank)) beats = true;
+                    }
+                    if (beats) winner = t;
+                });
+
+                const wp = this.players[winner.pId];
+                wp.tricks += (winner.card.val === 5 || winner.card.val === 7) ? 2 : 1;
+                
+                const chip = document.getElementById(`p-chip-${winner.pId}`);
+                const chipRect = chip.getBoundingClientRect();
+                const tableRect = document.getElementById('table').getBoundingClientRect();
+                
+                this.trick.forEach(t => {
+                    t.el.style.left = (chipRect.left + chipRect.width/2 - tableRect.left - 32) + 'px';
+                    t.el.style.top = (chipRect.top + chipRect.height/2 - tableRect.top - 45) + 'px';
+                    t.el.style.transform = 'scale(0.2)';
+                    t.el.style.opacity = '0';
+                });
+
+                setTimeout(() => {
+                    this.trick.forEach(t => t.el.remove());
+                    this.trick = [];
+                    this.lead = null;
+                    this.showStatus(`${wp.name} wins trick!`);
+                    
+                    if (wp.tricks >= this.conf.toOut && !wp.isOut) this.goOut(wp);
+
+                    if (this.players.filter(p => !p.isOut).length <= 1) {
+                        this.endRound();
+                    } else {
+                        this.turn = winner.pId;
+                        while (this.players[this.turn].isOut) this.turn = (this.turn + 1) % this.players.length;
+                        this.updateUI();
+                        if (this.players[this.turn].isBot) setTimeout(() => this.botPlay(), 800);
+                    }
+                }, 600);
+            }
+
+            goOut(p) {
+                p.isOut = true; p.hand = [];
+                let others = 0;
+                this.players.forEach(pl => { if(pl.id !== p.id) others += pl.tricks; });
+                p.score += others;
+                this.showStatus(`${p.name} GOES OUT! (+${others})`, 2000);
+                if (p.score >= 25) setTimeout(() => this.endGame(), 1000);
+            }
+
+            endRound() {
+                const last = this.players.find(p => !p.isOut);
+                if (last) {
+                    last.score += last.tricks;
+                    this.showStatus(`${last.name} is last standing (+${last.tricks})`, 2000);
+                    this.dealer = last.id;
+                }
+                if (this.players.some(p => p.score >= 25)) this.endGame();
+                else setTimeout(() => this.startRound(), 2500);
+            }
+
+            showStatus(msg, time = 1000) {
+                const el = document.getElementById('status-msg');
+                el.textContent = msg;
+                setTimeout(() => { if(el.textContent === msg) el.textContent = ""; }, time);
+            }
+
+            endGame() {
+                const s = document.getElementById('win-screen');
+                const sorted = [...this.players].sort((a,b) => b.score - a.score);
+                document.getElementById('winner-title').textContent = sorted[0].id === 0 ? "VICTORY!" : "DEFEAT";
+                document.getElementById('final-stats').innerHTML = sorted.map((p, i) => `
+                    <div style="margin-bottom:10px; ${i===0?'color:var(--accent); font-weight:bold;':''}">
+                        #${i+1} ${p.name}: ${p.score} points
+                    </div>
+                `).join('');
+                s.style.display = 'flex';
+            }
+        }
+        const game = new ThreeStepsAhead();
+    </script>
+</body>
+</html>

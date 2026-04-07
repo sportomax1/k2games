@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS: Global Positioning Satellites - K2 games</title>
+    <title>Order Quest: Tactical Sequence - K2 games</title>
     <style>
         :root {
             --bg: #020617;
-            --earth: #0ea5e9;
-            --space: #0f172a;
+            --core: #0ea5e9;
+            --field: #0f172a;
             --p1: #3b82f6; /* Blue */
             --p2: #ef4444; /* Red */
             --accent: #fbbf24;
@@ -86,7 +86,7 @@
             gap: 15px;
         }
 
-        .satellite-card {
+        .beacon-card {
             width: 60px;
             height: 80px;
             background: var(--p1);
@@ -101,9 +101,9 @@
             border: 3px solid transparent;
             box-shadow: 0 5px 15px rgba(0,0,0,0.3);
         }
-        .satellite-card.p2 { background: var(--p2); }
-        .satellite-card.selected { transform: translateY(-10px); border-color: white; box-shadow: 0 0 20px var(--accent); }
-        .satellite-card:hover { transform: scale(1.05); }
+        .beacon-card.p2 { background: var(--p2); }
+        .beacon-card.selected { transform: translateY(-10px); border-color: white; box-shadow: 0 0 20px var(--accent); }
+        .beacon-card:hover { transform: scale(1.05); }
 
         #phase-indicator {
             position: absolute;
@@ -141,12 +141,12 @@
 </head>
 <body>
     <nav>
-        <div class="logo">K2 GPS</div>
+        <div class="logo">ORDER QUEST</div>
         <a href="index.html" class="back-link">← HUB</a>
     </nav>
 
     <div id="game-layout">
-        <div id="phase-indicator">PHASE 1: LAUNCH</div>
+        <div id="phase-indicator">PHASE 1: ACTIVATION</div>
         
         <canvas id="gameCanvas"></canvas>
 
@@ -157,25 +157,25 @@
             </div>
             <div class="player-info">
                 <div style="color: var(--p1); font-weight: 900;">BLUE (YOU)</div>
-                <div id="p1-progress" style="font-family: monospace;">ORD: 0/12</div>
+                <div id="p1-progress" style="font-family: monospace;">SEQ: 0/12</div>
             </div>
         </div>
 
         <div id="start-screen" class="screen-overlay">
-            <h1 style="font-size: 4rem; font-style: italic; background: linear-gradient(to right, #60a5fa, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900;">GPS</h1>
-            <p style="opacity: 0.7; margin-top: 10px; max-width: 400px;">Launch your satellites into space. Be the first to arrange them from 1 to 12 in clockwise order!</p>
-            <button class="btn-large" onclick="game.start()">COMMENCE MISSION</button>
+            <h1 style="font-size: 4rem; font-style: italic; background: linear-gradient(to right, #60a5fa, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900;">ORDER QUEST</h1>
+            <p style="opacity: 0.7; margin-top: 10px; max-width: 400px;">Deploy your beacons into the field. Be the first to arrange them from 1 to 12 in clockwise order!</p>
+            <button class="btn-large" onclick="game.start()">START QUEST</button>
         </div>
 
         <div id="end-screen" class="screen-overlay" style="display:none">
-            <h1 id="winner-text" style="font-size: 3rem; color: var(--accent);">MISSION SUCCESSFUL!</h1>
-            <p style="opacity: 0.7; margin-top: 10px;">The orbital sequence is complete.</p>
-            <button class="btn-large" onclick="location.reload()">NEW MISSION</button>
+            <h1 id="winner-text" style="font-size: 3rem; color: var(--accent);">QUEST COMPLETE!</h1>
+            <p style="opacity: 0.7; margin-top: 10px;">The tactical sequence is established.</p>
+            <button class="btn-large" onclick="location.reload()">NEW QUEST</button>
         </div>
     </div>
 
     <script>
-        class GPSGame {
+        class OrderQuest {
             constructor() {
                 this.canvas = document.getElementById('gameCanvas');
                 this.ctx = this.canvas.getContext('2d');
@@ -183,7 +183,7 @@
                 this.canvas.width = this.size;
                 this.canvas.height = this.size;
 
-                this.earthR = 120;
+                this.coreR = 120;
                 this.orbitR = 300;
                 this.slots = 12;
                 
@@ -196,7 +196,7 @@
                 this.p2Hand = [];
                 this.p2Deck = [];
                 
-                this.board = Array(12).fill(null).map(() => ({ p1: null, p2: null })); // satellite numbers
+                this.board = Array(12).fill(null).map(() => ({ p1: null, p2: null })); // beacon numbers
                 
                 this.turn = 'p1';
                 this.state = 'idle'; // idle, spinning, choosing, waiting
@@ -257,17 +257,17 @@
                 if (this.state === 'idle') {
                     this.spin();
                 } else if (this.state === 'choosing' && this.selectedIdx !== -1) {
-                    this.placeSatellite();
+                    this.placeBeacon();
                 }
             }
 
             spin() {
                 this.state = 'spinning';
                 this.spinnerVel = 0.3 + Math.random() * 0.5;
-                document.getElementById('turn-msg').textContent = "SPINNING...";
+                document.getElementById('turn-msg').textContent = "SEARCHING...";
             }
 
-            placeSatellite() {
+            placeBeacon() {
                 const val = this.p1Hand[this.selectedIdx];
                 let slot = this.targetSlot;
                 
@@ -320,23 +320,18 @@
 
             checkWin() {
                 const check = (player) => {
-                    const satellites = [];
+                    const beacons = [];
                     for(let i=0; i<12; i++) {
                         const val = this.board[i][player];
-                        if (val !== null) satellites.push({ val, slot: i });
+                        if (val !== null) beacons.push({ val, slot: i });
                     }
-                    if (satellites.length < 12) return false;
+                    if (beacons.length < 12) return false;
                     
-                    // Check clockwise ascending order
-                    // We can start from any satellite
                     for(let start=0; start<12; start++) {
                         let ordered = true;
                         for(let j=0; j<11; j++) {
-                            const current = satellites[(start + j) % 12].val;
-                            const next = satellites[(start + j + 1) % 12].val;
-                            // Ascending logic: next must be > current OR next must be 1 if current is 12?
-                            // Wait, rule: "ascending numerical order (1-12) clockwise"
-                            // Means 1, 2, 3... 12. If we loop, 1 follows 12.
+                            const current = beacons[(start + j) % 12].val;
+                            const next = beacons[(start + j + 1) % 12].val;
                             if (next !== (current % 12) + 1) {
                                 ordered = false;
                                 break;
@@ -353,7 +348,7 @@
                 if (p1Win || p2Win) {
                     this.state = 'over';
                     document.getElementById('end-screen').style.display = 'flex';
-                    document.getElementById('winner-text').textContent = p1Win ? "MISSION SUCCESSFUL!" : "MISSION FAILED!";
+                    document.getElementById('winner-text').textContent = p1Win ? "QUEST COMPLETE!" : "QUEST FAILED!";
                     document.getElementById('winner-text').style.color = p1Win ? 'var(--p1)' : 'var(--p2)';
                 }
             }
@@ -363,7 +358,7 @@
                 handEl.innerHTML = '';
                 this.p1Hand.forEach((num, i) => {
                     const card = document.createElement('div');
-                    card.className = `satellite-card ${this.selectedIdx === i ? 'selected' : ''}`;
+                    card.className = `beacon-card ${this.selectedIdx === i ? 'selected' : ''}`;
                     card.textContent = num;
                     card.onclick = () => {
                         if (this.state === 'choosing' || this.state === 'idle') {
@@ -375,11 +370,11 @@
                 });
 
                 const count = this.board.filter(s => s.p1 !== null).length;
-                document.getElementById('p1-progress').textContent = `ORB: ${count}/12`;
+                document.getElementById('p1-progress').textContent = `SEQ: ${count}/12`;
                 
-                if (this.state === 'idle') document.getElementById('turn-msg').textContent = "TAP SPINNER TO LAUNCH";
-                else if (this.state === 'choosing') document.getElementById('turn-msg').textContent = "PICK A SATELLITE";
-                else if (this.state === 'waiting') document.getElementById('turn-msg').textContent = "ENEMY IS LAUNCHING...";
+                if (this.state === 'idle') document.getElementById('turn-msg').textContent = "TAP SPINNER TO DEPLOY";
+                else if (this.state === 'choosing') document.getElementById('turn-msg').textContent = "ASSIGN BEACON VALUE";
+                else if (this.state === 'waiting') document.getElementById('turn-msg').textContent = "OPPONENT DEPLOYING...";
             }
 
             update() {
@@ -388,11 +383,7 @@
                     this.spinnerVel *= 0.985;
                     if (this.spinnerVel < 0.005) {
                         this.spinnerVel = 0;
-                        this.targetSlot = Math.floor(((this.spinnerAngle % (Math.PI * 2)) / (Math.PI * 2)) * 12);
-                        // Normalize target slot (0 is 12 o'clock approx)
-                        // Canvas coordinates: 0 is right. We want 0 to be top.
                         this.targetSlot = (12 - Math.floor(((this.spinnerAngle + Math.PI/2) % (Math.PI * 2)) / (Math.PI * 2) * 12)) % 12;
-                        
                         this.state = 'choosing';
                         this.updateUI();
                     }
@@ -403,24 +394,20 @@
                 const ctx = this.ctx;
                 ctx.clearRect(0, 0, this.size, this.size);
 
-                // Space
                 const grad = ctx.createRadialGradient(this.size/2, this.size/2, 0, this.size/2, this.size/2, this.size/2);
                 grad.addColorStop(0, '#1e293b'); grad.addColorStop(1, '#020617');
                 ctx.fillStyle = grad;
                 ctx.fillRect(0, 0, this.size, this.size);
 
-                // Orbit Circle
                 ctx.strokeStyle = 'rgba(255,255,255,0.1)';
                 ctx.lineWidth = 2;
                 ctx.beginPath(); ctx.arc(this.size/2, this.size/2, this.orbitR, 0, Math.PI*2); ctx.stroke();
 
-                // Slots
                 for(let i=0; i<12; i++) {
                     const angle = (i / 12) * Math.PI * 2 - Math.PI/2;
                     const x = this.size/2 + Math.cos(angle) * this.orbitR;
                     const y = this.size/2 + Math.sin(angle) * this.orbitR;
                     
-                    // Highlight target
                     if (this.state === 'choosing' && i === this.targetSlot) {
                         ctx.fillStyle = 'rgba(251, 191, 36, 0.3)';
                         ctx.beginPath(); ctx.arc(x, y, 40, 0, Math.PI*2); ctx.fill();
@@ -429,12 +416,10 @@
                     ctx.fillStyle = 'rgba(255,255,255,0.05)';
                     ctx.beginPath(); ctx.arc(x, y, 30, 0, Math.PI*2); ctx.fill();
                     
-                    // Slot label
                     ctx.fillStyle = 'rgba(255,255,255,0.3)';
                     ctx.font = '12px Arial'; ctx.textAlign = 'center';
                     ctx.fillText(i+1, x, y+45);
 
-                    // Satellites
                     const s = this.board[i];
                     if (s.p1 !== null) {
                         ctx.fillStyle = varColor('--p1');
@@ -448,25 +433,18 @@
                     }
                 }
 
-                // Earth
                 ctx.save();
                 ctx.translate(this.size/2, this.size/2);
                 ctx.rotate(Date.now() / 5000);
                 ctx.font = '120px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText('🌍', 0, 0);
+                ctx.fillText('🌀', 0, 0);
                 ctx.restore();
 
-                // Spinner (Rocket)
                 ctx.save();
                 ctx.translate(this.size/2, this.size/2);
                 ctx.rotate(this.spinnerAngle);
                 ctx.font = '60px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText('🚀', 0, -180);
-                // Flame
-                if (this.state === 'spinning') {
-                    ctx.fillStyle = '#f97316';
-                    ctx.beginPath(); ctx.moveTo(-10, -150); ctx.lineTo(10, -150); ctx.lineTo(0, -120 - Math.random()*20); ctx.fill();
-                }
+                ctx.fillText('📍', 0, -180);
                 ctx.restore();
             }
 
@@ -478,7 +456,11 @@
         }
 
         function varColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
-        const game = new GPSGame();
+        const game = new OrderQuest();
+    </script>
+</body>
+</html>
+
     </script>
 </body>
 </html>

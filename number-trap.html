@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Slambo! - K2 games</title>
+    <title>Number Trap - K2 games</title>
     <style>
         :root {
-            --bg: #020617;
-            --reactor: #1e1b4b;
+            --bg: #0f172a;
+            --reactor: #1e293b;
             --fuel: #3b82f6; /* Blue */
             --coolant: #ef4444; /* Red */
-            --accent: #fbbf24;
+            --accent: #f59e0b;
             --glass: rgba(255, 255, 255, 0.05);
             --border: rgba(255, 255, 255, 0.1);
         }
@@ -53,7 +53,7 @@
             position: relative;
         }
 
-        /* Stability Meter */
+        /* Trap Meter */
         #stability-container {
             width: 100%;
             max-width: 500px;
@@ -87,7 +87,7 @@
         #gauge-fill {
             height: 100%;
             width: 50%;
-            background: linear-gradient(to right, #ef4444, #fbbf24, #22c55e, #fbbf24, #ef4444);
+            background: linear-gradient(to right, #ef4444, #f59e0b, #22c55e, #f59e0b, #ef4444);
             transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -107,7 +107,7 @@
             min-width: 100px;
             transition: 0.3s;
         }
-        .player-card.active { border-color: var(--accent); box-shadow: 0 0 15px rgba(251, 191, 36, 0.2); transform: scale(1.05); }
+        .player-card.active { border-color: var(--accent); box-shadow: 0 0 15px rgba(245, 158, 11, 0.2); transform: scale(1.05); }
         .player-card.bust { border-color: var(--coolant); opacity: 0.5; }
 
         .error-icons { font-size: 1.2rem; margin-top: 5px; color: var(--coolant); }
@@ -162,7 +162,7 @@
 
         .screen-overlay {
             position: absolute; inset: 0;
-            background: rgba(2, 6, 23, 0.95);
+            background: rgba(15, 23, 42, 0.95);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             z-index: 200; text-align: center; padding: 20px;
         }
@@ -181,8 +181,10 @@
 </head>
 <body>
     <nav>
-        <div class="logo">QUANTUM BALANCE</div>
-        <a href="index.html" class="back-link">← HUB</a>
+        <div class="logo">NUMBER TRAP</div>
+        <div style="display:flex; gap:10px; align-items:center;">
+            <button onclick="location.reload()" style="background:transparent; border:1px solid var(--border); color:var(--muted); padding:5px 10px; border-radius:5px; cursor:pointer; font-weight:bold; font-size:0.7rem;">RESTART</button>
+        </div>
     </nav>
 
     <div id="game-layout">
@@ -192,8 +194,14 @@
 
         <div id="msg-banner">SYSTEM CRITICAL!</div>
 
+        <!-- Played Card Slot -->
+        <div id="played-card-container" style="margin-bottom: 10px; display: flex; flex-direction: column; align-items: center; min-height: 140px;">
+            <div class="meter-label" style="margin-bottom:5px">Last Played</div>
+            <div id="played-card-slot"></div>
+        </div>
+
         <div id="stability-container">
-            <div class="meter-label">Core Stability</div>
+            <div class="meter-label">Trap Stability</div>
             <div id="stability-val">5</div>
             <div id="gauge-track">
                 <div id="gauge-fill"></div>
@@ -210,8 +218,8 @@
         </div>
 
         <div id="start-screen" class="screen-overlay">
-            <h1 style="font-size: 3.5rem; font-style: italic; color: var(--accent); font-weight: 900;">QUANTUM BALANCE</h1>
-            <p style="opacity: 0.7; margin-top: 10px; max-width: 450px;">Keep the stability total between 0 and 10. Force opponents to overload the core!</p>
+            <h1 style="font-size: 3.5rem; font-style: italic; color: var(--accent); font-weight: 900;">NUMBER TRAP</h1>
+            <p style="opacity: 0.7; margin-top: 10px; max-width: 450px;">Keep the stability total between 0 and 10. Force opponents to overload the trap!</p>
             <div style="margin-top: 20px; display: flex; gap: 10px;">
                 <button class="btn-large" onclick="game.init(2)" style="margin-top:0">2 PLAYERS</button>
                 <button class="btn-large" onclick="game.init(3)" style="margin-top:0; background: #818cf8; color: white;">3 PLAYERS</button>
@@ -222,12 +230,12 @@
         <div id="win-screen" class="screen-overlay" style="display:none">
             <h1 id="winner-text" style="font-size: 4rem; color: var(--accent); font-style: italic;">VICTORY</h1>
             <p id="final-stats" style="margin-top:10px; opacity:0.8; font-size: 1.2rem;"></p>
-            <button class="btn-large" onclick="location.reload()">NEW BOUT</button>
+            <button class="btn-large" onclick="location.reload()">PLAY AGAIN</button>
         </div>
     </div>
 
     <script>
-        class SlamboMock {
+        class NumberTrap {
             constructor() {
                 this.stability = 5;
                 this.players = [];
@@ -235,6 +243,7 @@
                 this.deck = [];
                 this.errorsInPot = 1;
                 this.state = 'playing';
+                this.direction = 1;
                 
                 this.init();
             }
@@ -248,7 +257,7 @@
 
                 this.generateDeck();
                 this.dealHands();
-                this.startBout();
+                this.startRound();
                 document.getElementById('start-screen').style.display = 'none';
             }
 
@@ -277,30 +286,31 @@
                 });
             }
 
-            startBout() {
+            startRound() {
                 this.stability = 5;
                 this.updateUI();
                 this.renderHand();
                 this.renderOpponents();
+                document.getElementById('played-card-slot').innerHTML = '';
             }
 
             playCard(pIdx, cardIdx) {
                 const p = this.players[pIdx];
                 const card = p.hand.splice(cardIdx, 1)[0];
                 
+                this.renderPlayedCard(card, p.name);
+
                 let change = card.val;
                 if (card.type === 'special') {
                     if (card.val === 'CHOICE') {
-                        // AI choice or player choice? Simplified: AI picks what's safer
                         if (p.isBot) change = (this.stability > 5) ? -2 : 2;
                         else change = prompt("Fuel (+2) or Coolant (-2)?", "2") == "2" ? 2 : -2;
                     }
                     if (card.val === 'COPY') {
-                        // Takes previous card val
                         change = this.lastChange || 1;
                     }
                     if (card.val === 'REV') {
-                        this.direction = (this.direction || 1) * -1;
+                        this.direction *= -1;
                         change = 0;
                     }
                 }
@@ -311,19 +321,42 @@
                 this.updateUI();
                 
                 if (this.stability < 0 || this.stability > 10) {
-                    this.triggerBust(pIdx);
+                    setTimeout(() => this.triggerBust(pIdx), 800);
                 } else {
                     if (this.players.every(pl => pl.hand.length === 0)) {
-                        this.triggerBreak();
+                        setTimeout(() => this.triggerBreak(), 800);
                     } else {
-                        this.nextTurn();
+                        setTimeout(() => this.nextTurn(), 1000);
                     }
                 }
             }
 
+            renderPlayedCard(card, playerName) {
+                const slot = document.getElementById('played-card-slot');
+                slot.innerHTML = '';
+                const div = document.createElement('div');
+                div.className = `card ${card.type}`;
+                div.style.cursor = 'default';
+                div.style.transform = 'scale(0.8)';
+                div.style.margin = '0';
+                
+                let symbol = '';
+                if(card.type === 'fuel') symbol = '+';
+                
+                div.textContent = typeof card.val === 'number' ? symbol + card.val : card.name;
+                
+                const nameTag = document.createElement('div');
+                nameTag.textContent = playerName;
+                nameTag.style.fontSize = '0.6rem';
+                nameTag.style.marginTop = '5px';
+                nameTag.style.opacity = '0.7';
+
+                slot.appendChild(div);
+                slot.appendChild(nameTag);
+            }
+
             nextTurn() {
-                const dir = this.direction || 1;
-                this.turn = (this.turn + dir + this.players.length) % this.players.length;
+                this.turn = (this.turn + this.direction + this.players.length) % this.players.length;
                 this.updateUI();
                 this.renderHand();
                 this.renderOpponents();
@@ -335,7 +368,6 @@
 
             aiTurn() {
                 const p = this.players[this.turn];
-                // AI Strategy: pick card that keeps stability closest to 5
                 let bestIdx = 0;
                 let bestDiff = 99;
                 
@@ -366,7 +398,7 @@
                     else {
                         this.generateDeck();
                         this.dealHands();
-                        this.startBout();
+                        this.startRound();
                     }
                 }, 2000);
             }
@@ -374,7 +406,7 @@
             triggerBreak() {
                 this.errorsInPot++;
                 const banner = document.getElementById('msg-banner');
-                banner.textContent = "SYSTEM STABILIZED. RECHARGING...";
+                banner.textContent = "TRAP STABILIZED. RECHARGING...";
                 banner.style.background = "#22c55e";
                 banner.style.display = 'block';
                 
@@ -383,7 +415,7 @@
                     banner.style.background = "var(--coolant)";
                     this.generateDeck();
                     this.dealHands();
-                    this.startBout();
+                    this.startRound();
                 }, 2000);
             }
 
@@ -407,7 +439,11 @@
                 p.hand.forEach((c, i) => {
                     const div = document.createElement('div');
                     div.className = `card ${c.type}`;
-                    div.textContent = typeof c.val === 'number' ? Math.abs(c.val) : c.name;
+                    
+                    let symbol = '';
+                    if(c.type === 'fuel') symbol = '+';
+                    
+                    div.textContent = typeof c.val === 'number' ? symbol + c.val : c.name;
                     if (this.turn !== 0) div.classList.add('disabled');
                     div.onclick = () => this.playCard(0, i);
                     el.appendChild(div);
@@ -444,14 +480,14 @@
                 const stats = document.getElementById('final-stats');
                 
                 const winner = this.players.sort((a,b) => a.errors - b.errors)[0];
-                text.textContent = winner.id === 0 ? "STABILITY RESTORED" : "MISSION FAILED";
+                text.textContent = winner.id === 0 ? "TRAP SURVIVED" : "TRAP SPRUNG";
                 text.style.color = winner.id === 0 ? "var(--accent)" : "var(--coolant)";
-                stats.textContent = `${winner.name} managed the core best.`;
+                stats.textContent = `${winner.name} managed the trap best.`;
                 winScreen.style.display = 'flex';
             }
         }
 
-        const game = new SlamboMock();
+        const game = new NumberTrap();
 
         // Gamepad Adapter
         (function() {

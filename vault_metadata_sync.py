@@ -6,7 +6,7 @@ from datetime import datetime
 # Comprehensive emoji mapping system
 EMOJI_MAP = {
     # Sports & Competition
-    'hoops': '🏀', 'basketball': '🏀', 'dunk': '🏀', 'slambo': '🏀', 'nashball': '🏀',
+    'hoops': '🏀', 'basketball': '🏀', 'dunk': '🏀', 'number-trap': '🪤', 'nashball': '🏀',
     'soccer': '⚽', 'shootout': '⚽', 'Retro Goal': '⚽',
     'football': '🏈', 'gridiron': '🏈', 'fieldgoal': '🏈',
     'hockey': '🏒', 'airhockey': '🏒',

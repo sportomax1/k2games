@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Collector's Choice - K2 games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --accent: #10b981;
+            --border: rgba(255, 255, 255, 0.1);
+            --gold: #fbbf24;
+            --silver: #94a3b8;
+            --c1: #ef4444; --c2: #3b82f6; --c3: #8b5cf6; --c4: #f59e0b; --c5: #ec4899; --c6: #06b6d4; --c7: #84cc16;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: #f8fafc;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 50px;
+            padding: 0 1rem;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo { font-weight: 900; color: var(--accent); letter-spacing: 1px; }
+        .restart-btn { background: var(--surface); border: 1px solid var(--border); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+
+        #game-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            gap: 10px;
+            position: relative;
+        }
+
+        /* Opponents */
+        #opponents {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            height: 80px;
+        }
+
+        .player-info {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 6px;
+            text-align: center;
+            flex: 1;
+            max-width: 110px;
+            transition: 0.3s;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+        }
+        .player-info.active { border-color: var(--accent); background: rgba(16, 185, 129, 0.1); }
+        .player-info .name { font-size: 0.55rem; font-weight: 800; text-transform: uppercase; color: #94a3b8; }
+        .player-info .bid-val { font-size: 1.1rem; font-weight: 900; color: white; }
+        .player-info .hand-count { font-size: 0.6rem; opacity: 0.6; }
+
+        /* Market Board */
+        #market-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            position: relative;
+        }
+
+        .market-side {
+            background: rgba(255,255,255,0.03);
+            border: 2px dashed var(--border);
+            border-radius: 15px;
+            padding: 15px;
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+            min-width: 300px;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
+            position: relative;
+        }
+        .market-side:hover { background: rgba(255,255,255,0.08); border-color: var(--accent); }
+        .market-side.disabled { pointer-events: none; opacity: 0.5; }
+        .market-label { position: absolute; top: -10px; left: 20px; background: var(--bg); padding: 0 10px; font-size: 0.6rem; font-weight: 900; opacity: 0.7; color: var(--accent); }
+
+        /* Bids on Table */
+        #bids-table {
+            height: 110px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .table-bid {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .table-bid:hover { transform: scale(1.05); }
+        .table-bid.disabled { pointer-events: none; }
+        .table-bid .bid-cards { display: flex; gap: -15px; } /* Stacked effect */
+        .table-bid .bid-cards .card { margin-left: -20px; }
+        .table-bid .bid-cards .card:first-child { margin-left: 0; }
+
+        /* Cards - Made Bigger */
+        .card {
+            width: 60px;
+            height: 85px;
+            background: #fff;
+            border-radius: 8px;
+            color: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 1.3rem;
+            position: relative;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            border: 3px solid #ddd;
+            transition: 0.2s;
+        }
+        .card.c-1 { border-color: var(--c1); color: var(--c1); }
+        .card.c-2 { border-color: var(--c2); color: var(--c2); }
+        .card.c-3 { border-color: var(--c3); color: var(--c3); }
+        .card.c-4 { border-color: var(--c4); color: var(--c4); }
+        .card.c-5 { border-color: var(--c5); color: var(--c5); }
+        .card.c-6 { border-color: var(--c6); color: var(--c6); }
+        .card.c-7 { border-color: var(--c7); color: var(--c7); }
+        .card.gold { border-color: var(--gold); color: var(--gold); background: #fffcf0; }
+        .card.silver { border-color: var(--silver); color: var(--silver); background: #f8fafc; }
+        .card.fake { border-color: #334155; color: #334155; background: #94a3b8; }
+        
+        .card .suit-icon { font-size: 0.6rem; text-transform: uppercase; margin-top: 4px; font-weight: 800; }
+
+        /* Interaction Area */
+        #interaction-container {
+            background: rgba(0,0,0,0.3);
+            border-top: 1px solid var(--border);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #hand {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 15px 5px;
+            justify-content: center;
+            min-height: 120px;
+        }
+
+        .hand-card { cursor: pointer; transition: 0.2s; }
+        .hand-card:hover { transform: translateY(-15px); z-index: 10; }
+        .hand-card.selected { transform: translateY(-25px); border-color: var(--accent); box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); }
+
+        #controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-action {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-weight: 900;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .btn-action:disabled { opacity: 0.3; cursor: not-allowed; }
+        .btn-action.secondary { background: var(--surface); color: white; border: 1px solid var(--border); }
+
+        #status-msg {
+            position: absolute;
+            top: 95px;
+            width: 100%;
+            text-align: center;
+            font-weight: 900;
+            font-size: 1.3rem;
+            color: var(--accent);
+            text-shadow: 0 0 15px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .overlay {
+            position: absolute; inset: 0;
+            background: rgba(15, 23, 42, 0.98);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 500; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--accent); color: #000; border: none; padding: 1.2rem 3.5rem;
+            border-radius: 50px; font-weight: 900; cursor: pointer; margin-top: 1.5rem;
+            font-size: 1.3rem;
+        }
+
+        @media (max-width: 600px) {
+            .card { width: 50px; height: 75px; font-size: 1rem; }
+            .market-side { min-width: 260px; gap: 5px; padding: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">COLLECTOR'S CHOICE</div>
+        <button class="restart-btn" onclick="location.reload()">RESTART</button>
+    </nav>
+
+    <div id="game-layout">
+        <div id="opponents"></div>
+        <div id="status-msg"></div>
+
+        <div id="market-area">
+            <div id="market-1" class="market-side" onclick="game.actionMarket(0)">
+                <div class="market-label">MARKET SIDE I</div>
+            </div>
+            <div id="market-2" class="market-side" onclick="game.actionMarket(1)">
+                <div class="market-label">MARKET SIDE II</div>
+            </div>
+        </div>
+
+        <div id="bids-table">
+            <!-- Revealed bids for current player turns -->
+        </div>
+
+        <div id="interaction-container">
+            <div id="controls">
+                <button id="btn-bid" class="btn-action" onclick="game.placeBid()" disabled>PLACE BID (0)</button>
+                <button id="btn-keep" class="btn-action secondary" onclick="game.actionKeep()" style="display:none">KEEP BID</button>
+            </div>
+            <div id="hand"></div>
+        </div>
+
+        <div id="start-screen" class="overlay">
+            <h1 style="font-size: 2.5rem; color: var(--accent); font-style: italic; font-weight: 900;">COLLECTOR'S CHOICE</h1>
+            <p style="opacity: 0.8; margin-top: 15px; max-width: 400px; font-weight: 600;">Trade currencies, silver, and gold. Bid high to take first pick from the market or other traders!</p>
+            <div style="margin-top: 25px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
+                <button class="btn-large" onclick="game.init(3)">3 PLAYERS</button>
+                <button class="btn-large" onclick="game.init(4)" style="background: #818cf8; color: white;">4 PLAYERS</button>
+                <button class="btn-large" onclick="game.init(5)" style="background: #22c55e; color: white;">5 PLAYERS</button>
+            </div>
+        </div>
+
+        <div id="win-screen" class="overlay" style="display:none">
+            <h1 id="winner-title" style="font-size: 3.5rem; color: var(--accent);">MARKET CLOSED</h1>
+            <div id="final-stats" style="margin-top: 25px; font-size: 1.2rem; line-height: 1.6;"></div>
+            <button class="btn-large" onclick="location.reload()">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CNY', 'CHF', 'CAD'];
+        const SYMBOLS = { 'USD':'$', 'EUR':'€', 'GBP':'£', 'JPY':'¥', 'CNY':'元', 'CHF':'Fr', 'CAD':'C$' };
+        const VALUES = [20, 20, 20, 30, 30, 30, 40, 50, 60];
+
+        class CollectorsChoice {
+            constructor() {
+                this.deck = [];
+                this.market = [[], []];
+                this.players = [];
+                this.turnOrder = [];
+                this.currentPlayerIdx = -1;
+                this.state = 'setup';
+                this.selectedCards = new Set();
+                this.serialCounter = 0;
+            }
+
+            init(count) {
+                const currenciesToUse = CURRENCIES.slice(0, count === 5 ? 7 : count === 3 ? 5 : 6);
+                
+                this.deck = [];
+                currenciesToUse.forEach((curr, cIdx) => {
+                    VALUES.forEach(val => {
+                        this.deck.push({ type: 'money', suit: curr, symbol: SYMBOLS[curr], suitIdx: cIdx + 1, val, serial: ++this.serialCounter });
+                    });
+                });
+                for(let i=0; i<6; i++) {
+                    this.deck.push({ type: 'gold', val: 20 + i*10, symbol: 'GOLD', serial: ++this.serialCounter });
+                    this.deck.push({ type: 'silver', val: 20 + i*10, symbol: 'SILVER', serial: ++this.serialCounter });
+                }
+                this.deck.sort(() => Math.random() - 0.5);
+
+                this.players = Array(count).fill(0).map((_, i) => ({
+                    id: i, name: i === 0 ? 'You' : `Robot #${i}`,
+                    hand: [], currentBid: [], isBot: i !== 0, score: 0
+                }));
+
+                this.players.forEach(p => {
+                    for(let i=0; i<6; i++) p.hand.push(this.deck.pop());
+                    p.hand.push({ type: 'fake', val: 0, symbol: 'FAKE', serial: 999 });
+                });
+
+                for(let i=0; i<4; i++) this.market[0].push(this.deck.pop());
+                for(let i=0; i<4; i++) this.market[1].push(this.deck.pop());
+
+                document.getElementById('start-screen').style.display = 'none';
+                this.startRound();
+            }
+
+            startRound() {
+                this.state = 'bidding';
+                this.selectedCards.clear();
+                this.players.forEach(p => p.currentBid = []);
+                this.updateUI();
+                this.showStatus("Select cards to bid...");
+            }
+
+            updateUI() {
+                const oppsEl = document.getElementById('opponents');
+                oppsEl.innerHTML = '';
+                this.players.forEach(p => {
+                    if (p.id === 0) return;
+                    const div = document.createElement('div');
+                    div.className = `player-info ${this.turnOrder[this.currentPlayerIdx] === p.id ? 'active' : ''}`;
+                    div.innerHTML = `
+                        <div class="name">${p.name}</div>
+                        <div class="bid-val">${this.state === 'turns' ? this.getBidVal(p.currentBid) : '?'}</div>
+                        <div class="hand-count">${p.hand.length} cards</div>
+                    `;
+                    oppsEl.appendChild(div);
+                });
+
+                [0, 1].forEach(i => {
+                    const el = document.getElementById(`market-${i+1}`);
+                    el.innerHTML = `<div class="market-label">MARKET SIDE ${i===0?'I':'II'}</div>`;
+                    this.market[i].forEach(c => el.appendChild(this.createCardEl(c)));
+                    if (this.state !== 'turns' || this.turnOrder[this.currentPlayerIdx] !== 0) el.classList.add('disabled');
+                    else el.classList.remove('disabled');
+                });
+
+                const tableEl = document.getElementById('bids-table');
+                tableEl.innerHTML = '';
+                if (this.state === 'turns') {
+                    this.players.forEach(p => {
+                        if (p.currentBid.length > 0) {
+                            const div = document.createElement('div');
+                            div.className = `table-bid ${this.turnOrder[this.currentPlayerIdx] === 0 ? '' : 'disabled'}`;
+                            div.onclick = () => this.actionPlayer(p.id);
+                            const cardRow = document.createElement('div');
+                            cardRow.className = 'bid-cards';
+                            p.currentBid.forEach(c => cardRow.appendChild(this.createCardEl(c)));
+                            div.appendChild(cardRow);
+                            const label = document.createElement('div');
+                            label.className = 'name';
+                            label.style.marginTop = '8px';
+                            label.style.fontWeight = '900';
+                            label.style.fontSize = '0.6rem';
+                            label.textContent = p.id === 0 ? "YOUR BID" : p.name;
+                            div.appendChild(label);
+                            tableEl.appendChild(div);
+                        }
+                    });
+                }
+
+                const handEl = document.getElementById('hand');
+                handEl.innerHTML = '';
+                this.players[0].hand.sort((a,b) => (a.suitIdx||0) - (b.suitIdx||0) || a.val - b.val).forEach((c, i) => {
+                    const div = this.createCardEl(c);
+                    div.classList.add('hand-card');
+                    if (this.selectedCards.has(i)) div.classList.add('selected');
+                    if (this.state !== 'bidding') div.classList.add('disabled');
+                    div.onclick = () => this.toggleCard(i);
+                    handEl.appendChild(div);
+                });
+
+                const bidBtn = document.getElementById('btn-bid');
+                const keepBtn = document.getElementById('btn-keep');
+                if (this.state === 'bidding') {
+                    bidBtn.style.display = 'block';
+                    keepBtn.style.display = 'none';
+                    bidBtn.disabled = this.selectedCards.size === 0;
+                    let sum = 0;
+                    this.selectedCards.forEach(idx => sum += this.players[0].hand[idx].val);
+                    bidBtn.textContent = `PLACE BID (${sum})`;
+                } else if (this.state === 'turns' && this.turnOrder[this.currentPlayerIdx] === 0) {
+                    bidBtn.style.display = 'none';
+                    keepBtn.style.display = 'block';
+                } else {
+                    bidBtn.style.display = 'none';
+                    keepBtn.style.display = 'none';
+                }
+            }
+
+            createCardEl(c) {
+                const div = document.createElement('div');
+                div.className = `card ${c.type === 'money' ? 'c-'+c.suitIdx : c.type}`;
+                div.innerHTML = `<div>${c.val}</div><div class="suit-icon">${c.symbol}</div>`;
+                return div;
+            }
+
+            toggleCard(idx) {
+                if (this.state !== 'bidding') return;
+                if (this.selectedCards.has(idx)) this.selectedCards.delete(idx);
+                else this.selectedCards.add(idx);
+                this.updateUI();
+            }
+
+            placeBid() {
+                const indices = Array.from(this.selectedCards).sort((a,b) => b-a);
+                indices.forEach(idx => {
+                    const card = this.players[0].hand.splice(idx, 1)[0];
+                    if (card.type !== 'fake') this.players[0].currentBid.push(card);
+                });
+                
+                this.players.forEach(p => {
+                    if (p.isBot) {
+                        const count = Math.random() > 0.5 ? 2 : 1;
+                        for(let i=0; i<count; i++) {
+                            const idx = Math.floor(Math.random() * (p.hand.length - 1));
+                            p.currentBid.push(p.hand.splice(idx, 1)[0]);
+                        }
+                    }
+                });
+                this.resolveBids();
+            }
+
+            getBidVal(bid) { return bid.reduce((sum, c) => sum + c.val, 0); }
+
+            resolveBids() {
+                this.state = 'turns';
+                const bidders = this.players.map(p => ({
+                    id: p.id,
+                    val: this.getBidVal(p.currentBid),
+                    serial: p.currentBid.length > 0 ? Math.min(...p.currentBid.map(c => c.serial)) : 999
+                }));
+                bidders.sort((a, b) => b.val - a.val || a.serial - b.serial);
+                this.turnOrder = bidders.map(b => b.id);
+                this.currentPlayerIdx = 0;
+                this.processNextTurn();
+            }
+
+            processNextTurn() {
+                if (this.currentPlayerIdx >= this.turnOrder.length) { this.endRound(); return; }
+                const pId = this.turnOrder[this.currentPlayerIdx];
+                const p = this.players[pId];
+                if (p.currentBid.length === 0) { this.currentPlayerIdx++; this.processNextTurn(); return; }
+                this.updateUI();
+                this.showStatus(`${p.name}'s turn...`);
+                if (p.isBot) setTimeout(() => this.botAction(p), 1000);
+            }
+
+            botAction(p) {
+                const r = Math.random();
+                if (r < 0.6) this.actionMarket(Math.floor(Math.random() * 2));
+                else if (r < 0.9) this.actionKeep();
+                else {
+                    const target = this.players.find(pl => pl.id !== p.id && pl.currentBid.length > 0);
+                    if (target) this.actionPlayer(target.id);
+                    else this.actionKeep();
+                }
+            }
+
+            actionMarket(side) {
+                const p = this.players[this.turnOrder[this.currentPlayerIdx]];
+                const temp = [...p.currentBid];
+                p.currentBid = [...this.market[side]];
+                this.market[side] = temp;
+                this.finishTurn(p);
+            }
+
+            actionPlayer(targetId) {
+                const pIdx = this.currentPlayerIdx;
+                const pId = this.turnOrder[pIdx];
+                if (pId === targetId) return;
+                const p = this.players[pId];
+                const target = this.players[targetId];
+                const temp = [...p.currentBid];
+                p.currentBid = [...target.currentBid];
+                target.currentBid = temp;
+                this.recalcTurnOrder();
+                this.updateUI();
+                this.processNextTurn();
+            }
+
+            actionKeep() { this.finishTurn(this.players[this.turnOrder[this.currentPlayerIdx]]); }
+
+            finishTurn(p) {
+                p.hand.push(...p.currentBid);
+                p.currentBid = [];
+                this.currentPlayerIdx++;
+                this.processNextTurn();
+            }
+
+            recalcTurnOrder() {
+                const bidders = this.players.filter(p => p.currentBid.length > 0).map(p => ({
+                    id: p.id, val: this.getBidVal(p.currentBid), serial: Math.min(...p.currentBid.map(c => c.serial))
+                }));
+                if (bidders.length === 0) { this.currentPlayerIdx = 99; return; }
+                bidders.sort((a, b) => b.val - a.val || a.serial - b.serial);
+                this.turnOrder = [...this.turnOrder.slice(0, this.currentPlayerIdx), ...bidders.map(b => b.id)];
+            }
+
+            endRound() {
+                if (this.deck.length < this.players.length * 2) this.endGame();
+                else {
+                    while(this.market[0].length < 4 && this.deck.length > 0) this.market[0].push(this.deck.pop());
+                    while(this.market[1].length < 4 && this.deck.length > 0) this.market[1].push(this.deck.pop());
+                    this.startRound();
+                }
+            }
+
+            showStatus(msg) { document.getElementById('status-msg').textContent = msg; }
+
+            calculateScore(p) {
+                let total = 0;
+                const currMap = {};
+                p.hand.forEach(c => {
+                    if (c.type === 'money') {
+                        if (!currMap[c.suit]) currMap[c.suit] = { sum: 0, sets: { 20: 0, 30: 0 } };
+                        currMap[c.suit].sum += c.val;
+                        if (c.val === 20) currMap[c.suit].sets[20]++;
+                        if (c.val === 30) currMap[c.suit].sets[30]++;
+                    } else if (c.type === 'gold' || c.type === 'silver') total += c.val;
+                });
+                Object.keys(currMap).forEach(key => {
+                    const data = currMap[key];
+                    let s = data.sum;
+                    if (s >= 300) s += 200; else if (s >= 200) s += 100; else s -= 100;
+                    s += Math.floor(data.sets[20] / 3) * 100;
+                    s += Math.floor(data.sets[30] / 3) * 100;
+                    if (s < 0) s = 0;
+                    total += s;
+                });
+                return total;
+            }
+
+            endGame() {
+                const screen = document.getElementById('win-screen');
+                const stats = document.getElementById('final-stats');
+                this.players.forEach(p => p.score = this.calculateScore(p));
+                const sorted = [...this.players].sort((a,b) => b.score - a.score);
+                document.getElementById('winner-title').textContent = sorted[0].id === 0 ? "MARKET MASTER" : "OUT-TRADED";
+                stats.innerHTML = sorted.map((p, i) => `<div style="${i===0?'color:var(--accent); font-weight:900;':''}">#${i+1} ${p.name}: ${p.score} points</div>`).join('');
+                screen.style.display = 'flex';
+            }
+        }
+        const game = new CollectorsChoice();
+    </script>
+</body>
+</html>
