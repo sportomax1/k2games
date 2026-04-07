@@ -1,184 +1,293 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Candy Match</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sweet Match - K2 games</title>
     <style>
-        body { font-family: sans-serif; background: #fdf2f8; color: #86198f; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .grid { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); gap: 4px; background: #f5d0fe; padding: 10px; border-radius: 12px; border: 4px solid #d946ef; width: 90vmin; height: 90vmin; max-width: 500px; max-height: 500px; }
-        .candy { width: 100%; height: 100%; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 5vmin; transition: transform 0.2s, background 0.2s; user-select: none; }
-        .candy.cursor { outline: 4px solid #fbbf24; z-index: 20; transform: scale(1.1); }
-        .candy:hover { transform: scale(1.1); }
-        .selected { outline: 4px solid white; outline-offset: -4px; transform: scale(1.1); z-index: 10; }
-        .ui { margin-bottom: 20px; text-align: center; }
-        .score { font-size: 2rem; font-weight: bold; }
-        .back { position: absolute; bottom: 20px; left: 20px; color: #d946ef; text-decoration: none; font-weight: bold; }
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --accent: #f472b6;
+            --border: rgba(255, 255, 255, 0.1);
+            --text: #f8fafc;
+            --muted: #94a3b8;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo { font-weight: 900; color: var(--accent); letter-spacing: 1px; }
+        .restart-btn { background: var(--surface); border: 1px solid var(--border); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+
+        #game-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            gap: 20px;
+            position: relative;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .stat-box {
+            background: var(--surface);
+            padding: 10px 25px;
+            border-radius: 15px;
+            border: 1px solid var(--border);
+            text-align: center;
+            flex: 1;
+        }
+
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; color: var(--muted); font-weight: 800; }
+        .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--accent); }
+
+        #grid-container {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 20px;
+            border: 2px solid var(--border);
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 6px;
+            width: 90vmin;
+            height: 90vmin;
+            max-width: 500px;
+            max-height: 500px;
+        }
+
+        .candy {
+            width: 100%;
+            height: 100%;
+            background: var(--surface);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5vmin;
+            cursor: pointer;
+            transition: 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .candy:hover { transform: scale(1.05); border-color: var(--accent); }
+        .candy.selected { border-color: white; transform: scale(1.1); box-shadow: 0 0 15px var(--accent); z-index: 10; }
+
+        @media (min-width: 600px) {
+            .candy { font-size: 30px; }
+        }
+
+        .overlay {
+            position: absolute; inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 500; text-align: center;
+        }
+
+        .btn-large {
+            background: var(--accent); color: white; border: none; padding: 15px 50px;
+            border-radius: 50px; font-weight: 800; cursor: pointer; font-size: 1.2rem;
+            box-shadow: 0 10px 20px rgba(244, 114, 182, 0.3);
+        }
+
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
-    <div class="ui">
-        <div class="score">Score: <span id="score">0</span></div>
+    <nav>
+        <div class="logo">SWEET MATCH</div>
+        <button class="restart-btn" onclick="location.reload()">RESTART BOARD</button>
+    </nav>
+
+    <div id="game-layout">
+        <div class="hud-top">
+            <div class="stat-box">
+                <div class="stat-label">Score</div>
+                <div id="score-val" class="stat-val">0</div>
+            </div>
+        </div>
+
+        <div id="grid-container"></div>
+
+        <div id="start-screen" class="overlay">
+            <h1 style="font-size: 3.5rem; color: var(--accent); font-style: italic; font-weight: 900;">SWEET MATCH</h1>
+            <p style="opacity: 0.7; margin-bottom: 30px; max-width: 400px;">Swap adjacent candies to create matches of 3 or more. Clear the board and reach for the high score!</p>
+            <button class="btn-large" onclick="game.start()">START MATCHING</button>
+        </div>
     </div>
-    <div id="grid" class="grid"></div>
-    <a href="index.html" class="back">← HUB</a>
 
     <script>
-        const symbols = ['🍎','🍇','🍊','🍋','🫐','🥝'];
-        const width = 8;
-        let grid = [];
-        let score = 0;
-        let selected = null;
+        const SYMBOLS = ['🍎','🍇','🍊','🍋','🫐','🥝'];
+        const WIDTH = 8;
 
-        function init() {
-            const gridEl = document.getElementById('grid');
-            for(let i=0; i<width*width; i++) {
-                const candy = document.createElement('div');
-                candy.className = 'candy';
-                candy.id = i;
-                const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)];
-                candy.textContent = randomSymbol;
-                candy.onclick = () => handleSelect(i);
-                gridEl.appendChild(candy);
-                grid.push(randomSymbol);
+        class SweetMatch {
+            constructor() {
+                this.grid = [];
+                this.score = 0;
+                this.selected = null;
+                this.init();
             }
-            while(checkMatches()) {
-                refillGrid();
-            }
-            score = 0;
-            document.getElementById('score').textContent = score;
-        }
 
-        function handleSelect(i) {
-            const el = document.getElementById(i);
-            if(!selected) {
-                selected = i;
-                el.classList.add('selected');
-            } else {
-                const isAdjacent = checkAdjacent(selected, i);
-                if(isAdjacent) {
-                    swap(selected, i);
-                    if(!checkMatches()) {
-                        setTimeout(() => swap(selected, i), 300);
+            init() {
+                const container = document.getElementById('grid-container');
+                container.innerHTML = '';
+                this.grid = [];
+                for(let i=0; i<WIDTH*WIDTH; i++) {
+                    const candy = document.createElement('div');
+                    candy.className = 'candy';
+                    candy.id = `c-${i}`;
+                    const sym = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+                    candy.textContent = sym;
+                    candy.onclick = () => this.handleSelect(i);
+                    container.appendChild(candy);
+                    this.grid.push(sym);
+                }
+                while(this.checkMatches(false)) {
+                    this.refillGrid(false);
+                }
+                this.score = 0;
+                this.updateUI();
+            }
+
+            start() {
+                document.getElementById('start-screen').classList.add('hidden');
+            }
+
+            handleSelect(i) {
+                const el = document.getElementById(`c-${i}`);
+                if(this.selected === null) {
+                    this.selected = i;
+                    el.classList.add('selected');
+                } else {
+                    const i1 = this.selected;
+                    const i2 = i;
+                    if(this.isAdjacent(i1, i2)) {
+                        this.swap(i1, i2);
+                        if(!this.checkMatches()) {
+                            setTimeout(() => this.swap(i1, i2), 300);
+                        }
+                    }
+                    document.getElementById(`c-${i1}`).classList.remove('selected');
+                    this.selected = null;
+                }
+            }
+
+            isAdjacent(i1, i2) {
+                const r1 = Math.floor(i1/WIDTH), c1 = i1%WIDTH;
+                const r2 = Math.floor(i2/WIDTH), c2 = i2%WIDTH;
+                return (Math.abs(r1-r2) === 1 && c1 === c2) || (Math.abs(c1-c2) === 1 && r1 === r2);
+            }
+
+            swap(i1, i2) {
+                const temp = this.grid[i1];
+                this.grid[i1] = this.grid[i2];
+                this.grid[i2] = temp;
+                this.updateUI();
+                this.processTurn();
+            }
+
+            processTurn() {
+                if(this.checkMatches()) {
+                    setTimeout(() => {
+                        this.refillGrid();
+                        this.processTurn();
+                    }, 400);
+                }
+            }
+
+            checkMatches(updateScore = true) {
+                let matched = false;
+                let toClear = new Set();
+
+                // Horizontal
+                for(let r=0; r<WIDTH; r++) {
+                    for(let c=0; c<WIDTH-2; c++) {
+                        let i = r*WIDTH+c;
+                        if(this.grid[i] && this.grid[i] === this.grid[i+1] && this.grid[i] === this.grid[i+2]) {
+                            toClear.add(i); toClear.add(i+1); toClear.add(i+2);
+                            matched = true;
+                        }
                     }
                 }
-                document.getElementById(selected).classList.remove('selected');
-                selected = null;
-            }
-        }
-
-        function checkAdjacent(i1, i2) {
-            const r1 = Math.floor(i1/width), c1 = i1%width;
-            const r2 = Math.floor(i2/width), c2 = i2%width;
-            return (Math.abs(r1-r2) === 1 && c1 === c2) || (Math.abs(c1-c2) === 1 && r1 === r2);
-        }
-
-        function swap(i1, i2) {
-            const temp = grid[i1];
-            grid[i1] = grid[i2];
-            grid[i2] = temp;
-            document.getElementById(i1).textContent = grid[i1];
-            document.getElementById(i2).textContent = grid[i2];
-            processTurn();
-        }
-
-        function processTurn() {
-            if(checkMatches()) {
-                setTimeout(() => {
-                    refillGrid();
-                    processTurn();
-                }, 400);
-            }
-        }
-
-        function checkMatches() {
-            let matched = false;
-            let toClear = new Set();
-
-            // Horizontal
-            for(let r=0; r<width; r++) {
-                for(let c=0; c<width-2; c++) {
-                    let i = r*width+c;
-                    if(grid[i] && grid[i] === grid[i+1] && grid[i] === grid[i+2]) {
-                        toClear.add(i); toClear.add(i+1); toClear.add(i+2);
-                        matched = true;
+                // Vertical
+                for(let c=0; c<WIDTH; c++) {
+                    for(let r=0; r<WIDTH-2; r++) {
+                        let i = r*WIDTH+c;
+                        if(this.grid[i] && this.grid[i] === this.grid[i+WIDTH] && this.grid[i] === this.grid[i+WIDTH*2]) {
+                            toClear.add(i); toClear.add(i+WIDTH); toClear.add(i+WIDTH*2);
+                            matched = true;
+                        }
                     }
                 }
+
+                if(matched) {
+                    if(updateScore) {
+                        this.score += toClear.size * 10;
+                        document.getElementById('score-val').textContent = this.score;
+                    }
+                    toClear.forEach(i => this.grid[i] = null);
+                    this.updateUI();
+                }
+                return matched;
             }
-            // Vertical
-            for(let c=0; c<width; c++) {
-                for(let r=0; r<width-2; r++) {
-                    let i = r*width+c;
-                    if(grid[i] && grid[i] === grid[i+width] && grid[i] === grid[i+width*2]) {
-                        toClear.add(i); toClear.add(i+width); toClear.add(i+width*2);
-                        matched = true;
+
+            refillGrid() {
+                for(let c=0; c<WIDTH; c++) {
+                    let empty = 0;
+                    for(let r=WIDTH-1; r>=0; r--) {
+                        let i = r*WIDTH+c;
+                        if(this.grid[i] === null) empty++;
+                        else if(empty > 0) {
+                            this.grid[i+empty*WIDTH] = this.grid[i];
+                            this.grid[i] = null;
+                        }
+                    }
+                    for(let r=0; r<empty; r++) {
+                        this.grid[r*WIDTH+c] = SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)];
                     }
                 }
+                this.updateUI();
             }
 
-            if(matched) {
-                score += toClear.size * 10;
-                document.getElementById('score').textContent = score;
-                toClear.forEach(i => grid[i] = null);
-                updateUI();
+            updateUI() {
+                this.grid.forEach((symbol, i) => {
+                    const el = document.getElementById(`c-${i}`);
+                    el.textContent = symbol || '';
+                    el.style.opacity = symbol ? 1 : 0;
+                });
             }
-            return matched;
         }
 
-        function refillGrid() {
-            for(let c=0; c<width; c++) {
-                let empty = 0;
-                for(let r=width-1; r>=0; r--) {
-                    let i = r*width+c;
-                    if(grid[i] === null) empty++;
-                    else if(empty > 0) {
-                        grid[i+empty*width] = grid[i];
-                        grid[i] = null;
-                    }
-                }
-                for(let r=0; r<empty; r++) {
-                    grid[r*width+c] = symbols[Math.floor(Math.random()*symbols.length)];
-                }
-            }
-            updateUI();
-        }
-
-        function updateUI() {
-            grid.forEach((symbol, i) => {
-                const el = document.getElementById(i);
-                el.textContent = symbol || '';
-                el.style.opacity = symbol ? 1 : 0;
-            });
-        }
-
-        init();
-
-        // Gamepad Adapter
-        (function() {
-            let cursor = 0;
-            let lastP = 0;
-            function poll() {
-                const pads = navigator.getGamepads();
-                if (pads[0]) {
-                    const p = pads[0]; const now = Date.now();
-                    document.querySelectorAll('.candy').forEach(c => c.classList.remove('cursor'));
-                    const curEl = document.getElementById(cursor);
-                    if(curEl) curEl.classList.add('cursor');
-
-                    if (now - lastP > 180) {
-                        const b = p.buttons; const axes = p.axes;
-                        if (axes[1] < -0.5 || b[12].pressed) if(cursor >= width) cursor -= width;
-                        if (axes[1] > 0.5 || b[13].pressed) if(cursor < width*(width-1)) cursor += width;
-                        if (axes[0] < -0.5 || b[14].pressed) if(cursor % width !== 0) cursor--;
-                        if (axes[0] > 0.5 || b[15].pressed) if(cursor % width !== width-1) cursor++;
-                        
-                        if (b[0].pressed || b[7].pressed) handleSelect(cursor);
-                        lastP = now;
-                    }
-                }
-                requestAnimationFrame(poll);
-            }
-            poll();
-        })();
+        const game = new SweetMatch();
     </script>
 </body>
 </html>

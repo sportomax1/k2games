@@ -5,44 +5,148 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Station 19: Forest Fire - K2 games</title>
     <style>
-        :root { --fire: #ef4444; --water: #3b82f6; --truck: #dc2626; --grass: #166534; --sky: #7dd3fc; --panel: #ffffff; --text: #1e293b; }
-        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; touch-action: none; }
-        body { background-color: #f1f5f9; color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: row; overflow: hidden; }
-        #sidebar { width: 280px; background: var(--panel); padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem; box-shadow: 10px 0 30px rgba(0,0,0,0.05); z-index: 50; }
-        .logo { font-size: 1.8rem; font-weight: 900; color: var(--fire); letter-spacing: -1px; }
-        .stat-card { background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px solid #f1f5f9; }
-        .stat-label { font-size: 0.6rem; text-transform: uppercase; color: #64748b; font-weight: 800; }
-        .stat-val { font-size: 1.4rem; font-weight: 900; color: var(--fire); }
-        #game-view { flex: 1; position: relative; display: flex; justify-content: center; align-items: center; padding: 20px; }
-        #canvas-container { position: relative; background: #000; border-radius: 20px; overflow: hidden; box-shadow: 0 25px 50px rgba(0,0,0,0.2); width: 1000px; height: 600px; max-width: 100%; max-height: 100%; }
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --accent: #ef4444;
+            --water: #3b82f6;
+            --grass: #065f46;
+            --sky: #0f172a;
+            --border: rgba(255, 255, 255, 0.1);
+            --text: #f8fafc;
+            --muted: #94a3b8;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo { font-weight: 900; color: var(--accent); letter-spacing: 1px; }
+        .restart-btn { background: var(--surface); border: 1px solid var(--border); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+
+        #game-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            gap: 10px;
+            position: relative;
+        }
+
+        .top-hud {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            z-index: 50;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            text-align: center;
+            min-width: 120px;
+        }
+
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; color: var(--muted); font-weight: 800; }
+        .stat-val { font-size: 1.2rem; font-weight: 900; color: var(--accent); }
+
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 2px solid var(--border);
+        }
+
         canvas { display: block; width: 100%; height: 100%; }
-        #mobile-btns { position: absolute; bottom: 20px; right: 20px; display: none; gap: 15px; }
-        .m-btn { width: 80px; height: 80px; background: rgba(255,255,255,0.2); border: 3px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; backdrop-filter: blur(10px); }
-        @media (max-width: 900px) { body { flex-direction: column; } #sidebar { width: 100%; height: auto; flex-direction: row; padding: 10px; flex-wrap: wrap; } #mobile-btns { display: flex; } }
-        #overlay { position: absolute; inset: 0; background: rgba(15,23,42,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; color: white; text-align: center; }
-        .btn-main { background: var(--fire); color: white; border: none; padding: 15px 50px; border-radius: 50px; font-weight: 800; cursor: pointer; font-size: 1.2rem; }
+
+        #mobile-controls {
+            position: absolute; bottom: 20px; right: 20px; left: 20px;
+            display: none; justify-content: space-between; align-items: center;
+            z-index: 100; pointer-events: none;
+        }
+
+        .ctrl-group { display: flex; gap: 15px; pointer-events: auto; }
+        .m-btn { width: 70px; height: 70px; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; backdrop-filter: blur(10px); color: white; }
+        .m-btn:active { background: var(--accent); border-color: white; }
+
+        @media (max-width: 900px) { #mobile-controls { display: flex; } }
+
+        .overlay {
+            position: absolute; inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1000; text-align: center; padding: 20px;
+        }
+
+        .btn-large {
+            background: var(--accent); color: white; border: none; padding: 15px 50px;
+            border-radius: 50px; font-weight: 800; cursor: pointer; font-size: 1.2rem;
+            box-shadow: 0 10px 20px rgba(239, 68, 68, 0.3);
+        }
+
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
-    <aside id="sidebar">
+    <nav>
         <div class="logo">STATION 19</div>
-        <div class="stat-card"><div class="stat-label">Forest Loss</div><div id="loss-val" class="stat-val">0%</div></div>
-        <div class="stat-card"><div class="stat-label">Water Supply</div><div id="water-val" class="stat-val">100%</div></div>
-        <div style="margin-top:auto; font-size:0.75rem; opacity:0.6; line-height:1.5;"><b>CONTROLS:</b><br>Arrows to Drive<br>SPACE to spray water</div>
-    </aside>
-    <main id="game-view">
+        <button class="restart-btn" onclick="location.reload()">RESTART UNIT</button>
+    </nav>
+
+    <div id="game-layout">
+        <div class="top-hud">
+            <div class="stat-card"><div class="stat-label">Forest Loss</div><div id="loss-val" class="stat-val">0%</div></div>
+            <div class="stat-card"><div class="stat-label">Water Supply</div><div id="water-val" class="stat-val" style="color:var(--water)">100%</div></div>
+        </div>
+
         <div id="canvas-container">
             <canvas id="gameCanvas" width="1000" height="600"></canvas>
-            <div id="overlay">
-                <h1 style="font-size:4rem; margin-bottom:10px;">FOREST FIRE</h1>
-                <p style="margin-bottom:20px; opacity:0.8;">Extinguish the blaze before the woods are lost.</p>
-                <button class="btn-main" onclick="game.start()">ENGAGE UNIT</button>
+            
+            <div id="start-screen" class="overlay">
+                <h1 style="font-size: 3.5rem; font-style: italic; font-weight: 900; margin-bottom: 10px;">FOREST FIRE</h1>
+                <p style="max-width: 400px; opacity: 0.7; margin-bottom: 30px;">Direct the fire unit and extinguish the blaze before 50% of the woods are lost.</p>
+                <button class="btn-large" onclick="game.start()">ENGAGE UNIT</button>
             </div>
-            <div id="mobile-btns">
-                <div class="m-btn" id="m-left">◀</div><div class="m-btn" id="m-right">▶</div><div class="m-btn" id="m-water" style="background:var(--water)">💧</div>
+
+            <div id="over-screen" class="overlay hidden">
+                <h1 id="over-title" style="font-size: 3.5rem; font-weight: 900; color: var(--accent);">FOREST LOST</h1>
+                <p id="over-msg" style="margin-bottom: 30px; opacity: 0.7;">The fire spread too quickly.</p>
+                <button class="btn-large" onclick="game.start()">RE-ENGAGE</button>
+            </div>
+
+            <div id="mobile-controls">
+                <div class="ctrl-group">
+                    <div class="m-btn" id="m-left">◀</div>
+                    <div class="m-btn" id="m-right">▶</div>
+                </div>
+                <div class="m-btn" id="m-water" style="background:var(--water); width:90px; height:90px;">💧</div>
             </div>
         </div>
-    </main>
+    </div>
+
     <script>
         class Station19 {
             constructor() {
@@ -56,13 +160,19 @@
             setupInputs() {
                 window.onkeydown = (e) => this.keys[e.code] = true;
                 window.onkeyup = (e) => this.keys[e.code] = false;
-                const bind = (id, k) => { const el = document.getElementById(id); el.ontouchstart = (e) => { e.preventDefault(); this.keys[k]=true; }; el.ontouchend = () => this.keys[k]=false; };
+                const bind = (id, k) => { 
+                    const el = document.getElementById(id); 
+                    el.ontouchstart = (e) => { e.preventDefault(); this.keys[k]=true; }; 
+                    el.ontouchend = (e) => { e.preventDefault(); this.keys[k]=false; }; 
+                };
                 bind('m-left', 'ArrowLeft'); bind('m-right', 'ArrowRight'); bind('m-water', 'Space');
             }
             start() {
                 this.trees = []; this.water = []; this.supply = 100; this.truck.x = 500;
                 for(let i=0; i<60; i++) this.trees.push({ x: Math.random()*900+50, y: 150+Math.random()*300, burn: 0, dead: false, h: 100 });
-                this.playing = true; document.getElementById('overlay').style.display = 'none';
+                this.playing = true; 
+                document.getElementById('start-screen').classList.add('hidden');
+                document.getElementById('over-screen').classList.add('hidden');
             }
             update() {
                 if(!this.playing) return;
@@ -71,9 +181,9 @@
                 this.truck.x = Math.max(50, Math.min(950, this.truck.x));
 
                 if(this.keys['Space'] && this.supply > 0) {
-                    this.supply -= 0.2;
+                    this.supply -= 0.3;
                     for(let i=0; i<3; i++) this.water.push({ x: this.truck.x, y: 540, vx: (Math.random()-0.5)*6, vy: -15-Math.random()*5, life: 1 });
-                } else this.supply = Math.min(100, this.supply + 0.05);
+                } else this.supply = Math.min(100, this.supply + 0.1);
 
                 if(Math.random() < 0.015) {
                     const healthy = this.trees.filter(t => t.burn === 0 && !t.dead);
@@ -82,8 +192,8 @@
 
                 this.trees.forEach(t => {
                     if(t.burn > 0) {
-                        t.h -= 0.15; if(t.h <= 0) { t.burn = 0; t.dead = true; }
-                        if(Math.random() < 0.005) {
+                        t.h -= 0.2; if(t.h <= 0) { t.burn = 0; t.dead = true; }
+                        if(Math.random() < 0.006) {
                             const neighbors = this.trees.filter(n => n.burn===0 && !n.dead && Math.hypot(t.x-n.x, t.y-n.y)<80);
                             if(neighbors.length > 0) neighbors[Math.floor(Math.random()*neighbors.length)].burn = 1;
                         }
@@ -92,32 +202,66 @@
 
                 this.water.forEach((w, i) => {
                     w.x += w.vx; w.y += w.vy; w.vy += 0.5; w.life -= 0.02;
-                    this.trees.forEach(t => { if(t.burn > 0 && Math.hypot(w.x-t.x, w.y-t.y) < 40) { t.h = Math.min(100, t.h + 5); if(t.h >= 100) t.burn = 0; w.life = 0; }});
+                    this.trees.forEach(t => { if(t.burn > 0 && Math.hypot(w.x-t.x, w.y-t.y) < 40) { t.h = Math.min(100, t.h + 8); if(t.h >= 100) t.burn = 0; w.life = 0; }});
                     if(w.life <= 0) this.water.splice(i, 1);
                 });
 
-                const loss = (this.trees.filter(t => t.dead).length / this.trees.length) * 100;
+                const deadCount = this.trees.filter(t => t.dead).length;
+                const loss = (deadCount / this.trees.length) * 100;
                 document.getElementById('loss-val').textContent = Math.floor(loss) + '%';
                 document.getElementById('water-val').textContent = Math.floor(this.supply) + '%';
-                if(loss >= 50) { this.playing = false; document.getElementById('overlay').style.display='flex'; document.querySelector('h1').textContent = "FOREST LOST"; }
+                
+                if(loss >= 50) { 
+                    this.playing = false; 
+                    const over = document.getElementById('over-screen');
+                    document.getElementById('over-title').textContent = "FOREST LOST";
+                    document.getElementById('over-title').style.color = "var(--accent)";
+                    over.classList.remove('hidden');
+                } else if(this.trees.every(t => t.burn === 0 || t.dead) && deadCount < this.trees.length * 0.5 && deadCount > 0) {
+                    // All fires out
+                    const burning = this.trees.some(t => t.burn > 0);
+                    if(!burning) {
+                        this.playing = false;
+                        const over = document.getElementById('over-screen');
+                        document.getElementById('over-title').textContent = "AREA SECURED";
+                        document.getElementById('over-title').style.color = "#22c55e";
+                        document.getElementById('over-msg').textContent = `Loss held to ${Math.floor(loss)}%. Excellent work unit.`;
+                        over.classList.remove('hidden');
+                    }
+                }
             }
             draw() {
                 const ctx = this.ctx; ctx.clearRect(0,0,1000,600);
-                ctx.fillStyle = '#7dd3fc'; ctx.fillRect(0,0,1000,600);
-                ctx.fillStyle = '#166534'; ctx.fillRect(0,450,1000,150);
+                
+                // Sky Grad
+                const sky = ctx.createLinearGradient(0,0,0,600);
+                sky.addColorStop(0, '#0f172a'); sky.addColorStop(1, '#1e293b');
+                ctx.fillStyle = sky; ctx.fillRect(0,0,1000,600);
+                
+                // Ground
+                ctx.fillStyle = '#064e3b'; ctx.fillRect(0,450,1000,150);
+                
                 this.trees.forEach(t => {
                     ctx.save(); ctx.translate(t.x, t.y);
                     ctx.fillStyle = '#451a03'; ctx.fillRect(-3, 0, 6, 15);
-                    ctx.fillStyle = t.dead ? '#1e293b' : (t.burn > 0 ? '#ef4444' : '#22c55e');
+                    ctx.fillStyle = t.dead ? '#020617' : (t.burn > 0 ? '#ef4444' : '#059669');
                     if(t.burn > 0 && Math.random()>0.5) ctx.fillStyle='#f97316';
+                    
                     ctx.beginPath(); ctx.moveTo(0,-35); ctx.lineTo(20,5); ctx.lineTo(-20,5); ctx.fill();
                     if(t.burn > 0) { ctx.font='20px Arial'; ctx.fillText('🔥',-10,-15); }
                     ctx.restore();
                 });
-                ctx.fillStyle = '#3b82f6'; this.water.forEach(w => { ctx.globalAlpha=w.life; ctx.beginPath(); ctx.arc(w.x, w.y, 5*w.life, 0, Math.PI*2); ctx.fill(); });
-                ctx.globalAlpha = 1; ctx.save(); ctx.translate(this.truck.x, 540); ctx.fillStyle='#dc2626'; ctx.fillRect(-40,-20,80,35);
+
+                ctx.fillStyle = '#3b82f6'; 
+                this.water.forEach(w => { ctx.globalAlpha=w.life; ctx.beginPath(); ctx.arc(w.x, w.y, 5*w.life, 0, Math.PI*2); ctx.fill(); });
+                
+                ctx.globalAlpha = 1; 
+                ctx.save(); 
+                ctx.translate(this.truck.x, 540); 
+                // Truck Body
+                ctx.fillStyle='#dc2626'; ctx.beginPath(); ctx.roundRect(-40,-20,80,35, 5); ctx.fill();
                 ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(-25,15,10,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(25,15,10,0,Math.PI*2); ctx.fill();
-                ctx.fillStyle='#fff'; ctx.fillRect(20,-15,15,15); ctx.restore();
+                ctx.fillStyle='#fff'; ctx.globalAlpha=0.3; ctx.fillRect(20,-15,15,10); ctx.restore();
             }
             loop() { this.update(); this.draw(); requestAnimationFrame(() => this.loop()); }
         }

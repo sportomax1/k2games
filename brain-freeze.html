@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Brain Freeze! - K2 games</title>
+    <style>
+        :root {
+            --primary: #fbbf24;
+            --accent: #f472b6;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --vanilla: #fef3c7;
+            --chocolate: #78350f;
+            --strawberry: #f472b6;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100dvh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        nav {
+            height: 50px;
+            padding: 0 1rem;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo { font-weight: 900; color: var(--accent); letter-spacing: 1px; }
+        .restart-btn { background: var(--surface); border: 1px solid var(--border); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background: #1e293b;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 10;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .top-hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 15px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(4px);
+            text-align: center;
+        }
+
+        .label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; font-weight: 900; letter-spacing: 1px; }
+        .value { font-size: 1.4rem; font-weight: 900; color: #fff; display: block; }
+
+        #happiness-meter {
+            width: 200px;
+            height: 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-top: 8px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        #happiness-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ef4444, #22c55e); transition: width 0.3s; }
+
+        #flavor-selector {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            pointer-events: auto;
+        }
+
+        .flavor-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 15px;
+            border: 3px solid var(--border);
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .flavor-btn.active { border-color: white; transform: scale(1.15); box-shadow: 0 0 20px rgba(255,255,255,0.3); }
+        .flavor-btn.v { background: var(--vanilla); }
+        .flavor-btn.c { background: var(--chocolate); }
+        .flavor-btn.s { background: var(--strawberry); }
+
+        .overlay {
+            position: absolute; inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; text-align: center; padding: 30px;
+        }
+
+        .overlay h1 { font-size: 3.5rem; font-style: italic; font-weight: 900; color: var(--accent); }
+        .overlay p { max-width: 450px; margin-bottom: 30px; color: var(--muted); line-height: 1.6; }
+
+        .btn-play {
+            background: var(--accent); color: white; border: none; padding: 15px 60px;
+            border-radius: 50px; font-size: 1.2rem; font-weight: 900; cursor: pointer;
+            transition: 0.2s; box-shadow: 0 10px 20px rgba(244, 114, 182, 0.3);
+        }
+        .btn-play:hover { transform: scale(1.05); }
+
+        #home-btn {
+            position: fixed; top: 10px; left: 10px; z-index: 1000;
+            background: rgba(255,255,255,0.1); color: white; text-decoration: none;
+            padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 0.7rem;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <a href="index.html" id="home-btn">← HUB</a>
+    
+    <nav>
+        <div class="logo">BRAIN FREEZE!</div>
+        <button class="restart-btn" onclick="location.reload()">RESTART</button>
+    </nav>
+
+    <div id="game-container">
+        <div id="ui-layer">
+            <div class="top-hud">
+                <div class="stat-box">
+                    <span class="label">Satisfied</span>
+                    <span id="score-val" class="value">0</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Crowd Happiness</span>
+                    <div id="happiness-meter"><div id="happiness-fill"></div></div>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Best</span>
+                    <span id="high-val" class="value">0</span>
+                </div>
+            </div>
+
+            <div id="flavor-selector">
+                <div id="btn-v" class="flavor-btn v active" onclick="game.setFlavor('vanilla')">🍦</div>
+                <div id="btn-c" class="flavor-btn c" onclick="game.setFlavor('chocolate')">🍫</div>
+                <div id="btn-s" class="flavor-btn s" onclick="game.setFlavor('strawberry')">🍓</div>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="menu-overlay" class="overlay">
+            <h1>BRAIN FREEZE!</h1>
+            <p>Zombies are hungry for... frozen treats? Match the scoop flavor to the zombie type to calm them down. Don't let them reach the truck!</p>
+            <div style="text-align: left; color: #94a3b8; font-size: 0.8rem; margin-bottom: 20px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px;">
+                • <b>Match Colors:</b> Vanilla (Yellow), Chocolate (Brown), Strawberry (Pink)<br>
+                • <b>Sugar Rush:</b> Don't overfeed! Too much sugar makes them hyper-bouncy.<br>
+                • <b>Controls:</b> Tap/Click to throw. 1, 2, 3 to switch flavors.
+            </div>
+            <button class="btn-play" onclick="game.start()">START SERVICE</button>
+        </div>
+
+        <div id="over-overlay" class="overlay hidden">
+            <h1 style="color: #ef4444;">TRUCK TRASHED</h1>
+            <p>The crowd got too grumpy and the truck is out of commission.</p>
+            <div class="stat-box" style="min-width: 200px; margin-bottom: 20px;">
+                <span class="label">Zombies Calmed</span>
+                <span id="final-score-val" class="value">0</span>
+            </div>
+            <button class="btn-play" onclick="game.start()">REOPEN TRUCK</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        class BrainFreeze {
+            constructor() {
+                this.width = 0;
+                this.height = 0;
+                this.active = false;
+                this.score = 0;
+                this.highScore = parseInt(localStorage.getItem('brainFreezeHighScore') || '0');
+                this.happiness = 100;
+                
+                this.truck = { x: 0, y: 0, w: 80, h: 50 };
+                this.currentFlavor = 'vanilla';
+                this.zombies = [];
+                this.scoops = [];
+                this.particles = [];
+                this.spawnTimer = 0;
+                this.difficulty = 1;
+
+                this.flavors = {
+                    vanilla: { color: '#fef3c7', icon: '🍦', key: '1' },
+                    chocolate: { color: '#78350f', icon: '🍫', key: '2' },
+                    strawberry: { color: '#f472b6', icon: '🍓', key: '3' }
+                };
+
+                this.init();
+            }
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                
+                window.addEventListener('keydown', (e) => {
+                    if(e.key === '1') this.setFlavor('vanilla');
+                    if(e.key === '2') this.setFlavor('chocolate');
+                    if(e.key === '3') this.setFlavor('strawberry');
+                });
+
+                canvas.addEventListener('mousedown', (e) => this.shoot(e));
+                canvas.addEventListener('touchstart', (e) => { e.preventDefault(); this.shoot(e.touches[0]); });
+
+                document.getElementById('high-val').textContent = this.highScore;
+                this.renderLoop();
+            }
+
+            resize() {
+                this.width = canvas.parentElement.clientWidth;
+                this.height = canvas.parentElement.clientHeight;
+                canvas.width = this.width;
+                canvas.height = this.height;
+                this.truck.x = this.width / 2;
+                this.truck.y = this.height / 2;
+            }
+
+            setFlavor(f) {
+                this.currentFlavor = f;
+                document.querySelectorAll('.flavor-btn').forEach(btn => btn.classList.remove('active'));
+                document.getElementById('btn-' + f[0]).classList.add('active');
+            }
+
+            start() {
+                this.active = true;
+                this.score = 0;
+                this.happiness = 100;
+                this.zombies = [];
+                this.scoops = [];
+                this.particles = [];
+                this.difficulty = 1;
+                this.spawnTimer = 0;
+                
+                document.getElementById('menu-overlay').classList.add('hidden');
+                document.getElementById('over-overlay').classList.add('hidden');
+                this.updateHUD();
+                this.gameLoop();
+            }
+
+            shoot(e) {
+                if(!this.active) return;
+                const rect = canvas.getBoundingClientRect();
+                const tx = e.clientX - rect.left;
+                const ty = e.clientY - rect.top;
+                
+                const angle = Math.atan2(ty - this.truck.y, tx - this.truck.x);
+                this.scoops.push({
+                    x: this.truck.x,
+                    y: this.truck.y,
+                    vx: Math.cos(angle) * 8,
+                    vy: Math.sin(angle) * 8,
+                    flavor: this.currentFlavor,
+                    color: this.flavors[this.currentFlavor].color
+                });
+            }
+
+            update() {
+                if(!this.active) return;
+
+                this.spawnTimer++;
+                if(this.spawnTimer > Math.max(20, 100 - this.difficulty * 5)) {
+                    this.spawnZombie();
+                    this.spawnTimer = 0;
+                    this.difficulty += 0.05;
+                }
+
+                // Process Scoops
+                this.scoops.forEach(s => {
+                    s.x += s.vx;
+                    s.y += s.vy;
+                });
+                this.scoops = this.scoops.filter(s => s.x > 0 && s.x < this.width && s.y > 0 && s.y < this.height);
+
+                // Process Zombies
+                this.zombies.forEach(z => {
+                    if(z.sugarRush) {
+                        z.x += z.vx;
+                        z.y += z.vy;
+                        if(z.x < 20 || z.x > this.width - 20) z.vx *= -1;
+                        if(z.y < 20 || z.y > this.height - 20) z.vy *= -1;
+                    } else {
+                        const angle = Math.atan2(this.truck.y - z.y, this.truck.x - z.x);
+                        z.x += Math.cos(angle) * z.speed;
+                        z.y += Math.sin(angle) * z.speed;
+                    }
+
+                    // Check Scoop Collision
+                    this.scoops.forEach(s => {
+                        const dist = Math.hypot(z.x - s.x, z.y - s.y);
+                        if(dist < 30) {
+                            s.dead = true;
+                            if(s.flavor === z.flavor) {
+                                z.satisfaction += 40;
+                                this.createParticles(z.x, z.y, s.color);
+                            } else {
+                                z.sugar += 30;
+                                this.createParticles(z.x, z.y, '#fff');
+                            }
+                        }
+                    });
+
+                    if(z.sugar >= 100 && !z.sugarRush) {
+                        z.sugarRush = true;
+                        z.vx = (Math.random() - 0.5) * 10;
+                        z.vy = (Math.random() - 0.5) * 10;
+                    }
+
+                    if(z.satisfaction >= 100) {
+                        z.dead = true;
+                        this.score++;
+                        this.happiness = Math.min(100, this.happiness + 2);
+                    }
+
+                    // Reach Truck
+                    const tDist = Math.hypot(z.x - this.truck.x, z.y - this.truck.y);
+                    if(tDist < 50) {
+                        z.dead = true;
+                        this.happiness -= z.sugarRush ? 15 : 10;
+                        if(this.happiness <= 0) this.gameOver();
+                    }
+                });
+
+                this.zombies = this.zombies.filter(z => !z.dead);
+                this.scoops = this.scoops.filter(s => !s.dead);
+
+                // Particles
+                this.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
+                this.particles = this.particles.filter(p => p.life > 0);
+
+                this.updateHUD();
+            }
+
+            spawnZombie() {
+                const side = Math.floor(Math.random() * 4);
+                let x, y;
+                if(side === 0) { x = Math.random() * this.width; y = -50; }
+                else if(side === 1) { x = this.width + 50; y = Math.random() * this.height; }
+                else if(side === 2) { x = Math.random() * this.width; y = this.height + 50; }
+                else { x = -50; y = Math.random() * this.height; }
+
+                const flavors = ['vanilla', 'chocolate', 'strawberry'];
+                const flavor = flavors[Math.floor(Math.random() * 3)];
+
+                this.zombies.push({
+                    x, y, flavor,
+                    color: this.flavors[flavor].color,
+                    speed: 0.5 + Math.random() * 1,
+                    satisfaction: 0,
+                    sugar: 0,
+                    sugarRush: false,
+                    dead: false
+                });
+            }
+
+            createParticles(x, y, color) {
+                for(let i=0; i<10; i++) {
+                    this.particles.push({
+                        x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10,
+                        life: 20, color, size: 3 + Math.random()*5
+                    });
+                }
+            }
+
+            updateHUD() {
+                document.getElementById('score-val').textContent = this.score;
+                document.getElementById('happiness-fill').style.width = this.happiness + '%';
+            }
+
+            gameOver() {
+                this.active = false;
+                if(this.score > this.highScore) {
+                    this.highScore = this.score;
+                    localStorage.setItem('brainFreezeHighScore', this.highScore);
+                }
+                document.getElementById('over-overlay').classList.remove('hidden');
+                document.getElementById('final-score-val').textContent = this.score;
+                document.getElementById('high-val').textContent = this.highScore;
+            }
+
+            draw() {
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Road
+                ctx.fillStyle = '#334155';
+                ctx.fillRect(0, 0, this.width, this.height);
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                ctx.lineWidth = 4;
+                for(let i=0; i<this.width; i+=100) {
+                    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, this.height); ctx.stroke();
+                }
+
+                // Truck
+                ctx.save();
+                ctx.translate(this.truck.x, this.truck.y);
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.roundRect(-this.truck.w/2, -this.truck.h/2, this.truck.w, this.truck.h, 10); ctx.fill();
+                ctx.fillStyle = varColor('--accent');
+                ctx.fillRect(-this.truck.w/2, 0, this.truck.w, 5);
+                ctx.font = '20px Arial';
+                ctx.fillText('🍦', -10, 5);
+                ctx.restore();
+
+                // Scoops
+                this.scoops.forEach(s => {
+                    ctx.fillStyle = s.color;
+                    ctx.beginPath(); ctx.arc(s.x, s.y, 8, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.stroke();
+                });
+
+                // Zombies
+                this.zombies.forEach(z => {
+                    ctx.save();
+                    ctx.translate(z.x, z.y);
+                    
+                    // Body
+                    ctx.fillStyle = z.sugarRush ? '#ef4444' : '#4ade80';
+                    ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI*2); ctx.fill();
+                    
+                    // Flavor Indicator (Hat/Hair)
+                    ctx.fillStyle = z.color;
+                    ctx.beginPath(); ctx.arc(0, -15, 12, Math.PI, 0); ctx.fill();
+
+                    // Bars
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.fillRect(-15, 25, 30, 4);
+                    ctx.fillStyle = '#22c55e';
+                    ctx.fillRect(-15, 25, (z.satisfaction/100)*30, 4);
+                    
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.fillRect(-15, 32, 30, 4);
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.fillRect(-15, 32, (z.sugar/100)*30, 4);
+
+                    if(z.sugarRush) {
+                        ctx.font = '12px Arial';
+                        ctx.fillText('⚡', -5, -25);
+                    }
+
+                    ctx.restore();
+                });
+
+                // Particles
+                this.particles.forEach(p => {
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life / 20;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            gameLoop() {
+                this.update();
+                this.draw();
+                if(this.active) requestAnimationFrame(() => this.gameLoop());
+            }
+
+            renderLoop() {
+                if(!this.active) {
+                    this.draw();
+                    requestAnimationFrame(() => this.renderLoop());
+                }
+            }
+        }
+
+        function varColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+        const game = new BrainFreeze();
+    </script>
+</body>
+</html>

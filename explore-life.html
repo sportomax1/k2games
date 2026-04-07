@@ -176,12 +176,70 @@
             }
 
             init() {
+                this.generateWorld();
                 window.onkeydown = (e) => {
                     this.keys[e.code] = true;
                     if(e.code === 'KeyE') this.handleAction();
                 };
                 window.onkeyup = (e) => this.keys[e.code] = false;
                 this.loop();
+            }
+
+            generateWorld() {
+                this.worldGrid = [];
+                for(let y=0; y<100; y++) {
+                    this.worldGrid[y] = [];
+                    for(let x=0; x<100; x++) {
+                        let v = Math.sin(x/5) * Math.cos(y/5) + Math.sin(x/10)*0.5;
+                        this.worldGrid[y][x] = v > 0.3 ? 'grass' : (v < -0.3 ? 'water' : 'sand');
+                    }
+                }
+            }
+
+            drawWorld(ctx) {
+                // Background
+                ctx.fillStyle = '#064e3b';
+                ctx.fillRect(this.cam.x, this.cam.y, this.width, this.height);
+
+                // Simple grid world rendering
+                const tileSize = 100;
+                const startX = Math.floor(this.cam.x / tileSize);
+                const startY = Math.floor(this.cam.y / tileSize);
+                const endX = startX + Math.ceil(this.width / tileSize) + 1;
+                const endY = startY + Math.ceil(this.height / tileSize) + 1;
+
+                for(let y = startY; y < endY; y++) {
+                    for(let x = startX; x < endX; x++) {
+                        const gx = x % 100, gy = y % 100;
+                        const type = this.worldGrid[Math.abs(gy)][Math.abs(gx)];
+                        ctx.fillStyle = type === 'grass' ? '#065f46' : (type === 'water' ? '#1e40af' : '#fde68a');
+                        ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+                        ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+                        ctx.strokeRect(x * tileSize, y * tileSize, tileSize, tileSize);
+                    }
+                }
+
+                // Landmarks
+                this.drawBuilding(ctx, 1200, 1200, '🏠', 'YOUR HOME');
+                this.drawBuilding(ctx, 4000, 600, '✈️', 'AIRPORT');
+                this.drawBuilding(ctx, 2500, 3500, '⚓', 'MARINA');
+
+                // Vehicles (if not being driven)
+                if(this.vehicle !== 'car') this.drawVehicle(ctx, this.car);
+                if(this.vehicle !== 'bike') this.drawVehicle(ctx, this.bike);
+                if(this.vehicle !== 'plane') this.drawVehicle(ctx, this.plane);
+                if(this.vehicle !== 'boat') this.drawVehicle(ctx, this.boat);
+
+                if (this.state === 'outside') {
+                    this.drawGuy(ctx, this.p.x, this.p.y, 40, this.p.anim, this.p.dir);
+                }
+            }
+
+            drawBuilding(ctx, x, y, icon, label) {
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.beginPath(); ctx.roundRect(x-60, y-60, 120, 120, 15); ctx.fill();
+                ctx.font = '60px Arial'; ctx.textAlign = 'center'; ctx.fillText(icon, x, y+20);
+                ctx.fillStyle = 'white'; ctx.font = 'bold 12px Arial'; ctx.fillText(label, x, y+75);
             }
 
             handleAction() {

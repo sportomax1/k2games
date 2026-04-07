@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pack Attack - K2 Games</title>
+    <style>
+        :root {
+            --bg: #020617;
+            --accent: #f59e0b;
+            --panel: rgba(15, 23, 42, 0.95);
+            --border: rgba(255, 255, 255, 0.15);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; touch-action: none; }
+        body { background: var(--bg); overflow: hidden; width: 100vw; height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; color: white; }
+
+        #canvas-wrap {
+            width: 100vw; height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+        }
+        canvas { display: block; image-rendering: crisp-edges; }
+
+        .back-link {
+            position: fixed; bottom: 20px; left: 20px;
+            color: #64748b; text-decoration: none; font-weight: 700; font-size: 0.75rem;
+            z-index: 500; opacity: 0.5; transition: 0.3s; letter-spacing: 1px;
+        }
+        .back-link:hover { opacity: 1; color: white; }
+
+        /* Overlays */
+        .overlay {
+            position: fixed; inset: 0;
+            background: radial-gradient(circle at 50% 40%, rgba(15,23,42,0.92) 0%, rgba(2,6,23,0.98) 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; transition: opacity 0.4s;
+        }
+        .overlay.hidden { opacity: 0; pointer-events: none; }
+
+        .game-logo { font-size: 5rem; font-weight: 900; font-style: italic; letter-spacing: -3px; line-height: 1; margin-bottom: 0.25rem; }
+        .logo-pack { color: #f97316; text-shadow: 0 0 40px rgba(249,115,22,0.5); }
+        .logo-attack { color: #f59e0b; text-shadow: 0 0 40px rgba(245,158,11,0.5); }
+        .logo-sub { color: #94a3b8; font-size: 0.9rem; letter-spacing: 6px; margin-bottom: 2.5rem; font-weight: 400; text-transform: uppercase; }
+
+        .btn {
+            background: var(--accent); color: #000;
+            border: none; padding: 1.2rem 4rem;
+            border-radius: 100px; font-weight: 900; font-size: 1.2rem;
+            cursor: pointer; transition: 0.25s; box-shadow: 0 10px 30px rgba(245,158,11,0.4);
+            letter-spacing: 2px;
+        }
+        .btn:hover { transform: scale(1.06) translateY(-3px); box-shadow: 0 16px 40px rgba(245,158,11,0.5); }
+        .btn-secondary { background: rgba(255,255,255,0.1); color: white; box-shadow: none; margin-top: 1rem; }
+        .btn-secondary:hover { background: rgba(255,255,255,0.2); box-shadow: none; }
+
+        .controls-hint {
+            margin-top: 2.5rem; color: #475569; font-size: 0.78rem; line-height: 1.9; letter-spacing: 0.5px;
+        }
+        .controls-hint strong { color: #94a3b8; }
+
+        /* Level complete */
+        #lc-overlay .lc-title { font-size: 3rem; font-weight: 900; color: var(--accent); margin-bottom: 0.5rem; }
+        .stars-row { font-size: 3rem; margin: 1rem 0; }
+        .lc-score { color: #94a3b8; font-size: 1rem; margin-bottom: 0.5rem; }
+        .lc-score span { color: white; font-weight: 700; font-size: 1.4rem; }
+        .lc-bonus { color: #fbbf24; font-size: 0.9rem; margin-bottom: 2rem; }
+        .btn-row { display: flex; gap: 1rem; }
+
+        /* Game over */
+        #go-overlay .go-title { font-size: 3.5rem; font-weight: 900; color: #ef4444; margin-bottom: 0.5rem; }
+
+        /* Mobile controls */
+        #mobile-ui {
+            position: fixed; inset: 0; pointer-events: none; z-index: 100;
+        }
+        #joystick-base {
+            position: absolute; bottom: 60px; left: 40px;
+            width: 120px; height: 120px; border-radius: 50%;
+            background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.2);
+            pointer-events: auto; display: none; align-items: center; justify-content: center;
+        }
+        #joystick-knob {
+            width: 50px; height: 50px; border-radius: 50%;
+            background: rgba(255,255,255,0.35); border: 2px solid rgba(255,255,255,0.6);
+            position: absolute; transform: translate(-50%, -50%);
+            left: 50%; top: 50%;
+            pointer-events: none;
+        }
+        #action-btn {
+            position: absolute; bottom: 60px; right: 40px;
+            width: 90px; height: 90px; border-radius: 50%;
+            background: rgba(245,158,11,0.3); border: 3px solid var(--accent);
+            pointer-events: auto; display: none; align-items: center; justify-content: center;
+            font-size: 0.65rem; font-weight: 900; letter-spacing: 1px; color: var(--accent);
+            text-align: center; line-height: 1.3;
+        }
+
+        @media (hover: none) and (pointer: coarse) {
+            #joystick-base { display: flex; }
+            #action-btn { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+<a href="index.html" class="back-link">◀ VAULT</a>
+
+<div id="canvas-wrap">
+    <canvas id="canvas"></canvas>
+</div>
+
+<!-- Menu -->
+<div class="overlay" id="menu-overlay">
+    <div class="game-logo">
+        <span class="logo-pack">PACK</span><span class="logo-attack"> ATTACK</span>
+    </div>
+    <p class="logo-sub">Moving Out Tribute</p>
+    <button class="btn" id="btn-start">LOAD UP</button>
+    <div class="controls-hint">
+        <strong>MOVE</strong> WASD / Arrow Keys &nbsp;|&nbsp; <strong>GRAB/THROW</strong> E or Space<br>
+        <strong>AIM</strong> Mouse direction &nbsp;|&nbsp; <strong>GOAL</strong> Pack everything into the truck!<br>
+        <em>Throw items through windows for bonus points!</em>
+    </div>
+</div>
+
+<!-- Level Complete -->
+<div class="overlay hidden" id="lc-overlay">
+    <p class="lc-title">LOADED UP!</p>
+    <div class="stars-row" id="lc-stars">★★★</div>
+    <p class="lc-score">Time Bonus <span id="lc-time-bonus">+0</span></p>
+    <p class="lc-score">Window Throws <span id="lc-window-bonus">+0</span></p>
+    <p class="lc-score">Total Score <span id="lc-total">0</span></p>
+    <p class="lc-bonus" id="lc-next-hint"></p>
+    <div class="btn-row">
+        <button class="btn" id="btn-next">NEXT LEVEL ▶</button>
+        <button class="btn btn-secondary" id="btn-menu-lc">MENU</button>
+    </div>
+</div>
+
+<!-- Game Over -->
+<div class="overlay hidden" id="go-overlay">
+    <p class="go-title">TIME'S UP!</p>
+    <p style="color:#94a3b8;margin-bottom:2rem">The truck drove away without your stuff...</p>
+    <p class="lc-score">Final Score <span id="go-score">0</span></p>
+    <div class="btn-row" style="margin-top:1.5rem">
+        <button class="btn" id="btn-retry">TRY AGAIN</button>
+        <button class="btn btn-secondary" id="btn-menu-go">MENU</button>
+    </div>
+</div>
+
+<!-- Mobile Controls -->
+<div id="mobile-ui">
+    <div id="joystick-base"><div id="joystick-knob"></div></div>
+    <div id="action-btn">GRAB<br>THROW</div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  Constants
+// ─────────────────────────────────────────────
+const CW = 1000, CH = 650;
+const TILE = 40;
+const PLAYER_R = 16;
+const ACCEL = 900, MAX_SPEED = 240;
+const THROW_SPEED = 380;
+const GRAVITY_Z = 900;
+const ITEM_FRICTION = 0.88;
+const PLAYER_FRICTION = 0.82;
+const PICKUP_DIST = 52;
+const ITEM_TYPES = { BOX_S:'BOX_S', BOX_L:'BOX_L', SOFA:'SOFA', TABLE:'TABLE', TV:'TV', PLANT:'PLANT', LAMP:'LAMP' };
+const STATES = { MENU:'MENU', PLAYING:'PLAYING', LEVEL_COMPLETE:'LEVEL_COMPLETE', GAME_OVER:'GAME_OVER' };
+const ITEM_IDLE=0, ITEM_CARRIED=1, ITEM_FLYING=2, ITEM_PACKED=3;
+
+// ─────────────────────────────────────────────
+//  Input Handler
+// ─────────────────────────────────────────────
+class InputHandler {
+    constructor(canvas) {
+        this.keys = {};
+        this.mouse = { x: CW/2, y: CH/2 };
+        this.actionJustPressed = false;
+        this._actionDown = false;
+        this.joystick = { x: 0, y: 0 };
+        this._joyActive = false;
+        this._joyBase = { x: 0, y: 0 };
+        this.canvas = canvas;
+
+        window.addEventListener('keydown', e => {
+            this.keys[e.code] = true;
+            if ((e.code === 'KeyE' || e.code === 'Space') && !this._actionDown) {
+                this.actionJustPressed = true;
+                this._actionDown = true;
+            }
+            if (e.code === 'Space') e.preventDefault();
+        });
+        window.addEventListener('keyup', e => {
+            this.keys[e.code] = false;
+            if (e.code === 'KeyE' || e.code === 'Space') this._actionDown = false;
+        });
+        canvas.addEventListener('mousemove', e => {
+            const r = canvas.getBoundingClientRect();
+            const scaleX = CW / r.width, scaleY = CH / r.height;
+            this.mouse.x = (e.clientX - r.left) * scaleX;
+            this.mouse.y = (e.clientY - r.top) * scaleY;
+        });
+
+        // Joystick
+        const jb = document.getElementById('joystick-base');
+        const jk = document.getElementById('joystick-knob');
+        const R = 50;
+        jb.addEventListener('touchstart', e => {
+            e.preventDefault();
+            const t = e.touches[0];
+            const rect = jb.getBoundingClientRect();
+            this._joyBase = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+            this._joyActive = true;
+        }, { passive: false });
+        jb.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if (!this._joyActive) return;
+            const t = e.touches[0];
+            let dx = t.clientX - this._joyBase.x;
+            let dy = t.clientY - this._joyBase.y;
+            const len = Math.sqrt(dx*dx + dy*dy);
+            if (len > R) { dx = dx/len*R; dy = dy/len*R; }
+            jk.style.left = (50 + dx/R*40) + '%';
+            jk.style.top = (50 + dy/R*40) + '%';
+            this.joystick.x = dx / R;
+            this.joystick.y = dy / R;
+        }, { passive: false });
+        const endJoy = () => {
+            this._joyActive = false;
+            this.joystick.x = 0; this.joystick.y = 0;
+            jk.style.left = '50%'; jk.style.top = '50%';
+        };
+        jb.addEventListener('touchend', endJoy);
+        jb.addEventListener('touchcancel', endJoy);
+
+        // Action button
+        const ab = document.getElementById('action-btn');
+        ab.addEventListener('touchstart', e => {
+            e.preventDefault();
+            this.actionJustPressed = true;
+            ab.style.background = 'rgba(245,158,11,0.6)';
+        }, { passive: false });
+        ab.addEventListener('touchend', () => { ab.style.background = 'rgba(245,158,11,0.3)'; });
+
+        // Gamepad
+        this._gamepadAction = false;
+    }
+
+    getMoveVec() {
+        let x = 0, y = 0;
+        if (this.keys['KeyA'] || this.keys['ArrowLeft']) x -= 1;
+        if (this.keys['KeyD'] || this.keys['ArrowRight']) x += 1;
+        if (this.keys['KeyW'] || this.keys['ArrowUp']) y -= 1;
+        if (this.keys['KeyS'] || this.keys['ArrowDown']) y += 1;
+        x += this.joystick.x;
+        y += this.joystick.y;
+        const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+        if (pads[0]) {
+            x += pads[0].axes[0]; y += pads[0].axes[1];
+            const a = pads[0].buttons[0];
+            if (a && a.pressed && !this._gamepadAction) { this.actionJustPressed = true; this._gamepadAction = true; }
+            if (a && !a.pressed) this._gamepadAction = false;
+        }
+        const len = Math.sqrt(x*x + y*y);
+        if (len > 1) { x /= len; y /= len; }
+        return { x, y };
+    }
+
+    consumeAction() {
+        const v = this.actionJustPressed;
+        this.actionJustPressed = false;
+        return v;
+    }
+
+    getAimAngle(px, py) {
+        return Math.atan2(this.mouse.y - py, this.mouse.x - px);
+    }
+}
+
+// ─────────────────────────────────────────────
+//  Particle System
+// ─────────────────────────────────────────────
+class ParticleSystem {
+    constructor() { this.particles = []; this.floats = []; }
+
+    emit(x, y, type, count = 8) {
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 * i / count) + Math.random() * 0.5;
+            const speed = 80 + Math.random() * 160;
+            let color, size;
+            if (type === 'dust') { color = `hsl(35,40%,${50+Math.random()*20}%)`; size = 4 + Math.random()*4; }
+            else if (type === 'star') { color = `hsl(${45+Math.random()*30},100%,70%)`; size = 5 + Math.random()*6; }
+            else if (type === 'impact') { color = 'rgba(255,255,255,0.9)'; size = 6 + Math.random()*8; }
+            else if (type === 'confetti') {
+                color = `hsl(${Math.random()*360},80%,65%)`;
+                size = 5 + Math.random()*5;
+            }
+            this.particles.push({ x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed - (type==='star'?60:0), life: 1, color, size });
+        }
+    }
+
+    addFloat(x, y, text, color = '#fbbf24') {
+        this.floats.push({ x, y, text, color, life: 1, vy: -60 });
+    }
+
+    update(dt) {
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            const p = this.particles[i];
+            p.x += p.vx * dt; p.y += p.vy * dt;
+            p.vy += 200 * dt;
+            p.life -= dt * 1.8;
+            if (p.life <= 0) this.particles.splice(i, 1);
+        }
+        for (let i = this.floats.length - 1; i >= 0; i--) {
+            const f = this.floats[i];
+            f.y += f.vy * dt;
+            f.life -= dt * 1.2;
+            if (f.life <= 0) this.floats.splice(i, 1);
+        }
+    }
+
+    draw(ctx) {
+        this.particles.forEach(p => {
+            ctx.globalAlpha = Math.max(0, p.life);
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI*2);
+            ctx.fill();
+        });
+        this.floats.forEach(f => {
+            ctx.globalAlpha = Math.max(0, f.life);
+            ctx.fillStyle = f.color;
+            ctx.font = 'bold 18px Segoe UI, system-ui';
+            ctx.textAlign = 'center';
+            ctx.fillText(f.text, f.x, f.y);
+        });
+        ctx.globalAlpha = 1;
+    }
+}
+
+// ─────────────────────────────────────────────
+//  Item
+// ─────────────────────────────────────────────
+class Item {
+    constructor(type, x, y) {
+        this.type = type;
+        this.x = x; this.y = y;
+        this.vx = 0; this.vy = 0;
+        this.z = 0; this.vz = 0;  // z = height above ground (for arc)
+        this.state = ITEM_IDLE;
+        this.angle = 0; this.aSpin = 0;
+        this.highlight = 0;
+        this.packedScale = 1;
+        const dim = Item.dims[type];
+        this.w = dim.w; this.h = dim.h;
+    }
+
+    static get dims() {
+        return {
+            BOX_S: { w: 38, h: 38 },
+            BOX_L: { w: 72, h: 38 },
+            SOFA:  { w: 100, h: 44 },
+            TABLE: { w: 72, h: 56 },
+            TV:    { w: 64, h: 44 },
+            PLANT: { w: 36, h: 44 },
+            LAMP:  { w: 28, h: 44 }
+        };
+    }
+
+    get cx() { return this.x + this.w/2; }
+    get cy() { return this.y + this.h/2; }
+
+    update(dt, walls, truckZone, particles, onPack, windowAreas) {
+        if (this.state === ITEM_FLYING) {
+            const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+            this.x += this.vx * dt;
+            this.y += this.vy * dt;
+            this.vx *= Math.pow(ITEM_FRICTION, dt * 60);
+            this.vy *= Math.pow(ITEM_FRICTION, dt * 60);
+            this.angle += this.aSpin * dt;
+            this.vz -= GRAVITY_Z * dt;
+            this.z += this.vz * dt;
+
+            // Check window bonus (only while airborne)
+            if (this.z > 0 && windowAreas) {
+                for (const w of windowAreas) {
+                    if (!w._bonusGiven && this.cx > w.x && this.cx < w.x+w.w && this.cy > w.y && this.cy < w.y+w.h) {
+                        w._bonusGiven = true;
+                        particles.emit(this.cx, this.cy, 'star', 14);
+                        particles.addFloat(this.cx, this.cy - 20, '+WINDOW BONUS!', '#fbbf24');
+                        if (onPack) onPack('window_bonus');
+                    }
+                }
+            }
+
+            if (this.z <= 0) {
+                this.z = 0; this.vz = 0;
+                this.aSpin = 0;
+                // Check if landed in truck zone
+                const inTruck = this.cx > truckZone.x && this.cx < truckZone.x + truckZone.w &&
+                                this.cy > truckZone.y && this.cy < truckZone.y + truckZone.h;
+                if (inTruck) {
+                    this.state = ITEM_PACKED;
+                    this.vx = 0; this.vy = 0;
+                    particles.emit(this.cx, this.cy, 'star', 12);
+                    particles.emit(this.cx, this.cy, 'impact', 6);
+                    if (onPack) onPack('pack');
+                } else {
+                    this.state = ITEM_IDLE;
+                    particles.emit(this.cx, this.cy, 'dust', 8);
+                    // Bounce off walls
+                    this._resolveWalls(walls);
+                }
+            } else {
+                // Still airborne — wall clamp (soft)
+                this._resolveWalls(walls);
+            }
+        } else if (this.state === ITEM_IDLE) {
+            this._resolveWalls(walls);
+            // Check drop into truck zone while idle (player placed it)
+            const inTruck = this.cx > truckZone.x && this.cx < truckZone.x + truckZone.w &&
+                            this.cy > truckZone.y && this.cy < truckZone.y + truckZone.h;
+            if (inTruck) {
+                this.state = ITEM_PACKED;
+                this.vx = 0; this.vy = 0;
+                particles.emit(this.cx, this.cy, 'star', 10);
+                if (onPack) onPack('pack');
+            }
+        }
+        if (this.highlight > 0) this.highlight -= dt * 3;
+    }
+
+    _resolveWalls(walls) {
+        for (const w of walls) {
+            if (!rectsOverlap(this.x, this.y, this.w, this.h, w.x, w.y, w.w, w.h)) continue;
+            const ox = Math.min(this.x + this.w, w.x + w.w) - Math.max(this.x, w.x);
+            const oy = Math.min(this.y + this.h, w.y + w.h) - Math.max(this.y, w.y);
+            if (ox < oy) { this.x += (this.cx < w.x + w.w/2) ? -ox : ox; this.vx *= -0.3; }
+            else { this.y += (this.cy < w.y + w.h/2) ? -oy : oy; this.vy *= -0.3; }
+        }
+    }
+
+    draw(ctx, t) {
+        if (this.state === ITEM_PACKED) {
+            ctx.save();
+            ctx.translate(this.cx, this.cy);
+            ctx.globalAlpha = 0.55;
+            this._drawShape(ctx, t);
+            ctx.globalAlpha = 1;
+            ctx.restore();
+            return;
+        }
+
+        const airScale = this.state === ITEM_FLYING && this.z > 0 ? 1 + this.z * 0.001 : 1;
+        const shadowAlpha = this.state === ITEM_FLYING ? Math.max(0.1, 0.35 - this.z * 0.0004) : 0.25;
+        const shadowOffset = this.state === ITEM_FLYING ? this.z * 0.12 : 0;
+
+        // Shadow
+        ctx.save();
+        ctx.globalAlpha = shadowAlpha;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.beginPath();
+        ctx.ellipse(this.cx + shadowOffset + 4, this.cy + shadowOffset + 6, this.w/2 * (1/airScale) + 6, this.h/2 * (1/airScale) + 4, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(this.cx, this.cy - this.z);
+        ctx.scale(airScale, airScale);
+        ctx.rotate(this.angle);
+
+        // Highlight ring when near player
+        if (this.highlight > 0.01) {
+            ctx.save();
+            ctx.globalAlpha = this.highlight * 0.7;
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.roundRect(-this.w/2 - 5, -this.h/2 - 5, this.w + 10, this.h + 10, 5);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        this._drawShape(ctx, t);
+        ctx.restore();
+    }
+
+    _drawShape(ctx, t) {
+        const hw = this.w/2, hh = this.h/2;
+        switch(this.type) {
+            case 'BOX_S':
+            case 'BOX_L': {
+                // Box body
+                ctx.fillStyle = this.type === 'BOX_S' ? '#c4843a' : '#a06828';
+                ctx.beginPath(); ctx.roundRect(-hw, -hh, this.w, this.h, 4); ctx.fill();
+                ctx.strokeStyle = this.type === 'BOX_S' ? '#8b5e2a' : '#7a5020';
+                ctx.lineWidth = 2; ctx.stroke();
+                // Tape cross
+                ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2.5;
+                ctx.beginPath(); ctx.moveTo(-hw+4, 0); ctx.lineTo(hw-4, 0); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, -hh+4); ctx.lineTo(0, hh-4); ctx.stroke();
+                // Label
+                ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = 'bold 8px Segoe UI';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('FRAGILE', 0, hh - 8);
+                break;
+            }
+            case 'SOFA': {
+                // Base
+                ctx.fillStyle = '#1a6b8a'; ctx.beginPath(); ctx.roundRect(-hw, -hh, this.w, this.h, 6); ctx.fill();
+                // Cushions
+                ctx.fillStyle = '#2d9cdb';
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath(); ctx.roundRect(-hw + 4 + i*(this.w-8)/3 + 2, -hh + 6, (this.w-8)/3 - 4, this.h - 14, 4); ctx.fill();
+                }
+                // Back
+                ctx.fillStyle = '#1a7aaa';
+                ctx.beginPath(); ctx.roundRect(-hw, -hh, this.w, 12, 4); ctx.fill();
+                // Arm rests
+                ctx.fillStyle = '#155e7a';
+                ctx.beginPath(); ctx.roundRect(-hw, -hh + 8, 12, this.h - 12, 3); ctx.fill();
+                ctx.beginPath(); ctx.roundRect(hw - 12, -hh + 8, 12, this.h - 12, 3); ctx.fill();
+                break;
+            }
+            case 'TABLE': {
+                // Table top
+                ctx.fillStyle = '#8b5e3c'; ctx.beginPath(); ctx.roundRect(-hw, -hh, this.w, 14, 3); ctx.fill();
+                ctx.fillStyle = '#a06b46'; ctx.beginPath(); ctx.roundRect(-hw+2, -hh+2, this.w-4, 6, 2); ctx.fill();
+                // Legs
+                ctx.fillStyle = '#6b4a2c';
+                const legPos = [[-hw+8,-hh+14], [hw-18,-hh+14], [-hw+8,hh-10], [hw-18,hh-10]];
+                legPos.forEach(([lx, ly]) => { ctx.beginPath(); ctx.roundRect(lx, ly, 10, this.h-24, 2); ctx.fill(); });
+                break;
+            }
+            case 'TV': {
+                // Body
+                ctx.fillStyle = '#1e293b'; ctx.beginPath(); ctx.roundRect(-hw, -hh, this.w, this.h, 5); ctx.fill();
+                // Screen
+                const grd = ctx.createLinearGradient(-hw+6, -hh+6, hw-6, hh-6);
+                grd.addColorStop(0, '#4fc3f7'); grd.addColorStop(1, '#0288d1');
+                ctx.fillStyle = grd; ctx.beginPath(); ctx.roundRect(-hw+6, -hh+5, this.w-12, this.h-16, 3); ctx.fill();
+                // Glare
+                ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.beginPath();
+                ctx.ellipse(-hw+18, -hh+10, 8, 4, -0.5, 0, Math.PI*2); ctx.fill();
+                // Stand
+                ctx.fillStyle = '#334155'; ctx.beginPath(); ctx.roundRect(-8, hh-10, 16, 10, 2); ctx.fill();
+                break;
+            }
+            case 'PLANT': {
+                // Pot
+                ctx.fillStyle = '#a16207'; ctx.beginPath();
+                ctx.moveTo(-hw+6, hh); ctx.lineTo(-hw, 0); ctx.lineTo(hw, 0); ctx.lineTo(hw-6, hh); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#92400e'; ctx.beginPath(); ctx.roundRect(-hw, -2, this.w, 8, 2); ctx.fill();
+                // Leaves
+                const leafColors = ['#16a34a', '#15803d', '#22c55e'];
+                for (let i = 0; i < 5; i++) {
+                    ctx.fillStyle = leafColors[i % 3];
+                    const lx = (i - 2) * 7, ly = -10 - Math.abs(i - 2) * 5;
+                    ctx.beginPath(); ctx.ellipse(lx, ly, 10, 18, (i-2)*0.4, 0, Math.PI*2); ctx.fill();
+                }
+                break;
+            }
+            case 'LAMP': {
+                // Shade
+                const shadeGrd = ctx.createLinearGradient(0, -hh, 0, 0);
+                shadeGrd.addColorStop(0, '#fbbf24'); shadeGrd.addColorStop(1, '#d97706');
+                ctx.fillStyle = shadeGrd;
+                ctx.beginPath(); ctx.moveTo(-14, 0); ctx.lineTo(-8, -hh); ctx.lineTo(8, -hh); ctx.lineTo(14, 0); ctx.closePath(); ctx.fill();
+                ctx.strokeStyle = '#b45309'; ctx.lineWidth = 1.5; ctx.stroke();
+                // Glow
+                ctx.fillStyle = 'rgba(251,191,36,0.2)'; ctx.beginPath();
+                ctx.ellipse(0, -2, 20, 12, 0, 0, Math.PI*2); ctx.fill();
+                // Stand
+                ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, hh - 5); ctx.stroke();
+                // Base
+                ctx.fillStyle = '#64748b'; ctx.beginPath(); ctx.ellipse(0, hh-3, 12, 5, 0, 0, Math.PI*2); ctx.fill();
+                break;
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+//  Player
+// ─────────────────────────────────────────────
+class Player {
+    constructor(x, y) {
+        this.x = x; this.y = y;
+        this.vx = 0; this.vy = 0;
+        this.dir = 0;
+        this.carrying = null;
+        this.stepT = 0;
+        this.bobY = 0;
+    }
+
+    update(dt, move, walls) {
+        const speed = Math.sqrt(move.x*move.x + move.y*move.y);
+        if (speed > 0.05) {
+            this.dir = Math.atan2(move.y, move.x);
+            this.stepT += dt * 8;
+            this.bobY = Math.sin(this.stepT) * 2.5;
+        } else {
+            this.bobY *= 0.8;
+        }
+
+        this.vx += move.x * ACCEL * dt;
+        this.vy += move.y * ACCEL * dt;
+
+        const len = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+        if (len > MAX_SPEED) { this.vx = this.vx/len*MAX_SPEED; this.vy = this.vy/len*MAX_SPEED; }
+
+        this.vx *= Math.pow(PLAYER_FRICTION, dt * 60);
+        this.vy *= Math.pow(PLAYER_FRICTION, dt * 60);
+
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+
+        // Wall collision
+        for (const w of walls) {
+            const nearX = Math.max(w.x, Math.min(this.x, w.x + w.w));
+            const nearY = Math.max(w.y, Math.min(this.y, w.y + w.h));
+            const dx = this.x - nearX, dy = this.y - nearY;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < PLAYER_R && dist > 0) {
+                const pen = PLAYER_R - dist;
+                this.x += dx/dist * pen;
+                this.y += dy/dist * pen;
+                const dot = this.vx*(dx/dist) + this.vy*(dy/dist);
+                if (dot < 0) { this.vx -= dot*(dx/dist); this.vy -= dot*(dy/dist); }
+            }
+        }
+
+        // Update carried item
+        if (this.carrying) {
+            const offsetDist = 36;
+            this.carrying.x = this.x + Math.cos(this.dir) * offsetDist - this.carrying.w/2;
+            this.carrying.y = this.y + Math.sin(this.dir) * offsetDist - this.carrying.h/2;
+            this.carrying.angle = this.dir;
+        }
+    }
+
+    draw(ctx, t) {
+        const by = this.bobY;
+        ctx.save();
+        ctx.translate(this.x, this.y + by);
+
+        // Shadow
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.ellipse(2, 18, 14, 6, 0, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Body
+        const bodyGrd = ctx.createRadialGradient(-4, -6, 2, 0, 0, 22);
+        bodyGrd.addColorStop(0, '#818cf8'); bodyGrd.addColorStop(1, '#4338ca');
+        ctx.fillStyle = bodyGrd;
+        ctx.beginPath(); ctx.ellipse(0, 2, 13, 15, 0, 0, Math.PI*2); ctx.fill();
+
+        // Arms
+        if (this.carrying) {
+            const ax = Math.cos(this.dir) * 14, ay = Math.sin(this.dir) * 14;
+            ctx.strokeStyle = '#f8d7a0'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(ax - 4, ay); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(ax + 4, ay); ctx.stroke();
+        } else {
+            // Walking arms
+            const swing = Math.sin(this.stepT) * 8;
+            ctx.strokeStyle = '#f8d7a0'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-10 + swing, 12); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(10 - swing, 12); ctx.stroke();
+        }
+
+        // Head
+        ctx.fillStyle = '#f8d7a0';
+        ctx.beginPath(); ctx.arc(0, -14, 11, 0, Math.PI*2); ctx.fill();
+
+        // Eyes / direction indicator
+        const ex = Math.cos(this.dir) * 5, ey = Math.sin(this.dir) * 5;
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath(); ctx.arc(-3 + ex*0.4, -14 + ey*0.4, 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(3 + ex*0.4, -14 + ey*0.4, 2.5, 0, Math.PI*2); ctx.fill();
+        // Smile
+        ctx.strokeStyle = '#c2856a'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(0, -12, 4, 0.2, Math.PI - 0.2); ctx.stroke();
+
+        // Legs
+        const ls = Math.sin(this.stepT) * 5;
+        ctx.fillStyle = '#312e81';
+        ctx.beginPath(); ctx.roundRect(-9, 14, 8, 14 + ls, 3); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(1, 14, 8, 14 - ls, 3); ctx.fill();
+        // Shoes
+        ctx.fillStyle = '#1e1b4b';
+        ctx.beginPath(); ctx.ellipse(-5, 28 + ls, 7, 4, 0.3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(5, 28 - ls, 7, 4, -0.3, 0, Math.PI*2); ctx.fill();
+
+        ctx.restore();
+    }
+}
+
+// ─────────────────────────────────────────────
+//  Level
+// ─────────────────────────────────────────────
+class Level {
+    constructor(data) {
+        Object.assign(this, data);
+        this.items = data.itemDefs.map(d => new Item(d.type, d.x, d.y));
+        this.timeLeft = data.timeLimit;
+        this.windowAreas = data.windowDefs || [];
+        this.windowAreas.forEach(w => w._bonusGiven = false);
+    }
+
+    get totalItems() { return this.items.length; }
+    get packedItems() { return this.items.filter(i => i.state === ITEM_PACKED).length; }
+
+    static create(index) {
+        const configs = [
+            {   // Level 1 — The Studio
+                name: 'The Studio', number: 1,
+                timeLimit: 70, starTimes: [22, 38, 60],
+                playerStart: { x: 340, y: 300 },
+                truckZone: { x: 700, y: 160, w: 270, h: 240 },
+                houseBounds: { x: 80, y: 60, w: 520, h: 480 },
+                wallDefs: [
+                    // Outer walls
+                    { x: 80, y: 60, w: 520, h: 20 },   // top
+                    { x: 80, y: 520, w: 520, h: 20 },  // bottom
+                    { x: 80, y: 60, w: 20, h: 460 },   // left
+                    { x: 580, y: 60, w: 20, h: 160 },  // right top segment
+                    { x: 580, y: 300, w: 20, h: 240 }, // right bottom segment
+                    // Door gap: 580, y=220 to y=300 (80px opening)
+                ],
+                windowDefs: [
+                    { x: 60, y: 200, w: 20, h: 80 },  // left wall window
+                ],
+                itemDefs: [
+                    { type: 'BOX_S', x: 200, y: 200 },
+                    { type: 'BOX_S', x: 300, y: 350 },
+                    { type: 'BOX_S', x: 420, y: 180 },
+                    { type: 'LAMP',  x: 150, y: 420 },
+                    { type: 'PLANT', x: 460, y: 420 },
+                ],
+            },
+            {   // Level 2 — The Apartment
+                name: 'The Apartment', number: 2,
+                timeLimit: 85, starTimes: [32, 55, 75],
+                playerStart: { x: 220, y: 200 },
+                truckZone: { x: 720, y: 170, w: 260, h: 260 },
+                houseBounds: { x: 60, y: 30, w: 620, h: 580 },
+                wallDefs: [
+                    // Outer
+                    { x: 60, y: 30, w: 620, h: 20 },
+                    { x: 60, y: 590, w: 620, h: 20 },
+                    { x: 60, y: 30, w: 20, h: 560 },
+                    { x: 660, y: 30, w: 20, h: 170 },  // right top
+                    { x: 660, y: 290, w: 20, h: 320 }, // right bottom
+                    // Interior dividing wall (room split) with door gap
+                    { x: 60, y: 290, w: 260, h: 18 },  // left part
+                    { x: 400, y: 290, w: 280, h: 18 }, // right part
+                    // gap 260-400 = door 140px wide
+                ],
+                windowDefs: [
+                    { x: 40, y: 160, w: 20, h: 70 },
+                    { x: 40, y: 420, w: 20, h: 70 },
+                ],
+                itemDefs: [
+                    { type: 'BOX_S', x: 200, y: 100 },
+                    { type: 'BOX_S', x: 360, y: 130 },
+                    { type: 'BOX_S', x: 480, y: 100 },
+                    { type: 'BOX_L', x: 160, y: 380 },
+                    { type: 'BOX_L', x: 420, y: 400 },
+                    { type: 'TV',    x: 520, y: 200 },
+                    { type: 'TABLE', x: 280, y: 430 },
+                    { type: 'SOFA',  x: 140, y: 160 },
+                ],
+            },
+            {   // Level 3 — The House
+                name: 'The House', number: 3,
+                timeLimit: 100, starTimes: [45, 68, 90],
+                playerStart: { x: 250, y: 300 },
+                truckZone: { x: 740, y: 150, w: 240, h: 300 },
+                houseBounds: { x: 40, y: 20, w: 680, h: 600 },
+                wallDefs: [
+                    // Outer
+                    { x: 40, y: 20, w: 680, h: 20 },
+                    { x: 40, y: 600, w: 680, h: 20 },
+                    { x: 40, y: 20, w: 20, h: 580 },
+                    { x: 700, y: 20, w: 20, h: 150 },  // right top
+                    { x: 700, y: 260, w: 20, h: 100 }, // right mid
+                    { x: 700, y: 450, w: 20, h: 170 }, // right bottom
+                    // Interior wall 1 (horizontal, upper room)
+                    { x: 40, y: 240, w: 280, h: 16 },
+                    { x: 400, y: 240, w: 320, h: 16 },
+                    // Interior wall 2 (vertical, right rooms)
+                    { x: 460, y: 256, w: 16, h: 180 },
+                    { x: 460, y: 510, w: 16, h: 110 },
+                    // Interior wall 3 (horizontal lower)
+                    { x: 40, y: 440, w: 200, h: 16 },
+                    { x: 320, y: 440, w: 156, h: 16 },
+                ],
+                windowDefs: [
+                    { x: 20, y: 100, w: 20, h: 80 },
+                    { x: 20, y: 380, w: 20, h: 80 },
+                    { x: 200, y: 0, w: 80, h: 20 },
+                ],
+                itemDefs: [
+                    { type: 'BOX_S', x: 200, y: 80 },
+                    { type: 'BOX_S', x: 350, y: 80 },
+                    { type: 'BOX_S', x: 520, y: 80 },
+                    { type: 'BOX_S', x: 580, y: 300 },
+                    { type: 'BOX_L', x: 100, y: 130 },
+                    { type: 'BOX_L', x: 480, y: 270 },
+                    { type: 'SOFA',  x: 100, y: 280 },
+                    { type: 'TABLE', x: 300, y: 130 },
+                    { type: 'TV',    x: 490, y: 130 },
+                    { type: 'TV',    x: 100, y: 490 },
+                    { type: 'PLANT', x: 600, y: 490 },
+                    { type: 'LAMP',  x: 280, y: 480 },
+                ],
+            },
+        ];
+        return new Level(configs[index]);
+    }
+}
+
+// ─────────────────────────────────────────────
+//  Camera / Screen Shake
+// ─────────────────────────────────────────────
+class Camera {
+    constructor() { this.ox = 0; this.oy = 0; this.shakeAmt = 0; this.shakeDur = 0; }
+
+    shake(amt, dur) { this.shakeAmt = amt; this.shakeDur = dur; }
+
+    update(dt) {
+        if (this.shakeDur > 0) { this.shakeDur -= dt; this.ox = (Math.random()-0.5)*this.shakeAmt; this.oy = (Math.random()-0.5)*this.shakeAmt; }
+        else { this.ox = 0; this.oy = 0; this.shakeAmt = 0; }
+    }
+
+    apply(ctx) { ctx.save(); ctx.translate(this.ox, this.oy); }
+    restore(ctx) { ctx.restore(); }
+}
+
+// ─────────────────────────────────────────────
+//  Helpers
+// ─────────────────────────────────────────────
+function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
+    return ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by;
+}
+
+// ─────────────────────────────────────────────
+//  Game
+// ─────────────────────────────────────────────
+class Game {
+    constructor() {
+        this.canvas = document.getElementById('canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+
+        this.input = new InputHandler(this.canvas);
+        this.particles = new ParticleSystem();
+        this.camera = new Camera();
+        this.state = STATES.MENU;
+        this.currentLevel = 0;
+        this.score = 0;
+        this.windowBonus = 0;
+        this.level = null;
+        this.player = null;
+        this.timerInterval = null;
+        this.flashAlpha = 0;
+        this.t = 0;
+
+        this._setupUI();
+        this.loop(0);
+    }
+
+    resize() {
+        const ww = window.innerWidth, wh = window.innerHeight;
+        const scale = Math.min(ww / CW, wh / CH);
+        this.canvas.width = CW; this.canvas.height = CH;
+        this.canvas.style.width = (CW * scale) + 'px';
+        this.canvas.style.height = (CH * scale) + 'px';
+    }
+
+    _setupUI() {
+        document.getElementById('btn-start').onclick = () => this.startLevel(0);
+        document.getElementById('btn-next').onclick = () => {
+            if (this.currentLevel < 2) this.startLevel(this.currentLevel + 1);
+            else this.showMenu();
+        };
+        document.getElementById('btn-menu-lc').onclick = () => this.showMenu();
+        document.getElementById('btn-retry').onclick = () => this.startLevel(this.currentLevel);
+        document.getElementById('btn-menu-go').onclick = () => this.showMenu();
+    }
+
+    showMenu() {
+        this.state = STATES.MENU;
+        if (this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval = null; }
+        this._showOverlay('menu-overlay');
+    }
+
+    startLevel(idx) {
+        this.currentLevel = idx;
+        this.level = Level.create(idx);
+        this.player = new Player(this.level.playerStart.x, this.level.playerStart.y);
+        this.particles = new ParticleSystem();
+        this.windowBonus = 0;
+        this.state = STATES.PLAYING;
+        this._hideAll();
+        if (this.timerInterval) clearInterval(this.timerInterval);
+        this.timerInterval = setInterval(() => {
+            if (this.state !== STATES.PLAYING) return;
+            this.level.timeLeft--;
+            if (this.level.timeLeft <= 0) this.gameOver();
+        }, 1000);
+    }
+
+    _hideAll() {
+        ['menu-overlay','lc-overlay','go-overlay'].forEach(id => {
+            document.getElementById(id).classList.add('hidden');
+        });
+    }
+
+    _showOverlay(id) {
+        this._hideAll();
+        document.getElementById(id).classList.remove('hidden');
+    }
+
+    levelComplete() {
+        this.state = STATES.LEVEL_COMPLETE;
+        if (this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval = null; }
+
+        const lv = this.level;
+        const timeUsed = lv.timeLimit - lv.timeLeft;
+        const timeBonus = Math.max(0, Math.floor(lv.timeLeft * 15));
+        const wBonus = this.windowBonus * 200;
+        const levelScore = 500 + timeBonus + wBonus;
+        this.score += levelScore;
+
+        const stars = timeUsed <= lv.starTimes[0] ? 3 : timeUsed <= lv.starTimes[1] ? 2 : timeUsed <= lv.starTimes[2] ? 1 : 1;
+        const starStr = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+
+        document.getElementById('lc-stars').textContent = starStr;
+        document.getElementById('lc-time-bonus').textContent = '+' + timeBonus;
+        document.getElementById('lc-window-bonus').textContent = '+' + wBonus + (this.windowBonus > 0 ? ` (×${this.windowBonus})` : '');
+        document.getElementById('lc-total').textContent = this.score;
+        document.getElementById('lc-next-hint').textContent = this.currentLevel < 2 ? 'Next up: ' + Level.create(this.currentLevel + 1).name : 'You cleared all 3 levels!';
+        document.getElementById('btn-next').textContent = this.currentLevel < 2 ? 'NEXT LEVEL ▶' : 'FINISH ★';
+
+        // Confetti!
+        for (let i = 0; i < 4; i++) setTimeout(() => {
+            this.particles.emit(CW/2 + (Math.random()-0.5)*300, 100, 'confetti', 20);
+        }, i * 250);
+
+        setTimeout(() => this._showOverlay('lc-overlay'), 600);
+    }
+
+    gameOver() {
+        this.state = STATES.GAME_OVER;
+        if (this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval = null; }
+        document.getElementById('go-score').textContent = this.score;
+        setTimeout(() => this._showOverlay('go-overlay'), 400);
+    }
+
+    loop(ts) {
+        requestAnimationFrame(t => this.loop(t));
+        const dt = Math.min((ts - (this._lastTs || ts)) / 1000, 0.05);
+        this._lastTs = ts;
+        this.t += dt;
+
+        this.camera.update(dt);
+        this.particles.update(dt);
+        if (this.flashAlpha > 0) this.flashAlpha -= dt * 4;
+
+        if (this.state === STATES.PLAYING) this._update(dt);
+        this._draw();
+    }
+
+    _update(dt) {
+        const lv = this.level;
+        const move = this.input.getMoveVec();
+        const actionPressed = this.input.consumeAction();
+
+        // Update player
+        this.player.update(dt, move, lv.wallDefs);
+
+        // Highlight nearest item
+        let nearest = null, nearestDist = PICKUP_DIST;
+        for (const item of lv.items) {
+            if (item.state !== ITEM_IDLE) continue;
+            const dx = item.cx - this.player.x, dy = item.cy - this.player.y;
+            const d = Math.sqrt(dx*dx + dy*dy);
+            if (d < nearestDist) { nearestDist = d; nearest = item; }
+        }
+        lv.items.forEach(item => { item.highlight = (item === nearest) ? 1 : 0; });
+
+        // Action
+        if (actionPressed) {
+            if (this.player.carrying) {
+                // Throw
+                const item = this.player.carrying;
+                item.state = ITEM_FLYING;
+                const aimAngle = this.input.getAimAngle(this.player.x, this.player.y);
+                item.vx = Math.cos(aimAngle) * THROW_SPEED;
+                item.vy = Math.sin(aimAngle) * THROW_SPEED;
+                item.vz = 280;
+                item.z = 0;
+                item.aSpin = (Math.random() - 0.5) * 4;
+                this.player.carrying = null;
+                this.particles.emit(this.player.x, this.player.y, 'dust', 6);
+            } else if (nearest) {
+                // Pick up
+                this.player.carrying = nearest;
+                nearest.state = ITEM_CARRIED;
+                nearest.angle = 0;
+                this.particles.emit(nearest.cx, nearest.cy, 'dust', 5);
+            }
+        }
+
+        // Update items
+        let packHappened = false;
+        for (const item of lv.items) {
+            item.update(dt, lv.wallDefs, lv.truckZone, this.particles, (reason) => {
+                if (reason === 'pack') { packHappened = true; this.camera.shake(6, 0.15); this.flashAlpha = 0.4; }
+                if (reason === 'window_bonus') { this.windowBonus++; this.score += 200; }
+            }, lv.windowAreas);
+        }
+
+        // Player-item collision (idle items block movement)
+        for (const item of lv.items) {
+            if (item.state !== ITEM_IDLE) continue;
+            const nearX = Math.max(item.x, Math.min(this.player.x, item.x + item.w));
+            const nearY = Math.max(item.y, Math.min(this.player.y, item.y + item.h));
+            const dx = this.player.x - nearX, dy = this.player.y - nearY;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < PLAYER_R && dist > 0) {
+                const pen = PLAYER_R - dist;
+                this.player.x += dx/dist * pen;
+                this.player.y += dy/dist * pen;
+                // Push item slightly
+                item.x -= dx/dist * pen * 0.3;
+                item.y -= dy/dist * pen * 0.3;
+            }
+        }
+
+        // Check win
+        if (lv.packedItems === lv.totalItems && lv.totalItems > 0) {
+            this.levelComplete();
+        }
+    }
+
+    _draw() {
+        const ctx = this.ctx;
+        this.camera.apply(ctx);
+
+        // Background (grass)
+        this._drawBackground(ctx);
+
+        if (this.level) {
+            this._drawTruckZone(ctx);
+            this._drawHouse(ctx);
+            this._drawItems(ctx);
+            if (this.player) this.player.draw(ctx, this.t);
+            this.particles.draw(ctx);
+            this._drawHUD(ctx);
+        }
+
+        // Flash overlay
+        if (this.flashAlpha > 0) {
+            ctx.globalAlpha = this.flashAlpha;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, CW, CH);
+            ctx.globalAlpha = 1;
+        }
+
+        this.camera.restore(ctx);
+    }
+
+    _drawBackground(ctx) {
+        // Grass
+        const grd = ctx.createLinearGradient(0, 0, CW, CH);
+        grd.addColorStop(0, '#3d6b4a'); grd.addColorStop(1, '#2d5238');
+        ctx.fillStyle = grd; ctx.fillRect(0, 0, CW, CH);
+
+        // Grass texture
+        ctx.fillStyle = 'rgba(0,0,0,0.06)';
+        for (let gx = 0; gx < CW; gx += 60) {
+            for (let gy = 0; gy < CH; gy += 60) {
+                if ((gx/60 + gy/60) % 2 === 0) ctx.fillRect(gx, gy, 60, 60);
+            }
+        }
+
+        // Road/driveway (right side to truck)
+        ctx.fillStyle = '#374151';
+        ctx.fillRect(600, 0, 400, CH);
+        ctx.fillStyle = '#4b5563';
+        ctx.fillRect(600, 0, 8, CH);
+        // Road markings
+        ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 3; ctx.setLineDash([30, 20]);
+        ctx.beginPath(); ctx.moveTo(800, 0); ctx.lineTo(800, CH); ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    _drawTruckZone(ctx) {
+        const tz = this.level.truckZone;
+        const pulse = 0.6 + Math.sin(this.t * 3) * 0.2;
+
+        // Truck body (cargo)
+        ctx.fillStyle = '#c2410c';
+        ctx.beginPath(); ctx.roundRect(tz.x, tz.y, tz.w, tz.h, 8); ctx.fill();
+        ctx.fillStyle = '#ea580c';
+        ctx.beginPath(); ctx.roundRect(tz.x + 4, tz.y + 4, tz.w - 8, tz.h - 8, 6); ctx.fill();
+
+        // Truck cab (left of zone)
+        const cabX = tz.x - 80;
+        ctx.fillStyle = '#f97316';
+        ctx.beginPath(); ctx.roundRect(cabX, tz.y + 20, 84, tz.h - 40, 10); ctx.fill();
+        // Cab window
+        ctx.fillStyle = '#bae6fd';
+        ctx.beginPath(); ctx.roundRect(cabX + 10, tz.y + 30, 50, 50, 5); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.beginPath(); ctx.ellipse(cabX + 22, tz.y + 44, 10, 6, -0.3, 0, Math.PI*2); ctx.fill();
+        // Wheels
+        ctx.fillStyle = '#111827';
+        [cabX + 15, cabX + 55, tz.x + tz.w * 0.25, tz.x + tz.w * 0.75].forEach(wx => {
+            ctx.beginPath(); ctx.arc(wx, tz.y + tz.h + 2, 16, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#374151'; ctx.beginPath(); ctx.arc(wx, tz.y + tz.h + 2, 8, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#111827';
+        });
+
+        // Loading bay opening (animated glow)
+        ctx.save();
+        ctx.globalAlpha = pulse * 0.6;
+        const bayGrd = ctx.createRadialGradient(tz.x + 12, tz.y + tz.h/2, 5, tz.x + 12, tz.y + tz.h/2, 70);
+        bayGrd.addColorStop(0, '#fde68a'); bayGrd.addColorStop(1, 'transparent');
+        ctx.fillStyle = bayGrd; ctx.fillRect(tz.x - 40, tz.y, 80, tz.h);
+        ctx.restore();
+
+        // Bay opening outline
+        ctx.strokeStyle = `rgba(251,191,36,${0.5 + Math.sin(this.t*4)*0.3})`;
+        ctx.lineWidth = 3; ctx.setLineDash([8, 6]);
+        ctx.beginPath(); ctx.roundRect(tz.x + 8, tz.y + 8, tz.w - 16, tz.h - 16, 4); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // "TRUCK" label
+        ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = 'bold 13px Segoe UI'; ctx.textAlign = 'center';
+        ctx.fillText('LOAD HERE', tz.x + tz.w/2, tz.y - 12);
+
+        // Packed items indicator
+        const packed = this.level.packedItems, total = this.level.totalItems;
+        ctx.fillStyle = packed === total ? '#4ade80' : '#fbbf24';
+        ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'center';
+        ctx.fillText(`${packed} / ${total} packed`, tz.x + tz.w/2, tz.y + tz.h + 28);
+    }
+
+    _drawHouse(ctx) {
+        const lv = this.level;
+        const hb = lv.houseBounds;
+
+        // Floor
+        const floorGrd = ctx.createLinearGradient(hb.x, hb.y, hb.x + hb.w, hb.y + hb.h);
+        floorGrd.addColorStop(0, '#c8a87a'); floorGrd.addColorStop(1, '#b89060');
+        ctx.fillStyle = floorGrd;
+        ctx.fillRect(hb.x + 20, hb.y + 20, hb.w - 40, hb.h - 40);
+
+        // Floor planks
+        ctx.strokeStyle = 'rgba(0,0,0,0.07)'; ctx.lineWidth = 1;
+        for (let fy = hb.y + 20; fy < hb.y + hb.h - 20; fy += 20) {
+            ctx.beginPath(); ctx.moveTo(hb.x + 20, fy); ctx.lineTo(hb.x + hb.w - 20, fy); ctx.stroke();
+        }
+
+        // Walls
+        ctx.fillStyle = '#7a6248';
+        for (const w of lv.wallDefs) {
+            ctx.fillRect(w.x, w.y, w.w, w.h);
+            // Top highlight
+            ctx.fillStyle = '#9e8060';
+            ctx.fillRect(w.x, w.y, w.w, Math.min(6, w.h));
+            ctx.fillStyle = '#7a6248';
+        }
+
+        // Window indicators (openings)
+        for (const w of lv.windowAreas) {
+            ctx.fillStyle = '#7dd3fc';
+            ctx.fillRect(w.x, w.y, w.w, w.h);
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fillRect(w.x, w.y, w.w/2, w.h);
+            // Label
+            ctx.fillStyle = '#fbbf24'; ctx.font = 'bold 8px Segoe UI'; ctx.textAlign = 'center';
+            ctx.fillText('WIN', w.x + w.w/2, w.y + w.h + 12);
+            // Bonus indicator
+            ctx.fillStyle = 'rgba(251,191,36,0.3)';
+            ctx.beginPath(); ctx.arc(w.x + w.w/2, w.y + w.h/2, 20, 0, Math.PI*2); ctx.fill();
+        }
+    }
+
+    _drawItems(ctx) {
+        // Draw IDLE/FLYING first (bottom layer)
+        for (const item of this.level.items) {
+            if (item.state === ITEM_PACKED) item.draw(ctx, this.t);
+        }
+        for (const item of this.level.items) {
+            if (item.state === ITEM_IDLE) item.draw(ctx, this.t);
+        }
+        for (const item of this.level.items) {
+            if (item.state === ITEM_FLYING) item.draw(ctx, this.t);
+        }
+        // Player's carried item drawn in player.draw via player.carrying reference
+        if (this.player && this.player.carrying) {
+            this.player.carrying.draw(ctx, this.t);
+        }
+    }
+
+    _drawHUD(ctx) {
+        const lv = this.level;
+        const t = lv.timeLeft;
+        const mm = Math.floor(t / 60), ss = (t % 60).toString().padStart(2, '0');
+        const timerStr = `${mm}:${ss}`;
+        const packed = lv.packedItems, total = lv.totalItems;
+        const isUrgent = t <= 15;
+
+        // Top right HUD panel
+        ctx.fillStyle = 'rgba(15,23,42,0.85)';
+        ctx.beginPath(); ctx.roundRect(CW - 210, 10, 200, 90, 12); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.roundRect(CW - 210, 10, 200, 90, 12); ctx.stroke();
+
+        // Timer
+        ctx.fillStyle = isUrgent ? '#ef4444' : '#f8fafc';
+        ctx.font = `bold ${isUrgent ? 32 : 28}px monospace`;
+        ctx.textAlign = 'right';
+        if (isUrgent && Math.floor(this.t * 4) % 2 === 0) {
+            ctx.shadowBlur = 15; ctx.shadowColor = '#ef4444';
+        }
+        ctx.fillText(timerStr, CW - 20, 52);
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = '#64748b'; ctx.font = '10px Segoe UI'; ctx.letterSpacing = '2px';
+        ctx.fillText('TIME', CW - 20, 68);
+        ctx.letterSpacing = '0px';
+
+        // Items counter
+        ctx.fillStyle = packed === total ? '#4ade80' : '#f59e0b';
+        ctx.font = 'bold 22px monospace';
+        ctx.fillText(`📦 ${packed}/${total}`, CW - 20, 92);
+
+        // Score top left
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(15,23,42,0.8)';
+        ctx.beginPath(); ctx.roundRect(10, 10, 160, 50, 10); ctx.fill();
+        ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 22px monospace';
+        ctx.fillText(this.score.toString().padStart(6, '0'), 18, 44);
+        ctx.fillStyle = '#475569'; ctx.font = '10px Segoe UI';
+        ctx.fillText('SCORE', 18, 54);
+
+        // Level name
+        ctx.fillStyle = 'rgba(15,23,42,0.8)';
+        ctx.beginPath(); ctx.roundRect(CW/2 - 90, 10, 180, 36, 8); ctx.fill();
+        ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'center';
+        ctx.fillText(`LVL ${lv.number}  ${lv.name.toUpperCase()}`, CW/2, 33);
+
+        // Star preview bar
+        const st = lv.starTimes;
+        const elapsed = lv.timeLimit - lv.timeLeft;
+        const stars = elapsed <= st[0] ? 3 : elapsed <= st[1] ? 2 : elapsed <= st[2] ? 1 : 1;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(15,23,42,0.8)';
+        ctx.beginPath(); ctx.roundRect(CW/2 - 45, 52, 90, 26, 6); ctx.fill();
+        for (let i = 0; i < 3; i++) {
+            ctx.fillStyle = i < stars ? '#fbbf24' : '#374151';
+            ctx.font = '18px Segoe UI';
+            ctx.fillText('★', CW/2 - 20 + i * 20, 71);
+        }
+
+        // Controls hint (bottom, fades after 8s)
+        const hintAlpha = Math.max(0, 1 - (lv.timeLimit - lv.timeLeft - 2) / 6);
+        if (hintAlpha > 0) {
+            ctx.globalAlpha = hintAlpha * 0.7;
+            ctx.fillStyle = '#f8fafc'; ctx.font = '11px Segoe UI'; ctx.textAlign = 'center';
+            ctx.fillText('WASD to move  •  E / Space to grab & throw  •  Aim with mouse', CW/2, CH - 20);
+            ctx.globalAlpha = 1;
+        }
+    }
+}
+
+window.onload = () => new Game();
+</script>
+</body>
+</html>
