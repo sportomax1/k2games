@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Banana Bounce - K2 games</title>
+    <style>
+        :root {
+            --primary: #fbbf24;
+            --accent: #ef4444;
+            --bg: #064e3b;
+            --surface: #065f46;
+            --text: #f8fafc;
+            --muted: #34d399;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: #022c22;
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100dvh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        nav {
+            height: 50px;
+            padding: 0 1rem;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo { font-weight: 900; color: var(--primary); letter-spacing: 1px; }
+        .restart-btn { background: var(--surface); border: 1px solid var(--border); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            background: linear-gradient(180deg, #064e3b 0%, #022c22 100%);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 10;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .top-hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 15px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(4px);
+            text-align: center;
+        }
+
+        .label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; font-weight: 900; letter-spacing: 1px; }
+        .value { font-size: 1.4rem; font-weight: 900; color: #fff; display: block; }
+
+        #jump-meter {
+            width: 100%;
+            max-width: 200px;
+            height: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            margin: 10px auto;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        #jump-fill { height: 100%; width: 0%; background: var(--primary); transition: width 0.05s; }
+
+        .overlay {
+            position: absolute; inset: 0;
+            background: rgba(6, 78, 59, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; text-align: center; padding: 30px;
+        }
+
+        .overlay h1 { font-size: 3.5rem; font-weight: 900; color: var(--primary); text-shadow: 0 4px 0 #92400e; }
+        .overlay p { max-width: 400px; margin-bottom: 30px; color: var(--muted); line-height: 1.6; }
+
+        .btn-play {
+            background: var(--primary); color: #92400e; border: none; padding: 15px 60px;
+            border-radius: 50px; font-size: 1.2rem; font-weight: 900; cursor: pointer;
+            transition: 0.2s; box-shadow: 0 10px 0 #92400e;
+        }
+        .btn-play:hover { transform: translateY(-2px); box-shadow: 0 12px 0 #92400e; }
+        .btn-play:active { transform: translateY(4px); box-shadow: 0 6px 0 #92400e; }
+
+        #home-btn {
+            position: fixed; top: 10px; left: 10px; z-index: 1000;
+            background: rgba(255,255,255,0.1); color: white; text-decoration: none;
+            padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 0.7rem;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <a href="index.html" id="home-btn">← HUB</a>
+    
+    <nav>
+        <div class="logo">BANANA BOUNCE</div>
+        <button class="restart-btn" onclick="location.reload()">RESTART</button>
+    </nav>
+
+    <div id="game-container">
+        <div id="ui-layer">
+            <div class="top-hud">
+                <div class="stat-box">
+                    <span class="label">Altitude</span>
+                    <span id="score-val" class="value">0m</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Bananas</span>
+                    <span id="banana-val" class="value">0</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Best</span>
+                    <span id="high-val" class="value">0m</span>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 10px;">
+                <span class="label" style="color: var(--primary)">Jump Charge</span>
+                <div id="jump-meter"><div id="jump-fill"></div></div>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="menu-overlay" class="overlay">
+            <h1>BANANA BOUNCE</h1>
+            <p>Hold to charge your jump! Higher jumps score more but make landings trickier. Watch out for snakes and coconuts!</p>
+            <div style="text-align: center; color: #94a3b8; font-size: 0.8rem; margin-bottom: 20px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; border: 1px solid var(--border);">
+                <b>CONTROLS:</b><br>
+                • <b>HOLD</b> Mouse / Space / Touch to <b>CHARGE</b><br>
+                • <b>RELEASE</b> to <b>BOUNCE</b><br>
+                • Aim for the green branches!
+            </div>
+            <button class="btn-play" onclick="game.start()">BOUNCE!</button>
+        </div>
+
+        <div id="over-overlay" class="overlay hidden">
+            <h1 style="color: var(--accent);">FALLEN!</h1>
+            <div class="stat-box" style="min-width: 200px; margin-bottom: 20px;">
+                <span class="label">Final Altitude</span>
+                <span id="final-score-val" class="value">0m</span>
+            </div>
+            <button class="btn-play" onclick="game.start()">CLIMB AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        class BananaBounce {
+            constructor() {
+                this.width = 0;
+                this.height = 0;
+                this.active = false;
+                this.score = 0;
+                this.bananas = 0;
+                this.highScore = parseInt(localStorage.getItem('bananaHighScore') || '0');
+                
+                this.monkey = {
+                    x: 0, y: 0, w: 40, h: 40,
+                    vx: 0, vy: 0,
+                    charge: 0, charging: false,
+                    onPlatform: true
+                };
+
+                this.platforms = [];
+                this.items = [];
+                this.enemies = [];
+                this.viewY = 0;
+                this.targetViewY = 0;
+
+                this.init();
+            }
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                
+                const startCharge = (e) => {
+                    if(!this.active || !this.monkey.onPlatform) return;
+                    this.monkey.charging = true;
+                };
+                const endCharge = (e) => {
+                    if(!this.monkey.charging) return;
+                    this.jump();
+                };
+
+                canvas.addEventListener('mousedown', startCharge);
+                canvas.addEventListener('mouseup', endCharge);
+                canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startCharge(); });
+                canvas.addEventListener('touchend', (e) => { e.preventDefault(); endCharge(); });
+
+                document.getElementById('high-val').textContent = this.highScore + 'm';
+                this.renderLoop();
+            }
+
+            resize() {
+                this.width = canvas.parentElement.clientWidth;
+                this.height = canvas.parentElement.clientHeight;
+                canvas.width = this.width;
+                canvas.height = this.height;
+                if(!this.active) {
+                    this.monkey.x = this.width / 2;
+                    this.monkey.y = this.height - 100;
+                }
+            }
+
+            start() {
+                this.active = true;
+                this.score = 0;
+                this.bananas = 0;
+                this.viewY = 0;
+                this.targetViewY = 0;
+                this.monkey.x = this.width / 2;
+                this.monkey.y = this.height - 100;
+                this.monkey.vx = 0;
+                this.monkey.vy = 0;
+                this.monkey.onPlatform = true;
+                this.monkey.charge = 0;
+                
+                this.platforms = [{x: this.width/2 - 50, y: this.height - 80, w: 100, h: 20}];
+                for(let i=1; i<10; i++) this.spawnPlatform(this.height - 80 - i*150);
+
+                document.getElementById('menu-overlay').classList.add('hidden');
+                document.getElementById('over-overlay').classList.add('hidden');
+                this.updateHUD();
+                this.gameLoop();
+            }
+
+            spawnPlatform(y) {
+                this.platforms.push({
+                    x: Math.random() * (this.width - 100),
+                    y: y,
+                    w: 80 + Math.random() * 40,
+                    h: 15
+                });
+                if(Math.random() < 0.4) this.items.push({
+                    x: this.platforms[this.platforms.length-1].x + 20,
+                    y: y - 30, type: 'banana'
+                });
+                if(Math.random() < 0.2) this.enemies.push({
+                    x: this.platforms[this.platforms.length-1].x,
+                    y: y - 10, type: 'snake', w: 40, dir: 1
+                });
+            }
+
+            jump() {
+                const power = 10 + (this.monkey.charge / 100) * 15;
+                this.monkey.vy = -power;
+                this.monkey.onPlatform = false;
+                this.monkey.charging = false;
+                this.monkey.charge = 0;
+            }
+
+            update() {
+                if(!this.active) return;
+
+                if(this.monkey.charging) {
+                    this.monkey.charge = Math.min(100, this.monkey.charge + 2);
+                }
+
+                // Monkey Physics
+                if(!this.monkey.onPlatform) {
+                    this.monkey.vy += 0.5;
+                    this.monkey.y += this.monkey.vy;
+
+                    // Tilt movement based on touch position or mouse
+                    // For simplicity, let's just make him fall
+                }
+
+                // View follow
+                if(this.monkey.y < this.viewY + this.height * 0.4) {
+                    this.viewY = this.monkey.y - this.height * 0.4;
+                }
+
+                // Platforms collision
+                if(this.monkey.vy > 0) {
+                    this.platforms.forEach(p => {
+                        if(this.monkey.x + this.monkey.w > p.x && this.monkey.x < p.x + p.w &&
+                           this.monkey.y + this.monkey.h > p.y && this.monkey.y + this.monkey.h < p.y + p.h + 10) {
+                            this.monkey.y = p.y - this.monkey.h;
+                            this.monkey.vy = 0;
+                            this.monkey.onPlatform = true;
+                            
+                            const alt = Math.floor((this.height - 100 - this.monkey.y) / 10);
+                            if(alt > this.score) this.score = alt;
+                        }
+                    });
+                }
+
+                // Items
+                this.items = this.items.filter(item => {
+                    const dx = this.monkey.x - item.x;
+                    const dy = this.monkey.y - item.y;
+                    if(Math.sqrt(dx*dx + dy*dy) < 30) {
+                        this.bananas++;
+                        return false;
+                    }
+                    return item.y < this.viewY + this.height + 100;
+                });
+
+                // Enemies
+                this.enemies.forEach(e => {
+                    if(e.type === 'snake') {
+                        e.x += e.dir;
+                        if(e.x > this.width || e.x < 0) e.dir *= -1;
+                    }
+                    const dx = (this.monkey.x + 20) - (e.x + 20);
+                    const dy = (this.monkey.y + 20) - (e.y + 10);
+                    if(Math.sqrt(dx*dx + dy*dy) < 30 && !this.monkey.charging) {
+                        this.gameOver();
+                    }
+                });
+
+                // Infinite generation
+                const highestPlatform = this.platforms[this.platforms.length-1].y;
+                if(highestPlatform > this.viewY - 200) {
+                    this.spawnPlatform(highestPlatform - 150);
+                }
+
+                // Death floor
+                if(this.monkey.y > this.viewY + this.height) {
+                    this.gameOver();
+                }
+
+                this.updateHUD();
+            }
+
+            updateHUD() {
+                document.getElementById('score-val').textContent = this.score + 'm';
+                document.getElementById('banana-val').textContent = this.bananas;
+                document.getElementById('jump-fill').style.width = this.monkey.charge + '%';
+            }
+
+            gameOver() {
+                this.active = false;
+                if(this.score > this.highScore) {
+                    this.highScore = this.score;
+                    localStorage.setItem('bananaHighScore', this.highScore);
+                }
+                document.getElementById('over-overlay').classList.remove('hidden');
+                document.getElementById('final-score-val').textContent = this.score + 'm';
+                document.getElementById('high-val').textContent = this.highScore + 'm';
+            }
+
+            draw() {
+                ctx.clearRect(0, 0, this.width, this.height);
+                ctx.save();
+                ctx.translate(0, -this.viewY);
+
+                // Tree Trunk
+                ctx.fillStyle = '#451a03';
+                ctx.fillRect(this.width/2 - 40, this.viewY - 100, 80, this.height + 200);
+
+                // Platforms (Branches)
+                this.platforms.forEach(p => {
+                    ctx.fillStyle = '#166534';
+                    ctx.beginPath(); ctx.roundRect(p.x, p.y, p.w, p.h, 10); ctx.fill();
+                    ctx.strokeStyle = '#064e3b'; ctx.lineWidth = 2; ctx.stroke();
+                });
+
+                // Items
+                this.items.forEach(item => {
+                    ctx.font = '24px Arial';
+                    ctx.fillText('🍌', item.x, item.y);
+                });
+
+                // Enemies
+                this.enemies.forEach(e => {
+                    ctx.font = '24px Arial';
+                    ctx.fillText(e.type === 'snake' ? '🐍' : '🥥', e.x, e.y);
+                });
+
+                // Monkey
+                const {x, y, w, h, charging, charge} = this.monkey;
+                ctx.font = '40px Arial';
+                ctx.save();
+                if(charging) ctx.scale(1, 1 - (charge/200));
+                ctx.fillText('🐒', x, charging ? y + (charge/5) : y + 30);
+                ctx.restore();
+
+                ctx.restore();
+            }
+
+            gameLoop() {
+                this.update();
+                this.draw();
+                if(this.active) requestAnimationFrame(() => this.gameLoop());
+            }
+
+            renderLoop() {
+                if(!this.active) {
+                    this.draw();
+                    requestAnimationFrame(() => this.renderLoop());
+                }
+            }
+        }
+
+        const game = new BananaBounce();
+    </script>
+</body>
+</html>

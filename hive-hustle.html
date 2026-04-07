@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Hive Hustle - K2 games</title>
+    <style>
+        :root {
+            --primary: #facc15;
+            --accent: #fbbf24;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100dvh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        nav {
+            height: 50px;
+            padding: 0 1rem;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo { font-weight: 900; color: var(--primary); letter-spacing: 1px; }
+        .restart-btn { background: var(--surface); border: 1px solid var(--border); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background: #064e3b;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 10;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .top-hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 15px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(4px);
+            text-align: center;
+        }
+
+        .label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; font-weight: 900; letter-spacing: 1px; }
+        .value { font-size: 1.4rem; font-weight: 900; color: #fff; display: block; }
+
+        #pollen-meter {
+            width: 150px;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        #pollen-fill { height: 100%; width: 0%; background: var(--primary); transition: width 0.1s; }
+
+        .overlay {
+            position: absolute; inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; text-align: center; padding: 30px;
+        }
+
+        .overlay h1 { font-size: 3.5rem; font-style: italic; font-weight: 900; color: var(--primary); }
+        .overlay p { max-width: 400px; margin-bottom: 30px; color: var(--muted); line-height: 1.6; }
+
+        .btn-play {
+            background: var(--primary); color: #000; border: none; padding: 15px 60px;
+            border-radius: 50px; font-size: 1.2rem; font-weight: 900; cursor: pointer;
+            transition: 0.2s; box-shadow: 0 10px 20px rgba(250, 204, 21, 0.3);
+        }
+        .btn-play:hover { transform: scale(1.05); }
+
+        #home-btn {
+            position: fixed; top: 10px; left: 10px; z-index: 1000;
+            background: rgba(255,255,255,0.1); color: white; text-decoration: none;
+            padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 0.7rem;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <a href="index.html" id="home-btn">← HUB</a>
+    
+    <nav>
+        <div class="logo">HIVE HUSTLE</div>
+        <button class="restart-btn" onclick="location.reload()">RESTART</button>
+    </nav>
+
+    <div id="game-container">
+        <div id="ui-layer">
+            <div class="top-hud">
+                <div class="stat-box">
+                    <span class="label">Time</span>
+                    <span id="time-val" class="value">60s</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Pollen Load</span>
+                    <div id="pollen-meter"><div id="pollen-fill"></div></div>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Score</span>
+                    <span id="score-val" class="value">0</span>
+                </div>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="menu-overlay" class="overlay">
+            <h1>HIVE HUSTLE</h1>
+            <p>Collect pollen from flowers and bring it back to the hive. Watch out for wind, rain, and spiders!</p>
+            <button class="btn-play" onclick="game.start()">BUZZ!</button>
+        </div>
+
+        <div id="over-overlay" class="overlay hidden">
+            <h1 style="color: var(--primary);">NIGHTFALL</h1>
+            <div class="stat-box" style="min-width: 200px; margin-bottom: 20px;">
+                <span class="label">Honey Produced</span>
+                <span id="final-score-val" class="value">0</span>
+            </div>
+            <button class="btn-play" onclick="game.start()">TRY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        class HiveHustle {
+            constructor() {
+                this.width = 0;
+                this.height = 0;
+                this.active = false;
+                this.score = 0;
+                this.time = 60;
+                this.highScore = parseInt(localStorage.getItem('hiveHighScore') || '0');
+                
+                this.bee = {
+                    x: 0, y: 0, w: 30, h: 20,
+                    tx: 0, ty: 0,
+                    pollen: 0, maxPollen: 100
+                };
+
+                this.flowers = [];
+                this.hazards = [];
+                this.hive = { x: 0, y: 0, r: 50 };
+                this.wind = { x: 0, y: 0, timer: 0 };
+                this.hitFlash = 0;
+
+                this.init();
+            }
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                
+                const handleMove = (e) => {
+                    if(!this.active) return;
+                    const rect = canvas.getBoundingClientRect();
+                    this.bee.tx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+                    this.bee.ty = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+                };
+
+                canvas.addEventListener('mousemove', handleMove);
+                canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleMove(e); });
+                canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e); });
+
+                const highVal = document.getElementById('high-val');
+                if(highVal) highVal.textContent = this.highScore;
+                this.renderLoop();
+            }
+
+            resize() {
+                this.width = canvas.parentElement.clientWidth;
+                this.height = canvas.parentElement.clientHeight;
+                canvas.width = this.width;
+                canvas.height = this.height;
+                this.hive.x = this.width / 2;
+                this.hive.y = this.height / 2;
+                if(!this.active) {
+                    this.bee.x = this.hive.x;
+                    this.bee.y = this.hive.y;
+                    this.bee.tx = this.hive.x;
+                    this.bee.ty = this.hive.y;
+                }
+            }
+
+            start() {
+                this.active = true;
+                this.score = 0;
+                this.time = 60;
+                this.flowers = [];
+                this.hazards = [];
+                this.bee.pollen = 0;
+                this.bee.x = this.hive.x;
+                this.bee.y = this.hive.y;
+                
+                for(let i=0; i<10; i++) this.spawnFlower();
+                
+                document.getElementById('menu-overlay').classList.add('hidden');
+                document.getElementById('over-overlay').classList.add('hidden');
+                this.updateHUD();
+                this.gameLoop();
+            }
+
+            spawnFlower() {
+                this.flowers.push({
+                    x: Math.random() * (this.width - 100) + 50,
+                    y: Math.random() * (this.height - 100) + 50,
+                    pollen: 20 + Math.random() * 30
+                });
+            }
+
+            spawnHazard() {
+                const type = Math.random() < 0.5 ? 'spider' : 'rain';
+                this.hazards.push({
+                    x: Math.random() * this.width,
+                    y: type === 'rain' ? -50 : Math.random() * this.height,
+                    type, vy: type === 'rain' ? 5 : 0, timer: 120
+                });
+            }
+
+            update() {
+                if(!this.active) return;
+
+                this.time -= 1/60;
+                if(this.time <= 0) this.gameOver();
+
+                // Wind
+                if(this.wind.timer > 0) {
+                    this.wind.timer--;
+                    this.bee.x += this.wind.x;
+                    this.bee.y += this.wind.y;
+                } else if(Math.random() < 0.01) {
+                    this.wind.timer = 60;
+                    this.wind.x = (Math.random() - 0.5) * 4;
+                    this.wind.y = (Math.random() - 0.5) * 4;
+                }
+
+                // Bee movement
+                const dx = this.bee.tx - this.bee.x;
+                const dy = this.bee.ty - this.bee.y;
+                this.bee.x += dx * 0.1;
+                this.bee.y += dy * 0.1;
+
+                // Flower collection
+                this.flowers.forEach((f, i) => {
+                    const dist = Math.sqrt(Math.pow(this.bee.x-f.x, 2) + Math.pow(this.bee.y-f.y, 2));
+                    if(dist < 30 && this.bee.pollen < this.bee.maxPollen) {
+                        const amt = Math.min(f.pollen, 1);
+                        f.pollen -= amt;
+                        this.bee.pollen += amt;
+                    }
+                });
+                this.flowers = this.flowers.filter(f => f.pollen > 0);
+                while(this.flowers.length < 10) this.spawnFlower();
+
+                // Hive return
+                const hDist = Math.sqrt(Math.pow(this.bee.x-this.hive.x, 2) + Math.pow(this.bee.y-this.hive.y, 2));
+                if(hDist < this.hive.r && this.bee.pollen > 0) {
+                    this.score += Math.floor(this.bee.pollen);
+                    this.time += this.bee.pollen / 10;
+                    this.bee.pollen = 0;
+                }
+
+                // Hazards
+                if(Math.random() < 0.02) this.spawnHazard();
+                this.hazards.forEach(h => {
+                    if(h.type === 'rain') h.y += h.vy;
+                    const hDist = Math.sqrt(Math.pow(this.bee.x-h.x, 2) + Math.pow(this.bee.y-h.y, 2));
+                    if(hDist < 30) {
+                        this.bee.pollen = Math.max(0, this.bee.pollen - 1);
+                        this.time -= 0.1;
+                    }
+                    h.timer--;
+                });
+                this.hazards = this.hazards.filter(h => h.y < this.height + 100 && h.timer > 0);
+
+                this.updateHUD();
+            }
+
+            updateHUD() {
+                document.getElementById('score-val').textContent = this.score;
+                document.getElementById('time-val').textContent = Math.ceil(this.time) + 's';
+                document.getElementById('pollen-fill').style.width = this.bee.pollen + '%';
+            }
+
+            gameOver() {
+                this.active = false;
+                if(this.score > this.highScore) {
+                    this.highScore = this.score;
+                    localStorage.setItem('hiveHighScore', this.highScore);
+                }
+                document.getElementById('over-overlay').classList.remove('hidden');
+                document.getElementById('final-score-val').textContent = this.score;
+            }
+
+            draw() {
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Grass
+                ctx.fillStyle = '#064e3b';
+                ctx.fillRect(0, 0, this.width, this.height);
+
+                // Hive
+                ctx.fillStyle = '#fbbf24';
+                ctx.beginPath(); ctx.arc(this.hive.x, this.hive.y, this.hive.r, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#92400e'; ctx.lineWidth = 5; ctx.stroke();
+                ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(this.hive.x, this.hive.y, 10, 0, Math.PI*2); ctx.fill();
+
+                // Flowers
+                this.flowers.forEach(f => {
+                    ctx.font = '30px Arial';
+                    ctx.fillText('🌸', f.x-15, f.y+10);
+                    ctx.fillStyle = '#fff'; ctx.font = '10px Arial';
+                    ctx.fillText(Math.ceil(f.pollen), f.x-5, f.y-20);
+                });
+
+                // Hazards
+                this.hazards.forEach(h => {
+                    ctx.font = h.type === 'rain' ? '20px Arial' : '40px Arial';
+                    ctx.fillText(h.type === 'rain' ? '💧' : '🕷️', h.x-10, h.y+10);
+                });
+
+                // Bee
+                this.drawBee();
+
+                // Wind effect
+                if(this.wind.timer > 0) {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                    ctx.lineWidth = 2;
+                    for(let i=0; i<5; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(Math.random()*this.width, Math.random()*this.height);
+                        ctx.lineTo(Math.random()*this.width, Math.random()*this.height);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            drawBee() {
+                const {x, y, pollen} = this.bee;
+                ctx.save();
+                ctx.translate(x, y);
+                
+                // Wings
+                ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                const wingS = Math.abs(Math.sin(Date.now()*0.1) * 10);
+                ctx.beginPath(); ctx.ellipse(-5, -5, 10, wingS, 0, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(5, -5, 10, wingS, 0, 0, Math.PI*2); ctx.fill();
+
+                // Body
+                ctx.fillStyle = '#000';
+                ctx.beginPath(); ctx.roundRect(-15, 0, 30, 15, 8); ctx.fill();
+                ctx.fillStyle = '#facc15';
+                ctx.fillRect(-5, 0, 10, 15);
+
+                // Pollen load
+                if(pollen > 0) {
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.beginPath(); ctx.arc(0, 15, 5 + pollen/20, 0, Math.PI*2); ctx.fill();
+                }
+
+                ctx.restore();
+            }
+
+            gameLoop() {
+                this.update();
+                this.draw();
+                if(this.active) requestAnimationFrame(() => this.gameLoop());
+            }
+
+            renderLoop() {
+                if(!this.active) {
+                    this.draw();
+                    requestAnimationFrame(() => this.renderLoop());
+                }
+            }
+        }
+
+        const game = new HiveHustle();
+    </script>
+</body>
+</html>

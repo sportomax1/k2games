@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Fetch Frenzy - K2 games</title>
+    <style>
+        :root {
+            --primary: #10b981;
+            --accent: #fbbf24;
+            --bg: #064e3b;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100dvh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        nav {
+            height: 50px;
+            padding: 0 1rem;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo { font-weight: 900; color: var(--primary); letter-spacing: 1px; }
+        .restart-btn { background: var(--surface); border: 1px solid var(--border); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            background: #065f46;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 10;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .top-hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(4px);
+            text-align: center;
+        }
+
+        .label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; font-weight: 900; letter-spacing: 1px; }
+        .value { font-size: 1.2rem; font-weight: 900; color: #fff; display: block; }
+
+        #zoom-meter {
+            width: 150px;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        #zoom-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--primary), #fff);
+            box-shadow: 0 0 10px var(--primary);
+            transition: width 0.1s;
+        }
+
+        /* Joystick */
+        #joystick-container {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            width: 100px;
+            height: 100px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            pointer-events: auto;
+            display: none;
+        }
+        #joystick-knob {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 40px; height: 40px;
+            background: var(--primary);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .overlay {
+            position: absolute; inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; text-align: center; padding: 20px;
+        }
+
+        .overlay h1 { font-size: 3rem; font-style: italic; font-weight: 900; color: var(--primary); }
+        .overlay p { max-width: 400px; margin-bottom: 15px; color: var(--muted); font-size: 0.85rem; }
+
+        .breed-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .breed-card {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .breed-card:hover { border-color: var(--primary); transform: translateY(-3px); }
+        .breed-card.selected { border-color: var(--primary); background: rgba(16, 185, 129, 0.1); }
+        .breed-icon { font-size: 1.8rem; margin-bottom: 5px; display: block; }
+        .breed-name { font-size: 0.65rem; font-weight: 900; color: white; text-transform: uppercase; }
+        .breed-ability { font-size: 0.5rem; color: var(--muted); margin-top: 2px; }
+
+        .btn-play {
+            background: var(--primary); color: #000; border: none; padding: 12px 45px;
+            border-radius: 50px; font-size: 1.1rem; font-weight: 900; cursor: pointer;
+            transition: 0.2s; box-shadow: 0 8px 15px rgba(16, 185, 129, 0.3);
+        }
+        .btn-play:hover { transform: scale(1.05); }
+
+        #home-btn {
+            position: fixed; top: 10px; left: 10px; z-index: 1000;
+            background: rgba(255,255,255,0.1); color: white; text-decoration: none;
+            padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 0.7rem;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <a href="index.html" id="home-btn">← HUB</a>
+    
+    <nav>
+        <div class="logo">FETCH FRENZY</div>
+        <button class="restart-btn" onclick="location.reload()">RESTART</button>
+    </nav>
+
+    <div id="game-container">
+        <div id="ui-layer">
+            <div class="top-hud">
+                <div class="stat-box">
+                    <span class="label">Balls</span>
+                    <span id="score-val" class="value">0</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Zoomies</span>
+                    <div id="zoom-meter"><div id="zoom-fill"></div></div>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Record</span>
+                    <span id="high-val" class="value">0</span>
+                </div>
+            </div>
+            
+            <div id="joystick-container"><div id="joystick-knob"></div></div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="menu-overlay" class="overlay">
+            <h1>FETCH!</h1>
+            <p>Top-down dash! Collect balls, dodge sprinklers and mailmen. Pick your breed!</p>
+            
+            <div class="breed-grid">
+                <div class="breed-card selected" onclick="game.setBreed('retriever', this)">
+                    <span class="breed-icon">🐕</span>
+                    <div class="breed-name">Retriever</div>
+                    <div class="breed-ability">Points x2</div>
+                </div>
+                <div class="breed-card" onclick="game.setBreed('greyhound', this)">
+                    <span class="breed-icon">🐕‍🦺</span>
+                    <div class="breed-name">Greyhound</div>
+                    <div class="breed-ability">Longer Zoomies</div>
+                </div>
+                <div class="breed-card" onclick="game.setBreed('bloodhound', this)">
+                    <span class="breed-icon">🐶</span>
+                    <div class="breed-name">Bloodhound</div>
+                    <div class="breed-ability">Ball Magnet</div>
+                </div>
+            </div>
+
+            <div style="color: #94a3b8; font-size: 0.7rem; margin-bottom: 15px;">
+                <b>CONTROLS:</b> WASD / Arrows or Touch Joystick
+            </div>
+
+            <button class="btn-play" onclick="game.start()">START RUN</button>
+        </div>
+
+        <div id="over-overlay" class="overlay hidden">
+            <h1 style="color: var(--accent);">BATH TIME!</h1>
+            <div class="stat-box" style="min-width: 200px; margin-bottom: 20px;">
+                <span class="label">Final Score</span>
+                <span id="final-score-val" class="value">0</span>
+            </div>
+            <button class="btn-play" onclick="game.start()">TRY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        class FetchFrenzy {
+            constructor() {
+                this.width = 0;
+                this.height = 0;
+                this.active = false;
+                this.score = 0;
+                this.highScore = parseInt(localStorage.getItem('fetchHighScoreTopDown') || '0');
+                this.breed = 'retriever';
+                
+                this.dog = {
+                    x: 0, y: 0, r: 20, 
+                    vx: 0, vy: 0, 
+                    angle: -Math.PI/2,
+                    speed: 4.5,
+                    zoom: 0,
+                    isZooming: false,
+                    zoomTimer: 0,
+                    frame: 0
+                };
+
+                this.entities = [];
+                this.particles = [];
+                this.groundY = 0;
+                this.scrollSpeed = 3;
+                this.keys = {};
+                this.joystick = { active: false, dx: 0, dy: 0 };
+
+                this.init();
+            }
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                
+                window.addEventListener('keydown', (e) => this.keys[e.code] = true);
+                window.addEventListener('keyup', (e) => this.keys[e.code] = false);
+
+                const joy = document.getElementById('joystick-container');
+                const knob = document.getElementById('joystick-knob');
+
+                canvas.addEventListener('touchstart', (e) => {
+                    if(!this.active) return;
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    joy.style.display = 'block';
+                    joy.style.left = (touch.clientX - 50) + 'px';
+                    joy.style.top = (touch.clientY - 50) + 'px';
+                    this.joystick.active = true;
+                });
+
+                window.addEventListener('touchmove', (e) => {
+                    if(!this.joystick.active) return;
+                    const touch = e.touches[0];
+                    const rect = joy.getBoundingClientRect();
+                    const centerX = rect.left + 50;
+                    const centerY = rect.top + 50;
+                    let dx = touch.clientX - centerX;
+                    let dy = touch.clientY - centerY;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if(dist > 50) { dx *= 50/dist; dy *= 50/dist; }
+                    this.joystick.dx = dx / 50;
+                    this.joystick.dy = dy / 50;
+                    knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+                });
+
+                window.addEventListener('touchend', () => {
+                    this.joystick.active = false;
+                    this.joystick.dx = 0;
+                    this.joystick.dy = 0;
+                    joy.style.display = 'none';
+                });
+
+                document.getElementById('high-val').textContent = this.highScore;
+                this.renderLoop();
+            }
+
+            resize() {
+                this.width = canvas.parentElement.clientWidth;
+                this.height = canvas.parentElement.clientHeight;
+                canvas.width = this.width;
+                canvas.height = this.height;
+                if(!this.active) {
+                    this.dog.x = this.width / 2;
+                    this.dog.y = this.height * 0.7;
+                }
+            }
+
+            setBreed(b, el) {
+                this.breed = b;
+                document.querySelectorAll('.breed-card').forEach(c => c.classList.remove('selected'));
+                el.classList.add('selected');
+            }
+
+            start() {
+                this.active = true;
+                this.score = 0;
+                this.entities = [];
+                this.particles = [];
+                this.dog.x = this.width / 2;
+                this.dog.y = this.height * 0.7;
+                this.dog.zoom = 0;
+                this.dog.isZooming = false;
+                this.scrollSpeed = 3;
+                
+                document.getElementById('menu-overlay').classList.add('hidden');
+                document.getElementById('over-overlay').classList.add('hidden');
+                this.updateHUD();
+                this.gameLoop();
+            }
+
+            update() {
+                if(!this.active) return;
+
+                let currentSpeed = this.scrollSpeed;
+                if(this.dog.isZooming) {
+                    currentSpeed *= 2;
+                    this.dog.zoomTimer--;
+                    if(this.dog.zoomTimer <= 0) this.dog.isZooming = false;
+                } else if(this.dog.zoom >= 100) {
+                    this.dog.isZooming = true;
+                    this.dog.zoomTimer = this.breed === 'greyhound' ? 300 : 180;
+                    this.dog.zoom = 0;
+                }
+
+                // Dog movement
+                let mx = 0, my = 0;
+                if(this.keys['KeyW'] || this.keys['ArrowUp']) my -= 1;
+                if(this.keys['KeyS'] || this.keys['ArrowDown']) my += 1;
+                if(this.keys['KeyA'] || this.keys['ArrowLeft']) mx -= 1;
+                if(this.keys['KeyD'] || this.keys['ArrowRight']) mx += 1;
+
+                if(this.joystick.active) {
+                    mx = this.joystick.dx;
+                    my = this.joystick.dy;
+                }
+
+                if(mx !== 0 || my !== 0) {
+                    const angle = Math.atan2(my, mx);
+                    this.dog.vx = Math.cos(angle) * this.dog.speed;
+                    this.dog.vy = Math.sin(angle) * this.dog.speed;
+                    this.dog.angle = angle;
+                    this.dog.frame += 0.2;
+                } else {
+                    this.dog.vx *= 0.8;
+                    this.dog.vy *= 0.8;
+                }
+
+                this.dog.x = Math.max(this.dog.r, Math.min(this.width - this.dog.r, this.dog.x + this.dog.vx));
+                this.dog.y = Math.max(this.dog.r, Math.min(this.height - this.dog.r, this.dog.y + this.dog.vy));
+
+                // Ground scroll
+                this.groundY = (this.groundY + currentSpeed) % 100;
+
+                // Spawning
+                if(Math.random() < 0.05) this.spawnEntity();
+
+                // Process Entities
+                this.entities.forEach(ent => {
+                    ent.y += currentSpeed;
+                    
+                    // Specific logic
+                    if(ent.type === 'squirrel') {
+                        ent.x += Math.sin(Date.now()*0.01) * 3;
+                    }
+
+                    // Collision
+                    const dist = Math.hypot(this.dog.x - ent.x, this.dog.y - ent.y);
+                    if(dist < this.dog.r + ent.r) {
+                        if(ent.type === 'ball') {
+                            ent.dead = true;
+                            this.score += this.breed === 'retriever' ? 2 : 1;
+                            this.dog.zoom = Math.min(100, this.dog.zoom + 8);
+                            this.createParticles(ent.x, ent.y, '#fbbf24');
+                        } else if(!this.dog.isZooming) {
+                            this.gameOver();
+                        } else {
+                            ent.dead = true;
+                            this.createParticles(ent.x, ent.y, '#fff');
+                        }
+                    }
+
+                    // Magnet ability
+                    if(this.breed === 'bloodhound' && ent.type === 'ball') {
+                        if(dist < 150) {
+                            ent.x += (this.dog.x - ent.x) * 0.1;
+                            ent.y += (this.dog.y - ent.y) * 0.1;
+                        }
+                    }
+                });
+                this.entities = this.entities.filter(ent => !ent.dead && ent.y < this.height + 100);
+
+                // Particles
+                this.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
+                this.particles = this.particles.filter(p => p.life > 0);
+
+                this.scrollSpeed = 3 + (this.score / 100);
+                this.updateHUD();
+            }
+
+            spawnEntity() {
+                const r = Math.random();
+                let type = 'ball', size = 15, color = '#fbbf24';
+                if(r < 0.1) { type = 'mailman'; size = 30; color = '#1e3a8a'; }
+                else if(r < 0.25) { type = 'sprinkler'; size = 25; color = '#60a5fa'; }
+                else if(r < 0.4) { type = 'squirrel'; size = 15; color = '#8b4513'; }
+
+                this.entities.push({
+                    x: Math.random() * (this.width - 60) + 30,
+                    y: -100,
+                    type, r: size, color, dead: false
+                });
+            }
+
+            createParticles(x, y, color) {
+                for(let i=0; i<8; i++) {
+                    this.particles.push({
+                        x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10,
+                        life: 20, color, size: 3 + Math.random()*4
+                    });
+                }
+            }
+
+            updateHUD() {
+                document.getElementById('score-val').textContent = this.score;
+                const fill = document.getElementById('zoom-fill');
+                if(this.dog.isZooming) {
+                    fill.style.width = (this.dog.zoomTimer / (this.breed === 'greyhound' ? 3 : 1.8)) + '%';
+                } else {
+                    fill.style.width = this.dog.zoom + '%';
+                }
+            }
+
+            gameOver() {
+                this.active = false;
+                if(this.score > this.highScore) {
+                    this.highScore = this.score;
+                    localStorage.setItem('fetchHighScoreTopDown', this.highScore);
+                }
+                document.getElementById('over-overlay').classList.remove('hidden');
+                document.getElementById('final-score-val').textContent = this.score;
+                document.getElementById('high-val').textContent = this.highScore;
+            }
+
+            draw() {
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Grass pattern
+                ctx.fillStyle = '#065f46';
+                ctx.fillRect(0, 0, this.width, this.height);
+                ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+                ctx.lineWidth = 2;
+                for(let y = this.groundY; y < this.height; y += 50) {
+                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(this.width, y); ctx.stroke();
+                }
+
+                // Entities
+                this.entities.forEach(ent => {
+                    ctx.font = ent.r * 1.5 + 'px Arial';
+                    let icon = '🎾';
+                    if(ent.type === 'mailman') icon = '👮';
+                    if(ent.type === 'sprinkler') icon = '🚿';
+                    if(ent.type === 'squirrel') icon = '🐿️';
+                    
+                    if(ent.type === 'sprinkler') {
+                        // Area effect
+                        ctx.fillStyle = 'rgba(96, 165, 250, 0.2)';
+                        ctx.beginPath(); ctx.arc(ent.x, ent.y, ent.r + 20, 0, Math.PI*2); ctx.fill();
+                    }
+
+                    ctx.fillText(icon, ent.x - ent.r, ent.y + ent.r);
+                });
+
+                // Dog
+                this.drawDog();
+
+                // Particles
+                this.particles.forEach(p => {
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life / 20;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            drawDog() {
+                const {x, y, angle, frame, isZooming} = this.dog;
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle + Math.PI/2);
+
+                if(isZooming) {
+                    ctx.shadowBlur = 20; ctx.shadowColor = '#10b981';
+                }
+
+                const leg = Math.sin(frame) * 8;
+
+                // Body
+                ctx.fillStyle = '#94a3b8';
+                ctx.beginPath(); ctx.ellipse(0, 0, 15, 25, 0, 0, Math.PI*2); ctx.fill();
+                
+                // Head
+                ctx.beginPath(); ctx.arc(0, -25, 12, 0, Math.PI*2); ctx.fill();
+                
+                // Ears
+                ctx.fillStyle = '#64748b';
+                ctx.beginPath(); ctx.ellipse(-10, -25, 4, 8, -0.2, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(10, -25, 4, 8, 0.2, 0, Math.PI*2); ctx.fill();
+
+                // Legs
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(-18, -10 + leg, 6, 12);
+                ctx.fillRect(12, -10 - leg, 6, 12);
+                ctx.fillRect(-15, 15 - leg, 6, 12);
+                ctx.fillRect(9, 15 + leg, 6, 12);
+
+                // Tail
+                ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(0, 25); ctx.quadraticCurveTo(leg, 40, leg*0.5, 45); ctx.stroke();
+
+                ctx.restore();
+            }
+
+            gameLoop() {
+                this.update();
+                this.draw();
+                if(this.active) requestAnimationFrame(() => this.gameLoop());
+            }
+
+            renderLoop() {
+                if(!this.active) {
+                    this.draw();
+                    requestAnimationFrame(() => this.renderLoop());
+                }
+            }
+        }
+
+        const game = new FetchFrenzy();
+    </script>
+</body>
+</html>

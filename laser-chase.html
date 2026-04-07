@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Laser Chase - K2 games</title>
+    <style>
+        :root {
+            --primary: #ef4444;
+            --accent: #fbbf24;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100dvh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        nav {
+            height: 50px;
+            padding: 0 1rem;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo { font-weight: 900; color: var(--primary); letter-spacing: 1px; }
+        .restart-btn { background: var(--surface); border: 1px solid var(--border); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background: #262626;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 10;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .top-hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 15px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(4px);
+            text-align: center;
+        }
+
+        .label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; font-weight: 900; letter-spacing: 1px; }
+        .value { font-size: 1.4rem; font-weight: 900; color: #fff; display: block; }
+
+        #combo-display {
+            font-size: 3rem;
+            font-weight: 900;
+            color: var(--primary);
+            text-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+            opacity: 0;
+            transition: 0.2s;
+            text-align: center;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        #combo-display.active { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+
+        .overlay {
+            position: absolute; inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; text-align: center; padding: 30px;
+        }
+
+        .overlay h1 { font-size: 3.5rem; font-style: italic; font-weight: 900; color: var(--primary); }
+        .overlay p { max-width: 400px; margin-bottom: 30px; color: var(--muted); line-height: 1.6; }
+
+        .btn-play {
+            background: var(--primary); color: white; border: none; padding: 15px 60px;
+            border-radius: 50px; font-size: 1.2rem; font-weight: 900; cursor: pointer;
+            transition: 0.2s; box-shadow: 0 10px 20px rgba(239, 68, 68, 0.3);
+        }
+        .btn-play:hover { transform: scale(1.05); }
+
+        #home-btn {
+            position: fixed; top: 10px; left: 10px; z-index: 1000;
+            background: rgba(255,255,255,0.1); color: white; text-decoration: none;
+            padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 0.7rem;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <a href="index.html" id="home-btn">← HUB</a>
+    
+    <nav>
+        <div class="logo">LASER CHASE</div>
+        <button class="restart-btn" onclick="location.reload()">RESTART</button>
+    </nav>
+
+    <div id="game-container">
+        <div id="ui-layer">
+            <div class="top-hud">
+                <div class="stat-box">
+                    <span class="label">Pounces</span>
+                    <span id="score-val" class="value">0</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Lives</span>
+                    <span id="lives-val" class="value">🐾🐾🐾</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">High Score</span>
+                    <span id="high-val" class="value">0</span>
+                </div>
+            </div>
+            <div id="combo-display">X2</div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="menu-overlay" class="overlay">
+            <h1>LASER CHASE</h1>
+            <p>Catch the red dot! Tap or click the laser to score. Avoid knocking over vases and watch out for the vacuum cleaner!</p>
+            <button class="btn-play" onclick="game.start()">CHASE!</button>
+        </div>
+
+        <div id="over-overlay" class="overlay hidden">
+            <h1 style="color: var(--primary);">NAPPED OUT</h1>
+            <div class="stat-box" style="min-width: 200px; margin-bottom: 20px;">
+                <span class="label">Total Pounces</span>
+                <span id="final-score-val" class="value">0</span>
+            </div>
+            <button class="btn-play" onclick="game.start()">TRY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        class LaserChase {
+            constructor() {
+                this.width = 0;
+                this.height = 0;
+                this.active = false;
+                this.score = 0;
+                this.highScore = parseInt(localStorage.getItem('laserHighScore') || '0');
+                this.lives = 3;
+                
+                this.laser = { x: 0, y: 0, tx: 0, ty: 0, speed: 0.05 };
+                this.cat = { x: 0, y: 0, tx: 0, ty: 0 };
+                this.furniture = [];
+                this.vacuum = { x: -100, y: -100, active: false };
+                this.particles = [];
+                this.combo = 0;
+                this.comboTimer = 0;
+
+                this.init();
+            }
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                
+                const handleAction = (e) => {
+                    if(!this.active) return;
+                    const rect = canvas.getBoundingClientRect();
+                    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+                    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+                    this.pounce(x, y);
+                };
+
+                canvas.addEventListener('mousedown', handleAction);
+                canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleAction(e); });
+
+                document.getElementById('high-val').textContent = this.highScore;
+                this.renderLoop();
+            }
+
+            resize() {
+                this.width = canvas.parentElement.clientWidth;
+                this.height = canvas.parentElement.clientHeight;
+                canvas.width = this.width;
+                canvas.height = this.height;
+                if(!this.active) {
+                    this.laser.x = this.width / 2;
+                    this.laser.y = this.height / 2;
+                }
+            }
+
+            start() {
+                this.active = true;
+                this.score = 0;
+                this.lives = 3;
+                this.furniture = [];
+                this.particles = [];
+                this.combo = 0;
+                this.comboTimer = 0;
+                this.laser.x = this.width/2;
+                this.laser.y = this.height/2;
+                this.newLaserTarget();
+                
+                document.getElementById('menu-overlay').classList.add('hidden');
+                document.getElementById('over-overlay').classList.add('hidden');
+                this.updateHUD();
+                this.gameLoop();
+            }
+
+            newLaserTarget() {
+                this.laser.tx = Math.random() * (this.width - 100) + 50;
+                this.laser.ty = Math.random() * (this.height - 100) + 50;
+                this.laser.speed = 0.03 + (this.score / 1000);
+            }
+
+            pounce(x, y) {
+                this.cat.tx = x;
+                this.cat.ty = y;
+
+                // Check Laser
+                const dx = x - this.laser.x;
+                const dy = y - this.laser.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+
+                if(dist < 40) {
+                    this.score += 1 + this.combo;
+                    this.combo++;
+                    this.comboTimer = 60;
+                    this.newLaserTarget();
+                    this.createParticles(this.laser.x, this.laser.y, '#ef4444');
+                    if(Math.random() < 0.2) this.spawnFurniture();
+                } else {
+                    this.combo = 0;
+                    // Check Furniture
+                    let hitF = false;
+                    this.furniture.forEach(f => {
+                        const fdx = x - f.x;
+                        const fdy = y - f.y;
+                        if(Math.sqrt(fdx*fdx + fdy*fdy) < 30 && !f.broken) {
+                            f.broken = true;
+                            this.lives--;
+                            this.createParticles(f.x, f.y, '#d1d5db');
+                            hitF = true;
+                        }
+                    });
+                    if(!hitF && Math.random() < 0.1) this.newLaserTarget(); // Laser moves if you miss
+                }
+
+                if(this.lives <= 0) this.gameOver();
+                this.updateHUD();
+            }
+
+            spawnFurniture() {
+                this.furniture.push({
+                    x: Math.random() * (this.width - 100) + 50,
+                    y: Math.random() * (this.height - 100) + 50,
+                    broken: false
+                });
+            }
+
+            update() {
+                if(!this.active) return;
+
+                // Laser movement
+                this.laser.x += (this.laser.tx - this.laser.x) * this.laser.speed;
+                this.laser.y += (this.laser.ty - this.laser.y) * this.laser.speed;
+
+                if(Math.abs(this.laser.x - this.laser.tx) < 5) this.newLaserTarget();
+
+                // Cat movement (smooth follow)
+                this.cat.x += (this.cat.tx - this.cat.x) * 0.2;
+                this.cat.y += (this.cat.ty - this.cat.y) * 0.2;
+
+                // Vacuum
+                if(this.score > 10 && !this.vacuum.active) {
+                    this.vacuum.active = true;
+                    this.vacuum.x = -100;
+                    this.vacuum.y = Math.random() * this.height;
+                }
+
+                if(this.vacuum.active) {
+                    this.vacuum.x += 2 + (this.score / 50);
+                    if(this.vacuum.x > this.width + 100) this.vacuum.active = false;
+
+                    const vdx = this.cat.x - this.vacuum.x;
+                    const vdy = this.cat.y - this.vacuum.y;
+                    if(Math.sqrt(vdx*vdx + vdy*vdy) < 60) {
+                        this.lives = 0;
+                        this.gameOver();
+                    }
+                }
+
+                if(this.comboTimer > 0) {
+                    this.comboTimer--;
+                    if(this.comboTimer === 0) this.combo = 0;
+                }
+
+                this.particles.forEach(p => {
+                    p.x += p.vx; p.y += p.vy; p.life--;
+                });
+                this.particles = this.particles.filter(p => p.life > 0);
+            }
+
+            createParticles(x, y, color) {
+                for(let i=0; i<10; i++) {
+                    this.particles.push({
+                        x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10,
+                        life: 30, color, size: 2 + Math.random()*4
+                    });
+                }
+            }
+
+            updateHUD() {
+                document.getElementById('score-val').textContent = this.score;
+                document.getElementById('lives-val').textContent = '🐾'.repeat(Math.max(0, this.lives));
+                const comboEl = document.getElementById('combo-display');
+                if(this.combo > 1) {
+                    comboEl.textContent = `X${this.combo}`;
+                    comboEl.classList.add('active');
+                } else {
+                    comboEl.classList.remove('active');
+                }
+            }
+
+            gameOver() {
+                this.active = false;
+                if(this.score > this.highScore) {
+                    this.highScore = this.score;
+                    localStorage.setItem('laserHighScore', this.highScore);
+                }
+                document.getElementById('over-overlay').classList.remove('hidden');
+                document.getElementById('final-score-val').textContent = this.score;
+                document.getElementById('high-val').textContent = this.highScore;
+            }
+
+            draw() {
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Rug pattern
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(0, 0, this.width, this.height);
+                ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+                ctx.lineWidth = 2;
+                for(let i=0; i<this.width; i+=40) {
+                    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, this.height); ctx.stroke();
+                }
+                for(let i=0; i<this.height; i+=40) {
+                    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(this.width, i); ctx.stroke();
+                }
+
+                // Furniture
+                this.furniture.forEach(f => {
+                    ctx.font = '40px Arial';
+                    ctx.globalAlpha = f.broken ? 0.3 : 1;
+                    ctx.fillText(f.broken ? '💥' : '🏺', f.x-20, f.y+15);
+                });
+                ctx.globalAlpha = 1;
+
+                // Vacuum
+                if(this.vacuum.active) {
+                    ctx.font = '60px Arial';
+                    ctx.fillText('🧹', this.vacuum.x-30, this.vacuum.y+20);
+                }
+
+                // Laser dot
+                const grad = ctx.createRadialGradient(this.laser.x, this.laser.y, 0, this.laser.x, this.laser.y, 15);
+                grad.addColorStop(0, '#fff');
+                grad.addColorStop(0.2, '#ff0000');
+                grad.addColorStop(1, 'transparent');
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.arc(this.laser.x, this.laser.y, 15, 0, Math.PI*2); ctx.fill();
+
+                // Paws (Cat)
+                this.drawCat();
+
+                // Particles
+                this.particles.forEach(p => {
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life / 30;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            drawCat() {
+                const {x, y} = this.cat;
+                ctx.font = '40px Arial';
+                ctx.fillText('🐾', x-20, y+15);
+            }
+
+            gameLoop() {
+                this.update();
+                this.draw();
+                if(this.active) requestAnimationFrame(() => this.gameLoop());
+            }
+
+            renderLoop() {
+                if(!this.active) {
+                    this.draw();
+                    requestAnimationFrame(() => this.renderLoop());
+                }
+            }
+        }
+
+        const game = new LaserChase();
+    </script>
+</body>
+</html>

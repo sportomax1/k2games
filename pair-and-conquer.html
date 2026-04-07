@@ -6,8 +6,8 @@
     <title>Pair and Conquer - K2 games</title>
     <style>
         :root {
-            --bg: #064e3b;
-            --surface: #065f46;
+            --bg: #0f172a;
+            --surface: #1e293b;
             --accent: #fbbf24;
             --border: rgba(255, 255, 255, 0.1);
             --p1: #3b82f6; --p2: #f97316; --p3: #ec4899; --p4: #84cc16; --p5: #f8fafc;
@@ -28,7 +28,7 @@
         nav {
             height: 50px;
             padding: 0 1rem;
-            background: rgba(0,0,0,0.3);
+            background: rgba(0,0,0,0.4);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -36,7 +36,7 @@
             z-index: 100;
         }
 
-        .logo { font-weight: 900; color: var(--accent); font-style: italic; letter-spacing: 1px; }
+        .logo { font-weight: 900; color: var(--accent); letter-spacing: 1px; }
         .restart-btn { background: var(--surface); border: 1px solid var(--border); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
 
         #game-layout {
@@ -85,7 +85,7 @@
         }
 
         .forest-card {
-            background: #065f46;
+            background: var(--surface);
             border: 2px solid var(--border);
             border-radius: 12px;
             padding: 8px;
@@ -207,7 +207,7 @@
         /* Overlay */
         .overlay {
             position: absolute; inset: 0;
-            background: rgba(6, 78, 59, 0.98);
+            background: rgba(15, 23, 42, 0.98);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             z-index: 500; text-align: center; padding: 20px;
         }
@@ -247,7 +247,7 @@
         <!-- Overlays -->
         <div id="start-screen" class="overlay">
             <h1 style="font-size: 3rem; color: var(--accent); font-style: italic; font-weight: 900;">PAIR AND CONQUER</h1>
-            <p style="opacity: 0.8; margin-top: 15px; max-width: 450px; font-weight: 600;">Grow the tallest trees in 11 different forests. Roll 5 dice, make 2 pairs, and plant your tokens strategically!</p>
+            <p style="opacity: 0.8; margin-top: 15px; max-width: 450px; font-weight: 600;">Grow the tallest trees in 11 different forests. Roll 5 dice, make 2 pairs, and plant tokens strategically!</p>
             <div style="margin-top: 25px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
                 <button class="btn-large" onclick="game.init(3)">3 PLAYERS</button>
                 <button class="btn-large" onclick="game.init(4)" style="background: #818cf8; color: white;">4 PLAYERS</button>
@@ -255,7 +255,7 @@
             </div>
         </div>
 
-        <div id="win-screen" class="overlay" style="display:none">
+        <div id="win-screen" class="overlay hidden">
             <h1 id="winner-title" style="font-size: 3.5rem; color: var(--accent);">SEASON ENDED</h1>
             <div id="final-stats" style="margin-top: 25px; font-size: 1.2rem; line-height: 1.6;"></div>
             <button class="btn-large" onclick="location.reload()">PLAY AGAIN</button>
@@ -268,7 +268,7 @@
                 this.players = [];
                 this.forests = [];
                 this.turn = 1;
-                this.state = 'setup'; // setup, rolling, pairing, tiebreaking, end
+                this.state = 'setup';
                 this.dice = [];
                 this.selectedDice = [];
                 this.pairs = [];
@@ -276,7 +276,6 @@
             }
 
             init(count) {
-                // Setup Forests 2-12
                 const p1_tokens = [2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6].sort(() => Math.random() - 0.5);
                 const p2_tokens = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2].sort(() => Math.random() - 0.5);
                 
@@ -284,16 +283,15 @@
                     num: i + 2,
                     t1: p1_tokens[i],
                     t2: p2_tokens[i],
-                    trees: [] // {pId, count}
+                    trees: []
                 }));
 
-                // Setup Players
                 this.players = Array(count).fill(0).map((_, i) => ({
-                    id: i, name: i === 0 ? 'You' : `Bot #${i}`,
+                    id: i, name: i === 0 ? 'You' : `Robot #${i}`,
                     score: 0, treesLeft: 20, isBot: i !== 0, class: `p${i+1}-dot`
                 }));
 
-                document.getElementById('start-screen').style.display = 'none';
+                document.getElementById('start-screen').classList.add('hidden');
                 this.startRound();
             }
 
@@ -304,23 +302,16 @@
                 }
                 this.state = 'rolling';
                 this.selectedDice = [];
-                this.pairs = [];
                 this.updateUI();
                 this.showStatus(`Turn ${this.turn} / 10`);
             }
 
             rollDice() {
                 this.dice = Array(5).fill(0).map(() => Math.floor(Math.random() * 6) + 1);
-                
-                // Sequoia! Rule
                 if (this.dice.every(d => d === this.dice[0])) {
                     this.showStatus("SEQUOIA! Pick any faces!", 2000);
-                    // For simplicity in UI, we'll just let them pick pairs from current dice, 
-                    // but in real Sequoia they can change them. 
-                    // To implement properly:
-                    this.dice = [6, 6, 6, 6, 6]; // Give them 6s to pick from
+                    this.dice = [6, 6, 6, 6, 6];
                 }
-
                 this.state = 'pairing';
                 this.updateUI();
                 document.getElementById('btn-roll').style.display = 'none';
@@ -330,32 +321,23 @@
             toggleDie(idx) {
                 if (this.state !== 'pairing') return;
                 const pos = this.selectedDice.indexOf(idx);
-                if (pos > -1) {
-                    this.selectedDice.splice(pos, 1);
-                } else if (this.selectedDice.length < 4) {
-                    this.selectedDice.push(idx);
-                }
+                if (pos > -1) this.selectedDice.splice(pos, 1);
+                else if (this.selectedDice.length < 4) this.selectedDice.push(idx);
                 this.updateUI();
             }
 
             confirmPairs() {
                 if (this.selectedDice.length < 4) return;
-                
                 const sum1 = this.dice[this.selectedDice[0]] + this.dice[this.selectedDice[1]];
                 const sum2 = this.dice[this.selectedDice[2]] + this.dice[this.selectedDice[3]];
-                
                 this.applyTrees(0, [sum1, sum2]);
-
-                // Bots play
                 this.players.forEach(p => {
                     if (p.isBot) {
                         const botDice = Array(5).fill(0).map(() => Math.floor(Math.random() * 6) + 1);
-                        // Bot simple logic: random pairs
                         const sums = [botDice[0]+botDice[1], botDice[2]+botDice[3]];
                         this.applyTrees(p.id, sums);
                     }
                 });
-
                 this.turn++;
                 document.getElementById('btn-roll').style.display = 'block';
                 document.getElementById('btn-confirm').style.display = 'none';
@@ -367,42 +349,27 @@
                 sums.forEach(sum => {
                     if (p.treesLeft <= 0) return;
                     const forest = this.forests.find(f => f.num === sum);
-                    if (forest) {
-                        forest.trees.push(pId);
-                        p.treesLeft--;
-                    }
+                    if (forest) { forest.trees.push(pId); p.treesLeft--; }
                 });
             }
 
             updateUI() {
-                // Opponents
                 const opps = document.getElementById('opponents');
                 opps.innerHTML = '';
                 this.players.forEach(p => {
+                    if (p.id === 0) return;
                     const div = document.createElement('div');
                     div.className = `player-info ${p.id === 0 ? 'active' : ''}`;
-                    div.innerHTML = `
-                        <div class="name">${p.name}</div>
-                        <div class="score">${p.score} pts</div>
-                        <div class="trees">${p.treesLeft} 🌲</div>
-                    `;
+                    div.innerHTML = `<div class="name">${p.name}</div><div class="score">${p.score} pts</div><div class="trees">${p.treesLeft} 🌲</div>`;
                     opps.appendChild(div);
                 });
 
-                // Forests
                 const grid = document.getElementById('forests-grid');
                 grid.innerHTML = '';
                 this.forests.forEach(f => {
                     const div = document.createElement('div');
                     div.className = `forest-card ${this.tiebreakerForests.includes(f.num) ? 'tiebreaker-only' : ''}`;
-                    div.innerHTML = `
-                        <div class="tokens">
-                            <div class="token t1">${f.t1}</div>
-                            <div class="token t2">${f.t2}</div>
-                        </div>
-                        <div class="forest-num">${f.num}</div>
-                        <div class="tree-counts"></div>
-                    `;
+                    div.innerHTML = `<div class="tokens"><div class="token t1">${f.t1}</div><div class="token t2">${f.t2}</div></div><div class="forest-num">${f.num}</div><div class="tree-counts"></div>`;
                     const counts = div.querySelector('.tree-counts');
                     f.trees.forEach(pId => {
                         const dot = document.createElement('div');
@@ -412,7 +379,6 @@
                     grid.appendChild(div);
                 });
 
-                // Dice
                 const diceArea = document.getElementById('dice-area');
                 diceArea.innerHTML = '';
                 if (this.state === 'pairing') {
@@ -425,76 +391,45 @@
                     });
                 }
 
-                // Pairs sums
-                const p1s = document.getElementById('p1-sum');
-                const p2s = document.getElementById('p2-sum');
-                if (this.selectedDice.length >= 2) p1s.textContent = this.dice[this.selectedDice[0]] + this.dice[this.selectedDice[1]];
-                else p1s.textContent = '-';
-                if (this.selectedDice.length === 4) p2s.textContent = this.dice[this.selectedDice[2]] + this.dice[this.selectedDice[3]];
-                else p2s.textContent = '-';
-
+                document.getElementById('p1-sum').textContent = this.selectedDice.length >= 2 ? (this.dice[this.selectedDice[0]] + this.dice[this.selectedDice[1]]) : '-';
+                document.getElementById('p2-sum').textContent = this.selectedDice.length === 4 ? (this.dice[this.selectedDice[2]] + this.dice[this.selectedDice[3]]) : '-';
                 document.getElementById('btn-confirm').disabled = this.selectedDice.length < 4;
             }
 
             resolveScoring() {
                 this.state = 'tiebreaking';
                 this.tiebreakerForests = [];
-                
                 this.forests.forEach(f => {
-                    if (f.t1 === 0 && f.t2 === 0) return; // Already awarded
-
+                    if (f.t1 === 0 && f.t2 === 0) return;
                     const counts = {};
                     this.players.forEach(p => counts[p.id] = f.trees.filter(tid => tid === p.id).length);
-                    
                     const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
-                    const maxCount = sorted[0][1];
-                    
-                    if (maxCount === 0) return;
-
-                    const tiedFor1st = sorted.filter(s => s[1] === maxCount);
-                    
+                    if (sorted[0][1] === 0) return;
+                    const tiedFor1st = sorted.filter(s => s[1] === sorted[0][1]);
                     if (tiedFor1st.length > 1) {
-                        // Tie for 1st: Remove non-tied players and add to tiebreaker
                         f.trees = f.trees.filter(tid => tiedFor1st.some(s => parseInt(s[0]) === tid));
                         this.tiebreakerForests.push(f.num);
                     } else {
-                        // 1st Place awarded
-                        const winnerId = parseInt(sorted[0][0]);
-                        this.players[winnerId].score += f.t1;
+                        this.players[parseInt(sorted[0][0])].score += f.t1;
                         f.t1 = 0;
-
-                        // Check 2nd Place
-                        const secondCount = sorted[1][1];
-                        if (secondCount > 0) {
-                            const tiedFor2nd = sorted.slice(1).filter(s => s[1] === secondCount);
+                        if (sorted[1][1] > 0) {
+                            const tiedFor2nd = sorted.slice(1).filter(s => s[1] === sorted[1][1]);
                             if (tiedFor2nd.length > 1) {
-                                // Tie for 2nd
                                 f.trees = f.trees.filter(tid => tiedFor2nd.some(s => parseInt(s[0]) === tid));
                                 this.tiebreakerForests.push(f.num);
                             } else {
                                 this.players[parseInt(sorted[1][0])].score += f.t2;
                                 f.t2 = 0;
                             }
-                        } else {
-                            f.t2 = 0; // No one has trees for 2nd
-                        }
+                        } else f.t2 = 0;
                     }
                 });
-
                 if (this.tiebreakerForests.length > 0) {
-                    this.showStatus("TIES DETECTED! Tiebreaker turn...", 3000);
-                    this.startTiebreaker();
-                } else {
-                    this.endGame();
-                }
-            }
-
-            startTiebreaker() {
-                // Players involved in ties roll dice again. 
-                // For simplicity, we'll give everyone a turn but tokens only count if placed in a tied forest.
-                this.state = 'rolling';
-                this.selectedDice = [];
-                this.updateUI();
+                    this.showStatus("TIES DETECTED! Bonus turn!", 3000);
+                    this.state = 'rolling';
+                    this.selectedDice = [];
+                    this.updateUI();
+                } else this.endGame();
             }
 
             showStatus(msg, time = 1000) {
@@ -505,20 +440,14 @@
 
             endGame() {
                 this.state = 'end';
-                const screen = document.getElementById('win-screen');
+                const ov = document.getElementById('win-screen');
                 const stats = document.getElementById('final-stats');
                 const sorted = [...this.players].sort((a,b) => b.score - a.score);
-                
-                document.getElementById('winner-title').textContent = sorted[0].id === 0 ? "FOREST MASTER!" : "OUTGROWN";
-                stats.innerHTML = sorted.map((p, i) => `
-                    <div style="${i===0?'color:var(--accent); font-weight:900;':''}">
-                        #${i+1} ${p.name}: ${p.score} points
-                    </div>
-                `).join('');
-                screen.style.display = 'flex';
+                document.getElementById('winner-title').textContent = sorted[0].id === 0 ? "FOREST MASTER" : "OUTGROWN";
+                stats.innerHTML = sorted.map((p, i) => `<div style="margin-bottom:8px; ${i===0?'color:var(--accent); font-weight:900;':''}">#${i+1} ${p.name}: ${p.score} points</div>`).join('');
+                ov.style.display = 'flex';
             }
         }
-
         const game = new PairAndConquer();
     </script>
 </body>

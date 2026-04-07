@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Charge! - K2 games</title>
+    <title>Rhino Charge - K2 games</title>
     <style>
         :root {
-            --primary: #6366f1;
-            --accent: #fbbf24;
+            --primary: #f59e0b;
+            --accent: #ef4444;
             --bg: #0f172a;
             --surface: #1e293b;
             --text: #f8fafc;
@@ -27,999 +27,578 @@
         body {
             overflow: hidden;
             height: 100dvh;
-            background: var(--bg);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            font-family: 'Segoe UI', system-ui, sans-serif;
             color: var(--text);
-        }
-
-        #home-btn {
-            position: fixed;
-            top: 16px;
-            left: 16px;
-            background: var(--surface);
-            color: var(--text);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 8px 12px;
-            font-size: 0.85rem;
-            text-decoration: none;
-            z-index: 1000;
-            transition: all 0.2s;
-        }
-
-        #home-btn:hover {
-            background: var(--primary);
-            border-color: var(--primary);
-            transform: translateY(-2px);
         }
 
         #game-container {
             position: relative;
             width: 100%;
             height: 100dvh;
-            max-width: 600px;
+            max-width: 800px;
             margin: 0 auto;
-            background: linear-gradient(180deg, #87ceeb 0%, #e0ac69 50%, #d4a574 100%);
-            box-sizing: border-box;
+            background: #000;
+            overflow: hidden;
         }
 
         canvas {
             display: block;
             width: 100%;
             height: 100%;
-            background: linear-gradient(180deg, #87ceeb 0%, #e0ac69 60%, #a0826d 100%);
         }
 
-        #hud {
+        #ui-layer {
             position: absolute;
-            top: 60px;
-            left: 16px;
-            right: 16px;
+            inset: 0;
+            pointer-events: none;
+            z-index: 10;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .top-hud {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            font-size: 0.9rem;
-            z-index: 10;
-            pointer-events: none;
+            align-items: flex-start;
         }
 
-        #score, #high-score {
-            background: rgba(0, 0, 0, 0.4);
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-weight: bold;
+        .stat-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 15px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(4px);
         }
 
-        #lives {
-            position: absolute;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 1.2rem;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-        }
+        .label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; font-weight: 900; letter-spacing: 1px; }
+        .value { font-size: 1.4rem; font-weight: 900; color: #fff; display: block; }
 
-        #charge-bar-container {
-            position: absolute;
-            top: 16px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 150px;
-            height: 20px;
-            background: rgba(0, 0, 0, 0.4);
-            border: 2px solid var(--accent);
-            border-radius: 10px;
+        #charge-meter {
+            width: 200px;
+            height: 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 6px;
             overflow: hidden;
-            z-index: 10;
+            margin-top: 8px;
+            border: 1px solid rgba(255,255,255,0.2);
         }
 
-        #charge-bar {
+        #charge-fill {
             height: 100%;
-            background: linear-gradient(90deg, #ef4444, #fbbf24, #22c55e);
             width: 0%;
-            transition: width 0.05s;
+            background: linear-gradient(90deg, #f59e0b, #fbbf24, #fff);
+            box-shadow: 0 0 15px var(--primary);
+            transition: width 0.1s;
         }
 
-        #mobile-controls {
-            display: none;
+        .combo-counter {
             position: absolute;
-            bottom: 0;
-            width: 100%;
-            height: 30%;
-            gap: 0;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -150%);
+            font-size: 3rem;
+            font-weight: 900;
+            color: var(--primary);
+            text-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+            opacity: 0;
+            transition: 0.3s;
         }
-
-        .touch-zone {
-            flex: 1;
-            background: transparent;
-            border: 2px solid rgba(251, 191, 36, 0.2);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.7rem;
-            color: rgba(251, 191, 36, 0.4);
-        }
-
-        @media (max-width: 768px) {
-            #mobile-controls {
-                display: flex;
-            }
-        }
+        .combo-counter.active { opacity: 1; transform: translate(-50%, -150%) scale(1.2); }
 
         .overlay {
             position: absolute;
             inset: 0;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(4px);
+            background: rgba(0, 0, 0, 0.85);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            gap: 20px;
+            gap: 25px;
             z-index: 100;
-            font-weight: bold;
-        }
-
-        .overlay h2 {
-            font-size: 2rem;
-            color: var(--accent);
             text-align: center;
+            padding: 40px;
         }
 
-        .overlay p {
-            font-size: 0.9rem;
-            color: var(--muted);
-            text-align: center;
-            max-width: 80%;
-        }
+        .overlay h1 { font-size: 4rem; font-style: italic; font-weight: 900; color: var(--primary); text-shadow: 0 0 30px rgba(245, 158, 11, 0.4); }
+        .overlay p { max-width: 400px; line-height: 1.6; color: var(--muted); }
 
-        button {
-            background: var(--accent);
+        .btn-play {
+            background: var(--primary);
             color: #000;
             border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: bold;
+            padding: 15px 45px;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            font-weight: 900;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: 0.2s;
+            box-shadow: 0 10px 20px rgba(245, 158, 11, 0.3);
+        }
+        .btn-play:hover { transform: scale(1.05); }
+
+        #home-btn {
+            position: fixed; top: 20px; left: 20px; z-index: 1000;
+            background: rgba(255,255,255,0.1); color: white; text-decoration: none;
+            padding: 8px 15px; border-radius: 8px; font-weight: bold; font-size: 0.8rem;
+            border: 1px solid rgba(255,255,255,0.2);
         }
 
-        button:hover {
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
-        }
-
-        button:active {
-            transform: scale(0.98);
-        }
-
-        .hidden {
-            display: none !important;
-        }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <a href="index.html" id="home-btn">← HUB</a>
+    
     <div id="game-container">
-        <div id="charge-bar-container">
-            <div id="charge-bar"></div>
+        <div id="ui-layer">
+            <div class="top-hud">
+                <div class="stat-box">
+                    <span class="label">Score</span>
+                    <span id="score-val" class="value">0</span>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div class="stat-box" style="text-align: center;">
+                        <span class="label">Charge Power</span>
+                        <div id="charge-meter"><div id="charge-fill"></div></div>
+                    </div>
+                    <div id="lives-display" style="margin-top: 10px; font-size: 1.5rem;"></div>
+                </div>
+                <div class="stat-box">
+                    <span class="label">High Score</span>
+                    <span id="high-val" class="value">0</span>
+                </div>
+            </div>
+            
+            <div id="combo-display" class="combo-counter">x5 COMBO</div>
         </div>
-        <div id="hud">
-            <div id="score">Score: 0</div>
-            <div id="high-score">High: 0</div>
-        </div>
-        <div id="lives">🦏🦏🦏</div>
+
         <canvas id="gameCanvas"></canvas>
-        <div id="mobile-controls">
-            <div class="touch-zone" id="charge-zone">CHARGE</div>
-        </div>
+
         <div id="menu-overlay" class="overlay">
-            <h2>Charge!</h2>
-            <p>Build momentum and smash through obstacles!</p>
-            <p style="font-size: 0.8rem; color: var(--muted);">Hold SPACE to charge. Crates break anytime, boulders need 50% power, walls need 100%.</p>
-            <button onclick="startGame()">Start Game</button>
+            <h1>CHARGE!</h1>
+            <p>Slam through obstacles to build your legend. Hold <b>SPACE</b> or <b>TAP</b> to charge your might. Release at 100% to enter a <b>RAGE SPRINT</b>!</p>
+            <div style="font-size: 0.8rem; color: #666;">
+                Crates: Any power | Boulders: 50% Power | Walls: 100% Power
+            </div>
+            <button class="btn-play" onclick="game.start()">START RUN</button>
         </div>
-        <div id="gameover-overlay" class="overlay hidden">
-            <h2>Game Over!</h2>
-            <p id="final-score">Score: 0</p>
-            <button onclick="location.reload()">Play Again</button>
-            <button onclick="location.href='index.html'">Back to Hub</button>
+
+        <div id="over-overlay" class="overlay hidden">
+            <h1 style="color: var(--accent);">EXTINCT</h1>
+            <div class="stat-box" style="min-width: 200px;">
+                <span class="label">Final Score</span>
+                <span id="final-score-val" class="value">0</span>
+            </div>
+            <button class="btn-play" onclick="game.start()">TRY AGAIN</button>
         </div>
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const scoreEl = document.getElementById('score');
-        const highScoreEl = document.getElementById('high-score');
-        const livesEl = document.getElementById('lives');
-        const chargeBarEl = document.getElementById('charge-bar');
-        const menuOverlay = document.getElementById('menu-overlay');
-        const gameoverOverlay = document.getElementById('gameover-overlay');
-        const finalScoreEl = document.getElementById('final-score');
 
-        let width, height;
-        let gameActive = false;
-        let score = 0;
-        let highScore = parseInt(localStorage.getItem('chargeHighScore') || '0');
-        let lives = 3;
-        let spacePressed = false;
-        let touchPressed = false;
-        let shakeAmount = 0;
-        let hitFlashFrames = 0;
-        let dustTrailCounter = 0;
+        class RhinoCharge {
+            constructor() {
+                this.width = 0;
+                this.height = 0;
+                this.active = false;
+                this.score = 0;
+                this.highScore = parseInt(localStorage.getItem('rhinoHighScore') || '0');
+                this.lives = 3;
+                this.inputDown = false;
+                
+                this.rhino = {
+                    x: 120, y: 0, w: 80, h: 60,
+                    charge: 0,
+                    isSprinting: false,
+                    sprintTimer: 0,
+                    invincible: 0,
+                    frame: 0,
+                    bob: 0,
+                    state: 'run' // run, hit, sprint
+                };
 
-        const rhino = {
-            x: 80,
-            y: 0,
-            width: 50,
-            height: 40,
-            speed: 4,
-            charge: 0,
-            maxCharge: 100,
-            isSprinting: false,
-            sprintTimer: 0,
-            sprintDuration: 120,
-            baseLegFrame: 0,
-            inMud: false,
-            mudTimer: 0,
-            invincibilityFrames: 0
-        };
+                this.obstacles = [];
+                this.particles = [];
+                this.groundX = 0;
+                this.speed = 5;
+                this.combo = 0;
+                this.comboTimer = 0;
+                this.shake = 0;
+                this.flash = 0;
 
-        let obstacles = [];
-        let particles = [];
-        let cracks = [];
-        let nextObstacleTime = 0;
-        let obstacleSpawnRate = 100;
-        let gameSpeed = 3;
-
-        function resize() {
-            const container = document.getElementById('game-container');
-            width = container.clientWidth;
-            height = container.clientHeight;
-            canvas.width = width;
-            canvas.height = height;
-            rhino.y = height - 100;
-        }
-
-        function init() {
-            resize();
-            highScoreEl.textContent = `High: ${highScore}`;
-            window.addEventListener('resize', resize);
-            window.addEventListener('keydown', (e) => {
-                if (e.code === 'Space') {
-                    e.preventDefault();
-                    spacePressed = true;
-                }
-            });
-            window.addEventListener('keyup', (e) => {
-                if (e.code === 'Space') {
-                    e.preventDefault();
-                    spacePressed = false;
-                    if (rhino.charge >= 100 && !rhino.isSprinting) {
-                        startSprint();
-                    }
-                }
-            });
-
-            document.getElementById('charge-zone').addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                touchPressed = true;
-            });
-            document.getElementById('charge-zone').addEventListener('touchend', (e) => {
-                e.preventDefault();
-                touchPressed = false;
-                if (rhino.charge >= 100 && !rhino.isSprinting) {
-                    startSprint();
-                }
-            });
-        }
-
-        function startSprint() {
-            rhino.isSprinting = true;
-            rhino.sprintTimer = rhino.sprintDuration;
-            rhino.charge = 0;
-            chargeBarEl.style.width = '0%';
-        }
-
-        function startGame() {
-            menuOverlay.classList.add('hidden');
-            gameActive = true;
-            score = 0;
-            lives = 3;
-            obstacles = [];
-            particles = [];
-            cracks = [];
-            nextObstacleTime = 0;
-            gameSpeed = 3;
-            rhino.charge = 0;
-            rhino.isSprinting = false;
-            rhino.inMud = false;
-            rhino.invincibilityFrames = 0;
-            updateHUD();
-            requestAnimationFrame(update);
-        }
-
-        function update() {
-            if (!gameActive) return;
-
-            // Charge meter (when not sprinting)
-            if (!rhino.isSprinting && (spacePressed || touchPressed)) {
-                if (rhino.charge < rhino.maxCharge) {
-                    rhino.charge += 1.2;
-                }
+                this.init();
             }
 
-            // Handle sprint
-            if (rhino.isSprinting) {
-                rhino.sprintTimer--;
-                if (rhino.sprintTimer <= 0) {
-                    rhino.isSprinting = false;
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                
+                const setDown = (e) => { e.preventDefault(); this.inputDown = true; };
+                const setUp = (e) => { 
+                    e.preventDefault(); 
+                    this.inputDown = false; 
+                    if(this.rhino.charge >= 100) this.triggerSprint();
+                };
+
+                window.addEventListener('keydown', (e) => { if(e.code === 'Space') this.inputDown = true; });
+                window.addEventListener('keyup', (e) => { if(e.code === 'Space') { this.inputDown = false; if(this.rhino.charge >= 100) this.triggerSprint(); }});
+                canvas.addEventListener('touchstart', setDown);
+                canvas.addEventListener('touchend', setUp);
+
+                document.getElementById('high-val').textContent = this.highScore;
+                this.render();
+            }
+
+            resize() {
+                this.width = canvas.parentElement.clientWidth;
+                this.height = canvas.parentElement.clientHeight;
+                canvas.width = this.width;
+                canvas.height = this.height;
+                this.rhino.y = this.height * 0.75;
+            }
+
+            start() {
+                this.active = true;
+                this.score = 0;
+                this.lives = 3;
+                this.speed = 5;
+                this.obstacles = [];
+                this.rhino.charge = 0;
+                this.rhino.isSprinting = false;
+                this.rhino.invincible = 0;
+                this.combo = 0;
+                
+                document.getElementById('menu-overlay').classList.add('hidden');
+                document.getElementById('over-overlay').classList.add('hidden');
+                this.updateHUD();
+                this.loop();
+            }
+
+            triggerSprint() {
+                if(this.rhino.isSprinting) return;
+                this.rhino.isSprinting = true;
+                this.rhino.sprintTimer = 180;
+                this.rhino.charge = 0;
+                this.shake = 10;
+                this.flash = 5;
+            }
+
+            update() {
+                if(!this.active) return;
+
+                // Handle Input
+                if(this.inputDown && !this.rhino.isSprinting) {
+                    this.rhino.charge = Math.min(100, this.rhino.charge + 1.2);
+                } else if(!this.rhino.isSprinting) {
+                    this.rhino.charge = Math.max(0, this.rhino.charge - 0.5);
                 }
-            }
 
-            // Mud slowdown
-            if (rhino.inMud) {
-                rhino.mudTimer--;
-                if (rhino.mudTimer <= 0) {
-                    rhino.inMud = false;
+                if(this.rhino.isSprinting) {
+                    this.rhino.sprintTimer--;
+                    if(this.rhino.sprintTimer <= 0) this.rhino.isSprinting = false;
                 }
-            }
 
-            if (rhino.invincibilityFrames > 0) rhino.invincibilityFrames--;
-
-            // Determine current speed
-            let currentSpeed = gameSpeed;
-            if (rhino.isSprinting) {
-                currentSpeed = gameSpeed * 2.5;
-                shakeAmount = 2;
-
-                // Dust trail during sprint
-                if (dustTrailCounter++ % 2 === 0) {
-                    for (let i = 0; i < 3; i++) {
-                        particles.push({
-                            x: rhino.x - 30 + Math.random() * 20,
-                            y: rhino.y + 30 + Math.random() * 10,
-                            vx: (Math.random() - 0.5) * 1.5,
-                            vy: -Math.random() * 0.8,
-                            life: 40,
-                            maxLife: 40,
-                            size: 8 + Math.random() * 6,
-                            color: `rgba(139, 110, 83, ${0.3 + Math.random() * 0.4})`
-                        });
-                    }
+                if(this.rhino.invincible > 0) this.rhino.invincible--;
+                if(this.comboTimer > 0) {
+                    this.comboTimer--;
+                    if(this.comboTimer === 0) this.combo = 0;
                 }
-            } else if (rhino.inMud) {
-                currentSpeed = gameSpeed * 0.3;
-            }
 
-            // Spawn obstacles
-            nextObstacleTime++;
-            if (nextObstacleTime > obstacleSpawnRate) {
-                const rand = Math.random();
-                let type;
-                if (rand < 0.3) type = 'crate';
-                else if (rand < 0.6) type = 'boulder';
-                else if (rand < 0.85) type = 'wall';
-                else type = 'mud';
+                // Speed & Parallax
+                let currentSpeed = this.speed;
+                if(this.rhino.isSprinting) currentSpeed *= 2.5;
+                this.groundX = (this.groundX + currentSpeed) % this.width;
 
-                const widthMap = { crate: 35, boulder: 40, wall: 50, mud: 100 };
-                const heightMap = { crate: 35, boulder: 40, wall: 60, mud: 20 };
+                // Obstacles
+                if(Math.random() < 0.02) this.spawnObstacle();
 
-                obstacles.push({
-                    x: width,
-                    type: type,
-                    width: widthMap[type],
-                    height: heightMap[type],
-                    hit: false
-                });
-                nextObstacleTime = 0;
-                obstacleSpawnRate = Math.max(60, 100 - score / 100);
-                gameSpeed = Math.min(6, 3 + score / 300);
-            }
-
-            // Update obstacles
-            obstacles = obstacles.filter(obs => {
-                obs.x -= currentSpeed;
-
-                // Collision detection
-                if (!obs.hit && rhino.invincibilityFrames <= 0) {
-                    if (obs.x < rhino.x + rhino.width && obs.x + obs.width > rhino.x) {
-                        if (obs.type === 'mud') {
-                            rhino.inMud = true;
-                            rhino.mudTimer = 90;
-                            obs.hit = true;
-                        } else {
-                            // Check if can break
-                            let canBreak = false;
-                            if (obs.type === 'crate') canBreak = true;
-                            else if (obs.type === 'boulder' && rhino.charge >= 50) canBreak = true;
-                            else if (obs.type === 'wall' && rhino.charge >= 100) canBreak = true;
-                            else if (rhino.isSprinting) canBreak = true;
-
-                            if (canBreak) {
-                                obs.hit = true;
-                                const points = { crate: 5, boulder: 15, wall: 30 }[obs.type];
-                                score += points;
-                                createObstacleParticles(obs.x + obs.width / 2, rhino.y, obs.type);
-                                if (obs.type === 'wall') {
-                                    createShockwave(obs.x + obs.width / 2, rhino.y);
-                                    createGroundCrack(obs.x + obs.width / 2, rhino.y);
-                                }
-                                shakeAmount = obs.type === 'wall' ? 4 : 2;
-                                updateHUD();
-                            } else {
-                                // Fail to break
-                                lives--;
-                                rhino.invincibilityFrames = 60;
-                                hitFlashFrames = 8;
-                                shakeAmount = 6;
-                                updateHUD();
-                                if (lives <= 0) {
-                                    gameOver();
-                                }
-                            }
+                this.obstacles.forEach((obs, i) => {
+                    obs.x -= currentSpeed;
+                    
+                    // Collision
+                    if(!obs.destroyed && this.rhino.invincible <= 0) {
+                        if(obs.x < this.rhino.x + 60 && obs.x + obs.w > this.rhino.x) {
+                            this.handleCollision(obs);
                         }
                     }
-                }
+                });
+                this.obstacles = this.obstacles.filter(o => o.x > -100);
 
-                return obs.x > -50;
-            });
-
-            // Update particles
-            particles = particles.filter(p => {
-                if (p.isShockwave) {
-                    p.radius += 2.5;
-                } else {
+                // Particles
+                this.particles.forEach(p => {
                     p.x += p.vx;
                     p.y += p.vy;
-                    p.vy += 0.2;
+                    p.vy += 0.3;
+                    p.life--;
+                });
+                this.particles = this.particles.filter(p => p.life > 0);
+
+                // Animation
+                this.rhino.frame += currentSpeed * 0.05;
+                this.rhino.bob = Math.sin(this.rhino.frame) * 5;
+
+                this.speed = 5 + (this.score / 500);
+                this.updateHUD();
+            }
+
+            spawnObstacle() {
+                const last = this.obstacles[this.obstacles.length-1];
+                if(last && this.width - last.x < 300) return;
+
+                const r = Math.random();
+                let type = 'crate';
+                if(r > 0.8) type = 'wall';
+                else if(r > 0.5) type = 'boulder';
+
+                const configs = {
+                    crate: { w: 50, h: 50, color: '#8b4513' },
+                    boulder: { w: 60, h: 60, color: '#666' },
+                    wall: { w: 40, h: 100, color: '#444' }
+                };
+
+                this.obstacles.push({
+                    x: this.width + 100,
+                    y: this.rhino.y + 40 - configs[type].h,
+                    ...configs[type],
+                    type,
+                    destroyed: false
+                });
+            }
+
+            handleCollision(obs) {
+                let canBreak = false;
+                if(this.rhino.isSprinting) canBreak = true;
+                else if(obs.type === 'crate') canBreak = true;
+                else if(obs.type === 'boulder' && this.rhino.charge > 50) canBreak = true;
+                else if(obs.type === 'wall' && this.rhino.charge >= 95) canBreak = true;
+
+                if(canBreak) {
+                    obs.destroyed = true;
+                    this.score += 10 + (this.combo * 5);
+                    this.combo++;
+                    this.comboTimer = 60;
+                    this.createExplosion(obs.x + obs.w/2, obs.y + obs.h/2, obs.color);
+                    this.shake = obs.type === 'wall' ? 15 : 5;
+                    if(obs.type === 'wall') this.flash = 3;
+                } else {
+                    this.lives--;
+                    this.rhino.invincible = 90;
+                    this.shake = 20;
+                    this.combo = 0;
+                    if(this.lives <= 0) this.gameOver();
                 }
-                p.life--;
-                return p.life > 0;
-            });
+            }
 
-            // Update cracks
-            cracks = cracks.filter(c => c.life-- > 0);
+            createExplosion(x, y, color) {
+                for(let i=0; i<15; i++) {
+                    this.particles.push({
+                        x, y,
+                        vx: (Math.random()-0.5) * 10,
+                        vy: (Math.random()-0.5) * 10 - 5,
+                        life: 30 + Math.random()*20,
+                        color,
+                        size: 4 + Math.random()*8
+                    });
+                }
+            }
 
-            // Update leg animation
-            rhino.baseLegFrame++;
+            gameOver() {
+                this.active = false;
+                if(this.score > this.highScore) {
+                    this.highScore = this.score;
+                    localStorage.setItem('rhinoHighScore', this.highScore);
+                }
+                document.getElementById('over-overlay').classList.remove('hidden');
+                document.getElementById('final-score-val').textContent = this.score;
+                document.getElementById('high-val').textContent = this.highScore;
+            }
 
-            // Apply screen shake
-            const shakeX = shakeAmount > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
-            const shakeY = shakeAmount > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
-            shakeAmount *= 0.8;
+            updateHUD() {
+                document.getElementById('score-val').textContent = this.score;
+                document.getElementById('charge-fill').style.width = this.rhino.charge + '%';
+                document.getElementById('lives-display').textContent = '🦏'.repeat(Math.max(0, this.lives));
+                
+                const comboEl = document.getElementById('combo-display');
+                if(this.combo > 1) {
+                    comboEl.textContent = `x${this.combo} COMBO`;
+                    comboEl.classList.add('active');
+                } else {
+                    comboEl.classList.remove('active');
+                }
+            }
 
-            // Draw
-            ctx.save();
-            ctx.translate(shakeX, shakeY);
+            draw() {
+                ctx.clearRect(0, 0, this.width, this.height);
 
-            // Sky gradient
-            const skyGradient = ctx.createLinearGradient(0, 0, 0, height * 0.6);
-            skyGradient.addColorStop(0, '#87ceeb');
-            skyGradient.addColorStop(1, '#e0ac69');
-            ctx.fillStyle = skyGradient;
-            ctx.fillRect(0, 0, width, height * 0.6);
+                ctx.save();
+                if(this.shake > 0) {
+                    ctx.translate((Math.random()-0.5)*this.shake, (Math.random()-0.5)*this.shake);
+                    this.shake *= 0.9;
+                }
 
-            // Sun with shimmer rings
-            ctx.fillStyle = 'rgba(255, 200, 0, 0.2)';
-            ctx.beginPath();
-            ctx.arc(width - 60, 60, 60, 0, Math.PI * 2);
-            ctx.fill();
+                // Sky
+                const sky = ctx.createLinearGradient(0, 0, 0, this.height);
+                sky.addColorStop(0, '#0f172a');
+                sky.addColorStop(0.6, '#1e293b');
+                ctx.fillStyle = sky;
+                ctx.fillRect(0, 0, this.width, this.height);
 
-            ctx.fillStyle = 'rgba(255, 200, 0, 0.3)';
-            ctx.beginPath();
-            ctx.arc(width - 60, 60, 45, 0, Math.PI * 2);
-            ctx.fill();
+                // Background Parallax
+                this.drawMountains(0.1, '#161e2e', 100);
+                this.drawMountains(0.3, '#1c2538', 50);
 
-            ctx.fillStyle = '#fbbf24';
-            ctx.beginPath();
-            ctx.arc(width - 60, 60, 30, 0, Math.PI * 2);
-            ctx.fill();
+                // Ground
+                ctx.fillStyle = '#2d3a4f';
+                ctx.fillRect(0, this.height * 0.75 + 40, this.width, this.height);
+                
+                // Ground detail
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                ctx.lineWidth = 2;
+                for(let i=0; i<10; i++) {
+                    const y = this.height * 0.75 + 60 + i*20;
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(this.width, y);
+                    ctx.stroke();
+                }
 
-            // Distant rocky outcrops (parallax)
-            ctx.fillStyle = 'rgba(80, 60, 40, 0.2)';
-            for (let i = 0; i < 4; i++) {
-                const rockX = (i * width / 2) - ((score * 0.1) % (width / 2));
+                // Obstacles
+                this.obstacles.forEach(obs => {
+                    if(obs.destroyed) return;
+                    ctx.fillStyle = obs.color;
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = 'black';
+                    
+                    if(obs.type === 'crate') {
+                        ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+                        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                        ctx.strokeRect(obs.x+5, obs.y+5, obs.w-10, obs.h-10);
+                    } else if(obs.type === 'boulder') {
+                        ctx.beginPath();
+                        ctx.roundRect(obs.x, obs.y, obs.w, obs.h, 15);
+                        ctx.fill();
+                    } else {
+                        ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+                    }
+                    ctx.shadowBlur = 0;
+                });
+
+                // Rhino
+                this.drawRhino();
+
+                // Particles
+                this.particles.forEach(p => {
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life / 50;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                });
+                ctx.globalAlpha = 1;
+
+                // Flash
+                if(this.flash > 0) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                    ctx.fillRect(0, 0, this.width, this.height);
+                    this.flash--;
+                }
+
+                ctx.restore();
+            }
+
+            drawMountains(speed, color, height) {
+                ctx.fillStyle = color;
+                const offset = (this.score * speed * 10) % this.width;
                 ctx.beginPath();
-                ctx.moveTo(rockX, height * 0.55);
-                ctx.lineTo(rockX - 40, height * 0.45);
-                ctx.lineTo(rockX + 40, height * 0.45);
+                ctx.moveTo(0, this.height * 0.75 + 40);
+                for(let x=0; x<=this.width+100; x+=100) {
+                    const peakY = this.height * 0.75 + 40 - (height + Math.sin((x+offset)*0.01)*30);
+                    ctx.lineTo(x, peakY);
+                }
+                ctx.lineTo(this.width, this.height * 0.75 + 40);
+                ctx.fill();
+            }
+
+            drawRhino() {
+                const {x, y, bob, invincible, isSprinting, charge} = this.rhino;
+                if(invincible % 4 > 2) return;
+
+                ctx.save();
+                ctx.translate(x, y + bob);
+
+                // Sprint trail
+                if(isSprinting) {
+                    ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+                    ctx.fillRect(-40, 5, 40, 40);
+                    ctx.fillRect(-80, 10, 40, 30);
+                }
+
+                // Body
+                const bodyGrad = ctx.createLinearGradient(0, 0, 0, 60);
+                bodyGrad.addColorStop(0, '#4b5563');
+                bodyGrad.addColorStop(1, '#1f2937');
+                ctx.fillStyle = isSprinting ? '#f59e0b' : bodyGrad;
+                
+                // Main Barrel
+                ctx.beginPath();
+                ctx.roundRect(0, 0, 80, 50, [20, 30, 10, 10]);
+                ctx.fill();
+
+                // Head
+                ctx.beginPath();
+                ctx.roundRect(60, -10, 35, 40, [10, 20, 10, 10]);
+                ctx.fill();
+
+                // Horn
+                ctx.fillStyle = charge > 80 || isSprinting ? '#fff' : '#d1d5db';
+                if(isSprinting) ctx.shadowBlur = 20, ctx.shadowColor = 'white';
+                ctx.beginPath();
+                ctx.moveTo(85, -5);
+                ctx.lineTo(110, -25);
+                ctx.lineTo(100, 10);
                 ctx.closePath();
                 ctx.fill();
-            }
+                ctx.shadowBlur = 0;
 
-            // Ground gradient
-            const groundGradient = ctx.createLinearGradient(0, height * 0.6, 0, height);
-            groundGradient.addColorStop(0, '#d4a574');
-            groundGradient.addColorStop(1, '#a0826d');
-            ctx.fillStyle = groundGradient;
-            ctx.fillRect(0, height * 0.6, width, height * 0.4);
+                // Eye
+                ctx.fillStyle = isSprinting ? '#fff' : '#ef4444';
+                ctx.beginPath();
+                ctx.arc(80, 5, 4, 0, Math.PI*2);
+                ctx.fill();
 
-            // Scrolling ground pattern - tyre tracks
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
-            ctx.lineWidth = 2;
-            const groundPattern = Math.floor((score / 10) % (width / 30)) * 30;
-            for (let i = 0; i < width / 30 + 2; i++) {
-                for (let j = 0; j < 3; j++) {
+                // Legs
+                ctx.fillStyle = isSprinting ? '#f59e0b' : '#111827';
+                const legMove = Math.sin(this.rhino.frame) * 15;
+                ctx.fillRect(10, 45, 12, 15 + legMove);
+                ctx.fillRect(55, 45, 12, 15 - legMove);
+
+                // Charge Aura
+                if(charge > 0) {
+                    ctx.strokeStyle = `rgba(245, 158, 11, ${charge/100})`;
+                    ctx.lineWidth = 3;
                     ctx.beginPath();
-                    ctx.moveTo(i * 30 - groundPattern, height * 0.6 + j * 15);
-                    ctx.lineTo(i * 30 - groundPattern + 15, height * 0.6 + j * 15);
+                    ctx.arc(40, 25, 45 + Math.sin(Date.now()*0.01)*5, 0, Math.PI*2);
                     ctx.stroke();
                 }
-            }
 
-            // Tumbleweed silhouettes
-            ctx.fillStyle = 'rgba(139, 110, 83, 0.15)';
-            for (let i = 0; i < 2; i++) {
-                const tumbleX = ((score * 0.3) + i * 250) % (width + 200) - 100;
-                ctx.beginPath();
-                ctx.arc(tumbleX, height - 40, 20, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            // Draw cracks
-            cracks.forEach(c => {
-                ctx.strokeStyle = `rgba(139, 110, 83, ${(c.life / c.maxLife) * 0.8})`;
-                ctx.lineWidth = 2;
-                for (let i = 0; i < 8; i++) {
-                    const angle = (i / 8) * Math.PI * 2;
-                    ctx.beginPath();
-                    ctx.moveTo(c.x, c.y);
-                    ctx.lineTo(c.x + Math.cos(angle) * 50, c.y + Math.sin(angle) * 30);
-                    ctx.stroke();
-                }
-            });
-
-            // Draw obstacles
-            obstacles.forEach(obs => {
-                if (obs.type === 'crate') {
-                    // Crate with gradient
-                    const crateGradient = ctx.createLinearGradient(obs.x, rhino.y - 10, obs.x + obs.width, rhino.y - 10 + obs.height);
-                    crateGradient.addColorStop(0, '#cd9b1d');
-                    crateGradient.addColorStop(1, '#8b6f47');
-                    ctx.fillStyle = crateGradient;
-                    ctx.fillRect(obs.x, rhino.y - 10, obs.width, obs.height);
-
-                    // Wood grain
-                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-                    ctx.lineWidth = 1;
-                    for (let i = 0; i < 5; i++) {
-                        ctx.beginPath();
-                        ctx.moveTo(obs.x + i * 7, rhino.y - 10);
-                        ctx.lineTo(obs.x + i * 7 + obs.width, rhino.y - 10 + obs.height);
-                        ctx.stroke();
-                    }
-
-                    // X mark
-                    ctx.strokeStyle = '#000';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.moveTo(obs.x + 5, rhino.y - 5);
-                    ctx.lineTo(obs.x + obs.width - 5, rhino.y - 10 + obs.height - 5);
-                    ctx.stroke();
-                    ctx.beginPath();
-                    ctx.moveTo(obs.x + obs.width - 5, rhino.y - 5);
-                    ctx.lineTo(obs.x + 5, rhino.y - 10 + obs.height - 5);
-                    ctx.stroke();
-
-                } else if (obs.type === 'boulder') {
-                    // Boulder with gradient and highlights
-                    const boulderGradient = ctx.createRadialGradient(obs.x - 10, rhino.y - 30, 5, obs.x, rhino.y - 15, obs.width);
-                    boulderGradient.addColorStop(0, '#808080');
-                    boulderGradient.addColorStop(1, '#404040');
-                    ctx.fillStyle = boulderGradient;
-                    ctx.beginPath();
-                    ctx.arc(obs.x + obs.width / 2, rhino.y - 20, obs.width / 2, 0, Math.PI * 2);
-                    ctx.fill();
-
-                    // Outline
-                    ctx.strokeStyle = '#000';
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-
-                    // Highlight spot
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-                    ctx.beginPath();
-                    ctx.arc(obs.x - 5, rhino.y - 30, 6, 0, Math.PI * 2);
-                    ctx.fill();
-
-                    // Cracks
-                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.bezierCurveTo(obs.x + 5, rhino.y - 25, obs.x + 15, rhino.y - 15, obs.x + 20, rhino.y - 10);
-                    ctx.stroke();
-
-                } else if (obs.type === 'wall') {
-                    // Wall with brick pattern
-                    const wallGradient = ctx.createLinearGradient(obs.x, rhino.y - 60, obs.x + obs.width, rhino.y - 60);
-                    wallGradient.addColorStop(0, '#c84c1a');
-                    wallGradient.addColorStop(1, '#8b2e0c');
-                    ctx.fillStyle = wallGradient;
-                    ctx.fillRect(obs.x, rhino.y - 60, obs.width, obs.height);
-
-                    // Bricks with mortar
-                    ctx.strokeStyle = '#d4a574';
-                    ctx.lineWidth = 2;
-                    for (let i = 0; i < 3; i++) {
-                        for (let j = 0; j < 2; j++) {
-                            ctx.strokeRect(obs.x + j * 25, rhino.y - 60 + i * 20, 25, 20);
-                        }
-                    }
-
-                    // Drop shadow
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-                    ctx.fillRect(obs.x, rhino.y - 60 + obs.height, obs.width, 5);
-
-                } else if (obs.type === 'mud') {
-                    // Mud
-                    const mudGradient = ctx.createLinearGradient(obs.x, rhino.y + 20, obs.x, rhino.y + 40);
-                    mudGradient.addColorStop(0, '#6b5344');
-                    mudGradient.addColorStop(1, '#4a3d33');
-                    ctx.fillStyle = mudGradient;
-                    ctx.fillRect(obs.x, rhino.y + 20, obs.width, obs.height);
-
-                    // Mud splatter pattern
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-                    for (let i = 0; i < 5; i++) {
-                        ctx.beginPath();
-                        ctx.arc(obs.x + Math.random() * obs.width, rhino.y + 25 + Math.random() * 10, 3, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-                }
-            });
-
-            // ─── Draw Rhino ─────────────────────────────────────────────
-            const rx = rhino.x;
-            const ry = rhino.y;
-            const legFrame = Math.floor(rhino.baseLegFrame / 8) % 4;
-
-            // Body bob during gallop
-            const bodyBob = [0, -3, 0, -3][legFrame];
-
-            // Charge aura BEHIND body
-            if (rhino.charge > 0) {
-                const ci = (rhino.charge / 100);
-                const auraGrad = ctx.createRadialGradient(rx, ry - 10 + bodyBob, 5, rx, ry - 10 + bodyBob, 40 + ci * 20);
-                auraGrad.addColorStop(0, `rgba(251,191,36,${ci * 0.5})`);
-                auraGrad.addColorStop(1, 'rgba(251,191,36,0)');
-                ctx.fillStyle = auraGrad;
-                ctx.beginPath();
-                ctx.arc(rx, ry - 10 + bodyBob, 40 + ci * 20, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            // Shadow
-            ctx.fillStyle = 'rgba(0,0,0,0.18)';
-            ctx.beginPath();
-            ctx.ellipse(rx, ry + 36, 30, 5, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // ── Legs (behind body) ──
-            // Gallop cycle: front pair and back pair alternate
-            const rhinoLegAngles = [
-                { fl: 0.3,  fr: -0.2, bl: -0.25, br: 0.2  },  // frame 0
-                { fl: 0.1,  fr: 0.3,  bl: 0.2,   br: -0.25 }, // frame 1
-                { fl: -0.2, fr: 0.3,  bl: 0.2,   br: -0.25 }, // frame 2
-                { fl: 0.3,  fr: -0.2, bl: -0.1,  br: 0.3  }   // frame 3
-            ][legFrame];
-
-            const rLegs = [
-                { bx: rx + 12, by: ry + 18 + bodyBob, angle: rhinoLegAngles.fr, label: 'fr' },
-                { bx: rx + 4,  by: ry + 18 + bodyBob, angle: rhinoLegAngles.fl, label: 'fl' },
-                { bx: rx - 8,  by: ry + 14 + bodyBob, angle: rhinoLegAngles.br, label: 'br' },
-                { bx: rx - 16, by: ry + 14 + bodyBob, angle: rhinoLegAngles.bl, label: 'bl' }
-            ];
-
-            rLegs.forEach(leg => {
-                ctx.save();
-                ctx.translate(leg.bx, leg.by);
-                ctx.rotate(leg.angle);
-                // Upper leg
-                const ulGrad = ctx.createLinearGradient(-4, 0, 4, 0);
-                ulGrad.addColorStop(0, '#888');
-                ulGrad.addColorStop(1, '#555');
-                ctx.fillStyle = ulGrad;
-                ctx.beginPath();
-                ctx.roundRect(-4, 0, 8, 15, 3);
-                ctx.fill();
-                // Lower leg
-                ctx.translate(0, 15);
-                ctx.rotate(leg.angle * 0.5);
-                const llGrad = ctx.createLinearGradient(-3, 0, 3, 0);
-                llGrad.addColorStop(0, '#777');
-                llGrad.addColorStop(1, '#444');
-                ctx.fillStyle = llGrad;
-                ctx.beginPath();
-                ctx.roundRect(-3, 0, 6, 13, 2);
-                ctx.fill();
-                // Hoof
-                ctx.fillStyle = '#222';
-                ctx.beginPath();
-                ctx.ellipse(0, 13, 4, 3, 0, 0, Math.PI * 2);
-                ctx.fill();
                 ctx.restore();
-            });
-
-            // ── Body (massive barrel shape) ──
-            const bGrad = ctx.createRadialGradient(rx - 8, ry - 16 + bodyBob, 4, rx, ry - 8 + bodyBob, 28);
-            bGrad.addColorStop(0, '#c8c8c8');
-            bGrad.addColorStop(0.5, '#a0a0a0');
-            bGrad.addColorStop(1, '#606060');
-            ctx.fillStyle = bGrad;
-            ctx.beginPath();
-            ctx.ellipse(rx, ry - 8 + bodyBob, 28, 22, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Skin fold / wrinkle lines on body
-            ctx.strokeStyle = 'rgba(60,60,60,0.25)';
-            ctx.lineWidth = 1.5;
-            ctx.lineCap = 'round';
-            for (let w = 0; w < 3; w++) {
-                ctx.beginPath();
-                ctx.arc(rx - 8 + w * 6, ry - 5 + bodyBob, 8 + w * 2, 0.8, Math.PI - 0.4, false);
-                ctx.stroke();
             }
 
-            // Muscular shoulder hump
-            const humpGrad = ctx.createRadialGradient(rx - 14, ry - 22 + bodyBob, 2, rx - 10, ry - 20 + bodyBob, 14);
-            humpGrad.addColorStop(0, '#b8b8b8');
-            humpGrad.addColorStop(1, '#6a6a6a');
-            ctx.fillStyle = humpGrad;
-            ctx.beginPath();
-            ctx.ellipse(rx - 10, ry - 20 + bodyBob, 14, 10, -0.3, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Belly (slightly lighter underside)
-            ctx.fillStyle = 'rgba(180,180,180,0.3)';
-            ctx.beginPath();
-            ctx.ellipse(rx + 2, ry + 8 + bodyBob, 22, 8, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // ── Head ──
-            const hGrad = ctx.createRadialGradient(rx + 15, ry - 18 + bodyBob, 2, rx + 20, ry - 12 + bodyBob, 18);
-            hGrad.addColorStop(0, '#c0c0c0');
-            hGrad.addColorStop(1, '#686868');
-            ctx.fillStyle = hGrad;
-            ctx.beginPath();
-            ctx.ellipse(rx + 22, ry - 12 + bodyBob, 16, 13, 0.2, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Skull ridge (texture)
-            ctx.strokeStyle = 'rgba(50,50,50,0.2)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.arc(rx + 22, ry - 18 + bodyBob, 10, 0.2, Math.PI - 0.2, false);
-            ctx.stroke();
-
-            // Snout (blunt flat front)
-            ctx.fillStyle = '#888';
-            ctx.beginPath();
-            ctx.ellipse(rx + 36, ry - 10 + bodyBob, 7, 10, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Nostrils
-            ctx.fillStyle = '#333';
-            ctx.beginPath();
-            ctx.ellipse(rx + 40, ry - 8 + bodyBob, 2, 1.5, 0.3, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(rx + 40, ry - 13 + bodyBob, 2, 1.5, -0.3, 0, Math.PI * 2);
-            ctx.fill();
-
-            // ── Horn (large, prominent) ──
-            const horGrad = ctx.createLinearGradient(rx + 30, ry - 20 + bodyBob, rx + 34, ry - 48 + bodyBob);
-            horGrad.addColorStop(0, '#7a6040');
-            horGrad.addColorStop(0.5, '#a89060');
-            horGrad.addColorStop(1, '#c8b080');
-            ctx.fillStyle = horGrad;
-            ctx.beginPath();
-            ctx.moveTo(rx + 27, ry - 18 + bodyBob);
-            ctx.bezierCurveTo(rx + 26, ry - 30 + bodyBob, rx + 30, ry - 42 + bodyBob, rx + 34, ry - 48 + bodyBob);
-            ctx.bezierCurveTo(rx + 36, ry - 45 + bodyBob, rx + 37, ry - 32 + bodyBob, rx + 38, ry - 18 + bodyBob);
-            ctx.closePath();
-            ctx.fill();
-            ctx.strokeStyle = '#5a4020';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            // Horn ridges
-            ctx.strokeStyle = 'rgba(60,40,20,0.4)';
-            ctx.lineWidth = 1;
-            for (let hr = 0; hr < 4; hr++) {
-                ctx.beginPath();
-                ctx.moveTo(rx + 28, ry - 22 - hr * 6 + bodyBob);
-                ctx.lineTo(rx + 37, ry - 22 - hr * 6 + bodyBob);
-                ctx.stroke();
+            loop() {
+                this.update();
+                this.draw();
+                if(this.active) requestAnimationFrame(() => this.loop());
             }
 
-            // ── Ear ──
-            ctx.fillStyle = '#909090';
-            ctx.save();
-            ctx.translate(rx + 12, ry - 22 + bodyBob);
-            ctx.rotate(-0.4);
-            ctx.beginPath();
-            ctx.ellipse(0, 0, 5, 8, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#c08080';
-            ctx.beginPath();
-            ctx.ellipse(0, 0, 3, 5, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-
-            // ── Eye ──
-            ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.arc(rx + 26, ry - 17 + bodyBob, 4, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#3a2a00';
-            ctx.beginPath();
-            ctx.arc(rx + 27, ry - 17 + bodyBob, 2.5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#000';
-            ctx.beginPath();
-            ctx.arc(rx + 27, ry - 17 + bodyBob, 1.5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = 'rgba(255,255,255,0.9)';
-            ctx.beginPath();
-            ctx.arc(rx + 28, ry - 18 + bodyBob, 0.9, 0, Math.PI * 2);
-            ctx.fill();
-
-            // ── Tail ──
-            ctx.strokeStyle = '#888';
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(rx - 26, ry - 8 + bodyBob);
-            ctx.quadraticCurveTo(rx - 38, ry - 2 + bodyBob, rx - 36, ry + 12 + bodyBob);
-            ctx.stroke();
-            ctx.fillStyle = '#555';
-            ctx.beginPath();
-            ctx.arc(rx - 36, ry + 12 + bodyBob, 3, 0, Math.PI * 2);
-            ctx.fill();
-
-            // ── Sprint effect ──
-            if (rhino.isSprinting) {
-                // Speed lines
-                ctx.lineCap = 'round';
-                for (let i = 0; i < 5; i++) {
-                    const lineAlpha = 0.6 - i * 0.1;
-                    ctx.strokeStyle = `rgba(251,191,36,${lineAlpha})`;
-                    ctx.lineWidth = 3 - i * 0.4;
-                    ctx.beginPath();
-                    ctx.moveTo(rx - 30 - i * 12, ry - 8 + bodyBob + (i - 2) * 10);
-                    ctx.lineTo(rx - 55 - i * 12, ry - 8 + bodyBob + (i - 2) * 10);
-                    ctx.stroke();
-                }
-                // Sprint ring
-                ctx.strokeStyle = 'rgba(251,191,36,0.5)';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.ellipse(rx, ry - 8 + bodyBob, 38, 28, 0, 0, Math.PI * 2);
-                ctx.stroke();
-            }
-
-            // Mud splatter on rhino when in mud
-            if (rhino.inMud) {
-                ctx.fillStyle = 'rgba(90,70,50,0.5)';
-                for (let m = 0; m < 4; m++) {
-                    ctx.beginPath();
-                    ctx.arc(rx - 10 + m * 8, ry + 10 + bodyBob, 3 + m, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-
-            // Invincibility blink
-            if (rhino.invincibilityFrames > 0 && Math.floor(rhino.invincibilityFrames / 4) % 2 === 0) {
-                ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.ellipse(rx, ry - 8 + bodyBob, 38, 28, 0, 0, Math.PI * 2);
-                ctx.stroke();
-            }
-
-            // Draw particles
-            particles.forEach(p => {
-                ctx.globalAlpha = p.life / p.maxLife;
-                ctx.fillStyle = p.color;
-                ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
-                ctx.globalAlpha = 1;
-            });
-
-            // Shockwave effect
-            particles.forEach(p => {
-                if (p.isShockwave) {
-                    ctx.globalAlpha = p.life / p.maxLife * 0.6;
-                    ctx.strokeStyle = 'rgba(251, 191, 36, 0.8)';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-                    ctx.stroke();
-                    ctx.globalAlpha = 1;
-                }
-            });
-
-            // Hit flash
-            if (hitFlashFrames > 0) {
-                ctx.globalAlpha = hitFlashFrames / 8 * 0.5;
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(0, 0, width, height);
-                ctx.globalAlpha = 1;
-                hitFlashFrames--;
-            }
-
-            ctx.restore();
-
-            // Update charge bar
-            chargeBarEl.style.width = `${rhino.charge}%`;
-
-            requestAnimationFrame(update);
-        }
-
-        function createObstacleParticles(x, y, type) {
-            const colorMap = {
-                crate: '#8b6f47',
-                boulder: '#808080',
-                wall: '#c84c1a'
-            };
-            const color = colorMap[type] || '#999';
-
-            for (let i = 0; i < 12; i++) {
-                const angle = (Math.PI * 2 * i) / 12;
-                particles.push({
-                    x: x,
-                    y: y,
-                    vx: Math.cos(angle) * 4,
-                    vy: Math.sin(angle) * 4 - 2,
-                    life: 40,
-                    maxLife: 40,
-                    size: 6,
-                    color: color
-                });
+            render() {
+                this.draw();
+                if(!this.active) requestAnimationFrame(() => this.render());
             }
         }
 
-        function createShockwave(x, y) {
-            for (let i = 0; i < 3; i++) {
-                particles.push({
-                    x: x,
-                    y: y,
-                    radius: 0,
-                    life: 50,
-                    maxLife: 50,
-                    isShockwave: true
-                });
-                particles[particles.length - 1].radius = i * 10;
-            }
-        }
-
-        function createGroundCrack(x, y) {
-            cracks.push({
-                x: x,
-                y: y,
-                life: 40,
-                maxLife: 40
-            });
-        }
-
-        function updateHUD() {
-            scoreEl.textContent = `Score: ${score}`;
-            livesEl.textContent = '🦏'.repeat(Math.max(0, lives));
-        }
-
-        function gameOver() {
-            gameActive = false;
-            if (score > highScore) {
-                highScore = score;
-                localStorage.setItem('chargeHighScore', highScore);
-            }
-            finalScoreEl.textContent = `Score: ${score}\nHigh Score: ${highScore}`;
-            gameoverOverlay.classList.remove('hidden');
-        }
-
-        init();
+        const game = new RhinoCharge();
     </script>
 </body>
 </html>

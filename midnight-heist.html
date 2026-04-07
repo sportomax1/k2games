@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Midnight Heist - K2 games</title>
+    <style>
+        :root {
+            --primary: #f97316;
+            --accent: #fbbf24;
+            --bg: #020617;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --muted: #64748b;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100dvh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        nav {
+            height: 50px;
+            padding: 0 1rem;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo { font-weight: 900; color: var(--primary); letter-spacing: 1px; }
+        .restart-btn { background: var(--surface); border: 1px solid var(--border); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background: #020617;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 10;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .top-hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 15px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(4px);
+            text-align: center;
+        }
+
+        .label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; font-weight: 900; letter-spacing: 1px; }
+        .value { font-size: 1.4rem; font-weight: 900; color: #fff; display: block; }
+
+        #detection-meter {
+            width: 150px;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        #detection-fill { height: 100%; width: 0%; background: var(--primary); transition: width 0.1s; }
+
+        #joystick-container {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            pointer-events: auto;
+            display: none;
+        }
+        #joystick-knob {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 50px; height: 50px;
+            background: var(--primary);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 20px rgba(249, 115, 22, 0.4);
+        }
+
+        .overlay {
+            position: absolute; inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; text-align: center; padding: 30px;
+        }
+
+        .overlay h1 { font-size: 3.5rem; font-style: italic; font-weight: 900; color: var(--primary); }
+        .overlay p { max-width: 400px; margin-bottom: 20px; color: var(--muted); line-height: 1.6; }
+
+        .btn-play {
+            background: var(--primary); color: white; border: none; padding: 15px 60px;
+            border-radius: 50px; font-size: 1.2rem; font-weight: 900; cursor: pointer;
+            transition: 0.2s; box-shadow: 0 10px 20px rgba(249, 115, 22, 0.3);
+        }
+        .btn-play:hover { transform: scale(1.05); }
+
+        #home-btn {
+            position: fixed; top: 10px; left: 10px; z-index: 1000;
+            background: rgba(255,255,255,0.1); color: white; text-decoration: none;
+            padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 0.7rem;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <a href="index.html" id="home-btn">← HUB</a>
+    
+    <nav>
+        <div class="logo">MIDNIGHT HEIST</div>
+        <button class="restart-btn" onclick="location.reload()">RESTART</button>
+    </nav>
+
+    <div id="game-container">
+        <div id="ui-layer">
+            <div class="top-hud">
+                <div class="stat-box">
+                    <span class="label">Chickens</span>
+                    <span id="score-val" class="value">0</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Alert Status</span>
+                    <div id="detection-meter"><div id="detection-fill"></div></div>
+                </div>
+                <div class="stat-box">
+                    <span class="label">High Score</span>
+                    <span id="high-val" class="value">0</span>
+                </div>
+            </div>
+            
+            <div id="joystick-container">
+                <div id="joystick-knob"></div>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="menu-overlay" class="overlay">
+            <h1>MIDNIGHT HEIST</h1>
+            <p>Sneak into the farm, grab chickens, and escape through the hole in the fence! Guards will wander and chase if they spot you.</p>
+            <div style="text-align: left; color: #94a3b8; font-size: 0.8rem; margin-bottom: 20px;">
+                <b>CONTROLS:</b><br>
+                • WASD / Arrows to Move<br>
+                • Mobile: Use Virtual Joystick<br>
+                • Find the Chickens and lead them to the <b>EXIT GATE</b>!
+            </div>
+            <button class="btn-play" onclick="game.start()">HEIST!</button>
+        </div>
+
+        <div id="over-overlay" class="overlay hidden">
+            <h1 style="color: var(--primary);">CAUGHT!</h1>
+            <div class="stat-box" style="min-width: 200px; margin-bottom: 20px;">
+                <span class="label">Loot Secured</span>
+                <span id="final-score-val" class="value">0</span>
+            </div>
+            <button class="btn-play" onclick="game.start()">RETRY HEIST</button>
+        </div>
+
+        <div id="win-overlay" class="overlay hidden">
+            <h1 style="color: #22c55e;">HEIST SUCCESS</h1>
+            <div class="stat-box" style="min-width: 200px; margin-bottom: 20px;">
+                <span class="label">Chickens Escaped</span>
+                <span id="win-score-val" class="value">0</span>
+            </div>
+            <button class="btn-play" onclick="game.start()">NEXT FARM</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        class MidnightHeist {
+            constructor() {
+                this.width = 0;
+                this.height = 0;
+                this.active = false;
+                this.score = 0;
+                this.chickensHeld = 0;
+                this.highScore = parseInt(localStorage.getItem('heistHighScore') || '0');
+                
+                this.fox = { x: 0, y: 0, r: 15, angle: 0, speed: 3.5, vx: 0, vy: 0 };
+                this.guards = [];
+                this.chickens = [];
+                this.obstacles = [];
+                this.exitPoint = { x: 0, y: 0, r: 40 };
+                
+                this.keys = {};
+                this.joystick = { active: false, x: 0, y: 0, dx: 0, dy: 0 };
+                this.detection = 0;
+
+                this.init();
+            }
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                
+                window.addEventListener('keydown', (e) => this.keys[e.code] = true);
+                window.addEventListener('keyup', (e) => this.keys[e.code] = false);
+
+                const joy = document.getElementById('joystick-container');
+                const knob = document.getElementById('joystick-knob');
+
+                const handleMove = (e) => {
+                    if(!this.joystick.active) return;
+                    const touch = e.touches ? e.touches[0] : e;
+                    const rect = joy.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    
+                    let dx = touch.clientX - centerX;
+                    let dy = touch.clientY - centerY;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const maxDist = rect.width / 2;
+
+                    if(dist > maxDist) {
+                        dx *= maxDist / dist;
+                        dy *= maxDist / dist;
+                    }
+
+                    this.joystick.dx = dx / maxDist;
+                    this.joystick.dy = dy / maxDist;
+                    knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+                };
+
+                const handleEnd = () => {
+                    this.joystick.active = false;
+                    this.joystick.dx = 0;
+                    this.joystick.dy = 0;
+                    knob.style.transform = `translate(-50%, -50%)`;
+                    joy.style.display = 'none';
+                };
+
+                canvas.addEventListener('touchstart', (e) => {
+                    if(!this.active) return;
+                    joy.style.display = 'block';
+                    const touch = e.touches[0];
+                    joy.style.left = (touch.clientX - 60) + 'px';
+                    joy.style.bottom = (window.innerHeight - touch.clientY - 60) + 'px';
+                    this.joystick.active = true;
+                });
+                window.addEventListener('touchmove', handleMove);
+                window.addEventListener('touchend', handleEnd);
+
+                document.getElementById('high-val').textContent = this.highScore;
+                this.renderLoop();
+            }
+
+            resize() {
+                this.width = canvas.parentElement.clientWidth;
+                this.height = canvas.parentElement.clientHeight;
+                canvas.width = this.width;
+                canvas.height = this.height;
+            }
+
+            start() {
+                this.active = true;
+                this.chickensHeld = 0;
+                this.detection = 0;
+                this.obstacles = [];
+                this.guards = [];
+                this.chickens = [];
+                
+                // Exit point (random side corner)
+                this.exitPoint = { x: 50, y: 50, r: 50 };
+                this.fox.x = this.width - 100;
+                this.fox.y = this.height - 100;
+
+                // Layout Hay Bales
+                for(let i=0; i<10; i++) {
+                    this.obstacles.push({
+                        x: Math.random() * (this.width - 100) + 50,
+                        y: Math.random() * (this.height - 100) + 50,
+                        w: 60, h: 40
+                    });
+                }
+
+                // Chickens
+                for(let i=0; i<5; i++) {
+                    this.chickens.push({
+                        x: Math.random() * (this.width - 200) + 100,
+                        y: Math.random() * (this.height - 200) + 100,
+                        held: false
+                    });
+                }
+
+                // AI Guards (Dynamic movement)
+                this.guards.push(new Guard(this.width * 0.2, 200, 'dog'));
+                this.guards.push(new Guard(this.width * 0.8, 400, 'farmer'));
+                if(this.score > 5) this.guards.push(new Guard(this.width/2, 300, 'dog'));
+
+                document.getElementById('menu-overlay').classList.add('hidden');
+                document.getElementById('over-overlay').classList.add('hidden');
+                document.getElementById('win-overlay').classList.add('hidden');
+                this.updateHUD();
+                this.gameLoop();
+            }
+
+            update() {
+                if(!this.active) return;
+
+                // Movement
+                let mvx = 0, mvy = 0;
+                if(this.keys['KeyW'] || this.keys['ArrowUp']) mvy -= 1;
+                if(this.keys['KeyS'] || this.keys['ArrowDown']) mvy += 1;
+                if(this.keys['KeyA'] || this.keys['ArrowLeft']) mvx -= 1;
+                if(this.keys['KeyD'] || this.keys['ArrowRight']) mvx += 1;
+
+                if(this.joystick.active) {
+                    mvx = this.joystick.dx;
+                    mvy = this.joystick.dy;
+                }
+
+                if(mvx !== 0 || mvy !== 0) {
+                    const angle = Math.atan2(mvy, mvx);
+                    this.fox.vx = Math.cos(angle) * this.fox.speed;
+                    this.fox.vy = Math.sin(angle) * this.fox.speed;
+                    this.fox.angle = angle;
+                } else {
+                    this.fox.vx *= 0.8;
+                    this.fox.vy *= 0.8;
+                }
+
+                // Collision
+                const nextX = this.fox.x + this.fox.vx;
+                const nextY = this.fox.y + this.fox.vy;
+                let canX = true, canY = true;
+                this.obstacles.forEach(ob => {
+                    if(this.rectCircleColliding(ob, {x: nextX, y: this.fox.y, r: this.fox.r})) canX = false;
+                    if(this.rectCircleColliding(ob, {x: this.fox.x, y: nextY, r: this.fox.r})) canY = false;
+                });
+                if(canX) this.fox.x = Math.max(this.fox.r, Math.min(this.width - this.fox.r, nextX));
+                if(canY) this.fox.y = Math.max(this.fox.r, Math.min(this.height - this.fox.r, nextY));
+
+                // Guard AI & Detection
+                let spotted = false;
+                this.guards.forEach(g => {
+                    g.update(this.width, this.height, this.obstacles, this.fox, this.detection);
+                    if(g.canSee(this.fox, this.obstacles)) spotted = true;
+                });
+
+                if(spotted) this.detection = Math.min(100, this.detection + 2);
+                else this.detection = Math.max(0, this.detection - 0.4);
+
+                if(this.detection >= 100) this.gameOver();
+
+                // Chickens
+                this.chickens.forEach(c => {
+                    if(!c.held) {
+                        if(Math.hypot(this.fox.x - c.x, this.fox.y - c.y) < 30) {
+                            c.held = true;
+                            this.chickensHeld++;
+                        }
+                    } else {
+                        const angle = this.fox.angle + Math.PI; // Tail behind
+                        const tx = this.fox.x + Math.cos(angle) * 25;
+                        const ty = this.fox.y + Math.sin(angle) * 25;
+                        c.x += (tx - c.x) * 0.1;
+                        c.y += (ty - c.y) * 0.1;
+                    }
+                });
+
+                // Exit
+                const distToExit = Math.hypot(this.fox.x - this.exitPoint.x, this.fox.y - this.exitPoint.y);
+                if(distToExit < this.exitPoint.r && this.chickensHeld > 0) {
+                    this.winLevel();
+                }
+
+                this.updateHUD();
+            }
+
+            rectCircleColliding(rect, circle) {
+                const dx = circle.x - Math.max(rect.x, Math.min(circle.x, rect.x + rect.w));
+                const dy = circle.y - Math.max(rect.y, Math.min(circle.y, rect.y + rect.h));
+                return (dx * dx + dy * dy) < (circle.r * circle.r);
+            }
+
+            winLevel() {
+                this.active = false;
+                this.score += this.chickensHeld;
+                if(this.score > this.highScore) {
+                    this.highScore = this.score;
+                    localStorage.setItem('heistHighScore', this.highScore);
+                }
+                document.getElementById('win-overlay').classList.remove('hidden');
+                document.getElementById('win-score-val').textContent = this.chickensHeld;
+                document.getElementById('high-val').textContent = this.highScore;
+            }
+
+            gameOver() {
+                this.active = false;
+                document.getElementById('over-overlay').classList.remove('hidden');
+                document.getElementById('final-score-val').textContent = this.score;
+            }
+
+            updateHUD() {
+                document.getElementById('score-val').textContent = this.score + (this.chickensHeld ? ` (+${this.chickensHeld})` : '');
+                const fill = document.getElementById('detection-fill');
+                fill.style.width = this.detection + '%';
+                fill.style.backgroundColor = this.detection > 70 ? '#ef4444' : (this.detection > 30 ? '#fbbf24' : '#f97316');
+            }
+
+            draw() {
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // Grass
+                ctx.fillStyle = '#064e3b';
+                ctx.fillRect(0, 0, this.width, this.height);
+                
+                // Fence
+                ctx.strokeStyle = '#451a03'; ctx.lineWidth = 10;
+                ctx.strokeRect(5, 5, this.width-10, this.height-10);
+
+                // Exit Gate
+                ctx.fillStyle = '#34d399';
+                ctx.beginPath(); ctx.arc(this.exitPoint.x, this.exitPoint.y, this.exitPoint.r, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.arc(this.exitPoint.x, this.exitPoint.y, this.exitPoint.r-10, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'white'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
+                ctx.fillText('EXIT GATE', this.exitPoint.x, this.exitPoint.y + 5);
+
+                // Obstacles
+                this.obstacles.forEach(ob => {
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.beginPath(); ctx.roundRect(ob.x, ob.y, ob.w, ob.h, 5); ctx.fill();
+                    ctx.strokeStyle = '#92400e'; ctx.lineWidth = 2; ctx.stroke();
+                });
+
+                // Chickens
+                this.chickens.forEach(c => {
+                    ctx.font = '24px Arial';
+                    ctx.fillText('🐔', c.x-12, c.y+10);
+                });
+
+                // Guards
+                this.guards.forEach(g => g.draw(ctx));
+
+                // Fox
+                this.drawFox();
+
+                // Darkness
+                const grad = ctx.createRadialGradient(this.fox.x, this.fox.y, 100, this.fox.x, this.fox.y, 450);
+                grad.addColorStop(0, 'rgba(0,0,0,0)');
+                grad.addColorStop(1, 'rgba(0,0,0,0.85)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, this.width, this.height);
+            }
+
+            drawFox() {
+                ctx.save();
+                ctx.translate(this.fox.x, this.fox.y);
+                ctx.rotate(this.fox.angle);
+                ctx.font = '32px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('🦊', 0, 0);
+                ctx.restore();
+            }
+
+            gameLoop() {
+                this.update();
+                this.draw();
+                if(this.active) requestAnimationFrame(() => this.gameLoop());
+            }
+
+            renderLoop() {
+                if(!this.active) {
+                    this.draw();
+                    requestAnimationFrame(() => this.renderLoop());
+                }
+            }
+        }
+
+        class Guard {
+            constructor(x, y, type) {
+                this.x = x; this.y = y; this.type = type;
+                this.angle = Math.random() * Math.PI * 2;
+                this.state = 'patrol';
+                this.targetPos = { x, y };
+                this.timer = 0;
+                this.speed = type === 'dog' ? 1.5 : 1;
+                this.visionRange = 200;
+                this.visionAngle = Math.PI / 2.5;
+            }
+
+            update(w, h, obstacles, fox, detection) {
+                this.timer++;
+
+                if(detection > 40 && this.canSee(fox, obstacles)) {
+                    this.state = 'chase';
+                    this.targetPos = { x: fox.x, y: fox.y };
+                } else if(this.timer > 150) {
+                    this.state = 'patrol';
+                    this.targetPos = { x: Math.random()*w, y: Math.random()*h };
+                    this.timer = 0;
+                }
+
+                // Move toward target
+                const dx = this.targetPos.x - this.x;
+                const dy = this.targetPos.y - this.y;
+                const dist = Math.hypot(dx, dy);
+                
+                if(dist > 5) {
+                    const moveAngle = Math.atan2(dy, dx);
+                    // Slow rotate toward movement
+                    let diff = moveAngle - this.angle;
+                    while(diff < -Math.PI) diff += Math.PI * 2;
+                    while(diff > Math.PI) diff -= Math.PI * 2;
+                    this.angle += diff * 0.05;
+
+                    this.x += Math.cos(this.angle) * (this.state === 'chase' ? this.speed * 1.8 : this.speed);
+                    this.y += Math.sin(this.angle) * (this.state === 'chase' ? this.speed * 1.8 : this.speed);
+                }
+            }
+
+            canSee(target, obstacles) {
+                const dx = target.x - this.x;
+                const dy = target.y - this.y;
+                const dist = Math.hypot(dx, dy);
+                if(dist > this.visionRange) return false;
+
+                const angleToTarget = Math.atan2(dy, dx);
+                let diff = angleToTarget - this.angle;
+                while(diff < -Math.PI) diff += Math.PI * 2;
+                while(diff > Math.PI) diff -= Math.PI * 2;
+
+                if(Math.abs(diff) < this.visionAngle / 2) {
+                    let blocked = false;
+                    obstacles.forEach(ob => {
+                        const midX = ob.x + ob.w/2;
+                        const midY = ob.y + ob.h/2;
+                        if(Math.hypot(this.x - midX, this.y - midY) < dist) {
+                            const perpDist = Math.abs((dy*midX - dx*midY + target.x*this.y - target.y*this.x) / dist);
+                            if(perpDist < 25) blocked = true;
+                        }
+                    });
+                    return !blocked;
+                }
+                return false;
+            }
+
+            draw(ctx) {
+                const color = this.state === 'chase' ? 'rgba(239, 68, 68, 0.4)' : 'rgba(251, 191, 36, 0.3)';
+                const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.visionRange);
+                grad.addColorStop(0, color);
+                grad.addColorStop(1, 'transparent');
+                
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.moveTo(this.x, this.y);
+                ctx.arc(this.x, this.y, this.visionRange, this.angle - this.visionAngle/2, this.angle + this.visionAngle/2);
+                ctx.closePath(); ctx.fill();
+
+                ctx.font = '30px Arial';
+                ctx.fillText(this.type === 'dog' ? '🐕' : '👨‍🌾', this.x-15, this.y+10);
+                if(this.state === 'chase') {
+                    ctx.fillStyle = '#ef4444'; ctx.font = 'bold 12px Arial';
+                    ctx.fillText('!', this.x, this.y-25);
+                }
+            }
+        }
+
+        const game = new MidnightHeist();
+    </script>
+</body>
+</html>
