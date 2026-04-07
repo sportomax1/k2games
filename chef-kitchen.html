@@ -3,484 +3,1322 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chef Hands 3D: Elite Kitchen - K2 games</title>
+    <title>Kitchen Chaos - K2 Games</title>
     <style>
         :root {
             --bg: #020617;
             --accent: #f59e0b;
-            --panel: rgba(15, 23, 42, 0.95);
+            --panel: rgba(15, 23, 42, 0.92);
             --border: rgba(255, 255, 255, 0.15);
+            --green: #22c55e;
+            --red: #ef4444;
         }
-
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-        
-        body {
-            background-color: var(--bg);
-            color: white;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            height: 100vh;
-            overflow: hidden;
-            cursor: none;
-        }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; overflow: hidden; cursor: none; }
 
-        #ui-container {
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            z-index: 100;
-        }
-
-        /* Pro Ticket Rail */
+        /* ── Order Rail ── */
         #order-rail {
-            height: 180px;
-            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-            border-bottom: 6px solid #334155;
-            display: flex;
-            align-items: flex-start;
-            padding: 15px 50px;
-            gap: 25px;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
-            position: relative;
+            position: absolute; top: 0; left: 0; right: 0;
+            height: 195px; z-index: 100; pointer-events: none;
+            background: linear-gradient(180deg, rgba(10,2,30,0.95) 0%, rgba(10,2,30,0.7) 100%);
+            border-bottom: 3px solid rgba(245,158,11,0.3);
+            display: flex; align-items: flex-start; padding: 14px 160px 10px 14px;
+            gap: 12px; overflow: hidden;
         }
-
-        #order-rail::after {
-            content: '';
-            position: absolute;
-            bottom: -10px; left: 0; right: 0;
-            height: 4px; background: rgba(0,0,0,0.3);
-        }
-
         .ticket {
-            width: 180px;
-            background: #fffdf0;
-            color: #1e293b;
-            padding: 20px;
-            border-radius: 4px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            min-width: 155px; max-width: 155px;
+            background: #fffbeb; color: #1e293b;
+            padding: 10px 12px 8px;
+            border-radius: 4px 4px 0 0;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.5);
             font-family: 'Courier New', monospace;
-            transform: rotate(-0.5deg);
-            position: relative;
-            animation: ticketDrop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            border-top: 15px solid #e2e8f0;
+            position: relative; flex-shrink: 0;
+            border-top: 12px solid #e2e8f0;
+            animation: ticketDrop 0.5s cubic-bezier(0.175,0.885,0.32,1.275);
         }
-        @keyframes ticketDrop { 
-            from { transform: translateY(-120%) rotate(10deg); opacity: 0; } 
-            to { transform: translateY(0) rotate(-0.5deg); opacity: 1; } 
+        @keyframes ticketDrop { from { transform: translateY(-140%) rotate(8deg); opacity:0; } to { transform:translateY(0) rotate(0); opacity:1; } }
+        .ticket.expiring { border-top-color: #fca5a5 !important; animation: shake 0.4s infinite; }
+        @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
+        .ticket.expired { animation: ticketOut 0.4s ease-in forwards; }
+        @keyframes ticketOut { to { transform: translateY(200%) rotate(-15deg); opacity:0; } }
+        .ticket h3 { font-size: 0.72rem; font-weight: 900; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 0.5px; }
+        .ticket ul { list-style: none; font-size: 0.78rem; font-weight: 700; }
+        .ticket li { display: flex; align-items: center; gap: 5px; padding: 1px 0; }
+        .ticket li::before { content: '□'; opacity: 0.35; font-size: 0.9rem; }
+        .ticket-timer-wrap { height: 6px; background: rgba(0,0,0,0.15); border-radius: 3px; margin-top: 7px; overflow: hidden; }
+        .ticket-timer { height: 100%; border-radius: 3px; transition: width 0.9s linear, background 0.5s; }
+        .ticket-order-num { position: absolute; top: -10px; right: 8px; font-size: 0.6rem; font-weight: 900; color: #64748b; }
+
+        /* ── HUD ── */
+        #hud {
+            position: absolute; top: 14px; right: 14px; z-index: 110;
+            display: flex; flex-direction: column; gap: 10px; pointer-events: none;
         }
-
-        .ticket h3 { font-size: 0.9rem; border-bottom: 2px dashed #cbd5e1; margin-bottom: 10px; padding-bottom: 8px; text-transform: uppercase; }
-        .ticket ul { list-style: none; font-size: 0.85rem; font-weight: 900; }
-        .ticket li { margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
-        .ticket li::before { content: '☐'; opacity: 0.3; }
-
-        /* Score Display */
-        #hud-top {
-            position: absolute;
-            top: 200px;
-            right: 30px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .stat-pill {
-            background: var(--panel);
-            backdrop-filter: blur(15px);
-            padding: 12px 25px;
-            border-radius: 50px;
+        .hud-pill {
+            background: var(--panel); backdrop-filter: blur(12px);
+            padding: 10px 18px; border-radius: 50px;
             border: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            display: flex; align-items: center; gap: 12px;
+        }
+        .hud-label { font-size: 0.58rem; text-transform: uppercase; color: #64748b; letter-spacing: 2px; font-weight: 800; }
+        .hud-val { font-size: 1.6rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+        #combo-pill { transition: all 0.3s; }
+        #combo-pill.active { border-color: #f97316; box-shadow: 0 0 20px rgba(249,115,22,0.4); }
+        #combo-val { color: #f97316; }
+
+        /* ── Station Guide ── */
+        #station-guide {
+            position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+            z-index: 110; pointer-events: none;
+            background: var(--panel); backdrop-filter: blur(10px);
+            border: 1px solid var(--border); border-radius: 30px;
+            padding: 8px 20px; display: flex; gap: 18px; align-items: center;
+        }
+        .sg-item { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; font-weight: 700; color: #94a3b8; }
+        .sg-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+        /* ── Plate Preview ── */
+        #plate-preview {
+            position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%);
+            z-index: 110; pointer-events: none;
+            background: var(--panel); backdrop-filter: blur(10px);
+            border: 1px solid var(--border); border-radius: 12px;
+            padding: 7px 16px; display: flex; gap: 6px; align-items: center;
+            min-width: 140px; justify-content: center;
+        }
+        #plate-label { font-size: 0.6rem; font-weight: 800; color: #64748b; letter-spacing: 1px; margin-right: 4px; }
+        .plate-item-badge {
+            font-size: 0.65rem; font-weight: 800; color: white;
+            background: rgba(255,255,255,0.12); border-radius: 6px;
+            padding: 2px 6px; white-space: nowrap;
         }
 
-        .stat-label { font-size: 0.65rem; text-transform: uppercase; color: #94a3b8; letter-spacing: 2px; font-weight: 800; }
-        .stat-val { font-size: 1.8rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+        /* ── Held Item Indicator ── */
+        #held-indicator {
+            position: absolute; bottom: 55px; right: 14px; z-index: 110;
+            pointer-events: none;
+            background: var(--panel); border: 1px solid var(--border);
+            border-radius: 12px; padding: 7px 14px;
+            font-size: 0.7rem; font-weight: 700; color: #94a3b8;
+            min-width: 100px; text-align: center;
+        }
+        #held-name { font-size: 0.85rem; font-weight: 900; color: white; }
 
-        /* Modern Overlay */
+        /* ── Floating Score ── */
+        .float-score {
+            position: absolute; z-index: 200; pointer-events: none;
+            font-size: 1.4rem; font-weight: 900; white-space: nowrap;
+            animation: floatUp 1.6s ease-out forwards;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(0.8); }
+            20% { opacity: 1; transform: translateY(-20px) scale(1.2); }
+            100% { opacity: 0; transform: translateY(-100px) scale(0.9); }
+        }
+
+        /* ── Overlays ── */
         #overlay {
-            position: absolute;
-            inset: 0;
-            background: radial-gradient(circle at center, rgba(15, 23, 42, 0.9) 0%, rgba(2, 6, 23, 1) 100%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            text-align: center;
-            transition: 0.5s;
+            position: absolute; inset: 0; z-index: 300;
+            background: radial-gradient(circle at 50% 45%, rgba(15,23,42,0.94) 0%, rgba(2,6,23,0.98) 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; transition: opacity 0.5s;
         }
         #overlay.hidden { opacity: 0; pointer-events: none; }
-
-        .logo-main { font-size: 6rem; font-weight: 900; font-style: italic; color: white; letter-spacing: -2px; margin-bottom: 0; line-height: 1; }
-        .logo-sub { color: var(--accent); font-size: 1.5rem; letter-spacing: 8px; margin-bottom: 3rem; font-weight: 300; }
-
-        .btn-start {
-            background: white;
-            color: #000;
-            border: none;
-            padding: 1.5rem 5rem;
-            border-radius: 100px;
-            font-weight: 900;
-            font-size: 1.4rem;
-            cursor: pointer;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.5);
-            transition: 0.3s;
+        .logo-big { font-size: 5.5rem; font-weight: 900; font-style: italic; line-height: 1; letter-spacing: -3px; margin-bottom: 0; }
+        .logo-kitchen { color: #f97316; text-shadow: 0 0 50px rgba(249,115,22,0.5); }
+        .logo-chaos { color: #f59e0b; text-shadow: 0 0 50px rgba(245,158,11,0.5); }
+        .logo-sub { color: #64748b; font-size: 0.85rem; letter-spacing: 8px; margin-bottom: 0.5rem; text-transform: uppercase; }
+        .feature-list { color: #475569; font-size: 0.8rem; margin-bottom: 2.5rem; line-height: 2; }
+        .feature-list span { color: #94a3b8; font-weight: 700; }
+        .btn-main {
+            background: var(--accent); color: #000; border: none;
+            padding: 1.3rem 5rem; border-radius: 100px; font-weight: 900; font-size: 1.3rem;
+            cursor: pointer; box-shadow: 0 12px 35px rgba(245,158,11,0.45); transition: 0.25s; letter-spacing: 1px;
         }
-        .btn-start:hover { transform: scale(1.05) translateY(-5px); background: var(--accent); }
+        .btn-main:hover { transform: scale(1.06) translateY(-4px); box-shadow: 0 18px 45px rgba(245,158,11,0.55); }
+        #overlay-score { font-size: 1rem; color: #94a3b8; margin: 0.5rem 0 0.3rem; }
+        #overlay-score span { color: var(--accent); font-size: 2rem; font-weight: 900; font-family: monospace; }
 
-        .back-link { position: fixed; bottom: 30px; left: 30px; color: #64748b; text-decoration: none; font-weight: bold; font-size: 0.8rem; z-index: 1100; opacity: 0.5; transition: 0.3s; }
+        .back-link { position: fixed; bottom: 24px; left: 24px; color: #475569; text-decoration: none; font-weight: 700; font-size: 0.75rem; z-index: 400; opacity: 0.5; transition: 0.3s; letter-spacing: 1px; }
         .back-link:hover { opacity: 1; color: white; }
+
+        /* ── Flash ── */
+        #flash { position: absolute; inset: 0; z-index: 250; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
     </style>
 </head>
 <body>
 
-    <a href="index.html" class="back-link">TERMINATE SHIFT</a>
+<a href="index.html" class="back-link">◀ VAULT</a>
 
-    <div id="ui-container">
-        <div id="order-rail"></div>
-        <div id="hud-top">
-            <div class="stat-pill">
-                <span class="stat-label">Earnings</span>
-                <span id="score-val" class="stat-val">$0</span>
-            </div>
-            <div class="stat-pill">
-                <span class="stat-label">Clock</span>
-                <span id="timer-val" class="stat-val">02:00</span>
-            </div>
-        </div>
+<!-- Order tickets -->
+<div id="order-rail"></div>
+
+<!-- HUD -->
+<div id="hud">
+    <div class="hud-pill">
+        <div><div class="hud-label">Score</div><div class="hud-val" id="score-val">$0</div></div>
     </div>
-
-    <div id="overlay">
-        <h1 class="logo-main">CHEF HANDS</h1>
-        <p class="logo-sub">PREMIUM 3D</p>
-        <button class="btn-start" onclick="game.start()">CLOCK IN</button>
+    <div class="hud-pill">
+        <div><div class="hud-label">Clock</div><div class="hud-val" id="timer-val">02:30</div></div>
     </div>
+    <div class="hud-pill" id="combo-pill">
+        <div><div class="hud-label">Combo</div><div class="hud-val" id="combo-val">×1</div></div>
+    </div>
+</div>
 
-    <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
-    </script>
+<!-- Plate preview -->
+<div id="plate-preview">
+    <span id="plate-label">PLATE</span>
+    <span id="plate-items" style="display:flex;gap:5px;flex-wrap:wrap"></span>
+</div>
 
-    <script type="module">
-        import * as THREE from 'three';
+<!-- Held item -->
+<div id="held-indicator">
+    <div class="hud-label">HOLDING</div>
+    <div id="held-name">—</div>
+</div>
 
-        const DATA = {
-            ingredients: {
-                BUN_B:    { id: 'bun_b',   name: 'Bottom Bun', color: 0xd3a15e, h: 0.15, r: 0.65, type: 'cylinder' },
-                PATTY:    { id: 'patty',   name: 'Wagyu Patty',color: 0x4b2c20, h: 0.18, r: 0.6,  type: 'noisy' },
-                CHEESE:   { id: 'cheese',  name: 'Sharp Cheddar', color: 0xffd32a, h: 0.05, r: 0.62, type: 'box' },
-                LETTUCE:  { id: 'lettuce', name: 'Butter Lettuce', color: 0x26de81, h: 0.05, r: 0.7,  type: 'noisy' },
-                TOMATO:   { id: 'tomato',  name: 'Roma Tomato', color: 0xff4757, h: 0.08, r: 0.55, type: 'cylinder' },
-                BUN_T:    { id: 'bun_t',   name: 'Toasted Top', color: 0xd3a15e, h: 0.35, r: 0.65, type: 'dome' }
-            },
-            recipes: [
-                { name: "Classic Burger", items: ['bun_b', 'patty', 'cheese', 'bun_t'], price: 15 },
-                { name: "Double Deluxe", items: ['bun_b', 'patty', 'cheese', 'patty', 'cheese', 'bun_t'], price: 25 },
-                { name: "Garden Stack", items: ['bun_b', 'lettuce', 'tomato', 'lettuce', 'bun_t'], price: 18 },
-                { name: "High Protein", items: ['bun_b', 'patty', 'patty', 'patty', 'cheese', 'bun_t'], price: 30 }
-            ]
+<!-- Station guide -->
+<div id="station-guide">
+    <div class="sg-item"><div class="sg-dot" style="background:#3b82f6"></div>Bins</div>
+    <div class="sg-item"><div class="sg-dot" style="background:#84cc16"></div>Chop ✂️ ×3</div>
+    <div class="sg-item"><div class="sg-dot" style="background:#f97316"></div>Cook 🍳 ~5s</div>
+    <div class="sg-item"><div class="sg-dot" style="background:#e2e8f0"></div>Plate 🍽️</div>
+    <div class="sg-item"><div class="sg-dot" style="background:#fbbf24"></div>Serve 🔔</div>
+    <div class="sg-item"><div class="sg-dot" style="background:#64748b"></div>Trash 🗑️</div>
+</div>
+
+<!-- Flash overlay -->
+<div id="flash"></div>
+
+<!-- Start / Game Over -->
+<div id="overlay">
+    <div class="logo-big"><span class="logo-kitchen">KITCHEN</span><br><span class="logo-chaos">CHAOS</span></div>
+    <p class="logo-sub">Overcooked-style cooking madness</p>
+    <div class="feature-list">
+        <span>✂️ Chop</span> lettuce & tomato on the board &nbsp;|&nbsp;
+        <span>🍳 Cook</span> patties in the pans (don't burn!)<br>
+        <span>🍽️ Plate</span> the right ingredients &nbsp;|&nbsp;
+        <span>🔔 Serve</span> before orders expire &nbsp;|&nbsp;
+        <span>🔥 Chain</span> combos for multiplier bonus
+    </div>
+    <p id="overlay-score" style="display:none">Final Score <span id="final-score">$0</span></p>
+    <button class="btn-main" id="btn-start">OPEN KITCHEN</button>
+</div>
+
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ═══════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════
+const INGREDIENT_DEFS = {
+    bun:     { name:'Bun',     emoji:'🍞', color:0xe8c27a, needsChop:false, needsCook:false, readyId:'bun' },
+    patty:   { name:'Patty',   emoji:'🥩', color:0x8b5e3c, rawColor:0x8b5e3c, cookedColor:0x3d1a08, burntColor:0x0d0d0d, needsChop:false, needsCook:true,  readyId:'patty_c' },
+    cheese:  { name:'Cheese',  emoji:'🧀', color:0xffd700, needsChop:false, needsCook:false, readyId:'cheese' },
+    lettuce: { name:'Lettuce', emoji:'🥬', color:0x4ade80, rawColor:0x4ade80, choppedColor:0x16a34a, needsChop:true,  needsCook:false, readyId:'lettuce_c' },
+    tomato:  { name:'Tomato',  emoji:'🍅', color:0xef4444, rawColor:0xef4444, choppedColor:0xb91c1c, needsChop:true,  needsCook:false, readyId:'tomato_c' },
+};
+
+const INGREDIENT_LABELS = {
+    bun:'Bun', patty_c:'Patty ✓', cheese:'Cheese', lettuce_c:'Lettuce ✓', tomato_c:'Tomato ✓'
+};
+
+const RECIPES = [
+    { name:'Classic Burger', emoji:'🍔', price:20, timeLimit:28, items:['bun','patty_c','cheese','bun'] },
+    { name:'Veggie Stack',   emoji:'🥗', price:22, timeLimit:32, items:['bun','lettuce_c','tomato_c','cheese','bun'] },
+    { name:'Double Smash',   emoji:'🔥', price:32, timeLimit:36, items:['bun','patty_c','patty_c','cheese','bun'] },
+    { name:'Loaded Burger',  emoji:'💎', price:38, timeLimit:42, items:['bun','patty_c','cheese','lettuce_c','tomato_c','bun'] },
+];
+
+const COOK_TIME   = 5.0;   // seconds to cook
+const BURN_WARN   = 3.5;   // seconds after cooked before burning starts
+const BURNT_TIME  = 2.5;   // seconds burning before fully burnt
+const CHOP_NEEDED = 3;     // clicks to fully chop
+
+// ═══════════════════════════════════════════
+// PARTICLE SYSTEM (3D steam/sparks)
+// ═══════════════════════════════════════════
+class Particles3D {
+    constructor(scene) {
+        this.scene = scene;
+        this.pool = [];
+    }
+    emit(x, y, z, type='steam', count=5) {
+        for (let i = 0; i < count; i++) {
+            const geo = new THREE.SphereGeometry(type==='steam' ? 0.18 : 0.12, 6, 6);
+            const mat = new THREE.MeshBasicMaterial({
+                color: type==='steam' ? 0xaaaaaa : (type==='spark' ? 0xffd700 : 0xff6600),
+                transparent: true, opacity: 0.6
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x + (Math.random()-0.5)*0.4, y, z + (Math.random()-0.5)*0.4);
+            this.scene.add(mesh);
+            this.pool.push({
+                mesh, life: 1, vx:(Math.random()-0.5)*0.6, vy:0.8+Math.random()*1.2, vz:(Math.random()-0.5)*0.6, type
+            });
+        }
+    }
+    update(dt) {
+        for (let i = this.pool.length-1; i >= 0; i--) {
+            const p = this.pool[i];
+            p.mesh.position.x += p.vx * dt;
+            p.mesh.position.y += p.vy * dt;
+            p.mesh.position.z += p.vz * dt;
+            p.vy -= (p.type === 'spark' ? 2 : -0.2) * dt;
+            p.life -= dt * (p.type==='spark' ? 2.5 : 0.9);
+            p.mesh.material.opacity = Math.max(0, p.life * 0.6);
+            p.mesh.scale.setScalar(p.life);
+            if (p.life <= 0) { this.scene.remove(p.mesh); this.pool.splice(i,1); }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════
+// MAIN GAME CLASS
+// ═══════════════════════════════════════════
+class KitchenChaos {
+    constructor() {
+        // State must be initialised before buildStations() references it
+        this.heldIngredient = null;
+        this.board = { ingredient: null, chopCount: 0, mesh: null, progressMesh: null };
+        this.pans = [
+            { ingredient:null, state:'empty', timer:0, warnEmit:0, mesh:null, flameMesh:null, glowLight:null, pos:null, progressArc:null },
+            { ingredient:null, state:'empty', timer:0, warnEmit:0, mesh:null, flameMesh:null, glowLight:null, pos:null, progressArc:null }
+        ];
+        this.plateItems = [];
+        this.plateMeshes = [];
+        this.score = 0;
+        this.combo = 1;
+        this.timeLeft = 150;
+        this.active = false;
+
+        this.setupRenderer();
+        this.setupScene();
+        this.setupLighting();
+        this.buildKitchen();
+        this.buildStations();
+        this.buildHand();
+        this.particles = new Particles3D(this.scene);
+
+        this.mouse = new THREE.Vector2();
+        this.handTarget = new THREE.Vector3(0, 6, 10);
+        this.raycaster = new THREE.Raycaster();
+        this.interactables = [];
+        this.registerInteractables();
+        this.orders = [];
+        this._orderCounter = 0;
+        this._lastTs = 0;
+
+        this.setupInput();
+        document.getElementById('btn-start').onclick = () => this.start();
+        this.render();
+    }
+
+    // ─── RENDERER / SCENE ───────────────────
+    setupRenderer() {
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.1;
+        document.body.appendChild(this.renderer.domElement);
+        window.addEventListener('resize', () => {
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    }
+
+    setupScene() {
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x0d0520);
+        this.scene.fog = new THREE.Fog(0x0d0520, 25, 45);
+        this.camera = new THREE.PerspectiveCamera(38, window.innerWidth/window.innerHeight, 0.1, 100);
+        this.camera.position.set(0, 17, 20);
+        this.camera.lookAt(0, 0, 2);
+    }
+
+    setupLighting() {
+        this.scene.add(new THREE.AmbientLight(0xfff4e0, 0.45));
+
+        const key = new THREE.DirectionalLight(0xfff5e0, 1.4);
+        key.position.set(6, 18, 12);
+        key.castShadow = true;
+        key.shadow.mapSize.set(2048, 2048);
+        key.shadow.camera.left = -18; key.shadow.camera.right = 18;
+        key.shadow.camera.top = 18; key.shadow.camera.bottom = -18;
+        key.shadow.bias = -0.002;
+        this.scene.add(key);
+
+        // Cool rim light (blue from back)
+        const rim = new THREE.DirectionalLight(0x4060ff, 0.5);
+        rim.position.set(-5, 8, -10);
+        this.scene.add(rim);
+
+        // Warm overhead kitchen lights (3 points)
+        [-6, 0, 6].forEach(x => {
+            const pt = new THREE.PointLight(0xfff3c0, 1.2, 22);
+            pt.position.set(x, 10, 1);
+            pt.castShadow = false;
+            this.scene.add(pt);
+        });
+    }
+
+    // ─── KITCHEN ENVIRONMENT ────────────────
+    buildKitchen() {
+        // Checkered floor (Overcooked signature)
+        const floorCanvas = document.createElement('canvas');
+        floorCanvas.width = floorCanvas.height = 512;
+        const fc = floorCanvas.getContext('2d');
+        for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) {
+            fc.fillStyle = (i+j)%2 === 0 ? '#f0e8d8' : '#d4c8a8';
+            fc.fillRect(i*64, j*64, 64, 64);
+        }
+        const floorTex = new THREE.CanvasTexture(floorCanvas);
+        floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+        floorTex.repeat.set(5, 5);
+        const floor = new THREE.Mesh(
+            new THREE.PlaneGeometry(40, 30),
+            new THREE.MeshLambertMaterial({ map: floorTex })
+        );
+        floor.rotation.x = -Math.PI/2;
+        floor.position.y = -1;
+        floor.receiveShadow = true;
+        this.scene.add(floor);
+
+        // Back wall with kitchen tile texture
+        const wallCanvas = document.createElement('canvas');
+        wallCanvas.width = wallCanvas.height = 512;
+        const wc = wallCanvas.getContext('2d');
+        wc.fillStyle = '#fef9c3';
+        wc.fillRect(0, 0, 512, 512);
+        wc.strokeStyle = '#fde68a'; wc.lineWidth = 3;
+        for (let i = 0; i <= 8; i++) { wc.beginPath(); wc.moveTo(i*64,0); wc.lineTo(i*64,512); wc.stroke(); }
+        for (let j = 0; j <= 8; j++) { wc.beginPath(); wc.moveTo(0,j*64); wc.lineTo(512,j*64); wc.stroke(); }
+        const wallTex = new THREE.CanvasTexture(wallCanvas);
+        wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping;
+        wallTex.repeat.set(4, 2);
+        const backWall = new THREE.Mesh(
+            new THREE.PlaneGeometry(40, 18),
+            new THREE.MeshLambertMaterial({ map: wallTex })
+        );
+        backWall.position.set(0, 8, -10);
+        this.scene.add(backWall);
+
+        // Side walls
+        const sideWallMat = new THREE.MeshLambertMaterial({ color: 0xfef3c7 });
+        [-16, 16].forEach((x, i) => {
+            const sw = new THREE.Mesh(new THREE.PlaneGeometry(26, 18), sideWallMat);
+            sw.position.set(x, 8, -2);
+            sw.rotation.y = i === 0 ? Math.PI/2 : -Math.PI/2;
+            this.scene.add(sw);
+        });
+
+        // Ceiling
+        const ceiling = new THREE.Mesh(
+            new THREE.PlaneGeometry(40, 30),
+            new THREE.MeshLambertMaterial({ color: 0xf8f8f8 })
+        );
+        ceiling.rotation.x = Math.PI/2;
+        ceiling.position.y = 16;
+        this.scene.add(ceiling);
+
+        // Hanging lamp fixtures (3 above counter)
+        [-6, 0, 6].forEach(x => {
+            const cord = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.04, 0.04, 4),
+                new THREE.MeshStandardMaterial({ color: 0x222222 })
+            );
+            cord.position.set(x, 13, 1);
+            this.scene.add(cord);
+            const shade = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.8, 1.2, 0.8, 12, 1, true),
+                new THREE.MeshStandardMaterial({ color: 0xe8e0d0, side: THREE.DoubleSide })
+            );
+            shade.position.set(x, 11, 1);
+            this.scene.add(shade);
+            const bulb = new THREE.Mesh(
+                new THREE.SphereGeometry(0.25, 8, 8),
+                new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff3a0, emissiveIntensity: 2 })
+            );
+            bulb.position.set(x, 11.2, 1);
+            this.scene.add(bulb);
+        });
+
+        // Main counter (two-tier: shelf + work surface)
+        const counterMat = new THREE.MeshStandardMaterial({ color: 0xe8dcc8, roughness: 0.5, metalness: 0.05 });
+        const counterEdgeMat = new THREE.MeshStandardMaterial({ color: 0xcdb89a, roughness: 0.6 });
+
+        // Work counter (front)
+        const workCounter = new THREE.Mesh(new THREE.BoxGeometry(22, 1.4, 10), counterMat);
+        workCounter.position.set(0, -0.2, 2);
+        workCounter.receiveShadow = true; workCounter.castShadow = true;
+        this.scene.add(workCounter);
+        // Edges
+        const edgeTop = new THREE.Mesh(new THREE.BoxGeometry(22, 0.18, 10.2), counterEdgeMat);
+        edgeTop.position.set(0, 0.51, 2);
+        this.scene.add(edgeTop);
+
+        // Back shelf (for ingredient bins)
+        const backShelf = new THREE.Mesh(new THREE.BoxGeometry(20, 0.9, 4.5), counterMat);
+        backShelf.position.set(0, 1.2, -4.5);
+        backShelf.receiveShadow = true; backShelf.castShadow = true;
+        this.scene.add(backShelf);
+        const backShelfEdge = new THREE.Mesh(new THREE.BoxGeometry(20, 0.15, 4.6), counterEdgeMat);
+        backShelfEdge.position.set(0, 1.67, -4.5);
+        this.scene.add(backShelfEdge);
+
+        // Counter support legs
+        const legMat = new THREE.MeshStandardMaterial({ color: 0xb8a888, roughness: 0.7 });
+        [[-9.5,-1.5,2],[-9.5,-1.5,6.5],[9.5,-1.5,2],[9.5,-1.5,6.5]].forEach(([x,y,z]) => {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3, 0.5), legMat);
+            leg.position.set(x, y, z); this.scene.add(leg);
+        });
+    }
+
+    // ─── STATIONS ───────────────────────────
+    buildStations() {
+        // Ingredient bins (back shelf, z=-4.5)
+        const binPositions = [-7.5, -3.75, 0, 3.75, 7.5];
+        const binTypes = ['bun', 'patty', 'cheese', 'lettuce', 'tomato'];
+        this.bins = binPositions.map((x, i) => {
+            const def = INGREDIENT_DEFS[binTypes[i]];
+            return this.makeBin(x, 2.1, -4.5, binTypes[i], def.color, def.name, def.emoji);
+        });
+
+        // ── Trash (far left, front counter)
+        this.trashMesh = this.makeStation(-8.5, 0.7, 2.5, 0x374151, 1.4, 1.5, 1.4, 'trash');
+        const trashLid = new THREE.Mesh(
+            new THREE.BoxGeometry(1.5, 0.3, 1.5),
+            new THREE.MeshStandardMaterial({ color: 0x4b5563 })
+        );
+        trashLid.position.set(-8.5, 1.5, 2.5);
+        this.scene.add(trashLid);
+        const trashLabel = this.makeLabel(0x374151, '🗑️');
+        trashLabel.position.set(-8.5, 2.2, 2.2);
+        this.scene.add(trashLabel);
+
+        // ── Chopping Board
+        const boardGroup = new THREE.Group();
+        const boardBase = new THREE.Mesh(
+            new THREE.BoxGeometry(2.5, 0.25, 2.0),
+            new THREE.MeshStandardMaterial({ color: 0xc4a46a, roughness: 0.9 })
+        );
+        boardBase.receiveShadow = true;
+        boardGroup.add(boardBase);
+        // Wood grain lines
+        const grainMat = new THREE.LineBasicMaterial({ color: 0xa8885a });
+        for (let i = -5; i <= 5; i++) {
+            const pts = [new THREE.Vector3(-1.2, 0.13, i*0.18), new THREE.Vector3(1.2, 0.13, i*0.18)];
+            boardGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), grainMat));
+        }
+        // Progress arc (ring around board, fills as chopping)
+        const arcGeo = new THREE.TorusGeometry(1.35, 0.12, 6, 32, 0);
+        this.boardProgressMesh = new THREE.Mesh(arcGeo, new THREE.MeshStandardMaterial({ color: 0x84cc16, emissive: 0x84cc16, emissiveIntensity: 0.5 }));
+        this.boardProgressMesh.rotation.x = Math.PI/2;
+        this.boardProgressMesh.position.y = 0.18;
+        this.boardProgressMesh.visible = false;
+        boardGroup.add(this.boardProgressMesh);
+
+        boardGroup.position.set(-4.5, 0.63, 2.5);
+        this.scene.add(boardGroup);
+        this.board.mesh = boardGroup;
+        this.board.pos = new THREE.Vector3(-4.5, 1.0, 2.5);
+        // Platform glow base
+        const boardPlatform = new THREE.Mesh(
+            new THREE.BoxGeometry(2.8, 0.08, 2.3),
+            new THREE.MeshStandardMaterial({ color: 0x84cc16, emissive: 0x84cc16, emissiveIntensity: 0.25 })
+        );
+        boardPlatform.position.set(-4.5, 0.46, 2.5);
+        this.scene.add(boardPlatform);
+        // Make board clickable
+        boardBase.userData = { type: 'board' };
+        boardBase.position.set(-4.5, 0.63, 2.5);
+        this.scene.add(boardBase); // Re-add directly for raycasting
+        this.interactableObjects = [boardBase];
+
+        // ── Cooking Pans (2)
+        const panXs = [-0.5, 3.5];
+        panXs.forEach((x, i) => {
+            const panPos = new THREE.Vector3(x, 0.75, 2.5);
+            this.pans[i].pos = panPos;
+
+            // Burner ring
+            const burnerRing = new THREE.Mesh(
+                new THREE.TorusGeometry(1.1, 0.18, 8, 32),
+                new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.9, roughness: 0.2 })
+            );
+            burnerRing.rotation.x = Math.PI/2;
+            burnerRing.position.set(x, 0.5, 2.5);
+            this.scene.add(burnerRing);
+
+            // Flame (off initially)
+            const flameMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, emissive: 0x1d4ed8, emissiveIntensity: 1.0, transparent: true, opacity: 0 });
+            const flame = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 0.15, 16), flameMat);
+            flame.position.set(x, 0.52, 2.5);
+            this.scene.add(flame);
+            this.pans[i].flameMesh = flame;
+
+            // Pan body
+            const panMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, metalness: 0.95, roughness: 0.15 });
+            const panBody = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 0.95, 0.35, 32), panMat);
+            panBody.position.set(x, 0.73, 2.5);
+            panBody.castShadow = true; panBody.receiveShadow = true;
+            panBody.userData = { type:'pan', panIndex: i };
+            this.scene.add(panBody);
+            this.pans[i].mesh = panBody;
+
+            // Pan handle
+            const handleMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.8 });
+            const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.2), handleMat);
+            handle.rotation.z = Math.PI/2;
+            handle.position.set(x - 1.7, 0.73, 2.5);
+            this.scene.add(handle);
+
+            // Pan inner surface
+            const panInner = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.92, 0.92, 0.05, 32),
+                new THREE.MeshStandardMaterial({ color: 0x292524, metalness: 0.7 })
+            );
+            panInner.position.set(x, 0.92, 2.5);
+            this.scene.add(panInner);
+
+            // Pan platform glow
+            const panPlatform = new THREE.Mesh(
+                new THREE.BoxGeometry(2.6, 0.06, 2.2),
+                new THREE.MeshStandardMaterial({ color: 0xf97316, emissive: 0xf97316, emissiveIntensity: 0.18 })
+            );
+            panPlatform.position.set(x, 0.46, 2.5);
+            this.scene.add(panPlatform);
+
+            // Glow point light (off initially)
+            const glow = new THREE.PointLight(0xff6600, 0, 5);
+            glow.position.set(x, 2, 2.5);
+            this.scene.add(glow);
+            this.pans[i].glowLight = glow;
+
+            // Cook progress ring
+            const cArc = new THREE.Mesh(
+                new THREE.TorusGeometry(1.25, 0.1, 6, 32, 0),
+                new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x22c55e, emissiveIntensity: 0.6 })
+            );
+            cArc.rotation.x = Math.PI/2;
+            cArc.position.set(x, 0.72, 2.5);
+            cArc.visible = false;
+            this.scene.add(cArc);
+            this.pans[i].progressArc = cArc;
+        });
+
+        // ── Plate Station
+        const platePlatform = new THREE.Mesh(
+            new THREE.BoxGeometry(2.6, 0.06, 2.2),
+            new THREE.MeshStandardMaterial({ color: 0xe2e8f0, emissive: 0xe2e8f0, emissiveIntensity: 0.15 })
+        );
+        platePlatform.position.set(7.0, 0.46, 2.5);
+        this.scene.add(platePlatform);
+
+        const plateBase = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.2, 1.1, 0.18, 32),
+            new THREE.MeshStandardMaterial({ color: 0xfafafa, roughness: 0.1, metalness: 0.1 })
+        );
+        plateBase.position.set(7.0, 0.62, 2.5);
+        plateBase.castShadow = true; plateBase.receiveShadow = true;
+        plateBase.userData = { type: 'plate' };
+        this.scene.add(plateBase);
+        this.plateMeshPos = new THREE.Vector3(7.0, 0.82, 2.5);
+        this.plateMesh = plateBase;
+
+        // Inner rim
+        const plateRim = new THREE.Mesh(
+            new THREE.TorusGeometry(1.05, 0.08, 8, 32),
+            new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.3 })
+        );
+        plateRim.rotation.x = Math.PI/2;
+        plateRim.position.set(7.0, 0.72, 2.5);
+        this.scene.add(plateRim);
+
+        // ── Service Bell
+        const bellPlatform = new THREE.Mesh(
+            new THREE.BoxGeometry(2.2, 0.06, 2.2),
+            new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xfbbf24, emissiveIntensity: 0.3 })
+        );
+        bellPlatform.position.set(10.5, 0.46, 2.5);
+        this.scene.add(bellPlatform);
+
+        const bellBase = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.9, 0.9, 0.2, 32),
+            new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.3, metalness: 0.9 })
+        );
+        bellBase.position.set(10.5, 0.62, 2.5);
+        this.scene.add(bellBase);
+
+        const bellDome = new THREE.Mesh(
+            new THREE.SphereGeometry(0.75, 32, 16, 0, Math.PI*2, 0, Math.PI/2),
+            new THREE.MeshStandardMaterial({ color: 0xf5c842, metalness: 1.0, roughness: 0.05 })
+        );
+        bellDome.position.set(10.5, 0.62, 2.5);
+        this.scene.add(bellDome);
+
+        this.bellButton = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.14, 0.14, 0.28, 16),
+            new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.4 })
+        );
+        this.bellButton.position.set(10.5, 1.43, 2.5);
+        this.bellButton.userData = { type: 'bell' };
+        this.scene.add(this.bellButton);
+
+        // Store all clickable meshes for raycasting
+        this.allClickable = [
+            boardBase,
+            this.pans[0].mesh, this.pans[1].mesh,
+            plateBase, this.bellButton, this.trashMesh,
+            ...this.bins.map(b => b.clickMesh)
+        ];
+    }
+
+    makeBin(x, y, z, type, color, name, emoji) {
+        const def = INGREDIENT_DEFS[type];
+        // Platform
+        const platform = new THREE.Mesh(
+            new THREE.BoxGeometry(2.2, 0.1, 2.0),
+            new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.15 })
+        );
+        platform.position.set(x, y - 0.55, z);
+        this.scene.add(platform);
+
+        // Container
+        const mat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.8, roughness: 0.2 });
+        const container = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.0, 1.8), mat);
+        container.position.set(x, y, z);
+        container.castShadow = true;
+        this.scene.add(container);
+        // Inner
+        const inner = new THREE.Mesh(
+            new THREE.BoxGeometry(1.8, 0.08, 1.6),
+            new THREE.MeshStandardMaterial({ color: 0x1a1a1a })
+        );
+        inner.position.set(x, y + 0.46, z);
+        this.scene.add(inner);
+
+        // Ingredient preview on top
+        const ingMesh = this.makeIngredientMesh(type, 0.7);
+        ingMesh.position.set(x, y + 0.7, z);
+        this.scene.add(ingMesh);
+
+        // Colorful label strip
+        const labelStrip = new THREE.Mesh(
+            new THREE.BoxGeometry(2.0, 0.3, 0.08),
+            new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.6 })
+        );
+        labelStrip.position.set(x, y - 0.2, z + 0.91);
+        this.scene.add(labelStrip);
+
+        container.userData = { type: 'bin', ingredientType: type };
+        return { clickMesh: container, type };
+    }
+
+    makeStation(x, y, z, color, w, h, d, type) {
+        const mesh = new THREE.Mesh(
+            new THREE.BoxGeometry(w, h, d),
+            new THREE.MeshStandardMaterial({ color, roughness: 0.5 })
+        );
+        mesh.position.set(x, y, z);
+        mesh.castShadow = true; mesh.receiveShadow = true;
+        mesh.userData = { type };
+        this.scene.add(mesh);
+        return mesh;
+    }
+
+    makeLabel(color, emoji) {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        ctx.font = '80px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(emoji, 64, 64);
+        const tex = new THREE.CanvasTexture(canvas);
+        const mesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(1.0, 1.0),
+            new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+        );
+        return mesh;
+    }
+
+    makeIngredientMesh(type, scale = 1) {
+        const def = INGREDIENT_DEFS[type];
+        const mat = new THREE.MeshStandardMaterial({ color: def.color, roughness: 0.6 });
+        let geo;
+        switch(type) {
+            case 'bun': {
+                const g = new THREE.SphereGeometry(0.5*scale, 16, 12, 0, Math.PI*2, 0, Math.PI/2);
+                geo = g; break;
+            }
+            case 'patty': {
+                geo = new THREE.CylinderGeometry(0.55*scale, 0.55*scale, 0.2*scale, 16);
+                // Make it look rougher
+                const pos = geo.attributes.position;
+                for (let i = 0; i < pos.count; i++) pos.setY(i, pos.getY(i) + (Math.random()-0.5)*0.05*scale);
+                geo.computeVertexNormals(); break;
+            }
+            case 'cheese': {
+                geo = new THREE.BoxGeometry(0.95*scale, 0.1*scale, 0.95*scale);
+                mat.roughness = 0.2; break;
+            }
+            case 'lettuce': {
+                const lg = new THREE.CylinderGeometry(0.55*scale, 0.6*scale, 0.12*scale, 12);
+                const lp = lg.attributes.position;
+                for (let i = 0; i < lp.count; i++) lp.setY(i, lp.getY(i) + (Math.random()-0.5)*0.1*scale);
+                lg.computeVertexNormals();
+                geo = lg; break;
+            }
+            case 'tomato': {
+                geo = new THREE.CylinderGeometry(0.5*scale, 0.5*scale, 0.15*scale, 16);
+                break;
+            }
+            default: geo = new THREE.BoxGeometry(0.5, 0.2, 0.5);
+        }
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = true;
+        return mesh;
+    }
+
+    // ─── HAND ────────────────────────────────
+    buildHand() {
+        this.handGroup = new THREE.Group();
+        const skin = new THREE.MeshStandardMaterial({ color: 0xf0c89e, roughness: 0.55 });
+        // Palm
+        const palm = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.4, 1.5), skin);
+        this.handGroup.add(palm);
+        // Fingers
+        [-0.45, -0.15, 0.15, 0.45].forEach(fx => {
+            const f1 = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.55), skin);
+            f1.rotation.x = Math.PI/2; f1.position.set(fx, 0, -0.72);
+            const f2 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.45), skin);
+            f2.rotation.x = Math.PI/2; f2.position.set(fx, 0, -1.2);
+            this.handGroup.add(f1, f2);
+        });
+        // Thumb
+        const thumb = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.65), skin);
+        thumb.rotation.z = Math.PI/2; thumb.position.set(0.78, 0, 0.2);
+        this.handGroup.add(thumb);
+        // Arm sleeve
+        const sleeve = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.55, 0.55, 10),
+            new THREE.MeshStandardMaterial({ color: 0x1e3a5f, roughness: 0.7 })
+        );
+        sleeve.rotation.x = -Math.PI/2; sleeve.position.z = 6.2;
+        this.handGroup.add(sleeve);
+        // Cuff
+        const cuff = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.62, 0.62, 0.6),
+            new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 })
+        );
+        cuff.rotation.x = -Math.PI/2; cuff.position.z = 1.5;
+        this.handGroup.add(cuff);
+        this.handGroup.traverse(c => { if(c.isMesh){ c.castShadow=true; c.raycast=()=>{}; }});
+        this.scene.add(this.handGroup);
+        this.handTarget = new THREE.Vector3(0, 5, 10);
+
+        // Held item will be parented to scene and follow hand
+        this.heldMeshOffset = new THREE.Vector3(0, 1.4, 0);
+    }
+
+    registerInteractables() {}
+
+    // ─── INPUT ──────────────────────────────
+    setupInput() {
+        const updateMouse = (cx, cy) => {
+            this.mouse.x = (cx / window.innerWidth) * 2 - 1;
+            this.mouse.y = -(cy / window.innerHeight) * 2 + 1;
+            const v = new THREE.Vector3(this.mouse.x, this.mouse.y, 0.5).unproject(this.camera);
+            const dir = v.sub(this.camera.position).normalize();
+            const t = (0 - this.camera.position.y) / dir.y;
+            const p = this.camera.position.clone().add(dir.multiplyScalar(t - 1.2));
+            this.handTarget.copy(p);
         };
+        window.addEventListener('mousemove', e => updateMouse(e.clientX, e.clientY));
+        window.addEventListener('touchmove', e => { e.preventDefault(); updateMouse(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+        window.addEventListener('mousedown', () => { if(this.active) this.handleClick(); });
+        window.addEventListener('touchstart', e => { updateMouse(e.touches[0].clientX, e.touches[0].clientY); if(this.active) setTimeout(()=>this.handleClick(),30); }, { passive: true });
+    }
 
-        class EliteKitchen {
-            constructor() {
-                this.initScene();
-                this.initLayout();
-                this.initHands();
-                this.interactables = [];
-                this.currentStack = [];
-                this.order = null;
-                this.score = 0;
-                this.timeLeft = 120;
-                this.active = false;
+    handleClick() {
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+        const hits = this.raycaster.intersectObjects(this.allClickable, false);
+        if (!hits.length) return;
+        const ud = hits[0].object.userData;
+        switch(ud.type) {
+            case 'bin':   this.onClickBin(ud.ingredientType); break;
+            case 'board': this.onClickBoard(); break;
+            case 'pan':   this.onClickPan(ud.panIndex); break;
+            case 'plate': this.onClickPlate(); break;
+            case 'bell':  this.onClickBell(); break;
+            case 'trash': this.onClickTrash(); break;
+        }
+        // Animate hand press
+        this.handGroup.position.y -= 0.3;
+        setTimeout(() => this.handGroup.position.y += 0.3, 80);
+    }
 
-                this.setupInputs();
-                this.populateStations();
-                this.render();
-            }
+    // ─── INTERACTION HANDLERS ───────────────
+    onClickBin(type) {
+        if (this.heldIngredient) return; // hands full
+        const mesh = this.makeIngredientMesh(type, 1.0);
+        mesh.position.copy(this.handTarget).add(this.heldMeshOffset);
+        this.scene.add(mesh);
+        this.heldIngredient = { type, state:'raw', mesh };
+        this.updateHeldUI();
+        this.particles.emit(mesh.position.x, mesh.position.y, mesh.position.z, 'spark', 4);
+    }
 
-            initScene() {
-                this.scene = new THREE.Scene();
-                this.scene.background = new THREE.Color(0x020617);
-                this.camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 1000);
-                this.camera.position.set(0, 14, 20);
-                this.camera.lookAt(0, -2, 2);
+    onClickBoard() {
+        const def = this.heldIngredient && INGREDIENT_DEFS[this.heldIngredient.type];
 
-                this.renderer = new THREE.WebGLRenderer({ antialias: true });
-                this.renderer.setSize(window.innerWidth, window.innerHeight);
-                this.renderer.shadowMap.enabled = true;
-                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-                document.body.appendChild(this.renderer.domElement);
+        if (!this.board.ingredient && this.heldIngredient && def.needsChop) {
+            // Place on board
+            this.board.ingredient = this.heldIngredient;
+            this.board.chopCount = 0;
+            this.board.ingredient.mesh.position.copy(this.board.pos);
+            this.board.ingredient.mesh.rotation.set(0,0,0);
+            this.heldIngredient = null;
+            this.updateBoardProgress();
+            this.updateHeldUI();
 
-                this.raycaster = new THREE.Raycaster();
-                this.mouse = new THREE.Vector2();
-
-                // Dynamic Lighting
-                this.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
-                
-                const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
-                keyLight.position.set(5, 15, 10);
-                keyLight.castShadow = true;
-                keyLight.shadow.mapSize.width = 2048;
-                keyLight.shadow.mapSize.height = 2048;
-                this.scene.add(keyLight);
-
-                const rimLight = new THREE.PointLight(0x3b82f6, 0.8, 30);
-                rimLight.position.set(-10, 5, -5);
-                this.scene.add(rimLight);
-            }
-
-            initLayout() {
-                // Elite Stainless Steel Station
-                const counterGeo = new THREE.BoxGeometry(32, 1.2, 16);
-                const counterMat = new THREE.MeshStandardMaterial({ 
-                    color: 0x64748b, 
-                    metalness: 0.9, 
-                    roughness: 0.15,
-                    emissive: 0x000000 
-                });
-                const counter = new THREE.Mesh(counterGeo, counterMat);
-                counter.position.y = -0.6;
-                counter.receiveShadow = true;
-                this.scene.add(counter);
-
-                // Backsplash Wall
-                const wallGeo = new THREE.PlaneGeometry(40, 25);
-                const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
-                const wall = new THREE.Mesh(wallGeo, wallMat);
-                wall.position.set(0, 10, -8);
-                this.scene.add(wall);
-
-                // Professional Work Surface (Wood Inset)
-                const woodGeo = new THREE.BoxGeometry(12, 0.1, 8);
-                const woodMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.8 });
-                const wood = new THREE.Mesh(woodGeo, woodMat);
-                wood.position.set(0, 0.05, 3);
-                wood.receiveShadow = true;
-                this.scene.add(wood);
-
-                // Ceramic Service Plate
-                const plateGeo = new THREE.CylinderGeometry(2.5, 2.3, 0.2, 64);
-                const plateMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1 });
-                this.plate = new THREE.Mesh(plateGeo, plateMat);
-                this.plate.position.set(0, 0.15, 4);
-                this.plate.receiveShadow = true;
-                this.scene.add(this.plate);
-            }
-
-            initHands() {
-                this.handGroup = new THREE.Group();
-                const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, roughness: 0.5 });
-                
-                // Detailed Hand Model
-                const palm = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.45, 1.6), skinMat);
-                palm.castShadow = true;
-                this.handGroup.add(palm);
-
-                // Realistic Fingers
-                const fingerKeys = [0, 1, 2, 3];
-                fingerKeys.forEach(i => {
-                    const finger = new THREE.Group();
-                    const f1 = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.6), skinMat);
-                    f1.rotation.x = Math.PI/2; f1.position.z = -0.3;
-                    const f2 = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.5), skinMat);
-                    f2.rotation.x = Math.PI/2; f2.position.z = -0.8;
-                    finger.add(f1, f2);
-                    finger.position.set(-0.5 + i*0.35, 0, -0.8);
-                    this.handGroup.add(finger);
-                });
-                
-                const thumb = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.7), skinMat);
-                thumb.rotation.z = Math.PI/2;
-                thumb.position.set(0.8, 0, 0.3);
-                this.handGroup.add(thumb);
-
-                const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 12), skinMat);
-                arm.rotation.x = -Math.PI/2; arm.position.z = 7;
-                this.handGroup.add(arm);
-
-                this.handGroup.traverse(c => { if(c.isMesh) c.castShadow = true; c.raycast = () => {}; });
-                this.scene.add(this.handGroup);
-                this.handTarget = new THREE.Vector3(0, 6, 12);
-            }
-
-            setupInputs() {
-                window.onmousemove = (e) => {
-                    this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-                    this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-                    
-                    const v = new THREE.Vector3(this.mouse.x, this.mouse.y, 0.5).unproject(this.camera);
-                    const d = v.sub(this.camera.position).normalize();
-                    const dist = -this.camera.position.y / d.y;
-                    const p = this.camera.position.clone().add(d.multiplyScalar(dist - 3));
-                    this.handTarget.copy(p);
-                };
-
-                window.onmousedown = () => {
-                    if(!this.active) return;
-                    this.raycaster.setFromCamera(this.mouse, this.camera);
-                    const hits = this.raycaster.intersectObjects(this.interactables, true);
-                    if(hits.length > 0) {
-                        let o = hits[0].object; while(o.parent && o.parent !== this.scene) o = o.parent;
-                        const d = o.userData;
-                        if(d.type === 'source') this.addToPlate(d.id);
-                        if(d.type === 'bell') this.serve();
-                    }
-                };
-            }
-
-            populateStations() {
-                const keys = ['BUN_B', 'PATTY', 'CHEESE', 'LETTUCE', 'TOMATO', 'BUN_T'];
-                keys.forEach((k, i) => {
-                    const x = -7 + i * 2.8;
-                    const z = -3;
-                    
-                    // Metal Gastronorm Pan
-                    const bin = new THREE.Mesh(
-                        new THREE.BoxGeometry(2.4, 0.8, 2.4), 
-                        new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 1, roughness: 0.1 })
-                    );
-                    bin.position.set(x, 0.4, z);
-                    this.scene.add(bin);
-
-                    const inner = new THREE.Mesh(
-                        new THREE.BoxGeometry(2.2, 0.1, 2.2),
-                        new THREE.MeshStandardMaterial({ color: 0x000000, metalness: 0.5 })
-                    );
-                    inner.position.set(x, 0.8, z);
-                    this.scene.add(inner);
-
-                    const item = this.createIngredientMesh(k);
-                    item.position.set(x, 1.2, z);
-                    item.userData = { type: 'source', id: DATA.ingredients[k].id };
-                    this.scene.add(item);
-                    this.interactables.push(item);
-                });
-
-                // Professional Chrome Service Bell
-                this.bell = new THREE.Group();
-                const bellBase = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.25), new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 1 }));
-                const bellDome = new THREE.Mesh(new THREE.SphereGeometry(0.8, 32, 16, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 1, roughness: 0.05 }));
-                this.bellBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.3), new THREE.MeshStandardMaterial({ color: 0xffffff }));
-                this.bellBtn.position.y = 0.8;
-                this.bell.add(bellBase, bellDome, this.bellBtn);
-                this.bell.position.set(9, 0, 4);
-                this.bell.userData = { type: 'bell' };
-                this.scene.add(this.bell);
-                this.interactables.push(this.bell);
-            }
-
-            createIngredientMesh(key) {
-                const d = DATA.ingredients[key];
-                const mat = new THREE.MeshStandardMaterial({ color: d.color, roughness: 0.6 });
-                let mesh;
-                if(d.type === 'cylinder') mesh = new THREE.Mesh(new THREE.CylinderGeometry(d.r, d.r, d.h, 32), mat);
-                else if(d.type === 'box') mesh = new THREE.Mesh(new THREE.BoxGeometry(d.r*1.4, d.h, d.r*1.4), mat);
-                else if(d.type === 'dome') mesh = new THREE.Mesh(new THREE.SphereGeometry(d.r, 32, 16, 0, Math.PI*2, 0, Math.PI/2), mat);
-                else if(d.type === 'noisy') {
-                    const geo = new THREE.CylinderGeometry(d.r, d.r, d.h, 16);
-                    const pos = geo.attributes.position;
-                    for(let i=0; i<pos.count; i++) pos.setY(i, pos.getY(i) + (Math.random()-0.5)*0.12);
-                    mesh = new THREE.Mesh(geo, mat);
+        } else if (this.board.ingredient) {
+            if (this.board.chopCount >= CHOP_NEEDED) {
+                // Pick up chopped
+                if (!this.heldIngredient) {
+                    this.heldIngredient = this.board.ingredient;
+                    this.heldIngredient.state = 'chopped';
+                    this.board.ingredient = null;
+                    this.boardProgressMesh.visible = false;
+                    this.updateHeldUI();
+                    this.particles.emit(this.board.pos.x, this.board.pos.y, this.board.pos.z, 'spark', 6);
                 }
-                mesh.userData = { id: d.id };
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                return mesh;
-            }
-
-            addToPlate(id) {
-                const key = Object.keys(DATA.ingredients).find(k => DATA.ingredients[k].id === id);
-                const mesh = this.createIngredientMesh(key);
-                let currentH = 0.25;
-                this.currentStack.forEach(m => currentH += DATA.ingredients[Object.keys(DATA.ingredients).find(k => DATA.ingredients[k].id === m.userData.id)].h);
-                
-                mesh.position.set(0, currentH + 6, 4);
-                this.scene.add(mesh);
-                this.currentStack.push(mesh);
-                
-                this.animate(mesh.position, { y: currentH + DATA.ingredients[key].h/2 }, 250);
-            }
-
-            serve() {
-                this.animate(this.bellBtn.position, { y: 0.5 }, 50);
-                setTimeout(() => this.animate(this.bellBtn.position, { y: 0.8 }, 100), 100);
-
-                if(!this.order) return;
-                
-                const currentIds = this.currentStack.map(m => m.userData.id);
-                const orderIds = this.order.items;
-
-                if(JSON.stringify(currentIds) === JSON.stringify(orderIds)) {
-                    this.score += this.order.price;
-                    document.getElementById('score-val').innerText = `$${this.score}`;
-                    this.clearPlate();
-                    this.newOrder();
-                } else {
-                    this.clearPlate();
+            } else {
+                // Chop!
+                this.board.chopCount++;
+                this.animateChop();
+                this.updateBoardProgress();
+                if (this.board.chopCount >= CHOP_NEEDED) {
+                    // Change color to show it's chopped
+                    const def2 = INGREDIENT_DEFS[this.board.ingredient.type];
+                    this.board.ingredient.mesh.material.color.setHex(def2.choppedColor || def2.color);
+                    this.particles.emit(this.board.pos.x, this.board.pos.y + 0.5, this.board.pos.z, 'spark', 8);
                 }
-            }
-
-            clearPlate() {
-                this.currentStack.forEach(m => this.scene.remove(m));
-                this.currentStack = [];
-            }
-
-            newOrder() {
-                this.order = DATA.recipes[Math.floor(Math.random() * DATA.recipes.length)];
-                const rail = document.getElementById('order-rail');
-                rail.innerHTML = `
-                    <div class="ticket">
-                        <h3>#${Math.floor(Math.random()*900)+100} ${this.order.name}</h3>
-                        <ul>${this.order.items.map(i => `<li>${DATA.ingredients[Object.keys(DATA.ingredients).find(k => DATA.ingredients[k].id === i)].name}</li>`).join('')}</ul>
-                    </div>
-                ` + rail.innerHTML;
-                if(rail.children.length > 5) rail.removeChild(rail.lastChild);
-            }
-
-            animate(obj, target, dur) {
-                const start = { ...obj }, t0 = performance.now();
-                const loop = () => {
-                    const p = Math.min((performance.now() - t0) / dur, 1);
-                    for(let k in target) obj[k] = start[k] + (target[k] - start[k]) * p;
-                    if(p < 1) requestAnimationFrame(loop);
-                }; requestAnimationFrame(loop);
-            }
-
-            start() {
-                this.active = true;
-                document.getElementById('overlay').classList.add('hidden');
-                this.newOrder();
-                this.timerInterval = setInterval(() => {
-                    this.timeLeft--;
-                    const m = Math.floor(this.timeLeft / 60), s = this.timeLeft % 60;
-                    document.getElementById('timer-val').innerText = `${m}:${s.toString().padStart(2, '0')}`;
-                    if(this.timeLeft <= 0) this.gameOver();
-                }, 1000);
-            }
-
-            gameOver() {
-                this.active = false;
-                clearInterval(this.timerInterval);
-                document.getElementById('overlay').classList.remove('hidden');
-                document.querySelector('.logo-main').innerText = "SHIFT OVER";
-                document.querySelector('.logo-sub').innerText = `TOTAL EARNINGS: $${this.score}`;
-            }
-
-            render() {
-                requestAnimationFrame(() => this.render());
-                if(this.handGroup) {
-                    this.handGroup.position.lerp(this.handTarget, 0.18);
-                    this.handGroup.rotation.z = this.mouse.x * 0.45;
-                    this.handGroup.rotation.x = -this.mouse.y * 0.25;
-                }
-                this.renderer.render(this.scene, this.camera);
             }
         }
+    }
 
-        window.game = new EliteKitchen();
-    </script>
+    onClickPan(idx) {
+        const pan = this.pans[idx];
+        const held = this.heldIngredient;
+        const def = held && INGREDIENT_DEFS[held.type];
+
+        if (pan.state === 'empty' && held && def.needsCook) {
+            // Place raw ingredient on pan
+            pan.ingredient = held;
+            pan.ingredient.mesh.position.copy(pan.pos);
+            pan.ingredient.mesh.rotation.set(0,0,0);
+            pan.state = 'cooking';
+            pan.timer = 0;
+            pan.progressArc.geometry.dispose();
+            pan.progressArc.geometry = new THREE.TorusGeometry(1.25, 0.1, 6, 32, 0);
+            pan.progressArc.visible = true;
+            pan.flameMesh.material.opacity = 0.85;
+            pan.flameMesh.material.color.setHex(0x2563eb);
+            this.heldIngredient = null;
+            this.updateHeldUI();
+
+        } else if (pan.state === 'cooked' && !held) {
+            // Pick up cooked item
+            this.heldIngredient = pan.ingredient;
+            this.heldIngredient.state = 'cooked';
+            pan.ingredient = null;
+            pan.state = 'empty';
+            pan.flameMesh.material.opacity = 0;
+            pan.progressArc.visible = false;
+            pan.glowLight.intensity = 0;
+            this.updateHeldUI();
+            this.particles.emit(pan.pos.x, pan.pos.y+1, pan.pos.z, 'steam', 5);
+
+        } else if (pan.state === 'burnt') {
+            // Clear burnt food, small penalty
+            this.scene.remove(pan.ingredient.mesh);
+            pan.ingredient = null; pan.state = 'empty';
+            pan.flameMesh.material.opacity = 0;
+            pan.progressArc.visible = false;
+            pan.glowLight.intensity = 0;
+            this.score = Math.max(0, this.score - 30);
+            this.updateScoreUI();
+            this.flashOverlay('#ef4444', 0.3);
+        }
+    }
+
+    onClickPlate() {
+        if (!this.heldIngredient) return;
+        const held = this.heldIngredient;
+        const def = INGREDIENT_DEFS[held.type];
+
+        // Check if properly prepared
+        const isReady = (!def.needsChop && !def.needsCook) ||
+                        (def.needsChop && held.state === 'chopped') ||
+                        (def.needsCook && held.state === 'cooked');
+        if (!isReady) {
+            this.flashOverlay('#ef4444', 0.25);
+            this.showHint(def.needsChop ? '✂️ Chop this first!' : '🍳 Cook this first!');
+            return;
+        }
+
+        // Add to plate
+        const readyId = def.readyId;
+        this.plateItems.push(readyId);
+
+        const stackH = this.plateMeshPos.y + (this.plateItems.length - 1) * 0.22;
+        held.mesh.position.set(this.plateMeshPos.x, stackH, this.plateMeshPos.z);
+        held.mesh.rotation.set(0, Math.random()*0.4-0.2, 0);
+        this.plateMeshes.push(held.mesh);
+        this.heldIngredient = null;
+        this.updateHeldUI();
+        this.updatePlateUI();
+        this.particles.emit(this.plateMeshPos.x, stackH + 0.5, this.plateMeshPos.z, 'spark', 5);
+    }
+
+    onClickBell() {
+        if (!this.active) return;
+        if (this.plateItems.length === 0) {
+            this.showHint('🍽️ Plate is empty!'); return;
+        }
+        // Animate bell
+        this.bellButton.position.y -= 0.2;
+        setTimeout(() => this.bellButton.position.y += 0.2, 120);
+
+        // Try to match order
+        for (let i = 0; i < this.orders.length; i++) {
+            const order = this.orders[i];
+            if (this.matchesOrder(this.plateItems, order.items)) {
+                // SUCCESS
+                const timeBonus = Math.round((1 - order.elapsed / order.timeLimit) * 250);
+                const earned = Math.round((order.price + timeBonus) * this.combo);
+                this.score += earned;
+                this.combo = Math.min(6, this.combo + 1);
+                this.updateScoreUI();
+                this.updateComboUI();
+                this.removeOrder(i);
+                this.clearPlate(true);
+                this.flashOverlay('#22c55e', 0.25);
+                this.showFloatingScore(earned, this.combo);
+                this.particles.emit(10.5, 3, 2.5, 'spark', 15);
+                return;
+            }
+        }
+        // No match
+        this.flashOverlay('#ef4444', 0.35);
+        this.showHint('❌ Doesn\'t match any order!');
+    }
+
+    onClickTrash() {
+        if (this.heldIngredient) {
+            this.scene.remove(this.heldIngredient.mesh);
+            this.heldIngredient = null;
+            this.updateHeldUI();
+        } else if (this.plateItems.length > 0) {
+            this.clearPlate(false);
+            this.showHint('🗑️ Plate cleared!');
+        }
+        this.particles.emit(-8.5, 2, 2.5, 'steam', 3);
+    }
+
+    matchesOrder(plate, orderItems) {
+        if (plate.length !== orderItems.length) return false;
+        const a = [...plate].sort(), b = [...orderItems].sort();
+        return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    clearPlate(success) {
+        this.plateMeshes.forEach(m => {
+            if (success) {
+                // Animate up and fade
+                const start = m.position.y;
+                let t = 0;
+                const anim = () => { t += 0.06; m.position.y = start + t * 3; m.material.opacity = Math.max(0, 1 - t * 2); m.material.transparent = true; if(t < 1) requestAnimationFrame(anim); else this.scene.remove(m); };
+                requestAnimationFrame(anim);
+            } else {
+                this.scene.remove(m);
+            }
+        });
+        this.plateMeshes = [];
+        this.plateItems = [];
+        this.updatePlateUI();
+    }
+
+    // ─── ORDER MANAGEMENT ───────────────────
+    newOrder() {
+        if (this.orders.length >= 3) return;
+        const recipe = RECIPES[Math.floor(Math.random() * RECIPES.length)];
+        const orderNum = ++this._orderCounter;
+        const order = { ...recipe, elapsed: 0, id: orderNum, el: null };
+        this.orders.push(order);
+
+        const rail = document.getElementById('order-rail');
+        const ticket = document.createElement('div');
+        ticket.className = 'ticket';
+        ticket.id = `ticket-${orderNum}`;
+        ticket.innerHTML = `
+            <span class="ticket-order-num">#${orderNum}</span>
+            <h3>${recipe.emoji} ${recipe.name}</h3>
+            <ul>${recipe.items.map(id => `<li>${INGREDIENT_LABELS[id] || id}</li>`).join('')}</ul>
+            <div style="font-size:0.68rem;color:#64748b;margin-top:4px">$${recipe.price} + time bonus</div>
+            <div class="ticket-timer-wrap"><div class="ticket-timer" id="timer-${orderNum}" style="width:100%;background:#22c55e"></div></div>
+        `;
+        rail.insertBefore(ticket, rail.firstChild);
+        order.el = ticket;
+
+        // Schedule next order
+        if (this.active) {
+            const nextDelay = 12000 + Math.random() * 8000;
+            this._orderTimeout = setTimeout(() => this.newOrder(), nextDelay);
+        }
+    }
+
+    removeOrder(idx) {
+        const order = this.orders[idx];
+        if (order.el) {
+            order.el.classList.add('expired');
+            setTimeout(() => order.el.remove(), 500);
+        }
+        this.orders.splice(idx, 1);
+    }
+
+    updateOrders(dt) {
+        for (let i = this.orders.length - 1; i >= 0; i--) {
+            const order = this.orders[i];
+            order.elapsed += dt;
+            const ratio = 1 - order.elapsed / order.timeLimit;
+            const timerBar = document.getElementById(`timer-${order.id}`);
+            if (timerBar) {
+                timerBar.style.width = Math.max(0, ratio * 100) + '%';
+                const color = ratio > 0.6 ? '#22c55e' : ratio > 0.3 ? '#f59e0b' : ratio > 0.1 ? '#ef4444' : '#991b1b';
+                timerBar.style.background = color;
+                if (ratio < 0.2) order.el?.classList.add('expiring');
+                else order.el?.classList.remove('expiring');
+            }
+            if (order.elapsed >= order.timeLimit) {
+                // Expired
+                this.removeOrder(i);
+                this.combo = 1;
+                this.updateComboUI();
+                this.flashOverlay('#7c3aed', 0.25);
+                this.score = Math.max(0, this.score - 50);
+                this.updateScoreUI();
+            }
+        }
+    }
+
+    // ─── COOK SYSTEM UPDATE ─────────────────
+    updatePans(dt) {
+        this.pans.forEach((pan, i) => {
+            if (pan.state === 'empty') return;
+            pan.timer += dt;
+            const cookRatio = Math.min(1, pan.timer / COOK_TIME);
+
+            if (pan.state === 'cooking') {
+                // Update cook arc
+                pan.progressArc.geometry.dispose();
+                pan.progressArc.geometry = new THREE.TorusGeometry(1.25, 0.1, 6, 32, Math.PI * 2 * cookRatio);
+                pan.glowLight.intensity = cookRatio * 1.0;
+                pan.flameMesh.material.color.setHex(cookRatio < 0.5 ? 0x2563eb : 0xf97316);
+                pan.flameMesh.material.emissive.setHex(cookRatio < 0.5 ? 0x1d4ed8 : 0xea580c);
+
+                // Steam
+                if (cookRatio > 0.3 && Math.random() < 0.08) {
+                    this.particles.emit(pan.pos.x, pan.pos.y + 0.8, pan.pos.z, 'steam', 1);
+                }
+
+                // Change patty color as it cooks
+                if (pan.ingredient && INGREDIENT_DEFS[pan.ingredient.type].cookedColor) {
+                    const rawC = new THREE.Color(INGREDIENT_DEFS[pan.ingredient.type].rawColor);
+                    const cookedC = new THREE.Color(INGREDIENT_DEFS[pan.ingredient.type].cookedColor);
+                    pan.ingredient.mesh.material.color.copy(rawC).lerp(cookedC, cookRatio);
+                }
+
+                if (pan.timer >= COOK_TIME) {
+                    pan.state = 'cooked';
+                    pan.timer = 0;
+                    pan.progressArc.material.color.setHex(0x22c55e);
+                    pan.progressArc.material.emissive.setHex(0x22c55e);
+                    this.particles.emit(pan.pos.x, pan.pos.y + 1, pan.pos.z, 'steam', 8);
+                    this.particles.emit(pan.pos.x, pan.pos.y + 0.5, pan.pos.z, 'spark', 6);
+                }
+            } else if (pan.state === 'cooked') {
+                // Grace period before burning
+                if (pan.timer >= BURN_WARN) {
+                    pan.state = 'burning';
+                    pan.timer = 0;
+                }
+                // Pulse glow
+                pan.glowLight.intensity = 0.6 + Math.sin(Date.now() * 0.005) * 0.4;
+            } else if (pan.state === 'burning') {
+                // Burning warning
+                pan.glowLight.color.setHex(0xff2200);
+                pan.glowLight.intensity = 1.5 + Math.sin(Date.now() * 0.015) * 1.0;
+                pan.flameMesh.material.color.setHex(0xff2200);
+                pan.progressArc.material.color.setHex(0xef4444);
+                // Smoke
+                if (Math.random() < 0.15) this.particles.emit(pan.pos.x, pan.pos.y + 0.8, pan.pos.z, 'steam', 2);
+
+                if (pan.ingredient) pan.ingredient.mesh.material.color.setHex(0x2a1500);
+
+                if (pan.timer >= BURNT_TIME) {
+                    pan.state = 'burnt';
+                    if (pan.ingredient) pan.ingredient.mesh.material.color.setHex(0x0d0d0d);
+                    pan.progressArc.material.color.setHex(0x111111);
+                }
+            }
+        });
+    }
+
+    // ─── ANIMATIONS ─────────────────────────
+    animateChop() {
+        if (!this.board.ingredient) return;
+        const mesh = this.board.ingredient.mesh;
+        const orig = mesh.rotation.z;
+        mesh.rotation.z = 0.25;
+        setTimeout(() => { mesh.rotation.z = -0.2; }, 60);
+        setTimeout(() => { mesh.rotation.z = orig; }, 130);
+        this.particles.emit(this.board.pos.x, this.board.pos.y + 0.4, this.board.pos.z, 'spark', 4);
+    }
+
+    updateBoardProgress() {
+        const ratio = this.board.chopCount / CHOP_NEEDED;
+        this.boardProgressMesh.visible = this.board.ingredient !== null;
+        this.boardProgressMesh.geometry.dispose();
+        this.boardProgressMesh.geometry = new THREE.TorusGeometry(1.35, 0.12, 6, 32, Math.PI * 2 * ratio);
+    }
+
+    // ─── GAME FLOW ───────────────────────────
+    start() {
+        this.score = 0; this.combo = 1; this.timeLeft = 150;
+        this.active = true;
+        this.orders = []; this._orderCounter = 0;
+        this.heldIngredient = null;
+        this.clearPlate(false);
+        this.board.ingredient = null; this.board.chopCount = 0; this.boardProgressMesh.visible = false;
+        this.pans.forEach(pan => { pan.state='empty'; pan.ingredient=null; pan.timer=0; pan.flameMesh.material.opacity=0; pan.progressArc.visible=false; pan.glowLight.intensity=0; });
+        document.getElementById('order-rail').innerHTML = '';
+        document.getElementById('overlay').classList.add('hidden');
+        this.updateScoreUI(); this.updateComboUI();
+
+        this.newOrder();
+        this._gameTimer = setInterval(() => {
+            if (!this.active) return;
+            this.timeLeft--;
+            const m = Math.floor(this.timeLeft/60), s = (this.timeLeft%60).toString().padStart(2,'0');
+            document.getElementById('timer-val').textContent = `${m}:${s}`;
+            if (this.timeLeft <= 0) this.gameOver();
+        }, 1000);
+    }
+
+    gameOver() {
+        this.active = false;
+        clearInterval(this._gameTimer);
+        clearTimeout(this._orderTimeout);
+        const ov = document.getElementById('overlay');
+        ov.classList.remove('hidden');
+        document.querySelector('.logo-big').innerHTML = '<span class="logo-kitchen">SHIFT</span><br><span class="logo-chaos">OVER!</span>';
+        document.getElementById('overlay-score').style.display = 'block';
+        document.getElementById('final-score').textContent = '$' + this.score;
+        document.getElementById('btn-start').textContent = 'PLAY AGAIN';
+        document.querySelector('.feature-list').style.display = 'none';
+    }
+
+    // ─── UI UPDATES ──────────────────────────
+    updateScoreUI() { document.getElementById('score-val').textContent = '$' + this.score; }
+
+    updateComboUI() {
+        const el = document.getElementById('combo-val');
+        const pill = document.getElementById('combo-pill');
+        el.textContent = '×' + this.combo;
+        if (this.combo > 1) {
+            pill.classList.add('active');
+            el.style.color = this.combo >= 4 ? '#ef4444' : this.combo >= 3 ? '#f97316' : '#f59e0b';
+        } else {
+            pill.classList.remove('active');
+            el.style.color = '';
+        }
+    }
+
+    updateHeldUI() {
+        const el = document.getElementById('held-name');
+        if (!this.heldIngredient) { el.textContent = '—'; return; }
+        const def = INGREDIENT_DEFS[this.heldIngredient.type];
+        const stateLabel = this.heldIngredient.state === 'raw' ? '' : this.heldIngredient.state === 'chopped' ? ' ✂️' : ' ✅';
+        el.textContent = def.emoji + ' ' + def.name + stateLabel;
+    }
+
+    updatePlateUI() {
+        const el = document.getElementById('plate-items');
+        el.innerHTML = this.plateItems.map(id => `<span class="plate-item-badge">${INGREDIENT_LABELS[id]||id}</span>`).join('');
+    }
+
+    showFloatingScore(amount, combo) {
+        const el = document.createElement('div');
+        el.className = 'float-score';
+        el.style.color = combo >= 3 ? '#f97316' : '#22c55e';
+        el.textContent = '+$' + amount + (combo > 1 ? ` ×${combo} COMBO!` : '');
+        el.style.left = (55 + Math.random()*10) + '%';
+        el.style.top = (40 + Math.random()*15) + '%';
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 1700);
+    }
+
+    showHint(text) {
+        const el = document.getElementById('plate-label');
+        const orig = el.textContent;
+        el.textContent = text; el.style.color = '#f59e0b';
+        setTimeout(() => { el.textContent = orig; el.style.color = ''; }, 2000);
+    }
+
+    flashOverlay(color, alpha) {
+        const el = document.getElementById('flash');
+        el.style.background = color;
+        el.style.opacity = alpha;
+        setTimeout(() => el.style.opacity = 0, 200);
+    }
+
+    // ─── RENDER LOOP ─────────────────────────
+    render(ts = 0) {
+        requestAnimationFrame(t => this.render(t));
+        const dt = Math.min((ts - this._lastTs) / 1000, 0.05);
+        this._lastTs = ts;
+
+        // Smooth hand movement
+        this.handGroup.position.lerp(this.handTarget, 0.16);
+        this.handGroup.rotation.z = (this.handTarget.x - this.handGroup.position.x) * 0.2;
+        this.handGroup.rotation.x = -(this.handTarget.z - this.handGroup.position.z) * 0.15;
+
+        // Held ingredient follows hand
+        if (this.heldIngredient) {
+            const hp = this.handGroup.position.clone().add(this.heldMeshOffset);
+            this.heldIngredient.mesh.position.lerp(hp, 0.22);
+            this.heldIngredient.mesh.rotation.y += dt * 1.2;
+        }
+
+        if (this.active) {
+            this.updatePans(dt);
+            this.updateOrders(dt);
+        }
+        this.particles.update(dt);
+
+        this.renderer.render(this.scene, this.camera);
+    }
+}
+
+window.game = new KitchenChaos();
+</script>
 </body>
 </html>

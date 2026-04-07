@@ -16,6 +16,7 @@
             --vanilla: #fef3c7;
             --chocolate: #78350f;
             --strawberry: #f472b6;
+            --mint: #34d399;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
@@ -100,6 +101,20 @@
         }
         #happiness-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ef4444, #22c55e); transition: width 0.3s; }
 
+        #combo-display {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: var(--accent);
+            text-shadow: 0 0 20px rgba(244, 114, 182, 0.5);
+            opacity: 0;
+            transition: 0.2s;
+        }
+        #combo-display.active { opacity: 1; transform: translateX(-50%) scale(1.2); }
+
         #flavor-selector {
             position: absolute;
             bottom: 30px;
@@ -180,6 +195,8 @@
                 </div>
             </div>
 
+            <div id="combo-display">X2 COMBO</div>
+
             <div id="flavor-selector">
                 <div id="btn-v" class="flavor-btn v active" onclick="game.setFlavor('vanilla')">🍦</div>
                 <div id="btn-c" class="flavor-btn c" onclick="game.setFlavor('chocolate')">🍫</div>
@@ -191,20 +208,21 @@
 
         <div id="menu-overlay" class="overlay">
             <h1>BRAIN FREEZE!</h1>
-            <p>Zombies are hungry for... frozen treats? Match the scoop flavor to the zombie type to calm them down. Don't let them reach the truck!</p>
-            <div style="text-align: left; color: #94a3b8; font-size: 0.8rem; margin-bottom: 20px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px;">
-                • <b>Match Colors:</b> Vanilla (Yellow), Chocolate (Brown), Strawberry (Pink)<br>
-                • <b>Sugar Rush:</b> Don't overfeed! Too much sugar makes them hyper-bouncy.<br>
-                • <b>Controls:</b> Tap/Click to throw. 1, 2, 3 to switch flavors.
+            <p>The neighborhood is hungry for brain-numbing treats! Match scoops to zombie types. Don't overfeed or they'll enter a <b>SUGAR RUSH</b>!</p>
+            <div style="text-align: left; color: #94a3b8; font-size: 0.8rem; margin-bottom: 20px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; border: 1px solid var(--border);">
+                • <b>Match:</b> Vanilla (Yel), Chocolate (Brn), Strawberry (Pink)<br>
+                • <b>Combo:</b> Satisfy multiple zombies quickly for multipliers!<br>
+                • <b>Power-ups:</b> Grab ❄️ for Deep Freeze or 🍦 for Rapid Fire!<br>
+                • <b>Controls:</b> Tap/Click to throw. 1, 2, 3 to switch.
             </div>
             <button class="btn-play" onclick="game.start()">START SERVICE</button>
         </div>
 
         <div id="over-overlay" class="overlay hidden">
             <h1 style="color: #ef4444;">TRUCK TRASHED</h1>
-            <p>The crowd got too grumpy and the truck is out of commission.</p>
+            <p>The sugar-crazed crowd overwhelmed the truck.</p>
             <div class="stat-box" style="min-width: 200px; margin-bottom: 20px;">
-                <span class="label">Zombies Calmed</span>
+                <span class="label">Total Satisfaction</span>
                 <span id="final-score-val" class="value">0</span>
             </div>
             <button class="btn-play" onclick="game.start()">REOPEN TRUCK</button>
@@ -224,18 +242,28 @@
                 this.highScore = parseInt(localStorage.getItem('brainFreezeHighScore') || '0');
                 this.happiness = 100;
                 
-                this.truck = { x: 0, y: 0, w: 80, h: 50 };
+                this.truck = { x: 0, y: 0, w: 90, h: 60, frame: 0 };
                 this.currentFlavor = 'vanilla';
                 this.zombies = [];
                 this.scoops = [];
+                this.powerups = [];
                 this.particles = [];
                 this.spawnTimer = 0;
                 this.difficulty = 1;
+                
+                this.combo = 0;
+                this.comboTimer = 0;
+                this.shake = 0;
+                
+                this.powers = {
+                    freeze: 0,
+                    rapid: 0
+                };
 
                 this.flavors = {
-                    vanilla: { color: '#fef3c7', icon: '🍦', key: '1' },
-                    chocolate: { color: '#78350f', icon: '🍫', key: '2' },
-                    strawberry: { color: '#f472b6', icon: '🍓', key: '3' }
+                    vanilla: { color: '#fef3c7', icon: '🍦' },
+                    chocolate: { color: '#78350f', icon: '🍫' },
+                    strawberry: { color: '#f472b6', icon: '🍓' }
                 };
 
                 this.init();
@@ -279,9 +307,14 @@
                 this.happiness = 100;
                 this.zombies = [];
                 this.scoops = [];
+                this.powerups = [];
                 this.particles = [];
                 this.difficulty = 1;
                 this.spawnTimer = 0;
+                this.combo = 0;
+                this.comboTimer = 0;
+                this.powers.freeze = 0;
+                this.powers.rapid = 0;
                 
                 document.getElementById('menu-overlay').classList.add('hidden');
                 document.getElementById('over-overlay').classList.add('hidden');
@@ -296,78 +329,113 @@
                 const ty = e.clientY - rect.top;
                 
                 const angle = Math.atan2(ty - this.truck.y, tx - this.truck.x);
-                this.scoops.push({
-                    x: this.truck.x,
-                    y: this.truck.y,
-                    vx: Math.cos(angle) * 8,
-                    vy: Math.sin(angle) * 8,
-                    flavor: this.currentFlavor,
-                    color: this.flavors[this.currentFlavor].color
-                });
+                const count = this.powers.rapid > 0 ? 3 : 1;
+                
+                for(let i=0; i<count; i++) {
+                    const spread = (i - (count-1)/2) * 0.2;
+                    this.scoops.push({
+                        x: this.truck.x,
+                        y: this.truck.y,
+                        vx: Math.cos(angle + spread) * 9,
+                        vy: Math.sin(angle + spread) * 9,
+                        flavor: this.currentFlavor,
+                        color: this.flavors[this.currentFlavor].color
+                    });
+                }
             }
 
             update() {
                 if(!this.active) return;
 
+                if(this.powers.freeze > 0) this.powers.freeze--;
+                if(this.powers.rapid > 0) this.powers.rapid--;
+
                 this.spawnTimer++;
-                if(this.spawnTimer > Math.max(20, 100 - this.difficulty * 5)) {
+                if(this.spawnTimer > Math.max(15, 120 - this.difficulty * 8)) {
                     this.spawnZombie();
                     this.spawnTimer = 0;
-                    this.difficulty += 0.05;
+                    this.difficulty += 0.04;
                 }
+
+                if(this.comboTimer > 0) {
+                    this.comboTimer--;
+                    if(this.comboTimer === 0) this.combo = 0;
+                }
+
+                if(this.shake > 0) this.shake *= 0.9;
+
+                // Process Power-ups
+                this.powerups.forEach(p => {
+                    p.y += 1;
+                    if(Math.hypot(p.x - this.truck.x, p.y - this.truck.y) < 60) {
+                        p.dead = true;
+                        if(p.type === 'freeze') this.powers.freeze = 300;
+                        else this.powers.rapid = 300;
+                        this.createParticles(p.x, p.y, '#fff', 20);
+                    }
+                });
+                this.powerups = this.powerups.filter(p => !p.dead && p.y < this.height + 50);
 
                 // Process Scoops
                 this.scoops.forEach(s => {
-                    s.x += s.vx;
-                    s.y += s.vy;
+                    s.x += s.vx; s.y += s.vy;
                 });
                 this.scoops = this.scoops.filter(s => s.x > 0 && s.x < this.width && s.y > 0 && s.y < this.height);
 
                 // Process Zombies
                 this.zombies.forEach(z => {
+                    let moveSpeed = z.sugarRush ? z.speed * 4 : z.speed;
+                    if(this.powers.freeze > 0 && !z.sugarRush) moveSpeed *= 0.3;
+
                     if(z.sugarRush) {
-                        z.x += z.vx;
-                        z.y += z.vy;
+                        z.x += z.vx * moveSpeed;
+                        z.y += z.vy * moveSpeed;
                         if(z.x < 20 || z.x > this.width - 20) z.vx *= -1;
                         if(z.y < 20 || z.y > this.height - 20) z.vy *= -1;
                     } else {
                         const angle = Math.atan2(this.truck.y - z.y, this.truck.x - z.x);
-                        z.x += Math.cos(angle) * z.speed;
-                        z.y += Math.sin(angle) * z.speed;
+                        z.x += Math.cos(angle) * moveSpeed;
+                        z.y += Math.sin(angle) * moveSpeed;
                     }
 
                     // Check Scoop Collision
                     this.scoops.forEach(s => {
                         const dist = Math.hypot(z.x - s.x, z.y - s.y);
-                        if(dist < 30) {
+                        if(dist < 35 && !s.dead) {
                             s.dead = true;
                             if(s.flavor === z.flavor) {
-                                z.satisfaction += 40;
-                                this.createParticles(z.x, z.y, s.color);
+                                z.satisfaction += z.type === 'tank' ? 20 : 50;
+                                this.createParticles(z.x, z.y, s.color, 8);
                             } else {
-                                z.sugar += 30;
-                                this.createParticles(z.x, z.y, '#fff');
+                                z.sugar += 25;
+                                this.createParticles(z.x, z.y, '#fff', 5);
                             }
                         }
                     });
 
                     if(z.sugar >= 100 && !z.sugarRush) {
                         z.sugarRush = true;
-                        z.vx = (Math.random() - 0.5) * 10;
-                        z.vy = (Math.random() - 0.5) * 10;
+                        z.vx = (Math.random() - 0.5) * 2;
+                        z.vy = (Math.random() - 0.5) * 2;
+                        this.shake = 10;
                     }
 
                     if(z.satisfaction >= 100) {
                         z.dead = true;
-                        this.score++;
-                        this.happiness = Math.min(100, this.happiness + 2);
+                        this.combo++;
+                        this.comboTimer = 90;
+                        this.score += 1 * this.combo;
+                        this.happiness = Math.min(100, this.happiness + 3);
+                        this.createParticles(z.x, z.y, z.color, 15);
+                        if(Math.random() < 0.1) this.spawnPowerup(z.x, z.y);
                     }
 
                     // Reach Truck
                     const tDist = Math.hypot(z.x - this.truck.x, z.y - this.truck.y);
-                    if(tDist < 50) {
+                    if(tDist < 60) {
                         z.dead = true;
-                        this.happiness -= z.sugarRush ? 15 : 10;
+                        this.happiness -= z.sugarRush ? 20 : (z.type === 'tank' ? 15 : 10);
+                        this.shake = 15;
                         if(this.happiness <= 0) this.gameOver();
                     }
                 });
@@ -390,25 +458,34 @@
                 else if(side === 2) { x = Math.random() * this.width; y = this.height + 50; }
                 else { x = -50; y = Math.random() * this.height; }
 
-                const flavors = ['vanilla', 'chocolate', 'strawberry'];
-                const flavor = flavors[Math.floor(Math.random() * 3)];
+                const flavorNames = Object.keys(this.flavors);
+                const flavor = flavorNames[Math.floor(Math.random() * 3)];
+                const type = Math.random() < 0.2 ? 'tank' : (Math.random() < 0.3 ? 'sprinter' : 'normal');
 
                 this.zombies.push({
-                    x, y, flavor,
+                    x, y, flavor, type,
                     color: this.flavors[flavor].color,
-                    speed: 0.5 + Math.random() * 1,
+                    speed: type === 'sprinter' ? 1.8 : (type === 'tank' ? 0.5 : 0.8),
                     satisfaction: 0,
                     sugar: 0,
                     sugarRush: false,
+                    dead: false,
+                    vx: 0, vy: 0
+                });
+            }
+
+            spawnPowerup(x, y) {
+                this.powerups.push({
+                    x, y, type: Math.random() > 0.5 ? 'freeze' : 'rapid',
                     dead: false
                 });
             }
 
-            createParticles(x, y, color) {
-                for(let i=0; i<10; i++) {
+            createParticles(x, y, color, count) {
+                for(let i=0; i<count; i++) {
                     this.particles.push({
                         x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10,
-                        life: 20, color, size: 3 + Math.random()*5
+                        life: 20 + Math.random()*10, color, size: 2 + Math.random()*4
                     });
                 }
             }
@@ -416,6 +493,13 @@
             updateHUD() {
                 document.getElementById('score-val').textContent = this.score;
                 document.getElementById('happiness-fill').style.width = this.happiness + '%';
+                const c = document.getElementById('combo-display');
+                if(this.combo > 1) {
+                    c.textContent = `X${this.combo} COMBO`;
+                    c.classList.add('active');
+                } else {
+                    c.classList.remove('active');
+                }
             }
 
             gameOver() {
@@ -432,31 +516,41 @@
             draw() {
                 ctx.clearRect(0, 0, this.width, this.height);
 
-                // Road
-                ctx.fillStyle = '#334155';
-                ctx.fillRect(0, 0, this.width, this.height);
-                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-                ctx.lineWidth = 4;
-                for(let i=0; i<this.width; i+=100) {
-                    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, this.height); ctx.stroke();
+                ctx.save();
+                if(this.shake > 0.1) {
+                    ctx.translate((Math.random()-0.5)*this.shake, (Math.random()-0.5)*this.shake);
                 }
 
+                // Asphalt
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(0, 0, this.width, this.height);
+                
+                // Pavement Details
+                ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+                ctx.lineWidth = 2;
+                for(let i=0; i<this.width; i+=80) {
+                    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, this.height); ctx.stroke();
+                }
+                for(let i=0; i<this.height; i+=80) {
+                    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(this.width, i); ctx.stroke();
+                }
+
+                // Powerups
+                this.powerups.forEach(p => {
+                    ctx.font = '30px Arial';
+                    ctx.shadowBlur = 15; ctx.shadowColor = p.type === 'freeze' ? '#60a5fa' : '#fbbf24';
+                    ctx.fillText(p.type === 'freeze' ? '❄️' : '⚡', p.x-15, p.y+10);
+                    ctx.shadowBlur = 0;
+                });
+
                 // Truck
-                ctx.save();
-                ctx.translate(this.truck.x, this.truck.y);
-                ctx.fillStyle = '#fff';
-                ctx.beginPath(); ctx.roundRect(-this.truck.w/2, -this.truck.h/2, this.truck.w, this.truck.h, 10); ctx.fill();
-                ctx.fillStyle = varColor('--accent');
-                ctx.fillRect(-this.truck.w/2, 0, this.truck.w, 5);
-                ctx.font = '20px Arial';
-                ctx.fillText('🍦', -10, 5);
-                ctx.restore();
+                this.drawTruck();
 
                 // Scoops
                 this.scoops.forEach(s => {
                     ctx.fillStyle = s.color;
-                    ctx.beginPath(); ctx.arc(s.x, s.y, 8, 0, Math.PI*2); ctx.fill();
-                    ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.stroke();
+                    ctx.beginPath(); ctx.arc(s.x, s.y, 10, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 2; ctx.stroke();
                 });
 
                 // Zombies
@@ -464,28 +558,34 @@
                     ctx.save();
                     ctx.translate(z.x, z.y);
                     
-                    // Body
-                    ctx.fillStyle = z.sugarRush ? '#ef4444' : '#4ade80';
-                    ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI*2); ctx.fill();
-                    
-                    // Flavor Indicator (Hat/Hair)
-                    ctx.fillStyle = z.color;
-                    ctx.beginPath(); ctx.arc(0, -15, 12, Math.PI, 0); ctx.fill();
+                    if(z.sugarRush) {
+                        ctx.shadowBlur = 15; ctx.shadowColor = '#ef4444';
+                    }
 
-                    // Bars
+                    // Body
+                    const size = z.type === 'tank' ? 28 : (z.type === 'sprinter' ? 16 : 22);
+                    ctx.fillStyle = z.sugarRush ? '#ef4444' : (z.type === 'tank' ? '#065f46' : '#4ade80');
+                    ctx.beginPath(); ctx.arc(0, 0, size, 0, Math.PI*2); ctx.fill();
+                    
+                    // Flavor Indicator (Hat)
+                    ctx.fillStyle = z.color;
+                    ctx.beginPath(); ctx.arc(0, -size*0.7, size*0.6, Math.PI, 0); ctx.fill();
+
+                    // UI Bars
+                    const bw = size * 1.5;
                     ctx.fillStyle = 'rgba(0,0,0,0.5)';
-                    ctx.fillRect(-15, 25, 30, 4);
+                    ctx.fillRect(-bw/2, size + 10, bw, 5);
                     ctx.fillStyle = '#22c55e';
-                    ctx.fillRect(-15, 25, (z.satisfaction/100)*30, 4);
+                    ctx.fillRect(-bw/2, size + 10, (z.satisfaction/100)*bw, 5);
                     
                     ctx.fillStyle = 'rgba(0,0,0,0.5)';
-                    ctx.fillRect(-15, 32, 30, 4);
+                    ctx.fillRect(-bw/2, size + 18, bw, 5);
                     ctx.fillStyle = '#fbbf24';
-                    ctx.fillRect(-15, 32, (z.sugar/100)*30, 4);
+                    ctx.fillRect(-bw/2, size + 18, (z.sugar/100)*bw, 5);
 
                     if(z.sugarRush) {
-                        ctx.font = '12px Arial';
-                        ctx.fillText('⚡', -5, -25);
+                        ctx.font = '16px Arial';
+                        ctx.fillText('⚡', -8, -size - 10);
                     }
 
                     ctx.restore();
@@ -494,10 +594,52 @@
                 // Particles
                 this.particles.forEach(p => {
                     ctx.fillStyle = p.color;
-                    ctx.globalAlpha = p.life / 20;
+                    ctx.globalAlpha = p.life / 30;
                     ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
                 });
                 ctx.globalAlpha = 1;
+
+                // Freeze Overlay
+                if(this.powers.freeze > 0) {
+                    ctx.fillStyle = 'rgba(186, 230, 253, 0.15)';
+                    ctx.fillRect(0, 0, this.width, this.height);
+                    ctx.strokeStyle = '#7dd3fc'; ctx.lineWidth = 10; ctx.strokeRect(5, 5, this.width-10, this.height-10);
+                }
+
+                ctx.restore();
+            }
+
+            drawTruck() {
+                const {x, y, w, h} = this.truck;
+                ctx.save();
+                ctx.translate(x, y);
+                
+                // Body
+                ctx.fillStyle = '#f8fafc';
+                ctx.beginPath(); ctx.roundRect(-w/2, -h/2, w, h, 12); ctx.fill();
+                
+                // Pink Stripe
+                ctx.fillStyle = varColor('--accent');
+                ctx.fillRect(-w/2, -5, w, 10);
+                
+                // Window
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillRect(-w/2 + 10, -h/2 + 8, w - 20, h/2 - 15);
+                
+                // Counter
+                ctx.fillStyle = '#cbd5e1';
+                ctx.fillRect(-w/2 + 5, h/2 - 12, w - 10, 8);
+
+                // Cone Sign
+                ctx.font = '30px Arial';
+                ctx.fillText('🍦', -15, 5);
+
+                if(this.powers.rapid > 0) {
+                    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.arc(0, 0, 60 + Math.sin(Date.now()*0.01)*5, 0, Math.PI*2); ctx.stroke();
+                }
+
+                ctx.restore();
             }
 
             gameLoop() {
