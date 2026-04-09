@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Seat Sense - K2 games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --surface2: #334155;
+            --accent: #f59e0b;
+            --green: #22c55e;
+            --red: #ef4444;
+            --blue: #3b82f6;
+            --purple: #a855f7;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: rgba(255,255,255,0.1);
+            --glass: rgba(255,255,255,0.05);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Nav ── */
+        nav {
+            height: 52px;
+            padding: 0 1.2rem;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            z-index: 50;
+        }
+        .back-link { color: var(--muted); text-decoration: none; font-weight: bold; font-size: 0.85rem; }
+        .back-link:hover { color: var(--text); }
+        .logo { font-weight: 900; font-size: 1.05rem; color: var(--accent); letter-spacing: 1px; }
+        .nav-right { display: flex; gap: 8px; align-items: center; }
+        .nav-btn {
+            background: transparent; border: 1px solid var(--border); color: var(--muted);
+            padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 0.68rem; font-weight: 700;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        .nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+        #level-badge {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+            padding: 3px 10px; font-size: 0.72rem; font-weight: 900; color: var(--accent);
+        }
+
+        /* ── Game Layout ── */
+        #game-layout {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* ── Left: Character Panel ── */
+        #char-panel {
+            width: 195px;
+            flex-shrink: 0;
+            background: rgba(0,0,0,0.25);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 10px 8px;
+            gap: 7px;
+        }
+        #char-panel::-webkit-scrollbar { width: 4px; }
+        #char-panel::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 4px; }
+
+        .char-card {
+            background: var(--surface);
+            border: 2px solid transparent;
+            border-radius: 10px;
+            padding: 8px 8px 6px;
+            transition: border-color 0.3s;
+        }
+        .char-card.status-ok       { border-color: var(--green); }
+        .char-card.status-bad      { border-color: var(--red); }
+        .char-card.status-partial  { border-color: var(--accent); }
+        .char-card.status-neutral  { border-color: var(--border); }
+
+        .char-header { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+        .char-icon   { font-size: 1.35rem; line-height: 1; }
+        .char-name   { font-size: 0.72rem; font-weight: 900; flex: 1; line-height: 1; }
+        .char-dot    { width: 9px; height: 9px; border-radius: 50%; background: var(--surface2); flex-shrink: 0; transition: background 0.3s; }
+        .char-dot.ok { background: var(--green); box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+        .char-dot.bad { background: var(--red); }
+        .char-dot.partial { background: var(--accent); }
+
+        .clue-list { display: flex; flex-direction: column; gap: 2px; }
+        .clue-row {
+            display: flex; align-items: flex-start; gap: 4px;
+            font-size: 0.6rem; line-height: 1.35; color: var(--muted);
+        }
+        .clue-check { flex-shrink: 0; font-size: 0.65rem; margin-top: 0.5px; }
+        .clue-row.ok  { color: var(--green); }
+        .clue-row.bad { color: var(--red); }
+        .no-pref { font-size: 0.58rem; color: var(--surface2); font-style: italic; }
+
+        /* ── Center: Grid Panel ── */
+        #grid-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            padding: 16px 12px;
+            position: relative;
+            min-width: 0;
+        }
+
+        #setting-header { text-align: center; line-height: 1; }
+        #setting-icon   { font-size: 2.2rem; }
+        #setting-name   { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-top: 3px; }
+
+        #progress-wrap  { display: flex; align-items: center; gap: 8px; font-size: 0.7rem; }
+        #progress-text  { font-weight: 900; min-width: 60px; text-align: center; }
+        #progress-track { width: 100px; height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+        #progress-fill  { height: 100%; background: var(--green); border-radius: 3px; transition: width 0.35s; }
+
+        #seat-grid { display: grid; gap: 7px; }
+
+        .seat-slot {
+            width: 68px; height: 76px;
+            border-radius: 11px;
+            border: 2px dashed rgba(255,255,255,0.14);
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+            transition: border-color 0.18s, background 0.18s;
+            background: rgba(255,255,255,0.02);
+        }
+        .seat-slot.drop-hover { border-color: var(--accent); background: rgba(245,158,11,0.08); border-style: solid; }
+        .seat-slot.occupied   { border-style: solid; border-color: rgba(255,255,255,0.18); }
+
+        .seat-label {
+            position: absolute; top: 3px; left: 5px;
+            font-size: 0.48rem; color: var(--muted); font-weight: 700; pointer-events: none;
+        }
+
+        .person-token {
+            width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 2px; cursor: grab; border-radius: 9px;
+            transition: opacity 0.15s;
+            position: relative;
+            touch-action: none;
+        }
+        .person-token.is-dragging { opacity: 0.25; cursor: grabbing; }
+        .person-emoji { font-size: 1.7rem; pointer-events: none; line-height: 1; }
+        .person-name  { font-size: 0.5rem; font-weight: 900; pointer-events: none; text-align: center; line-height: 1; }
+        .person-sdot  {
+            width: 7px; height: 7px; border-radius: 50%; background: var(--surface2);
+            position: absolute; bottom: 4px; right: 5px;
+            pointer-events: none; transition: background 0.3s;
+        }
+        .person-sdot.ok  { background: var(--green); box-shadow: 0 0 5px rgba(34,197,94,0.7); }
+        .person-sdot.bad { background: var(--red); }
+        .person-sdot.partial { background: var(--accent); }
+
+        .aisle-col {
+            display: flex; align-items: center; justify-content: center;
+            writing-mode: vertical-lr; font-size: 0.45rem; color: rgba(255,255,255,0.2);
+            letter-spacing: 3px; text-transform: uppercase;
+            width: 14px; pointer-events: none;
+        }
+
+        /* ── Right: Info Panel ── */
+        #info-panel {
+            width: 170px;
+            flex-shrink: 0;
+            background: rgba(0,0,0,0.25);
+            border-left: 1px solid var(--border);
+            padding: 14px 11px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            overflow-y: auto;
+        }
+        .info-h { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); margin-bottom: 6px; font-weight: 700; }
+        #move-counter { font-size: 2.4rem; font-weight: 900; color: var(--accent); font-family: monospace; line-height: 1; }
+        #par-label     { font-size: 0.65rem; color: var(--muted); margin-top: 2px; }
+        .star-row { display: flex; gap: 3px; margin-top: 6px; }
+        .star { font-size: 1.1rem; opacity: 0.2; transition: opacity 0.3s; }
+        .star.lit { opacity: 1; }
+        .leg-item { display: flex; align-items: center; gap: 6px; font-size: 0.63rem; margin-bottom: 5px; color: var(--muted); }
+        .leg-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        #hint-btn {
+            background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+            padding: 8px; border-radius: 8px; width: 100%;
+            cursor: pointer; font-size: 0.7rem; font-weight: 700; text-align: center;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        #hint-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* ── Drag Ghost ── */
+        #drag-ghost {
+            position: fixed; pointer-events: none; z-index: 9999;
+            display: none; font-size: 2.4rem; line-height: 1;
+            transform: translate(-50%, -60%) scale(1.25);
+            filter: drop-shadow(0 8px 20px rgba(0,0,0,0.7));
+        }
+
+        /* ── Screens ── */
+        .screen {
+            position: fixed; inset: 0; z-index: 300;
+            background: rgba(15,23,42,0.96);
+            backdrop-filter: blur(6px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; padding: 24px; gap: 0;
+        }
+        .screen.hidden { display: none; }
+
+        .screen-icon  { font-size: 3.5rem; margin-bottom: 6px; }
+        .screen-title { font-size: 2.2rem; font-weight: 900; color: var(--accent); margin-bottom: 4px; }
+        .screen-sub   { font-size: 0.85rem; color: var(--muted); max-width: 360px; line-height: 1.6; margin-bottom: 16px; }
+
+        .btn-primary {
+            background: var(--accent); color: #000; border: none;
+            padding: 0.9rem 2.4rem; border-radius: 50px;
+            font-weight: 900; font-size: 0.95rem; cursor: pointer;
+            transition: transform 0.15s, filter 0.15s;
+        }
+        .btn-primary:hover { transform: scale(1.05); filter: brightness(1.1); }
+        .btn-secondary {
+            background: transparent; color: var(--muted); border: 1px solid var(--border);
+            padding: 0.65rem 1.8rem; border-radius: 50px;
+            font-weight: 700; font-size: 0.82rem; cursor: pointer;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        .btn-secondary:hover { border-color: var(--muted); color: var(--text); }
+
+        /* Level grid */
+        .lvl-section-head {
+            grid-column: 1 / -1;
+            font-size: 0.65rem; font-weight: 900; color: var(--accent);
+            text-transform: uppercase; letter-spacing: 2px;
+            margin-top: 10px; text-align: left;
+        }
+        .lvl-grid {
+            display: grid; grid-template-columns: repeat(4, 80px);
+            gap: 8px; margin: 12px 0; max-height: 55vh; overflow-y: auto;
+        }
+        .lvl-grid::-webkit-scrollbar { width: 4px; }
+        .lvl-grid::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 4px; }
+        .lvl-btn {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+            padding: 10px 6px; cursor: pointer; text-align: center; transition: border-color 0.2s, transform 0.15s;
+        }
+        .lvl-btn:hover { border-color: var(--accent); transform: scale(1.05); }
+        .lvl-btn .lb-icon  { font-size: 1.3rem; }
+        .lvl-btn .lb-name  { font-size: 0.58rem; color: var(--muted); margin-top: 3px; font-weight: 700; }
+        .lvl-btn .lb-stars { font-size: 0.75rem; margin-top: 2px; }
+
+        /* Win screen extras */
+        #win-stars  { font-size: 2.8rem; margin: 8px 0 4px; }
+        #win-detail { font-size: 0.8rem; color: var(--muted); margin-bottom: 16px; }
+        .btn-row    { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+        /* Confetti */
+        .confetti {
+            position: fixed; width: 8px; height: 8px; border-radius: 2px;
+            pointer-events: none; z-index: 9998;
+            animation: cfall var(--dur, 1.8s) ease-in var(--delay, 0s) forwards;
+        }
+        @keyframes cfall {
+            0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* Responsive */
+        @media (max-width: 700px) {
+            #char-panel { width: 145px; }
+            #info-panel { display: none; }
+            .seat-slot  { width: 58px; height: 67px; }
+        }
+        @media (max-width: 480px) {
+            #char-panel { width: 125px; }
+            .seat-slot  { width: 50px; height: 58px; }
+            .person-emoji { font-size: 1.35rem; }
+            .char-icon { font-size: 1.1rem; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="index.html" class="back-link">← HUB</a>
+    <div class="logo">🪑 SEAT SENSE</div>
+    <div class="nav-right">
+        <div id="level-badge">Lv 1</div>
+        <button class="nav-btn" onclick="SS.showLevels()">LEVELS</button>
+        <button class="nav-btn" onclick="SS.restart()">↺</button>
+    </div>
+</nav>
+
+<div id="game-layout">
+
+    <!-- Left: Character Panel -->
+    <div id="char-panel"></div>
+
+    <!-- Center: Seat Grid -->
+    <div id="grid-panel">
+        <div id="setting-header">
+            <div id="setting-icon">🚌</div>
+            <div id="setting-name">School Bus</div>
+        </div>
+        <div id="progress-wrap">
+            <div id="progress-text">0 / 0</div>
+            <div id="progress-track"><div id="progress-fill" style="width:0%"></div></div>
+            <div style="font-size:0.65rem;color:var(--muted);">happy</div>
+        </div>
+        <div id="seat-grid"></div>
+    </div>
+
+    <!-- Right: Info Panel -->
+    <div id="info-panel">
+        <div>
+            <div class="info-h">Moves</div>
+            <div id="move-counter">0</div>
+            <div id="par-label">Par: —</div>
+            <div class="star-row">
+                <div class="star" id="st1">⭐</div>
+                <div class="star" id="st2">⭐</div>
+                <div class="star" id="st3">⭐</div>
+            </div>
+        </div>
+        <div>
+            <div class="info-h">Key</div>
+            <div class="leg-item"><div class="leg-dot" style="background:var(--green)"></div>Happy</div>
+            <div class="leg-item"><div class="leg-dot" style="background:var(--accent)"></div>Partial</div>
+            <div class="leg-item"><div class="leg-dot" style="background:var(--red)"></div>Unhappy</div>
+        </div>
+        <div>
+            <button id="hint-btn" onclick="SS.hint()">💡 Hint</button>
+        </div>
+        <div>
+            <div class="info-h">How to play</div>
+            <p style="font-size:0.6rem;color:var(--muted);line-height:1.55;">
+                Drag &amp; drop to swap seats.<br>
+                Check clue rows on the left.<br>
+                ✓ green = satisfied.<br>
+                Get everyone happy to win!
+            </p>
+        </div>
+    </div>
+
+</div>
+
+<!-- Drag ghost -->
+<div id="drag-ghost"></div>
+
+<!-- Start Screen -->
+<div id="start-screen" class="screen">
+    <div class="screen-icon">🪑</div>
+    <div class="screen-title">SEAT SENSE</div>
+    <p class="screen-sub">Arrange passengers so everyone is happy!<br>Drag &amp; drop to swap seats and satisfy their clues.</p>
+    <div class="lvl-grid" id="start-lvl-grid"></div>
+    <button class="btn-primary" style="margin-top:4px;" onclick="SS.startLevel(0)">▶ Start Level 1</button>
+</div>
+
+<!-- Level Select Screen -->
+<div id="level-screen" class="screen hidden">
+    <div class="screen-title" style="font-size:1.6rem;">Choose Puzzle</div>
+    <div class="lvl-grid" id="select-lvl-grid" style="margin-top:14px;"></div>
+    <button class="btn-secondary" style="margin-top:10px;" onclick="SS.hideLevels()">← Back</button>
+</div>
+
+<!-- Win Screen -->
+<div id="win-screen" class="screen hidden">
+    <div id="win-icon" style="font-size:4rem;"></div>
+    <div id="win-title" style="font-size:2rem;font-weight:900;color:var(--green);margin-top:4px;">Everyone's Happy!</div>
+    <div id="win-stars">⭐⭐⭐</div>
+    <div id="win-detail"></div>
+    <div class="btn-row">
+        <button class="btn-primary"   id="next-btn"   onclick="SS.nextLevel()">Next Puzzle →</button>
+        <button class="btn-secondary" onclick="SS.restart()">↺ Retry</button>
+        <button class="btn-secondary" onclick="SS.showLevels()">☰ Levels</button>
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  LEVEL DATA
+// ═══════════════════════════════════════════════════
+const LEVELS = [
+    // ─── 1: BUS – Intro ───
+    {
+        id: 0, setting: 'School Bus', icon: '🚌', par: 4,
+        layout: { rows: 3, cols: 2, type: 'bus' },
+        chars: [
+            { id:'a', name:'Mia',  emoji:'👧', clues:[{ type:'next_to', tgt:'b', desc:'Sit next to Leo' }] },
+            { id:'b', name:'Leo',  emoji:'👦', clues:[{ type:'next_to', tgt:'a', desc:'Sit next to Mia' }] },
+            { id:'c', name:'Zoe',  emoji:'😎', clues:[{ type:'zone', zone:'back', desc:'Back half only' }] },
+            { id:'d', name:'Tom',  emoji:'🤓', clues:[{ type:'zone', zone:'front', desc:'Front half only' }] },
+            { id:'e', name:'Jay',  emoji:'🙂', clues:[] },
+            { id:'f', name:'Sam',  emoji:'😄', clues:[{ type:'not_next_to', tgt:'c', desc:'Not next to Zoe' }] },
+        ],
+        // charId → seat index  (row-major, 2 cols → seat 0=R1C1, 1=R1C2, 2=R2C1, ...)
+        start: { a:3, b:0, c:1, d:4, e:2, f:5 }
+    },
+
+    // ─── 2: BUS – Intermediate ───
+    {
+        id: 1, setting: 'School Bus', icon: '🚌', par: 5,
+        layout: { rows: 4, cols: 2, type: 'bus' },
+        chars: [
+            { id:'a', name:'Ella', emoji:'💁', clues:[{ type:'window', desc:'Window seat please' }] },
+            { id:'b', name:'Finn', emoji:'😤', clues:[{ type:'not_next_to', tgt:'c', desc:'Not next to Amy' }] },
+            { id:'c', name:'Amy',  emoji:'📢', clues:[{ type:'next_to', tgt:'d', desc:'Sit next to Ben' }] },
+            { id:'d', name:'Ben',  emoji:'🥴', clues:[{ type:'not_next_to', tgt:'c', desc:'Not next to Amy' }] },
+            { id:'e', name:'Kay',  emoji:'🙏', clues:[{ type:'zone', zone:'front', desc:'Front half only' }] },
+            { id:'f', name:'Oli',  emoji:'👀', clues:[{ type:'window', desc:'Window seat please' }] },
+            { id:'g', name:'Dan',  emoji:'🎮', clues:[{ type:'zone', zone:'back', desc:'Back half please' }] },
+            { id:'h', name:'Rue',  emoji:'😴', clues:[] },
+        ],
+        start: { a:0, b:1, c:2, d:3, e:4, f:5, g:6, h:7 }
+    },
+
+    // ─── 3: AIRPLANE – Intro ───
+    {
+        id: 2, setting: 'Airplane', icon: '✈️', par: 5,
+        layout: { rows: 3, cols: 3, type: 'plane', aisleAfter: 1 },
+        chars: [
+            { id:'a', name:'Nora', emoji:'😰', clues:[{ type:'aisle', desc:'Needs an aisle seat' }] },
+            { id:'b', name:'Raj',  emoji:'📸', clues:[{ type:'window', desc:'Window seat only' }] },
+            { id:'c', name:'Gus',  emoji:'😴', clues:[{ type:'zone', zone:'back', desc:'Prefers the back' }] },
+            { id:'d', name:'Pia',  emoji:'👶', clues:[] },
+            { id:'e', name:'Max',  emoji:'😤', clues:[{ type:'not_next_to', tgt:'d', desc:'Not next to Pia' }] },
+            { id:'f', name:'Lena', emoji:'💺', clues:[{ type:'aisle', desc:'Needs an aisle seat' }] },
+        ],
+        start: { a:0, b:1, c:2, d:3, e:4, f:5 }
+    },
+
+    // ─── 4: AIRPLANE – Advanced ───
+    {
+        id: 3, setting: 'Airplane', icon: '✈️', par: 7,
+        layout: { rows: 4, cols: 3, type: 'plane', aisleAfter: 1 },
+        chars: [
+            { id:'a', name:'Cleo', emoji:'👑', clues:[{ type:'zone', zone:'front', desc:'Front rows only' }, { type:'window', desc:'Window seat' }] },
+            { id:'b', name:'Hugo', emoji:'🦵', clues:[{ type:'aisle', desc:'Aisle — needs legroom' }] },
+            { id:'c', name:'Bea',  emoji:'🤧', clues:[{ type:'not_next_to', tgt:'a', desc:'Not next to Cleo' }] },
+            { id:'d', name:'Teo',  emoji:'🎧', clues:[{ type:'next_to', tgt:'e', desc:'Sit next to Rosa' }] },
+            { id:'e', name:'Rosa', emoji:'🌹', clues:[{ type:'next_to', tgt:'d', desc:'Sit next to Teo' }] },
+            { id:'f', name:'Moe',  emoji:'💤', clues:[{ type:'zone', zone:'back', desc:'Back of the plane' }] },
+            { id:'g', name:'Vic',  emoji:'📱', clues:[{ type:'zone', zone:'back', desc:'Back row' }] },
+            { id:'h', name:'Kim',  emoji:'🙂', clues:[] },
+            { id:'i', name:'Al',   emoji:'🎲', clues:[{ type:'window', desc:'Window seat' }] },
+            { id:'j', name:'Sue',  emoji:'😅', clues:[{ type:'aisle', desc:'Aisle seat' }] },
+            { id:'k', name:'Abe',  emoji:'📚', clues:[{ type:'zone', zone:'front', desc:'Front rows' }] },
+            { id:'l', name:'Joy',  emoji:'😂', clues:[] },
+        ],
+        start: { a:0,b:1,c:2, d:3,e:4,f:5, g:6,h:7,i:8, j:9,k:10,l:11 }
+    },
+
+    // ─── 5: DINNER PARTY – Intro ───
+    {
+        id: 4, setting: 'Dinner Party', icon: '🍽️', par: 4,
+        layout: { rows: 2, cols: 4, type: 'dinner' },
+        chars: [
+            { id:'a', name:'Chef',  emoji:'👨‍🍳', clues:[{ type:'zone', zone:'front', desc:'Top row (near kitchen)' }] },
+            { id:'b', name:'Viv',   emoji:'💃',  clues:[{ type:'next_to', tgt:'c', desc:'Sit next to Carl' }] },
+            { id:'c', name:'Carl',  emoji:'😡',  clues:[{ type:'not_next_to', tgt:'d', desc:'Not next to Boss' }] },
+            { id:'d', name:'Boss',  emoji:'🤵',  clues:[{ type:'zone', zone:'front', desc:'Head of table (top row)' }] },
+            { id:'e', name:'Nana',  emoji:'👵',  clues:[{ type:'not_next_to', tgt:'f', desc:'Not next to Rollo' }] },
+            { id:'f', name:'Rollo', emoji:'🗣️', clues:[] },
+            { id:'g', name:'Pip',   emoji:'🥂',  clues:[{ type:'next_to', tgt:'b', desc:'Sit next to Viv' }] },
+            { id:'h', name:'Deb',   emoji:'🍷',  clues:[] },
+        ],
+        start: { a:1,b:2,c:3,d:4,e:5,f:6,g:7,h:0 }
+    },
+
+    // ─── 6: DINNER PARTY – Tricky ───
+    {
+        id: 5, setting: 'Dinner Party', icon: '🍽️', par: 7,
+        layout: { rows: 2, cols: 4, type: 'dinner' },
+        chars: [
+            { id:'a', name:'Ada',   emoji:'🔬', clues:[{ type:'not_next_to', tgt:'b', desc:'Not next to Rex (rivals)' }] },
+            { id:'b', name:'Rex',   emoji:'🏆', clues:[{ type:'not_next_to', tgt:'a', desc:'Not next to Ada (rivals)' }] },
+            { id:'c', name:'Faye',  emoji:'👩‍🍳', clues:[{ type:'zone', zone:'front', desc:'Top row (host side)' }] },
+            { id:'d', name:'Otto',  emoji:'🍖', clues:[{ type:'not_next_to', tgt:'e', desc:"Not next to Vera" }] },
+            { id:'e', name:'Vera',  emoji:'🥗', clues:[{ type:'not_next_to', tgt:'d', desc:"Not next to Otto" }] },
+            { id:'f', name:'Lou',   emoji:'🎸', clues:[{ type:'next_to', tgt:'g', desc:'Sit next to Jazz' }] },
+            { id:'g', name:'Jazz',  emoji:'🎷', clues:[{ type:'next_to', tgt:'f', desc:'Sit next to Lou' }] },
+            { id:'h', name:'Eddie', emoji:'🤐', clues:[] },
+        ],
+        start: { a:0,b:1,c:2,d:3,e:4,f:5,g:6,h:7 }
+    },
+
+    // ─── 7: MOVIE THEATER – Intro ───
+    {
+        id: 6, setting: 'Movie Theater', icon: '🎬', par: 6,
+        layout: { rows: 4, cols: 3, type: 'theater', aisleAfter: 1 },
+        chars: [
+            { id:'a', name:'Buff',  emoji:'🎥', clues:[{ type:'zone', zone:'front', desc:'Near the screen' }] },
+            { id:'b', name:'Shy',   emoji:'🙈', clues:[{ type:'zone', zone:'back', desc:'Back row only' }] },
+            { id:'c', name:'Tall',  emoji:'🏀', clues:[{ type:'zone', zone:'back', desc:"Back row (hat room)" }, { type:'aisle', desc:'Aisle seat (legroom)' }] },
+            { id:'d', name:'Munch', emoji:'🍿', clues:[] },
+            { id:'e', name:'Snore', emoji:'💤', clues:[{ type:'zone', zone:'back', desc:"Back row, won't bother anyone" }] },
+            { id:'f', name:'Eve',   emoji:'😤', clues:[{ type:'not_next_to', tgt:'d', desc:'Not next to Munch' }] },
+            { id:'g', name:'Ryo',   emoji:'👫', clues:[{ type:'next_to', tgt:'h', desc:'Sit next to Min' }] },
+            { id:'h', name:'Min',   emoji:'💑', clues:[{ type:'next_to', tgt:'g', desc:'Sit next to Ryo' }] },
+            { id:'i', name:'Chris', emoji:'📵', clues:[{ type:'aisle', desc:'Aisle — quick exit' }] },
+            { id:'j', name:'Anne',  emoji:'📖', clues:[{ type:'window', desc:'Far side window seat' }] },
+            { id:'k', name:'Zara',  emoji:'🙂', clues:[] },
+            { id:'l', name:'Mel',   emoji:'😂', clues:[] },
+        ],
+        start: { a:0,b:1,c:2,d:3,e:4,f:5,g:6,h:7,i:8,j:9,k:10,l:11 }
+    },
+
+    // ─── 8: MOVIE THEATER – Hard ───
+    {
+        id: 7, setting: 'Movie Theater', icon: '🎬', par: 9,
+        layout: { rows: 5, cols: 3, type: 'theater', aisleAfter: 1 },
+        chars: [
+            { id:'a', name:'Lola',  emoji:'💃', clues:[{ type:'window', desc:'Window seat' }, { type:'zone', zone:'front', desc:'Near the screen' }] },
+            { id:'b', name:'Drake', emoji:'🎤', clues:[{ type:'not_next_to', tgt:'c', desc:'Not near the baby' }] },
+            { id:'c', name:'Baby',  emoji:'👶', clues:[] },
+            { id:'d', name:'Prof',  emoji:'🧑‍🏫', clues:[{ type:'zone', zone:'front', desc:'Front rows'}, { type:'aisle', desc:'Aisle seat' }] },
+            { id:'e', name:'Ziggy', emoji:'🤘', clues:[{ type:'zone', zone:'back', desc:'Back row only' }] },
+            { id:'f', name:'Pru',   emoji:'😱', clues:[{ type:'aisle', desc:'Aisle — quick escape!' }] },
+            { id:'g', name:'Kai',   emoji:'🏄', clues:[{ type:'next_to', tgt:'h', desc:'Sit next to Finn' }] },
+            { id:'h', name:'Finn',  emoji:'🧜', clues:[{ type:'next_to', tgt:'g', desc:'Sit next to Kai' }] },
+            { id:'i', name:'Rex',   emoji:'🦖', clues:[{ type:'aisle', desc:'Aisle seat' }] },
+            { id:'j', name:'Nell',  emoji:'🎭', clues:[{ type:'window', desc:'Window seat far side' }] },
+            { id:'k', name:'Pip',   emoji:'🐦', clues:[{ type:'not_next_to', tgt:'b', desc:'Not next to Drake' }] },
+            { id:'l', name:'Dot',   emoji:'🔴', clues:[] },
+            { id:'m', name:'Ash',   emoji:'🌿', clues:[] },
+            { id:'n', name:'Bren',  emoji:'🧢', clues:[{ type:'zone', zone:'back', desc:'Back row' }] },
+            { id:'o', name:'Wren',  emoji:'🦅', clues:[{ type:'zone', zone:'front', desc:'Near the screen' }] },
+        ],
+        start: { a:0,b:1,c:2,d:3,e:4,f:5,g:6,h:7,i:8,j:9,k:10,l:11,m:12,n:13,o:14 }
+    },
+];
+
+// ═══════════════════════════════════════════════════
+//  ENGINE
+// ═══════════════════════════════════════════════════
+const SS = (() => {
+    let lvl = null;         // current LEVELS entry
+    let assign = {};        // charId → seatIndex
+    let seats = [];         // built seat objects
+    let moves = 0;
+    let best = JSON.parse(localStorage.getItem('seatSenseBest') || '{}');
+
+    // ── Seat building ──────────────────────────────
+    function buildSeats(layout) {
+        const { rows, cols, type, aisleAfter } = layout;
+        const out = [];
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                let sType = 'middle';
+                if (type === 'bus') {
+                    sType = (c === 0 || c === cols - 1) ? 'window' : 'middle';
+                } else if (type === 'plane' || type === 'theater') {
+                    if (c === 0 || c === cols - 1) sType = 'window';
+                    else if (c === aisleAfter || c === aisleAfter + 1) sType = 'aisle';
+                }
+                // dinner: all 'middle'
+                out.push({ idx: out.length, row: r, col: c, type: sType });
+            }
+        }
+        return out;
+    }
+
+    // ── Adjacency ──────────────────────────────────
+    function adjacent(idxA, idxB) {
+        const a = seats[idxA], b = seats[idxB];
+        const dr = Math.abs(a.row - b.row);
+        const dc = Math.abs(a.col - b.col);
+        // Orthogonal only (no diagonals)
+        if (!((dr === 1 && dc === 0) || (dr === 0 && dc === 1))) return false;
+        // Plane/Theater: seats across the visual aisle gap are NOT adjacent
+        if ((lvl.layout.type === 'plane' || lvl.layout.type === 'theater') && lvl.layout.aisleAfter !== undefined) {
+            const af = lvl.layout.aisleAfter;
+            // cols af and af+1 are on opposite sides of aisle — not adjacent
+            const minC = Math.min(a.col, b.col), maxC = Math.max(a.col, b.col);
+            if (minC === af && maxC === af + 1) return false;
+        }
+        return true;
+    }
+
+    function adjSeats(idx) {
+        const result = [];
+        for (let i = 0; i < seats.length; i++) {
+            if (i !== idx && adjacent(idx, i)) result.push(i);
+        }
+        // Dinner: wrap ends of same row
+        if (lvl.layout.type === 'dinner') {
+            const s = seats[idx];
+            const cols = lvl.layout.cols;
+            const wrapCol = s.col === 0 ? cols - 1 : (s.col === cols - 1 ? 0 : -1);
+            if (wrapCol >= 0) {
+                const wrapIdx = seats.findIndex(x => x.row === s.row && x.col === wrapCol);
+                if (wrapIdx >= 0 && !result.includes(wrapIdx)) result.push(wrapIdx);
+            }
+        }
+        return result;
+    }
+
+    // ── Clue evaluation ────────────────────────────
+    function evalClue(clue, charId) {
+        const si = assign[charId];
+        if (si === undefined) return false;
+        switch (clue.type) {
+            case 'next_to': {
+                const ti = assign[clue.tgt];
+                return ti !== undefined && adjSeats(si).includes(ti);
+            }
+            case 'not_next_to': {
+                const ti = assign[clue.tgt];
+                return ti === undefined || !adjSeats(si).includes(ti);
+            }
+            case 'window': return seats[si].type === 'window';
+            case 'aisle':  return seats[si].type === 'aisle';
+            case 'zone': {
+                const r = seats[si].row, rows = lvl.layout.rows;
+                if (clue.zone === 'front') return r < Math.ceil(rows / 2);
+                if (clue.zone === 'back')  return r >= Math.floor(rows / 2);
+                return false;
+            }
+            default: return false;
+        }
+    }
+
+    function charAtSeat(si) {
+        for (const [cid, s] of Object.entries(assign)) if (s === si) return cid;
+        return null;
+    }
+
+    function evalAll() {
+        let happy = 0;
+        const res = {};
+        for (const ch of lvl.chars) {
+            if (ch.clues.length === 0) {
+                res[ch.id] = { status: 'neutral', clues: [] };
+                happy++;
+                continue;
+            }
+            const cr = ch.clues.map(cl => evalClue(cl, ch.id));
+            const allOk = cr.every(Boolean), anyOk = cr.some(Boolean);
+            res[ch.id] = {
+                status: allOk ? 'ok' : (anyOk ? 'partial' : 'bad'),
+                clues: cr
+            };
+            if (allOk) happy++;
+        }
+        return { res, happy, total: lvl.chars.length };
+    }
+
+    // ── Rendering ──────────────────────────────────
+    function render() {
+        const { res, happy, total } = evalAll();
+
+        // Progress
+        document.getElementById('progress-text').textContent = `${happy} / ${total}`;
+        document.getElementById('progress-fill').style.width = `${(happy / total) * 100}%`;
+
+        // Header
+        document.getElementById('setting-icon').textContent = lvl.icon;
+        document.getElementById('setting-name').textContent = lvl.setting;
+        document.getElementById('level-badge').textContent = `Lv ${lvl.id + 1}`;
+
+        // Moves
+        document.getElementById('move-counter').textContent = moves;
+        document.getElementById('par-label').textContent = `Par: ${lvl.par}`;
+        updateStars();
+
+        renderCharPanel(res);
+        renderGrid(res);
+    }
+
+    function updateStars() {
+        const s3 = moves <= lvl.par;
+        const s2 = moves <= Math.floor(lvl.par * 1.6);
+        const s1 = moves <= Math.floor(lvl.par * 2.5);
+        document.getElementById('st1').classList.toggle('lit', s1);
+        document.getElementById('st2').classList.toggle('lit', s2);
+        document.getElementById('st3').classList.toggle('lit', s3);
+    }
+
+    function renderCharPanel(res) {
+        const panel = document.getElementById('char-panel');
+        panel.innerHTML = '';
+        for (const ch of lvl.chars) {
+            const r = res[ch.id];
+            const cardEl = document.createElement('div');
+            cardEl.className = `char-card status-${r.status}`;
+            const dotClass = r.status === 'ok' ? 'ok' : r.status === 'bad' ? 'bad' : r.status === 'partial' ? 'partial' : '';
+            cardEl.innerHTML =
+                `<div class="char-header">
+                    <span class="char-icon">${ch.emoji}</span>
+                    <span class="char-name">${ch.name}</span>
+                    <div class="char-dot ${dotClass}"></div>
+                </div>
+                <div class="clue-list">
+                    ${ch.clues.length === 0
+                        ? '<div class="no-pref">No preferences</div>'
+                        : ch.clues.map((cl, i) =>
+                            `<div class="clue-row ${r.clues[i] ? 'ok' : 'bad'}">
+                                <span class="clue-check">${r.clues[i] ? '✓' : '✗'}</span>
+                                <span>${cl.desc}</span>
+                            </div>`).join('')
+                    }
+                </div>`;
+            panel.appendChild(cardEl);
+        }
+    }
+
+    function renderGrid(res) {
+        const el = document.getElementById('seat-grid');
+        const { rows, cols, type, aisleAfter } = lvl.layout;
+        const hasAisle = type === 'plane' || type === 'theater';
+
+        // Build CSS grid template
+        if (hasAisle) {
+            const left  = aisleAfter + 1;
+            const right = cols - (aisleAfter + 1);
+            el.style.gridTemplateColumns = `repeat(${left},68px) 14px repeat(${right},68px)`;
+        } else {
+            el.style.gridTemplateColumns = `repeat(${cols},68px)`;
+        }
+
+        el.innerHTML = '';
+
+        for (let r = 0; r < rows; r++) {
+            let aisleInserted = false;
+            for (let c = 0; c < cols; c++) {
+                // Insert aisle gap after column aisleAfter
+                if (hasAisle && !aisleInserted && c === aisleAfter + 1) {
+                    const gap = document.createElement('div');
+                    gap.className = 'aisle-col';
+                    gap.textContent = 'AISLE';
+                    el.appendChild(gap);
+                    aisleInserted = true;
+                }
+
+                const si = r * cols + c;
+                const seat = seats[si];
+                const cid  = charAtSeat(si);
+                const ch   = cid ? lvl.chars.find(x => x.id === cid) : null;
+
+                const slot = document.createElement('div');
+                slot.className = 'seat-slot' + (ch ? ' occupied' : '');
+                slot.dataset.si = si;
+
+                const lbl = document.createElement('div');
+                lbl.className = 'seat-label';
+                lbl.textContent = `${r + 1}${String.fromCharCode(65 + c)}`;
+                slot.appendChild(lbl);
+
+                if (ch) {
+                    const cr = res[cid];
+                    const sdotClass = cr.status === 'ok' ? 'ok' : cr.status === 'bad' ? 'bad' : cr.status === 'partial' ? 'partial' : '';
+                    const tok = document.createElement('div');
+                    tok.className = 'person-token';
+                    tok.dataset.cid = cid;
+                    tok.setAttribute('touch-action', 'none');
+                    tok.innerHTML =
+                        `<div class="person-emoji">${ch.emoji}</div>
+                        <div class="person-name">${ch.name}</div>
+                        <div class="person-sdot ${sdotClass}"></div>`;
+                    tok.addEventListener('pointerdown', onDragStart, { passive: false });
+                    slot.appendChild(tok);
+                }
+
+                el.appendChild(slot);
+            }
+            // Edge case: if cols === aisleAfter+1 and no right side (shouldn't happen but guard)
+            if (hasAisle && !aisleInserted) {
+                const gap = document.createElement('div');
+                gap.className = 'aisle-col';
+                el.appendChild(gap);
+            }
+        }
+    }
+
+    // ── Drag & Drop ────────────────────────────────
+    let dCid = null, dOrigin = null, dGhost = document.getElementById('drag-ghost');
+    let dHovered = null;
+
+    function onDragStart(e) {
+        e.preventDefault();
+        dCid = e.currentTarget.dataset.cid;
+        dOrigin = parseInt(e.currentTarget.closest('.seat-slot').dataset.si);
+        e.currentTarget.classList.add('is-dragging');
+
+        dGhost.textContent = lvl.chars.find(c => c.id === dCid).emoji;
+        dGhost.style.display = 'block';
+        moveGhost(e.clientX, e.clientY);
+
+        document.addEventListener('pointermove', onDragMove, { passive: true });
+        document.addEventListener('pointerup', onDragEnd);
+    }
+
+    function onDragMove(e) {
+        if (!dCid) return;
+        moveGhost(e.clientX, e.clientY);
+
+        const under = document.elementFromPoint(e.clientX, e.clientY);
+        const slot = under?.closest?.('.seat-slot');
+        if (slot !== dHovered) {
+            if (dHovered) dHovered.classList.remove('drop-hover');
+            dHovered = slot || null;
+            if (dHovered) dHovered.classList.add('drop-hover');
+        }
+    }
+
+    function onDragEnd(e) {
+        if (!dCid) return;
+        dGhost.style.display = 'none';
+        document.removeEventListener('pointermove', onDragMove);
+        document.removeEventListener('pointerup', onDragEnd);
+
+        // Remove dragging class
+        const tok = document.querySelector(`.person-token[data-cid="${dCid}"]`);
+        if (tok) tok.classList.remove('is-dragging');
+
+        if (dHovered) dHovered.classList.remove('drop-hover');
+
+        const under = document.elementFromPoint(e.clientX, e.clientY);
+        const dropSlot = under?.closest?.('.seat-slot');
+        if (dropSlot) {
+            const dropSi = parseInt(dropSlot.dataset.si);
+            if (dropSi !== dOrigin) {
+                const swapCid = charAtSeat(dropSi);
+                assign[dCid] = dropSi;
+                if (swapCid) assign[swapCid] = dOrigin;
+                moves++;
+                render();
+                checkWin();
+            }
+        }
+
+        dHovered = null;
+        dCid = null;
+        dOrigin = null;
+    }
+
+    function moveGhost(x, y) {
+        dGhost.style.left = x + 'px';
+        dGhost.style.top  = y + 'px';
+    }
+
+    // ── Win ────────────────────────────────────────
+    function checkWin() {
+        const { happy, total } = evalAll();
+        if (happy === total) setTimeout(showWin, 350);
+    }
+
+    function showWin() {
+        const s3 = moves <= lvl.par;
+        const s2 = moves <= Math.floor(lvl.par * 1.6);
+        const s1 = moves <= Math.floor(lvl.par * 2.5);
+        const starCount = s3 ? 3 : s2 ? 2 : 1;
+
+        if (!best[lvl.id] || best[lvl.id] < starCount) {
+            best[lvl.id] = starCount;
+            localStorage.setItem('seatSenseBest', JSON.stringify(best));
+        }
+
+        document.getElementById('win-icon').textContent = lvl.icon;
+        document.getElementById('win-stars').textContent = '⭐'.repeat(starCount) + '☆'.repeat(3 - starCount);
+        document.getElementById('win-detail').textContent = `Solved in ${moves} move${moves !== 1 ? 's' : ''} · Par: ${lvl.par}`;
+        document.getElementById('next-btn').style.display = lvl.id < LEVELS.length - 1 ? '' : 'none';
+        show('win-screen');
+        confetti();
+    }
+
+    function confetti() {
+        const colors = ['#f59e0b','#22c55e','#3b82f6','#a855f7','#ef4444','#fff'];
+        for (let i = 0; i < 70; i++) {
+            const el = document.createElement('div');
+            el.className = 'confetti';
+            el.style.cssText = `left:${Math.random()*100}vw;top:-12px;
+                background:${colors[i % colors.length]};
+                --dur:${1.4 + Math.random() * 1.2}s;
+                --delay:${Math.random() * 1.1}s;
+                transform:rotate(${Math.random()*360}deg)`;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3500);
+        }
+    }
+
+    // ── Level management ───────────────────────────
+    function startLevel(id) {
+        lvl    = LEVELS[id];
+        seats  = buildSeats(lvl.layout);
+        assign = Object.assign({}, lvl.start);
+        moves  = 0;
+
+        hideAll();
+        render();
+    }
+
+    function nextLevel() {
+        if (lvl && lvl.id < LEVELS.length - 1) startLevel(lvl.id + 1);
+        else showLevels();
+    }
+
+    function restart() {
+        if (lvl) startLevel(lvl.id);
+    }
+
+    // ── Level-select screens ───────────────────────
+    function buildLvlGrid(gridId) {
+        const grid = document.getElementById(gridId);
+        grid.innerHTML = '';
+        const groups = {};
+        for (const l of LEVELS) {
+            if (!groups[l.setting]) groups[l.setting] = [];
+            groups[l.setting].push(l);
+        }
+        for (const [setting, ls] of Object.entries(groups)) {
+            const head = document.createElement('div');
+            head.className = 'lvl-section-head';
+            head.textContent = `${ls[0].icon} ${setting}`;
+            grid.appendChild(head);
+            for (const l of ls) {
+                const btn = document.createElement('div');
+                btn.className = 'lvl-btn';
+                const s = best[l.id] || 0;
+                btn.innerHTML = `<div class="lb-icon">${l.icon}</div>
+                    <div class="lb-name">Lv ${l.id + 1}</div>
+                    <div class="lb-stars">${s > 0 ? '⭐'.repeat(s) : '·'}</div>`;
+                btn.addEventListener('click', () => startLevel(l.id));
+                grid.appendChild(btn);
+            }
+        }
+    }
+
+    function showLevels() {
+        buildLvlGrid('select-lvl-grid');
+        hideAll();
+        show('level-screen');
+    }
+
+    function hideLevels() {
+        hide('level-screen');
+        if (!lvl) show('start-screen');
+    }
+
+    function hint() {
+        if (!lvl) return;
+        const { res } = evalAll();
+        for (const ch of lvl.chars) {
+            const r = res[ch.id];
+            if (r.status !== 'ok' && ch.clues.length > 0) {
+                const badIdx = r.clues.findIndex(v => !v);
+                if (badIdx >= 0) {
+                    alert(`Hint → ${ch.name}: "${ch.clues[badIdx].desc}"`);
+                    return;
+                }
+            }
+        }
+        alert('Almost there — everyone looks close!');
+    }
+
+    // ── Screen helpers ─────────────────────────────
+    function show(id) { document.getElementById(id).classList.remove('hidden'); }
+    function hide(id) { document.getElementById(id).classList.add('hidden'); }
+    function hideAll() {
+        ['start-screen','level-screen','win-screen'].forEach(hide);
+    }
+
+    // ── Init ───────────────────────────────────────
+    buildLvlGrid('start-lvl-grid');
+
+    return { startLevel, nextLevel, restart, showLevels, hideLevels, hint };
+})();
+</script>
+</body>
+</html>

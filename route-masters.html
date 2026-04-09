@@ -1,0 +1,1933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Route Masters - K2 games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --surface2: #334155;
+            --accent: #fbbf24;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: rgba(255,255,255,0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+        nav {
+            height: 48px;
+            padding: 0 1rem;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+            flex-shrink: 0;
+        }
+        .logo { font-weight: 900; font-size: 1.1rem; color: var(--accent); letter-spacing: 2px; }
+        .back-link { color: var(--muted); text-decoration: none; font-size: 0.85rem; font-weight: 700; }
+        .nav-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 0.7rem; font-weight: 700; }
+
+        /* ---- LAYOUT ---- */
+        #game-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        #players-strip {
+            height: 64px;
+            display: flex;
+            gap: 6px;
+            padding: 6px 10px;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            flex-shrink: 0;
+        }
+        .pinfo {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 4px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 90px;
+            flex: 1;
+            max-width: 140px;
+            transition: 0.2s;
+            position: relative;
+        }
+        .pinfo.active { border-color: var(--accent); background: rgba(251,191,36,0.08); }
+        .pinfo .pname { font-size: 0.55rem; font-weight: 800; text-transform: uppercase; color: var(--muted); }
+        .pinfo .pscore { font-size: 1.1rem; font-weight: 900; }
+        .pinfo .pdetail { font-size: 0.55rem; color: var(--muted); }
+        .ptoken { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: middle; }
+
+        #mid-section {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            min-height: 0;
+        }
+        #canvas-wrap {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #080f1e;
+        }
+        canvas {
+            display: block;
+            cursor: pointer;
+            touch-action: none;
+        }
+        #sidebar {
+            width: 260px;
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+        #sidebar-header {
+            padding: 10px 12px 6px;
+            border-bottom: 1px solid var(--border);
+        }
+        #sidebar-header .cur-player-label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; font-weight: 800; }
+        #sidebar-header .cur-player-name { font-size: 1rem; font-weight: 900; }
+        #sidebar-header .cur-player-trains { font-size: 0.7rem; color: var(--muted); }
+        #hand-section { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+        #hand-section .section-label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; font-weight: 800; margin-bottom: 6px; }
+        #hand-display { display: flex; flex-wrap: wrap; gap: 4px; }
+        .hand-group {
+            position: relative;
+            cursor: pointer;
+        }
+        .hand-card {
+            width: 38px; height: 56px;
+            border-radius: 6px;
+            border: 2px solid rgba(255,255,255,0.2);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; font-weight: 900;
+            transition: 0.15s;
+        }
+        .hand-badge {
+            position: absolute; top: -6px; right: -6px;
+            background: var(--accent); color: #000;
+            border-radius: 50%; width: 18px; height: 18px;
+            font-size: 0.6rem; font-weight: 900;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #tickets-section { padding: 8px 12px; flex: 1; }
+        #tickets-section .section-label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; font-weight: 800; margin-bottom: 6px; }
+        .ticket-item {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 6px 10px;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.72rem;
+        }
+        .ticket-item .tpts { font-weight: 900; font-size: 0.9rem; color: var(--accent); }
+        .ticket-item.done { border-color: #22c55e; background: rgba(34,197,94,0.08); }
+        .ticket-item.fail { border-color: #ef4444; background: rgba(239,68,68,0.08); }
+
+        #bottom-bar {
+            height: 110px;
+            background: rgba(0,0,0,0.4);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 12px;
+            flex-shrink: 0;
+        }
+        #face-up-area {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        .face-card {
+            width: 52px; height: 80px;
+            border-radius: 8px;
+            border: 3px solid rgba(255,255,255,0.2);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem; font-weight: 900;
+            cursor: pointer;
+            transition: 0.15s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            flex-shrink: 0;
+        }
+        .face-card:hover { transform: translateY(-8px); border-color: var(--accent); }
+        .face-card.disabled { opacity: 0.4; pointer-events: none; }
+        .face-card.empty { background: rgba(255,255,255,0.03); border-style: dashed; }
+        #draw-pile-btn {
+            width: 52px; height: 80px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #1e293b, #334155);
+            border: 3px solid rgba(255,255,255,0.3);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem;
+            cursor: pointer;
+            transition: 0.15s;
+            flex-shrink: 0;
+        }
+        #draw-pile-btn:hover { transform: translateY(-4px); border-color: var(--accent); }
+        #draw-pile-btn.disabled { opacity: 0.4; pointer-events: none; }
+        .deck-count { font-size: 0.55rem; color: var(--muted); text-align: center; margin-top: 2px; }
+        #deck-stack { display: flex; flex-direction: column; align-items: center; }
+        #action-btns {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-left: auto;
+        }
+        .act-btn {
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-weight: 900;
+            font-size: 0.72rem;
+            cursor: pointer;
+            border: none;
+            transition: 0.15s;
+            text-align: center;
+            min-width: 110px;
+        }
+        .act-btn.primary { background: var(--accent); color: #000; }
+        .act-btn.secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+        .act-btn:hover { opacity: 0.85; transform: scale(1.03); }
+        .act-btn:disabled { opacity: 0.35; pointer-events: none; }
+        #turn-label { font-size: 0.65rem; color: var(--muted); text-align: center; max-width: 100px; }
+
+        /* ---- CARD COLORS ---- */
+        .cc-red    { background: #dc2626; }
+        .cc-blue   { background: #2563eb; }
+        .cc-green  { background: #16a34a; }
+        .cc-yellow { background: #ca8a04; }
+        .cc-orange { background: #ea580c; }
+        .cc-purple { background: #7c3aed; }
+        .cc-black  { background: #1e293b; border-color: #64748b !important; }
+        .cc-white  { background: #e2e8f0; color: #0f172a; }
+        .cc-wild   { background: linear-gradient(135deg, #ea580c 0%, #7c3aed 50%, #2563eb 100%); }
+        .cc-gray   { background: #475569; }
+
+        /* ---- OVERLAYS / MODALS ---- */
+        .overlay {
+            position: fixed; inset: 0;
+            background: rgba(2,6,23,0.92);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+            padding: 16px;
+            backdrop-filter: blur(6px);
+        }
+        .overlay.show { display: flex; }
+        .modal-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 460px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-title {
+            font-size: 1.3rem;
+            font-weight: 900;
+            color: var(--accent);
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .modal-subtitle { font-size: 0.8rem; color: var(--muted); text-align: center; margin-bottom: 14px; }
+        .big-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 900;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border: none;
+            margin-top: 8px;
+            transition: 0.15s;
+        }
+        .big-btn.gold { background: var(--accent); color: #000; }
+        .big-btn.slate { background: var(--surface2); color: var(--text); }
+        .big-btn:hover { opacity: 0.85; }
+
+        /* Menu options */
+        .menu-options { display: flex; gap: 8px; margin-bottom: 12px; }
+        .menu-opt {
+            flex: 1; padding: 10px; border-radius: 10px;
+            border: 2px solid var(--border);
+            background: var(--surface2);
+            cursor: pointer; text-align: center;
+            font-weight: 700; font-size: 0.8rem;
+            transition: 0.15s;
+        }
+        .menu-opt.active { border-color: var(--accent); background: rgba(251,191,36,0.1); color: var(--accent); }
+        .menu-opt:hover { border-color: var(--muted); }
+        label.menu-opt { display: block; }
+
+        .player-name-input {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            width: 100%;
+            margin-bottom: 6px;
+            font-family: inherit;
+        }
+        .player-name-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .player-name-row .ptoken-big { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+
+        /* Ticket select */
+        .ticket-choice {
+            background: var(--surface2);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+        .ticket-choice.selected { border-color: var(--accent); background: rgba(251,191,36,0.08); }
+        .ticket-choice input[type=checkbox] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent); }
+        .ticket-cities { flex: 1; font-weight: 700; font-size: 0.85rem; }
+        .ticket-pts { font-weight: 900; font-size: 1.1rem; color: var(--accent); }
+
+        /* Claim confirm */
+        .color-spend-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .color-box { width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0; }
+        .spin-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); width: 28px; height: 28px; border-radius: 6px; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .spend-val { font-weight: 900; font-size: 1rem; min-width: 24px; text-align: center; }
+
+        /* Game over table */
+        .go-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.8rem; }
+        .go-table th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 0.65rem; text-transform: uppercase; }
+        .go-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .go-table tr.winner td { color: var(--accent); font-weight: 900; }
+        .go-rank { font-size: 1.2rem; }
+
+        /* Pass screen */
+        #pass-screen {
+            position: fixed; inset: 0;
+            background: var(--bg);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 600;
+            text-align: center;
+            padding: 24px;
+        }
+        #pass-screen.show { display: flex; }
+        #pass-screen h2 { font-size: 1.6rem; font-weight: 900; color: var(--muted); margin-bottom: 8px; }
+        #pass-screen h1 { font-size: 2.4rem; font-weight: 900; color: var(--accent); margin-bottom: 24px; }
+        #pass-screen p { font-size: 0.85rem; color: var(--muted); margin-bottom: 24px; }
+
+        /* Toast */
+        #toast {
+            position: fixed; bottom: 130px; left: 50%; transform: translateX(-50%);
+            background: rgba(15,23,42,0.95);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            padding: 8px 20px;
+            font-size: 0.8rem; font-weight: 700;
+            z-index: 700;
+            pointer-events: none;
+            transition: opacity 0.4s;
+            opacity: 0;
+            white-space: nowrap;
+        }
+        #toast.show { opacity: 1; }
+
+        /* Canvas overlay message */
+        #canvas-msg {
+            position: absolute;
+            bottom: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(251,191,36,0.15);
+            border: 1px solid rgba(251,191,36,0.4);
+            border-radius: 50px;
+            padding: 5px 16px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--accent);
+            pointer-events: none;
+            display: none;
+        }
+
+        /* MOBILE */
+        @media (max-width: 900px) {
+            body { overflow-y: auto; }
+            #mid-section { flex-direction: column; }
+            #canvas-wrap { height: 52vw; min-height: 200px; flex-shrink: 0; }
+            #sidebar {
+                width: 100%;
+                border-left: none;
+                border-top: 1px solid var(--border);
+                flex-direction: row;
+                flex-wrap: wrap;
+                padding: 8px;
+                gap: 8px;
+                overflow-y: visible;
+            }
+            #sidebar-header { width: 100%; border-bottom: none; padding: 0; }
+            #hand-section { flex: 1; border-bottom: none; padding: 0; }
+            #tickets-section { flex: 1; padding: 0; }
+            #tickets-section .section-label { display: none; }
+            #bottom-bar { height: auto; flex-wrap: wrap; padding: 8px; gap: 6px; }
+            #face-up-area { overflow-x: auto; }
+            .face-card { width: 42px; height: 64px; font-size: 1rem; }
+            #draw-pile-btn { width: 42px; height: 64px; font-size: 1.1rem; }
+            #action-btns { flex-direction: row; flex-wrap: wrap; margin-left: 0; width: 100%; }
+            .act-btn { flex: 1; min-width: 80px; }
+            #toast { bottom: 10px; }
+            #canvas-msg { bottom: 4px; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <div class="logo">ROUTE MASTERS</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <button class="nav-btn" onclick="showMenu()">NEW</button>
+        <a href="index.html" class="back-link">← HUB</a>
+    </div>
+</nav>
+
+<div id="game-layout">
+    <div id="players-strip"></div>
+    <div id="mid-section">
+        <div id="canvas-wrap">
+            <canvas id="mapCanvas"></canvas>
+            <div id="canvas-msg"></div>
+        </div>
+        <aside id="sidebar">
+            <div id="sidebar-header">
+                <div class="cur-player-label">Current Turn</div>
+                <div class="cur-player-name" id="cur-name">—</div>
+                <div class="cur-player-trains" id="cur-trains"></div>
+            </div>
+            <div id="hand-section">
+                <div class="section-label">Hand</div>
+                <div id="hand-display"></div>
+            </div>
+            <div id="tickets-section">
+                <div class="section-label">Tickets</div>
+                <div id="tickets-display"></div>
+            </div>
+        </aside>
+    </div>
+    <div id="bottom-bar">
+        <div id="deck-stack">
+            <div id="draw-pile-btn" title="Draw from deck">🂠</div>
+            <div class="deck-count" id="deck-count">0</div>
+        </div>
+        <div id="face-up-area"></div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:center;margin-left:4px;">
+            <div id="turn-label">Your Turn</div>
+        </div>
+        <div id="action-btns">
+            <button class="act-btn primary" id="btn-draw-cards">Draw Cards</button>
+            <button class="act-btn secondary" id="btn-claim">Claim Route</button>
+            <button class="act-btn secondary" id="btn-draw-tickets">Draw Tickets</button>
+        </div>
+    </div>
+</div>
+
+<!-- MENU MODAL -->
+<div class="overlay" id="modal-menu">
+    <div class="modal-box">
+        <div class="modal-title">🗺 ROUTE MASTERS</div>
+        <div class="modal-subtitle">A train route claiming game. Connect cities, complete tickets, score big!</div>
+
+        <div style="margin-bottom:10px;">
+            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;font-weight:800;margin-bottom:6px;">Game Mode</div>
+            <div class="menu-options">
+                <div class="menu-opt active" id="opt-robots" onclick="selectMode('vs-robots')">vs Robots</div>
+                <div class="menu-opt" id="opt-pnp" onclick="selectMode('pass-and-play')">Pass & Play</div>
+            </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;font-weight:800;margin-bottom:6px;">Players</div>
+            <div class="menu-options" id="player-count-opts">
+                <div class="menu-opt" onclick="selectCount(2)">2</div>
+                <div class="menu-opt active" onclick="selectCount(3)">3</div>
+                <div class="menu-opt" onclick="selectCount(4)">4</div>
+            </div>
+        </div>
+
+        <div id="name-inputs" style="margin-bottom:12px;"></div>
+
+        <button class="big-btn gold" onclick="startGame()">Start Game</button>
+    </div>
+</div>
+
+<!-- TICKET SELECT MODAL -->
+<div class="overlay" id="modal-tickets">
+    <div class="modal-box">
+        <div class="modal-title" id="ticket-modal-title">Choose Destination Tickets</div>
+        <div class="modal-subtitle" id="ticket-modal-sub">Keep at least 1 ticket. These are your secret goals!</div>
+        <div id="ticket-choices"></div>
+        <button class="big-btn gold" id="btn-confirm-tickets" onclick="confirmTickets()">Keep Selected</button>
+    </div>
+</div>
+
+<!-- CLAIM ROUTE CONFIRM MODAL -->
+<div class="overlay" id="modal-claim">
+    <div class="modal-box">
+        <div class="modal-title">Claim Route</div>
+        <div id="claim-route-info" class="modal-subtitle"></div>
+        <div id="claim-spend-ui"></div>
+        <button class="big-btn gold" id="btn-confirm-claim" onclick="confirmClaim()">Claim!</button>
+        <button class="big-btn slate" onclick="cancelClaim()">Cancel</button>
+    </div>
+</div>
+
+<!-- GAME OVER MODAL -->
+<div class="overlay" id="modal-gameover">
+    <div class="modal-box">
+        <div class="modal-title">Game Over!</div>
+        <div id="go-content"></div>
+        <button class="big-btn gold" onclick="showMenu()" style="margin-top:12px;">Play Again</button>
+    </div>
+</div>
+
+<!-- PASS SCREEN -->
+<div id="pass-screen">
+    <h2>Pass the device to</h2>
+    <h1 id="pass-name">Player</h1>
+    <p>Other players, look away!</p>
+    <button class="big-btn gold" style="max-width:260px;" onclick="hidePassed()">I'm Ready</button>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// =====================================================================
+// CONSTANTS
+// =====================================================================
+const COLORS = ['red','blue','green','yellow','orange','purple','black','white'];
+const ALL_COLORS = [...COLORS, 'wild'];
+const COLOR_EMOJI = { red:'🔴', blue:'🔵', green:'🟢', yellow:'🟡', orange:'🟠', purple:'🟣', black:'⬛', white:'⬜', wild:'🌈', gray:'⬜' };
+const ROUTE_SCORE = [0,1,2,4,7,10,15];
+const PLAYER_COLORS = ['#ef4444','#3b82f6','#22c55e','#f59e0b'];
+const PLAYER_LABELS = ['P1','P2','P3','P4'];
+const CITY_NAMES = ['Ashenveil','Bramblegate','Crysthaven','Duskhallow','Embervast',
+    'Frostmere','Grimholt','Harrowfen','Ironspire','Jadecroft',
+    'Keldrath','Lumenveil','Mireford','Nighthaven','Oakenshield',
+    'Peakwatch','Quarrystone','Ravenmoor','Sunwatch','Thorngate',
+    'Umberkeep','Veilmarch','Westforge','Xandrial','Yewcross'];
+
+// =====================================================================
+// STATE
+// =====================================================================
+const STATE = {
+    mode: 'menu',
+    gameMode: 'vs-robots',
+    players: [],
+    currentPlayerIdx: 0,
+    turnPhase: 'choose-action',
+    cardsDrawnThisTurn: 0,
+    finalRoundTrigger: null,
+    finalRoundPlayers: new Set(),
+    trainDeck: [],
+    discardPile: [],
+    faceUpCards: [null,null,null,null,null],
+    ticketDeck: [],
+    pendingTickets: [],
+    cities: [],
+    routes: [],
+    adjacency: {},
+    hoverRoute: null,
+    claimingRoute: null,
+    flashRoute: null,
+    flashUntil: 0,
+    isInitialDeal: false,
+    initialDealIdx: 0,
+};
+
+let menuMode = 'vs-robots';
+let menuCount = 3;
+let scaleX = 1, scaleY = 1;
+let pulseT = 0;
+let animFrame = null;
+
+// =====================================================================
+// MENU LOGIC
+// =====================================================================
+function showMenu() {
+    cancelAnimationFrame(animFrame);
+    buildMenuUI();
+    document.getElementById('modal-menu').classList.add('show');
+}
+
+function buildMenuUI() {
+    buildNameInputs();
+}
+
+function selectMode(m) {
+    menuMode = m;
+    document.getElementById('opt-robots').classList.toggle('active', m === 'vs-robots');
+    document.getElementById('opt-pnp').classList.toggle('active', m === 'pass-and-play');
+    buildNameInputs();
+}
+
+function selectCount(n) {
+    menuCount = n;
+    document.querySelectorAll('#player-count-opts .menu-opt').forEach((el,i) => {
+        el.classList.toggle('active', i + 2 === n);
+    });
+    buildNameInputs();
+}
+
+function buildNameInputs() {
+    const div = document.getElementById('name-inputs');
+    div.innerHTML = '';
+    for (let i = 0; i < menuCount; i++) {
+        const isHuman = menuMode === 'pass-and-play' || i === 0;
+        const row = document.createElement('div');
+        row.className = 'player-name-row';
+        row.innerHTML = `<span class="ptoken-big" style="background:${PLAYER_COLORS[i]}"></span>
+            <input class="player-name-input" id="pname-${i}" value="${isHuman ? 'Player '+(i+1) : 'Robot '+(i+1)}" placeholder="Player name" ${isHuman?'':'readonly'} style="opacity:${isHuman?1:0.7}">`;
+        div.appendChild(row);
+    }
+}
+
+function startGame() {
+    const names = [];
+    const isAIs = [];
+    for (let i = 0; i < menuCount; i++) {
+        names.push(document.getElementById('pname-'+i)?.value || ('Player '+(i+1)));
+        isAIs.push(menuMode === 'vs-robots' && i > 0);
+    }
+    document.getElementById('modal-menu').classList.remove('show');
+    initGame(menuMode, menuCount, names, isAIs);
+}
+
+// =====================================================================
+// INIT GAME
+// =====================================================================
+function initGame(gameMode, count, names, isAIs) {
+    STATE.mode = 'playing';
+    STATE.gameMode = gameMode;
+    STATE.currentPlayerIdx = 0;
+    STATE.turnPhase = 'choose-action';
+    STATE.cardsDrawnThisTurn = 0;
+    STATE.finalRoundTrigger = null;
+    STATE.finalRoundPlayers = new Set();
+    STATE.discardPile = [];
+    STATE.pendingTickets = [];
+    STATE.hoverRoute = null;
+    STATE.claimingRoute = null;
+    STATE.flashRoute = null;
+    STATE.isInitialDeal = true;
+    STATE.initialDealIdx = 0;
+
+    STATE.players = names.map((name, i) => ({
+        id: i, name, color: PLAYER_COLORS[i], isAI: isAIs[i],
+        trainsRemaining: 45,
+        hand: { red:0, blue:0, green:0, yellow:0, orange:0, purple:0, black:0, white:0, wild:0 },
+        tickets: [], score: 0, finalScore: 0,
+        aiTargets: [],
+    }));
+
+    generateMap();
+    STATE.trainDeck = buildTrainDeck();
+    STATE.ticketDeck = buildTicketDeck();
+
+    // Deal 4 starting cards per player
+    for (const p of STATE.players) {
+        for (let i = 0; i < 4; i++) dealCard(p);
+    }
+
+    // Fill face-up cards
+    for (let i = 0; i < 5; i++) {
+        STATE.faceUpCards[i] = STATE.trainDeck.pop() || null;
+    }
+    checkWildRule();
+
+    resize();
+    updateUI();
+    startPulse();
+
+    // Initial ticket dealing
+    dealInitialTickets();
+}
+
+function dealInitialTickets() {
+    STATE.isInitialDeal = true;
+    STATE.initialDealIdx = 0;
+    dealTicketsToPlayer(STATE.initialDealIdx);
+}
+
+function dealTicketsToPlayer(playerIdx) {
+    const player = STATE.players[playerIdx];
+    STATE.pendingTickets = [];
+    for (let i = 0; i < 3; i++) {
+        if (STATE.ticketDeck.length) STATE.pendingTickets.push(STATE.ticketDeck.pop());
+    }
+    if (!STATE.pendingTickets.length) {
+        STATE.isInitialDeal = false;
+        afterInitialDeal();
+        return;
+    }
+    const isInitial = STATE.isInitialDeal;
+    showTicketModal(player, isInitial, 1); // min keep = 1
+}
+
+function afterInitialDeal() {
+    STATE.mode = 'playing';
+    updateUI();
+    renderMap();
+    if (STATE.players[0].isAI) {
+        setTimeout(() => runAITurn(0), 900);
+    }
+}
+
+// =====================================================================
+// MAP GENERATION
+// =====================================================================
+function generateMap() {
+    STATE.cities = generateCities();
+    STATE.routes = generateRoutes(STATE.cities);
+    STATE.adjacency = buildAdjacency();
+}
+
+function generateCities() {
+    const cols = 5, rows = 4;
+    const W = 1000, H = 680;
+    const slotW = W / cols, slotH = H / rows;
+    const pad = 70;
+    const cities = [];
+    const shuffled = shuffleArr([...CITY_NAMES]).slice(0, 20);
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const cx = slotW * c + slotW/2 + (Math.random()-0.5)*slotW*0.6;
+            const cy = slotH * r + slotH/2 + (Math.random()-0.5)*slotH*0.6;
+            cities.push({
+                id: r*cols+c,
+                name: shuffled[r*cols+c],
+                x: Math.max(pad, Math.min(W-pad, cx)),
+                y: Math.max(pad, Math.min(H-pad, cy)),
+            });
+        }
+    }
+    return cities;
+}
+
+function generateRoutes(cities) {
+    const routes = [];
+    let routeId = 0;
+    const n = cities.length;
+
+    // Union-Find
+    const parent = cities.map((_,i) => i);
+    function find(x) { return parent[x] === x ? x : (parent[x] = find(parent[x])); }
+    function union(a,b) { parent[find(a)] = find(b); }
+
+    // All pairs sorted by distance
+    const pairs = [];
+    for (let i = 0; i < n; i++) {
+        for (let j = i+1; j < n; j++) {
+            pairs.push([i, j, dist(cities[i], cities[j])]);
+        }
+    }
+    pairs.sort((a,b) => a[2]-b[2]);
+
+    // Pass 1: Spanning tree
+    const connected = new Set();
+    for (const [a, b, d] of pairs) {
+        if (find(a) !== find(b)) {
+            union(a, b);
+            const r = makeRoute(routeId++, a, b, d);
+            routes.push(r);
+            connected.add(`${Math.min(a,b)}_${Math.max(a,b)}`);
+        }
+    }
+
+    // Pass 2: Extra edges
+    for (const [a, b, d] of pairs) {
+        if (d > 300) continue;
+        const key = `${Math.min(a,b)}_${Math.max(a,b)}`;
+        if (!connected.has(key) && Math.random() < 0.52 && routes.length < 42) {
+            const r = makeRoute(routeId++, a, b, d);
+            routes.push(r);
+            connected.add(key);
+        }
+    }
+
+    // Pass 3: Parallel routes
+    const existing = [...routes];
+    for (const r of existing) {
+        if (r.length >= 3 && Math.random() < 0.22 && routes.length < 50) {
+            const pr = makeRoute(routeId++, r.cityA, r.cityB, dist(cities[r.cityA], cities[r.cityB]));
+            // Ensure different color
+            do { pr.color = Math.random() < 0.3 ? 'gray' : COLORS[Math.floor(Math.random()*8)]; }
+            while (pr.color === r.color);
+            pr.parallel = true;
+            pr.parallelId = r.id;
+            pr.offsetDir = 1;
+            r.parallel = true;
+            r.parallelId = pr.id;
+            r.offsetDir = -1;
+            routes.push(pr);
+        }
+    }
+
+    // Pre-compute segments
+    for (const r of routes) computeRouteSegments(r, cities);
+    return routes;
+}
+
+function makeRoute(id, a, b, d) {
+    const len = Math.max(1, Math.min(6, Math.round(d/62) + Math.floor(Math.random()*3)-1));
+    const color = Math.random() < 0.3 ? 'gray' : COLORS[Math.floor(Math.random()*8)];
+    return { id, cityA:a, cityB:b, length:len, color, claimedBy:null, parallel:false, parallelId:null, offsetDir:0, segments:[] };
+}
+
+function dist(a, b) { return Math.hypot(a.x-b.x, a.y-b.y); }
+
+function computeRouteSegments(route, cities) {
+    const a = cities[route.cityA], b = cities[route.cityB];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    const angle = Math.atan2(dy, dx);
+    const perpX = -dy/len * 13 * route.offsetDir;
+    const perpY = dx/len * 13 * route.offsetDir;
+
+    const segLen = (len - 30) / route.length; // leave gap for city circles
+    const segW = Math.max(10, segLen - 5);
+    const segH = 13;
+    route.segments = [];
+    for (let i = 0; i < route.length; i++) {
+        const t = (i + 0.5) / route.length;
+        const cx = a.x + dx*t + perpX;
+        const cy = a.y + dy*t + perpY;
+        route.segments.push({ cx, cy, angle, w: segW, h: segH });
+    }
+}
+
+function buildAdjacency() {
+    const adj = {};
+    for (const c of STATE.cities) adj[c.id] = [];
+    for (const r of STATE.routes) {
+        adj[r.cityA].push({ to: r.cityB, routeId: r.id });
+        adj[r.cityB].push({ to: r.cityA, routeId: r.id });
+    }
+    return adj;
+}
+
+// =====================================================================
+// DECK & TICKETS
+// =====================================================================
+function buildTrainDeck() {
+    const deck = [];
+    for (const c of COLORS) for (let i = 0; i < 12; i++) deck.push({ color: c });
+    for (let i = 0; i < 14; i++) deck.push({ color: 'wild' });
+    return shuffleArr(deck);
+}
+
+function buildTicketDeck() {
+    const cities = STATE.cities;
+    const n = cities.length;
+    // BFS all-pairs
+    const dist2 = {};
+    for (let start = 0; start < n; start++) {
+        const d = {};
+        const q = [start]; d[start] = 0;
+        while (q.length) {
+            const cur = q.shift();
+            for (const nb of (STATE.adjacency[cur] || [])) {
+                if (d[nb.to] === undefined) { d[nb.to] = d[cur]+1; q.push(nb.to); }
+            }
+        }
+        dist2[start] = d;
+    }
+    const tickets = [];
+    let tid = 0;
+    for (let a = 0; a < n; a++) {
+        for (let b = a+1; b < n; b++) {
+            const hops = dist2[a][b];
+            if (hops >= 2 && hops <= 8) {
+                const pts = Math.max(4, Math.min(20, Math.round(hops * 1.6)));
+                tickets.push({ id: tid++, cityA: a, cityB: b, points: pts });
+            }
+        }
+    }
+    return shuffleArr(tickets).slice(0, 35);
+}
+
+function dealCard(player) {
+    if (!STATE.trainDeck.length) reshuffleDeck();
+    const card = STATE.trainDeck.pop();
+    if (card) player.hand[card.color]++;
+}
+
+function reshuffleDeck() {
+    if (!STATE.discardPile.length) return;
+    STATE.trainDeck = shuffleArr([...STATE.discardPile]);
+    STATE.discardPile = [];
+    showToast('Deck reshuffled!');
+}
+
+// =====================================================================
+// CANVAS RENDERING
+// =====================================================================
+const canvas = document.getElementById('mapCanvas');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+    const wrap = document.getElementById('canvas-wrap');
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    const ratio = 1000/680;
+    let cw, ch;
+    if (W/H > ratio) { ch = H; cw = H*ratio; }
+    else { cw = W; ch = W/ratio; }
+    canvas.style.width = cw+'px';
+    canvas.style.height = ch+'px';
+    canvas.width = 1000;
+    canvas.height = 680;
+    const rect = canvas.getBoundingClientRect();
+    scaleX = canvas.width / (rect.width || cw);
+    scaleY = canvas.height / (rect.height || ch);
+    renderMap();
+}
+
+function startPulse() {
+    cancelAnimationFrame(animFrame);
+    function loop() {
+        pulseT = (pulseT + 0.06) % (Math.PI*2);
+        if (STATE.mode === 'playing' && (STATE.turnPhase === 'claim-route' || STATE.hoverRoute !== null || (STATE.flashRoute !== null && Date.now() < STATE.flashUntil))) {
+            renderMap();
+        }
+        animFrame = requestAnimationFrame(loop);
+    }
+    loop();
+}
+
+function renderMap() {
+    const c = ctx;
+    c.clearRect(0,0,1000,680);
+
+    // Background
+    c.fillStyle = '#0a1628';
+    c.fillRect(0,0,1000,680);
+
+    // Subtle grid/texture
+    c.strokeStyle = 'rgba(255,255,255,0.025)';
+    c.lineWidth = 1;
+    for (let x = 0; x <= 1000; x += 50) { c.beginPath(); c.moveTo(x,0); c.lineTo(x,680); c.stroke(); }
+    for (let y = 0; y <= 680; y += 50) { c.beginPath(); c.moveTo(0,y); c.lineTo(1000,y); c.stroke(); }
+
+    // Flash route highlight
+    const flashActive = STATE.flashRoute !== null && Date.now() < STATE.flashUntil;
+
+    // Draw all routes
+    for (const r of STATE.routes) {
+        const isHover = STATE.hoverRoute === r.id;
+        const isClaiming = STATE.claimingRoute === r.id;
+        const isFlash = flashActive && STATE.flashRoute === r.id;
+        const pulse = 0.5 + 0.5*Math.sin(pulseT);
+        drawRoute(r, isHover, isClaiming, isFlash, pulse);
+    }
+
+    // Draw cities
+    for (const city of STATE.cities) drawCity(city);
+}
+
+function drawRoute(route, isHover, isClaiming, isFlash, pulse) {
+    const c = ctx;
+    const claimed = route.claimedBy !== null;
+    const playerColor = claimed ? STATE.players[route.claimedBy].color : null;
+
+    for (const seg of route.segments) {
+        c.save();
+        c.translate(seg.cx, seg.cy);
+        c.rotate(seg.angle);
+
+        // Shadow
+        if (!claimed) {
+            c.shadowColor = 'rgba(0,0,0,0.5)';
+            c.shadowBlur = 4;
+        }
+
+        if (isFlash) {
+            const alpha = 0.6 + 0.4*pulse;
+            c.fillStyle = playerColor || '#fbbf24';
+            c.globalAlpha = alpha;
+        } else if (claimed) {
+            c.fillStyle = playerColor;
+            c.globalAlpha = 1;
+        } else {
+            c.fillStyle = colorToHex(route.color);
+            c.globalAlpha = 0.45;
+        }
+
+        roundRect(c, -seg.w/2, -seg.h/2, seg.w, seg.h, 4);
+        c.fill();
+        c.shadowBlur = 0;
+        c.globalAlpha = 1;
+
+        // Border
+        if (!claimed) {
+            if (route.color === 'gray') {
+                c.setLineDash([4,3]);
+                c.strokeStyle = 'rgba(255,255,255,0.3)';
+            } else {
+                c.setLineDash([]);
+                c.strokeStyle = 'rgba(255,255,255,0.15)';
+            }
+            c.lineWidth = 1;
+            roundRect(c, -seg.w/2, -seg.h/2, seg.w, seg.h, 4);
+            c.stroke();
+            c.setLineDash([]);
+        }
+
+        // Train tokens on claimed route
+        if (claimed) {
+            c.fillStyle = 'rgba(0,0,0,0.35)';
+            roundRect(c, -seg.w/2+3, -seg.h/2+3, seg.w-6, seg.h-6, 2);
+            c.fill();
+        }
+
+        // Hover/claim outline
+        if (isHover || isClaiming) {
+            const glow = 0.7 + 0.3*pulse;
+            c.strokeStyle = `rgba(251,191,36,${glow})`;
+            c.lineWidth = isClaiming ? 3 : 2;
+            c.setLineDash([]);
+            roundRect(c, -seg.w/2, -seg.h/2, seg.w, seg.h, 4);
+            c.stroke();
+        }
+
+        c.restore();
+    }
+}
+
+function drawCity(city) {
+    const c = ctx;
+    c.save();
+    // Outer circle
+    c.beginPath();
+    c.arc(city.x, city.y, 19, 0, Math.PI*2);
+    c.fillStyle = '#1e293b';
+    c.shadowColor = 'rgba(0,0,0,0.6)';
+    c.shadowBlur = 8;
+    c.fill();
+    c.shadowBlur = 0;
+    c.strokeStyle = 'rgba(255,255,255,0.6)';
+    c.lineWidth = 2;
+    c.stroke();
+
+    // Inner dot
+    c.beginPath();
+    c.arc(city.x, city.y, 5, 0, Math.PI*2);
+    c.fillStyle = '#f8fafc';
+    c.fill();
+
+    // Name
+    c.font = '700 10px Segoe UI, system-ui, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'top';
+    c.fillStyle = 'rgba(0,0,0,0.7)';
+    c.fillText(city.name, city.x+1, city.y+22+1);
+    c.fillStyle = '#f8fafc';
+    c.fillText(city.name, city.x, city.y+22);
+    c.restore();
+}
+
+function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x+r, y);
+    c.lineTo(x+w-r, y);
+    c.arcTo(x+w, y, x+w, y+r, r);
+    c.lineTo(x+w, y+h-r);
+    c.arcTo(x+w, y+h, x+w-r, y+h, r);
+    c.lineTo(x+r, y+h);
+    c.arcTo(x, y+h, x, y+h-r, r);
+    c.lineTo(x, y+r);
+    c.arcTo(x, y, x+r, y, r);
+    c.closePath();
+}
+
+function colorToHex(color) {
+    const map = { red:'#dc2626', blue:'#2563eb', green:'#16a34a', yellow:'#ca8a04',
+        orange:'#ea580c', purple:'#7c3aed', black:'#334155', white:'#e2e8f0',
+        wild:'#9333ea', gray:'#475569' };
+    return map[color] || '#475569';
+}
+
+// =====================================================================
+// UI UPDATE
+// =====================================================================
+function updateUI() {
+    renderPlayersStrip();
+    renderSidebar();
+    renderBottomBar();
+}
+
+function renderPlayersStrip() {
+    const strip = document.getElementById('players-strip');
+    strip.innerHTML = '';
+    for (const p of STATE.players) {
+        const active = p.id === STATE.currentPlayerIdx && STATE.mode === 'playing';
+        const totalCards = Object.values(p.hand).reduce((a,b)=>a+b,0);
+        const div = document.createElement('div');
+        div.className = 'pinfo' + (active ? ' active' : '');
+        div.innerHTML = `
+            <div class="pname"><span class="ptoken" style="background:${p.color}"></span>${p.name}</div>
+            <div class="pscore" style="color:${p.color}">${p.score}</div>
+            <div class="pdetail">🚂${p.trainsRemaining} 🃏${totalCards} 🎫${p.tickets.length}</div>`;
+        strip.appendChild(div);
+    }
+}
+
+function renderSidebar() {
+    const cp = STATE.players[STATE.currentPlayerIdx];
+    if (!cp) return;
+    document.getElementById('cur-name').textContent = cp.name;
+    document.getElementById('cur-trains').textContent = `🚂 ${cp.trainsRemaining} trains remaining`;
+
+    // Hand
+    const handDiv = document.getElementById('hand-display');
+    handDiv.innerHTML = '';
+    for (const color of ALL_COLORS) {
+        const cnt = cp.hand[color] || 0;
+        if (cnt === 0) continue;
+        const group = document.createElement('div');
+        group.className = 'hand-group';
+        group.innerHTML = `
+            <div class="hand-card cc-${color}" title="${color}">
+                ${COLOR_EMOJI[color]}
+            </div>
+            <div class="hand-badge">${cnt}</div>`;
+        handDiv.appendChild(group);
+    }
+
+    // Tickets
+    const tDiv = document.getElementById('tickets-display');
+    tDiv.innerHTML = '';
+    for (const t of cp.tickets) {
+        const div = document.createElement('div');
+        const done = STATE.mode === 'game-over' ? t.completed : null;
+        div.className = 'ticket-item' + (done === true ? ' done' : done === false ? ' fail' : '');
+        const cA = STATE.cities[t.cityA]?.name || '?';
+        const cB = STATE.cities[t.cityB]?.name || '?';
+        div.innerHTML = `<span>${cA} ↔ ${cB}</span><span class="tpts">${t.points}</span>`;
+        tDiv.appendChild(div);
+    }
+    if (!cp.tickets.length) tDiv.innerHTML = '<div style="font-size:0.7rem;color:var(--muted);">No tickets yet</div>';
+}
+
+function renderBottomBar() {
+    // Face-up cards
+    const faceDiv = document.getElementById('face-up-area');
+    faceDiv.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+        const card = STATE.faceUpCards[i];
+        const div = document.createElement('div');
+        const canDraw = STATE.turnPhase === 'drawing-cards' && !currentPlayerIsAI();
+        const wildPenalty = card?.color === 'wild' && STATE.cardsDrawnThisTurn === 1;
+        if (card) {
+            div.className = `face-card cc-${card.color}${(!canDraw || wildPenalty) && STATE.turnPhase !== 'choose-action' ? ' disabled':'' }`;
+            div.textContent = COLOR_EMOJI[card.color];
+            div.title = card.color + (card.color==='wild'?' (costs full action)':'');
+            if (canDraw) div.onclick = () => drawFaceUpCard(i);
+        } else {
+            div.className = 'face-card empty';
+            div.textContent = '·';
+        }
+        faceDiv.appendChild(div);
+    }
+
+    // Deck count
+    document.getElementById('deck-count').textContent = STATE.trainDeck.length;
+
+    // Draw pile clickable
+    const dpBtn = document.getElementById('draw-pile-btn');
+    const canDrawBlind = STATE.turnPhase === 'drawing-cards' && !currentPlayerIsAI();
+    dpBtn.className = canDrawBlind ? '' : 'disabled';
+    dpBtn.onclick = canDrawBlind ? drawBlindCard : null;
+
+    // Turn label
+    const cp = STATE.players[STATE.currentPlayerIdx];
+    const tl = document.getElementById('turn-label');
+    if (cp) {
+        tl.innerHTML = `<span style="color:${cp.color};font-weight:800;">${cp.name}</span><br><span style="font-size:0.6rem;color:var(--muted);">${phaseLabel()}</span>`;
+    }
+
+    // Action buttons
+    const isHuman = !currentPlayerIsAI() && STATE.mode === 'playing';
+    const isChoose = STATE.turnPhase === 'choose-action';
+    document.getElementById('btn-draw-cards').disabled = !(isHuman && isChoose);
+    document.getElementById('btn-claim').disabled = !(isHuman && isChoose);
+    document.getElementById('btn-draw-tickets').disabled = !(isHuman && isChoose) || !STATE.ticketDeck.length;
+
+    // Canvas message
+    const msg = document.getElementById('canvas-msg');
+    if (isHuman && STATE.turnPhase === 'claim-route') {
+        msg.textContent = 'Click a route on the map to claim it  |  Cancel below';
+        msg.style.display = 'block';
+    } else if (isHuman && STATE.turnPhase === 'drawing-cards') {
+        msg.textContent = `Draw ${2 - STATE.cardsDrawnThisTurn} more card(s) — click face-up or deck`;
+        msg.style.display = 'block';
+    } else {
+        msg.style.display = 'none';
+    }
+}
+
+function phaseLabel() {
+    const phases = { 'choose-action':'Choose an action', 'drawing-cards':'Drawing cards...', 'claim-route':'Click a route', 'draw-tickets':'Pick tickets' };
+    return phases[STATE.turnPhase] || '';
+}
+
+function currentPlayerIsAI() {
+    return STATE.players[STATE.currentPlayerIdx]?.isAI;
+}
+
+// =====================================================================
+// FACE-UP CARD LOGIC
+// =====================================================================
+function drawFaceUpCard(slotIdx) {
+    if (STATE.turnPhase !== 'drawing-cards') return;
+    if (currentPlayerIsAI()) return;
+    const card = STATE.faceUpCards[slotIdx];
+    if (!card) return;
+    if (card.color === 'wild' && STATE.cardsDrawnThisTurn === 1) return; // can't take wild as 2nd
+
+    const cp = STATE.players[STATE.currentPlayerIdx];
+    cp.hand[card.color]++;
+    STATE.faceUpCards[slotIdx] = STATE.trainDeck.length ? STATE.trainDeck.pop() : null;
+    checkWildRule();
+
+    if (card.color === 'wild') {
+        STATE.cardsDrawnThisTurn = 2;
+    } else {
+        STATE.cardsDrawnThisTurn++;
+    }
+
+    if (STATE.cardsDrawnThisTurn >= 2) endTurn();
+    else updateUI();
+}
+
+function drawBlindCard() {
+    if (STATE.turnPhase !== 'drawing-cards') return;
+    if (currentPlayerIsAI()) return;
+    const cp = STATE.players[STATE.currentPlayerIdx];
+    if (!STATE.trainDeck.length) reshuffleDeck();
+    const card = STATE.trainDeck.pop();
+    if (card) cp.hand[card.color]++;
+    STATE.cardsDrawnThisTurn++;
+    if (STATE.cardsDrawnThisTurn >= 2) endTurn();
+    else updateUI();
+}
+
+function checkWildRule() {
+    const wilds = STATE.faceUpCards.filter(c => c?.color === 'wild').length;
+    if (wilds >= 3) {
+        for (const c of STATE.faceUpCards) if (c) STATE.discardPile.push(c);
+        for (let i = 0; i < 5; i++) STATE.faceUpCards[i] = STATE.trainDeck.length ? STATE.trainDeck.pop() : null;
+        showToast('3 wilds! Face-up cards reshuffled.');
+    }
+}
+
+function refillFaceUpCards() {
+    for (let i = 0; i < 5; i++) {
+        if (!STATE.faceUpCards[i]) {
+            STATE.faceUpCards[i] = STATE.trainDeck.length ? STATE.trainDeck.pop() : null;
+        }
+    }
+    checkWildRule();
+}
+
+// =====================================================================
+// ACTION BUTTONS
+// =====================================================================
+document.getElementById('btn-draw-cards').onclick = () => {
+    if (STATE.turnPhase !== 'choose-action' || currentPlayerIsAI()) return;
+    STATE.turnPhase = 'drawing-cards';
+    STATE.cardsDrawnThisTurn = 0;
+    updateUI();
+};
+
+document.getElementById('btn-draw-tickets').onclick = () => {
+    if (STATE.turnPhase !== 'choose-action' || currentPlayerIsAI()) return;
+    if (!STATE.ticketDeck.length) return;
+    STATE.turnPhase = 'draw-tickets';
+    const cp = STATE.players[STATE.currentPlayerIdx];
+    STATE.pendingTickets = [];
+    for (let i = 0; i < 3 && STATE.ticketDeck.length; i++) STATE.pendingTickets.push(STATE.ticketDeck.pop());
+    showTicketModal(cp, false, 1);
+    updateUI();
+};
+
+document.getElementById('btn-claim').onclick = () => {
+    if (STATE.turnPhase !== 'choose-action' || currentPlayerIsAI()) return;
+    STATE.turnPhase = 'claim-route';
+    updateUI();
+};
+
+// =====================================================================
+// CLAIM ROUTE
+// =====================================================================
+function handleCanvasClick(e) {
+    if (STATE.turnPhase !== 'claim-route' || currentPlayerIsAI()) return;
+    const pos = getCanvasPos(e);
+    const route = getRouteAtPoint(pos.x, pos.y);
+    if (!route) {
+        STATE.claimingRoute = null;
+        updateUI(); renderMap();
+        return;
+    }
+    attemptClaimRoute(route.id);
+}
+
+function attemptClaimRoute(routeId) {
+    const route = STATE.routes.find(r => r.id === routeId);
+    if (!route) return;
+    if (route.claimedBy !== null) { showToast('Route already claimed!'); return; }
+    const cp = STATE.players[STATE.currentPlayerIdx];
+    if (cp.trainsRemaining < route.length) { showToast('Not enough trains!'); return; }
+
+    // Check parallel: in 2-player, parallel routes not allowed by same player pair
+    if (route.parallel && route.parallelId !== null) {
+        const par = STATE.routes.find(r => r.id === route.parallelId);
+        if (par && par.claimedBy === STATE.currentPlayerIdx) { showToast("Can't claim both parallel routes!"); return; }
+        if (par && STATE.players.length === 2 && par.claimedBy !== null) { showToast("Parallel routes unavailable in 2-player!"); return; }
+    }
+
+    // Check if player can afford
+    const canClaim = canAffordRoute(route, cp.hand);
+    if (!canClaim) { showToast("Not enough cards to claim this route!"); return; }
+
+    STATE.claimingRoute = routeId;
+    showClaimModal(route, cp);
+}
+
+function canAffordRoute(route, hand) {
+    if (route.color === 'gray') {
+        for (const col of COLORS) {
+            if (hand[col] + (hand.wild || 0) >= route.length) return true;
+        }
+        return false;
+    }
+    return (hand[route.color] || 0) + (hand.wild || 0) >= route.length;
+}
+
+let claimPlan = {};
+function showClaimModal(route, player) {
+    const cA = STATE.cities[route.cityA].name;
+    const cB = STATE.cities[route.cityB].name;
+    document.getElementById('claim-route-info').textContent = `${cA} → ${cB}  |  Length ${route.length}  |  Earns ${ROUTE_SCORE[route.length]} pts`;
+
+    const ui = document.getElementById('claim-spend-ui');
+    ui.innerHTML = '';
+    claimPlan = {};
+
+    const eligible = route.color === 'gray' ? COLORS.filter(c => player.hand[c] > 0) : [route.color];
+    const canUseWild = player.hand.wild > 0;
+
+    for (const col of eligible) {
+        const need = route.length;
+        const have = player.hand[col] || 0;
+        if (have === 0 && col !== 'wild') continue;
+        const row = document.createElement('div');
+        row.className = 'color-spend-row';
+        const startAmt = Math.min(have, need);
+        claimPlan[col] = startAmt;
+        row.innerHTML = `
+            <div class="color-box cc-${col}"></div>
+            <span style="font-size:0.8rem;flex:1;">${col} (have ${have})</span>
+            <button class="spin-btn" onclick="adjustSpend('${col}',-1)">-</button>
+            <span class="spend-val" id="spend-${col}">${claimPlan[col]}</span>
+            <button class="spin-btn" onclick="adjustSpend('${col}',1)">+</button>`;
+        ui.appendChild(row);
+    }
+
+    if (canUseWild) {
+        const col = 'wild';
+        claimPlan[col] = 0;
+        const row = document.createElement('div');
+        row.className = 'color-spend-row';
+        row.innerHTML = `
+            <div class="color-box cc-wild"></div>
+            <span style="font-size:0.8rem;flex:1;">wild (have ${player.hand.wild})</span>
+            <button class="spin-btn" onclick="adjustSpend('wild',-1)">-</button>
+            <span class="spend-val" id="spend-wild">${claimPlan['wild']}</span>
+            <button class="spin-btn" onclick="adjustSpend('wild',1)">+</button>`;
+        ui.appendChild(row);
+    }
+
+    // Auto-fill if single color
+    if (route.color !== 'gray') {
+        autoFillClaim(route, player);
+    }
+
+    document.getElementById('modal-claim').classList.add('show');
+}
+
+function autoFillClaim(route, player) {
+    const col = route.color;
+    const have = player.hand[col] || 0;
+    const need = route.length;
+    const useCol = Math.min(have, need);
+    const useWild = Math.max(0, need - useCol);
+    claimPlan = {};
+    if (useCol > 0) claimPlan[col] = useCol;
+    if (useWild > 0) claimPlan['wild'] = useWild;
+    for (const k in claimPlan) {
+        const el = document.getElementById('spend-'+k);
+        if (el) el.textContent = claimPlan[k];
+    }
+}
+
+function adjustSpend(color, delta) {
+    const player = STATE.players[STATE.currentPlayerIdx];
+    const route = STATE.routes.find(r => r.id === STATE.claimingRoute);
+    if (!route) return;
+    const newVal = Math.max(0, Math.min(player.hand[color]||0, (claimPlan[color]||0) + delta));
+    claimPlan[color] = newVal;
+    const el = document.getElementById('spend-'+color);
+    if (el) el.textContent = newVal;
+}
+
+function confirmClaim() {
+    const route = STATE.routes.find(r => r.id === STATE.claimingRoute);
+    if (!route) return;
+    const cp = STATE.players[STATE.currentPlayerIdx];
+    const total = Object.values(claimPlan).reduce((a,b)=>a+b,0);
+    if (total !== route.length) { showToast(`Need exactly ${route.length} cards (have ${total})`); return; }
+
+    // Validate colors match route
+    if (route.color !== 'gray') {
+        const nonWild = Object.entries(claimPlan).filter(([k])=>k!=='wild').map(([k])=>k);
+        if (nonWild.some(k => k !== route.color)) { showToast('Wrong color!'); return; }
+    }
+
+    // Deduct cards
+    for (const [color, amt] of Object.entries(claimPlan)) {
+        cp.hand[color] = (cp.hand[color]||0) - amt;
+        for (let i = 0; i < amt; i++) STATE.discardPile.push({ color });
+    }
+
+    // Claim
+    route.claimedBy = cp.id;
+    cp.trainsRemaining -= route.length;
+    const pts = ROUTE_SCORE[route.length];
+    cp.score += pts;
+
+    STATE.flashRoute = route.id;
+    STATE.flashUntil = Date.now() + 1400;
+    STATE.claimingRoute = null;
+    document.getElementById('modal-claim').classList.remove('show');
+
+    showToast(`${cp.name} claimed ${STATE.cities[route.cityA].name} → ${STATE.cities[route.cityB].name} for ${pts} pts!`);
+
+    // Check end game trigger
+    if (cp.trainsRemaining <= 2 && STATE.finalRoundTrigger === null) {
+        STATE.finalRoundTrigger = STATE.currentPlayerIdx;
+        setTimeout(() => showToast(`${cp.name} has ≤2 trains! Final round begins!`), 1200);
+    }
+
+    endTurn();
+}
+
+function cancelClaim() {
+    STATE.claimingRoute = null;
+    STATE.turnPhase = 'choose-action';
+    document.getElementById('modal-claim').classList.remove('show');
+    updateUI();
+}
+
+// =====================================================================
+// TICKET MODAL
+// =====================================================================
+function showTicketModal(player, isInitial, minKeep) {
+    document.getElementById('ticket-modal-title').textContent = isInitial ? 'Initial Destination Tickets' : 'Destination Tickets';
+    document.getElementById('ticket-modal-sub').textContent = `${player.name}: Keep at least ${minKeep} ticket${minKeep>1?'s':''}. These are your secret goals!`;
+
+    const div = document.getElementById('ticket-choices');
+    div.innerHTML = '';
+    for (let i = 0; i < STATE.pendingTickets.length; i++) {
+        const t = STATE.pendingTickets[i];
+        const cA = STATE.cities[t.cityA]?.name || '?';
+        const cB = STATE.cities[t.cityB]?.name || '?';
+        const tc = document.createElement('div');
+        tc.className = 'ticket-choice selected';
+        tc.id = `tchoice-${i}`;
+        tc.innerHTML = `<input type="checkbox" id="tck-${i}" checked>
+            <div class="ticket-cities">${cA} ↔ ${cB}</div>
+            <div class="ticket-pts">${t.points}</div>`;
+        tc.onclick = (e) => {
+            if (e.target.tagName === 'INPUT') return;
+            const cb = document.getElementById('tck-'+i);
+            cb.checked = !cb.checked;
+            tc.classList.toggle('selected', cb.checked);
+        };
+        const cb = tc.querySelector('input');
+        cb.onchange = () => tc.classList.toggle('selected', cb.checked);
+        div.appendChild(tc);
+    }
+    document.getElementById('modal-tickets').classList.add('show');
+}
+
+function confirmTickets() {
+    let kept = 0;
+    const keptTickets = [];
+    for (let i = 0; i < STATE.pendingTickets.length; i++) {
+        const cb = document.getElementById('tck-'+i);
+        if (cb?.checked) { kept++; keptTickets.push(STATE.pendingTickets[i]); }
+        else { STATE.ticketDeck.unshift(STATE.pendingTickets[i]); } // return to bottom
+    }
+    if (kept < 1) { showToast('Keep at least 1 ticket!'); return; }
+
+    document.getElementById('modal-tickets').classList.remove('show');
+    const cp = STATE.players[STATE.isInitialDeal ? STATE.initialDealIdx : STATE.currentPlayerIdx];
+    for (const t of keptTickets) cp.tickets.push(t);
+
+    if (STATE.isInitialDeal) {
+        STATE.initialDealIdx++;
+        // Skip AI players — they keep all tickets automatically
+        while (STATE.initialDealIdx < STATE.players.length && STATE.players[STATE.initialDealIdx].isAI) {
+            const aiP = STATE.players[STATE.initialDealIdx];
+            STATE.pendingTickets = [];
+            for (let i = 0; i < 3 && STATE.ticketDeck.length; i++) STATE.pendingTickets.push(STATE.ticketDeck.pop());
+            for (const t of STATE.pendingTickets) aiP.tickets.push(t);
+            STATE.initialDealIdx++;
+        }
+        if (STATE.initialDealIdx < STATE.players.length) {
+            dealTicketsToPlayer(STATE.initialDealIdx);
+        } else {
+            STATE.isInitialDeal = false;
+            afterInitialDeal();
+        }
+    } else {
+        endTurn();
+    }
+}
+
+// =====================================================================
+// END TURN
+// =====================================================================
+function endTurn() {
+    refillFaceUpCards();
+
+    // Check final round
+    if (STATE.finalRoundTrigger !== null) {
+        STATE.finalRoundPlayers.add(STATE.currentPlayerIdx);
+        if (STATE.finalRoundPlayers.size >= STATE.players.length) {
+            triggerGameOver();
+            return;
+        }
+    }
+
+    STATE.currentPlayerIdx = (STATE.currentPlayerIdx + 1) % STATE.players.length;
+    STATE.turnPhase = 'choose-action';
+    STATE.cardsDrawnThisTurn = 0;
+    STATE.hoverRoute = null;
+
+    updateUI();
+    renderMap();
+
+    const cp = STATE.players[STATE.currentPlayerIdx];
+    if (cp.isAI) {
+        setTimeout(() => runAITurn(STATE.currentPlayerIdx), 700 + Math.random()*400);
+    } else if (STATE.gameMode === 'pass-and-play') {
+        showPassScreen(cp.name);
+    }
+}
+
+// =====================================================================
+// AI LOGIC
+// =====================================================================
+function runAITurn(playerIdx) {
+    if (STATE.mode !== 'playing') return;
+    if (STATE.currentPlayerIdx !== playerIdx) return;
+    const cp = STATE.players[playerIdx];
+
+    // 25% random noise
+    if (Math.random() < 0.25) {
+        aiDrawTwoCards(playerIdx);
+        return;
+    }
+
+    // Priority 1: Claim a critical route
+    const critRoute = aiFindCriticalRoute(playerIdx);
+    if (critRoute && aiCanAfford(critRoute, cp.hand)) {
+        aiClaimRoute(playerIdx, critRoute);
+        return;
+    }
+
+    // Priority 2: Claim any route we have cards for (long ones preferred)
+    const affordable = STATE.routes.filter(r => r.claimedBy === null && aiCanAfford(r, cp.hand) && cp.trainsRemaining >= r.length);
+    affordable.sort((a,b) => b.length - a.length);
+    if (affordable.length && affordable[0].length >= 3) {
+        aiClaimRoute(playerIdx, affordable[0]);
+        return;
+    }
+
+    // Priority 3: Collect cards toward needed route
+    if (critRoute) {
+        aiDrawCardsFor(playerIdx, critRoute.color === 'gray' ? null : critRoute.color);
+        return;
+    }
+
+    // Priority 4: Draw tickets if few incomplete
+    const incomplete = cp.tickets.filter(t => !bfsCheck(t.cityA, t.cityB, playerIdx));
+    if (incomplete.length < 2 && STATE.ticketDeck.length >= 3 && Math.random() < 0.4) {
+        STATE.turnPhase = 'draw-tickets';
+        const kept = [];
+        for (let i = 0; i < 3 && STATE.ticketDeck.length; i++) kept.push(STATE.ticketDeck.pop());
+        for (const t of kept) cp.tickets.push(t);
+        endTurn();
+        return;
+    }
+
+    // Default: draw 2 cards
+    aiDrawTwoCards(playerIdx);
+}
+
+function aiFindCriticalRoute(playerIdx) {
+    const cp = STATE.players[playerIdx];
+    const incomplete = cp.tickets.filter(t => !bfsCheck(t.cityA, t.cityB, playerIdx));
+    for (const t of incomplete) {
+        // BFS over ALL routes, find unclaimed step on shortest path
+        const path = bfsRoutePath(t.cityA, t.cityB, playerIdx);
+        if (path) {
+            const r = STATE.routes.find(r => r.id === path);
+            if (r && r.claimedBy === null && cp.trainsRemaining >= r.length) return r;
+        }
+    }
+    return null;
+}
+
+function bfsRoutePath(fromCity, toCity, playerIdx) {
+    // BFS, return first unclaimed route id on a shortest path to toCity
+    const visited = new Set([fromCity]);
+    const queue = [{ city: fromCity, routeId: null }];
+    while (queue.length) {
+        const { city, routeId } = queue.shift();
+        if (city === toCity) return routeId;
+        for (const nb of (STATE.adjacency[city] || [])) {
+            const r = STATE.routes.find(r => r.id === nb.routeId);
+            if (!visited.has(nb.to) && r) {
+                visited.add(nb.to);
+                // If route claimed by this player, traverse freely; else it's the step
+                const nexRouteId = r.claimedBy === playerIdx ? routeId : r.id;
+                queue.push({ city: nb.to, routeId: nexRouteId });
+            }
+        }
+    }
+    return null;
+}
+
+function aiCanAfford(route, hand) {
+    if (route.color === 'gray') {
+        for (const c of COLORS) {
+            if ((hand[c]||0) + (hand.wild||0) >= route.length) return true;
+        }
+        return false;
+    }
+    return (hand[route.color]||0) + (hand.wild||0) >= route.length;
+}
+
+function aiClaimRoute(playerIdx, route) {
+    const cp = STATE.players[playerIdx];
+    // Check parallel
+    if (route.parallel && route.parallelId !== null) {
+        const par = STATE.routes.find(r => r.id === route.parallelId);
+        if (par && par.claimedBy === playerIdx) {
+            aiDrawTwoCards(playerIdx); return;
+        }
+        if (par && STATE.players.length === 2 && par.claimedBy !== null) {
+            aiDrawTwoCards(playerIdx); return;
+        }
+    }
+
+    // Determine spend plan
+    let useColor = route.color;
+    if (route.color === 'gray') {
+        let best = null, bestAmt = -1;
+        for (const c of COLORS) {
+            if ((cp.hand[c]||0) > bestAmt) { bestAmt = cp.hand[c]; best = c; }
+        }
+        useColor = best || 'wild';
+    }
+
+    const have = cp.hand[useColor] || 0;
+    const useMain = Math.min(have, route.length);
+    const useWild = route.length - useMain;
+
+    if (useWild > (cp.hand.wild||0)) { aiDrawTwoCards(playerIdx); return; }
+
+    cp.hand[useColor] = have - useMain;
+    cp.hand.wild = (cp.hand.wild||0) - useWild;
+    for (let i = 0; i < useMain; i++) STATE.discardPile.push({ color: useColor });
+    for (let i = 0; i < useWild; i++) STATE.discardPile.push({ color: 'wild' });
+
+    route.claimedBy = playerIdx;
+    cp.trainsRemaining -= route.length;
+    const pts = ROUTE_SCORE[route.length];
+    cp.score += pts;
+
+    STATE.flashRoute = route.id;
+    STATE.flashUntil = Date.now() + 1200;
+
+    showToast(`${cp.name} claimed ${STATE.cities[route.cityA].name} → ${STATE.cities[route.cityB].name} (+${pts})`);
+
+    if (cp.trainsRemaining <= 2 && STATE.finalRoundTrigger === null) {
+        STATE.finalRoundTrigger = playerIdx;
+        setTimeout(() => showToast(`${cp.name} has ≤2 trains! Final round!`), 1200);
+    }
+
+    endTurn();
+}
+
+function aiDrawCardsFor(playerIdx, preferColor) {
+    const cp = STATE.players[playerIdx];
+    STATE.turnPhase = 'drawing-cards';
+    // Try to draw preferred color from face-up
+    let drew = 0;
+    for (let pass = 0; pass < 2 && drew < 2; pass++) {
+        let taken = false;
+        for (let i = 0; i < 5 && !taken; i++) {
+            const c = STATE.faceUpCards[i];
+            if (!c) continue;
+            if (drew === 1 && c.color === 'wild') continue; // can't take wild as 2nd
+            if (c.color === preferColor || c.color === 'wild' || !preferColor) {
+                cp.hand[c.color]++;
+                STATE.faceUpCards[i] = STATE.trainDeck.length ? STATE.trainDeck.pop() : null;
+                checkWildRule();
+                if (c.color === 'wild') drew = 2;
+                else drew++;
+                taken = true;
+            }
+        }
+        if (!taken) {
+            // Draw blind
+            if (!STATE.trainDeck.length) reshuffleDeck();
+            const card = STATE.trainDeck.pop();
+            if (card) cp.hand[card.color]++;
+            drew++;
+        }
+    }
+    endTurn();
+}
+
+function aiDrawTwoCards(playerIdx) {
+    aiDrawCardsFor(playerIdx, null);
+}
+
+// =====================================================================
+// PATHFINDING
+// =====================================================================
+function bfsCheck(fromCity, toCity, playerIdx) {
+    // BFS over only this player's claimed routes
+    const visited = new Set([fromCity]);
+    const queue = [fromCity];
+    while (queue.length) {
+        const cur = queue.shift();
+        if (cur === toCity) return true;
+        for (const nb of (STATE.adjacency[cur] || [])) {
+            const r = STATE.routes.find(r => r.id === nb.routeId);
+            if (!visited.has(nb.to) && r && r.claimedBy === playerIdx) {
+                visited.add(nb.to);
+                queue.push(nb.to);
+            }
+        }
+    }
+    return false;
+}
+
+function computeLongestRoute(playerIdx) {
+    // Build graph of player's claimed routes
+    const adj = {};
+    for (const r of STATE.routes) {
+        if (r.claimedBy !== playerIdx) continue;
+        if (!adj[r.cityA]) adj[r.cityA] = [];
+        if (!adj[r.cityB]) adj[r.cityB] = [];
+        adj[r.cityA].push({ to: r.cityB, len: r.length, rid: r.id });
+        adj[r.cityB].push({ to: r.cityA, len: r.length, rid: r.id });
+    }
+    let max = 0;
+    function dfs(city, usedRoutes, cur) {
+        max = Math.max(max, cur);
+        for (const nb of (adj[city] || [])) {
+            if (!usedRoutes.has(nb.rid)) {
+                usedRoutes.add(nb.rid);
+                dfs(nb.to, usedRoutes, cur + nb.len);
+                usedRoutes.delete(nb.rid);
+            }
+        }
+    }
+    for (const city of Object.keys(adj)) dfs(parseInt(city), new Set(), 0);
+    return max;
+}
+
+// =====================================================================
+// GAME OVER
+// =====================================================================
+function triggerGameOver() {
+    STATE.mode = 'game-over';
+
+    // Resolve tickets
+    const longestRoutes = STATE.players.map(p => computeLongestRoute(p.id));
+    const maxLongest = Math.max(...longestRoutes);
+
+    for (const p of STATE.players) {
+        p.finalScore = p.score;
+        for (const t of p.tickets) {
+            t.completed = bfsCheck(t.cityA, t.cityB, p.id);
+            p.finalScore += t.completed ? t.points : -t.points;
+        }
+        if (longestRoutes[p.id] === maxLongest && maxLongest > 0) p.finalScore += 10;
+    }
+
+    const sorted = [...STATE.players].sort((a,b) => b.finalScore - a.finalScore);
+
+    const div = document.getElementById('go-content');
+    div.innerHTML = `
+        <table class="go-table">
+            <thead><tr><th>#</th><th>Player</th><th>Routes</th><th>Tickets</th><th>Longest</th><th>Total</th></tr></thead>
+            <tbody>${sorted.map((p,i) => {
+                const ticketPts = p.tickets.reduce((s,t) => s + (t.completed ? t.points : -t.points), 0);
+                const longest = longestRoutes[p.id] === maxLongest && maxLongest > 0 ? '+10' : '';
+                return `<tr class="${i===0?'winner':''}">
+                    <td class="go-rank">${i===0?'🏆':i+1}</td>
+                    <td><span class="ptoken" style="background:${p.color}"></span>${p.name}</td>
+                    <td>${p.score}</td>
+                    <td>${ticketPts > 0 ? '+':''}${ticketPts}</td>
+                    <td>${longest || longestRoutes[p.id]}</td>
+                    <td><strong>${p.finalScore}</strong></td>
+                </tr>`;
+            }).join('')}</tbody>
+        </table>`;
+
+    updateUI();
+    document.getElementById('modal-gameover').classList.add('show');
+}
+
+// =====================================================================
+// PASS SCREEN
+// =====================================================================
+function showPassScreen(name) {
+    document.getElementById('pass-name').textContent = name;
+    document.getElementById('pass-screen').classList.add('show');
+}
+function hidePassed() {
+    document.getElementById('pass-screen').classList.remove('show');
+    updateUI();
+}
+
+// =====================================================================
+// CANVAS EVENTS
+// =====================================================================
+function getCanvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    let cx, cy;
+    if (e.touches && e.touches.length) { cx = e.touches[0].clientX; cy = e.touches[0].clientY; }
+    else { cx = e.clientX; cy = e.clientY; }
+    return { x: (cx - rect.left) * scaleX, y: (cy - rect.top) * scaleY };
+}
+
+function getRouteAtPoint(x, y) {
+    const isMobile = window.innerWidth < 900;
+    const tolerance = isMobile ? 20 : 15;
+    for (const r of STATE.routes) {
+        if (r.claimedBy !== null) continue;
+        for (const seg of r.segments) {
+            const dx = x - seg.cx, dy = y - seg.cy;
+            const cos = Math.cos(-seg.angle), sin = Math.sin(-seg.angle);
+            const lx = dx*cos - dy*sin, ly = dx*sin + dy*cos;
+            if (Math.abs(lx) < seg.w/2 + tolerance && Math.abs(ly) < seg.h/2 + tolerance) return r;
+        }
+    }
+    return null;
+}
+
+canvas.addEventListener('click', handleCanvasClick);
+canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    if (t) handleCanvasClick({ clientX: t.clientX, clientY: t.clientY, touches: null });
+}, {passive:false});
+canvas.addEventListener('mousemove', e => {
+    if (STATE.turnPhase !== 'claim-route' || currentPlayerIsAI()) return;
+    const pos = getCanvasPos(e);
+    const r = getRouteAtPoint(pos.x, pos.y);
+    const newHover = r ? r.id : null;
+    if (newHover !== STATE.hoverRoute) { STATE.hoverRoute = newHover; renderMap(); }
+});
+canvas.addEventListener('mouseleave', () => { STATE.hoverRoute = null; });
+
+// =====================================================================
+// TOAST
+// =====================================================================
+let toastTimer = null;
+function showToast(msg, duration = 2800) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// =====================================================================
+// UTILS
+// =====================================================================
+function shuffleArr(arr) {
+    for (let i = arr.length-1; i > 0; i--) {
+        const j = Math.floor(Math.random()*(i+1));
+        [arr[i],arr[j]] = [arr[j],arr[i]];
+    }
+    return arr;
+}
+
+// =====================================================================
+// RESIZE & INIT
+// =====================================================================
+window.addEventListener('resize', resize);
+window.addEventListener('load', () => {
+    selectMode('vs-robots');
+    selectCount(3);
+    buildMenuUI();
+    document.getElementById('modal-menu').classList.add('show');
+    resize();
+});
+</script>
+</body>
+</html>

@@ -45,7 +45,7 @@ EMOJI_MAP = {
     'scrub': '🧼', 'scavenger': '🔍',
     
     # Mystery & Science
-    'lacuna': '🧬', 'inception': '🌀', 'timeline': '⏳', 'illusion': '👁️', 
+    'vector-claim': '🧬', 'inception': '🌀', 'timeline': '⏳', 'illusion': '👁️', 
     'memory': '🧠', 'memoarrr': '🃏', 'relics': '🗿', 'zen': '🎍',
     
     # Action & Misc
