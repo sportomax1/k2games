@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Turn of the Wild - K2 games</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --accent: #fbbf24;
+            --text: #f8fafc;
+            --muted: #64748b;
+            --border: rgba(255, 255, 255, 0.1);
+            
+            --suit-blue: #3b82f6;
+            --suit-yellow: #eab308;
+            --suit-green: #22c55e;
+            --suit-red: #ef4444;
+            
+            --card-w: 80px;
+            --card-h: 120px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 50px;
+            padding: 0 1rem;
+            background: rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo { font-weight: 900; font-size: 1rem; color: var(--accent); letter-spacing: 1px; }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            gap: 10px;
+        }
+
+        /* Opponents Area */
+        #opponents {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            height: 100px;
+        }
+
+        .player-status {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 8px;
+            min-width: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            transition: 0.3s;
+        }
+
+        .player-status.active { border-color: var(--accent); box-shadow: 0 0 15px rgba(251, 191, 36, 0.3); }
+        .player-name { font-weight: 800; font-size: 0.75rem; margin-bottom: 4px; }
+        
+        .dice-box { display: flex; gap: 4px; margin-bottom: 4px; }
+        .die {
+            width: 20px; height: 20px;
+            background: white; color: black;
+            border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 0.7rem;
+            box-shadow: inset 0 -2px 0 rgba(0,0,0,0.2);
+        }
+
+        .tricks-won { font-weight: 900; font-size: 1.2rem; color: var(--accent); }
+        .tricks-label { font-size: 0.5rem; text-transform: uppercase; opacity: 0.6; }
+
+        .score-pips { display: flex; gap: 3px; margin-top: 4px; }
+        .pip { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+        .pip.filled { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+
+        /* Table / Trick Area */
+        #table {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        #phase-banner {
+            font-weight: 900; font-style: italic; font-size: 1.2rem;
+            color: var(--muted); text-transform: uppercase;
+            letter-spacing: 4px; margin-bottom: 20px;
+        }
+        #phase-banner.predator { color: #f87171; }
+        #phase-banner.prey { color: #60a5fa; }
+
+        #trick-cards {
+            display: flex;
+            gap: 15px;
+            min-height: var(--card-h);
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Card Styles */
+        .card {
+            width: var(--card-w);
+            height: var(--card-h);
+            border-radius: 10px;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+
+        .card.disabled { opacity: 0.5; cursor: not-allowed; }
+        .card:hover:not(.disabled) { transform: translateY(-10px); z-index: 10; }
+
+        .card-half {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .card-half.top { background: rgba(0,0,0,0.4); }
+        .card-half.bottom { background: rgba(255,255,255,0.1); }
+
+        .card-val { font-size: 1.8rem; font-weight: 900; line-height: 1; }
+        .card-suit-icon { font-size: 0.8rem; margin-top: 2px; }
+
+        /* Suit colors */
+        .card.suit-blue { border-color: var(--suit-blue); }
+        .card.suit-yellow { border-color: var(--suit-yellow); }
+        .card.suit-green { border-color: var(--suit-green); }
+        .card.suit-red { border-color: var(--suit-red); }
+
+        .suit-blue .card-val { color: var(--suit-blue); }
+        .suit-yellow .card-val { color: var(--suit-yellow); }
+        .suit-green .card-val { color: var(--suit-green); }
+        .suit-red .card-val { color: var(--suit-red); }
+
+        /* Phase rotation */
+        .mode-prey .card-inner { transform: rotate(180deg); }
+        .card-inner { width: 100%; height: 100%; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; }
+
+        /* Hand Area */
+        #hand-area {
+            height: 160px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #hand {
+            display: flex;
+            gap: 5px;
+            padding: 10px;
+            max-width: 100%;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        /* Overlays */
+        .overlay {
+            position: absolute; inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center; padding: 20px;
+        }
+
+        .btn {
+            background: var(--accent); color: #000; border: none; padding: 12px 30px;
+            border-radius: 50px; font-weight: 800; cursor: pointer; font-size: 1rem;
+            text-transform: uppercase; letter-spacing: 1px; transition: 0.2s;
+        }
+        .btn:hover { transform: scale(1.05); }
+
+        #msg-banner {
+            position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
+            background: var(--accent); color: #000; padding: 8px 30px; border-radius: 50px;
+            font-weight: 900; z-index: 150; display: none;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+
+        @media (max-width: 600px) {
+            --card-w: 60px;
+            --card-h: 90px;
+            .die { width: 16px; height: 16px; font-size: 0.6rem; }
+            .player-status { min-width: 80px; padding: 5px; }
+            .card-val { font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">TURN OF THE WILD</div>
+        <div style="display:flex; gap:10px; align-items:center;">
+            <button class="btn" onclick="game.toggleLog()" style="padding: 5px 12px; font-size: 0.6rem; background:transparent; border:1px solid var(--border); color:white;">Log</button>
+            <div id="round-info" style="font-size: 0.7rem; font-weight: 800; opacity: 0.6;">TRICK 1 / 12</div>
+        </div>
+    </nav>
+
+    <div id="game-container">
+        <div id="msg-banner">PLAYER 1 WINS!</div>
+
+        <!-- Log Panel -->
+        <div id="log-panel" style="position: absolute; top: 10px; left: 10px; width: 260px; background: var(--surface); border: 1px solid var(--border); border-radius: 15px; padding: 15px; z-index: 300; box-shadow: 0 10px 30px rgba(0,0,0,0.5); font-size: 0.75rem; display: none; max-height: 60vh; overflow-y: auto;">
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="color:var(--accent); font-size:0.9rem;">Match Log</h3>
+                <div onclick="game.toggleLog()" style="cursor:pointer; opacity:0.5">✕</div>
+            </div>
+            <div id="log-list" style="display:flex; flex-direction: column; gap: 6px;"></div>
+        </div>
+
+        <div id="opponents">
+            <!-- Players filled by JS -->
+        </div>
+
+        <div id="table">
+            <div id="phase-banner" class="predator">PREDATORS</div>
+            <div id="trick-cards">
+                <!-- Played cards here -->
+            </div>
+        </div>
+
+        <div id="hand-area">
+            <div id="turn-label" style="font-size: 0.7rem; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Your Turn</div>
+            <div id="hand"></div>
+        </div>
+
+        <!-- Setup Screen -->
+        <div id="setup-overlay" class="overlay">
+            <h1 style="font-size: 3rem; font-weight: 900; color: var(--accent); font-style: italic; margin-bottom: 10px;">PREY</h1>
+            <p style="color: var(--muted); margin-bottom: 30px; max-width: 400px;">Hunt as a predator, survive as the prey. Hit your secret goals to win.</p>
+            <div style="display: flex; gap: 15px;">
+                <button class="btn" onclick="game.init(3, 'bots')">3 Players (Bots)</button>
+                <button class="btn" onclick="game.init(4, 'bots')">4 Players (Bots)</button>
+            </div>
+            <button class="btn" onclick="game.init(3, 'humans')" style="margin-top: 15px; background: transparent; border: 1px solid var(--border); color: white;">Pass & Play (3P)</button>
+        </div>
+
+        <!-- Handoff Screen -->
+        <div id="handoff-overlay" class="overlay" style="display:none">
+            <h2 id="handoff-name" style="font-size: 2rem; margin-bottom: 10px;">Player Name</h2>
+            <p style="opacity: 0.6; margin-bottom: 30px;">Pass the device. Hide your hand!</p>
+            <button class="btn" onclick="game.confirmHandoff()">I Am Ready</button>
+        </div>
+
+        <!-- Round Over Screen -->
+        <div id="round-overlay" class="overlay" style="display:none">
+            <h1 id="round-title" style="font-size: 2.5rem; color: var(--accent); margin-bottom: 20px;">ROUND OVER</h1>
+            <div id="round-results" style="width: 100%; max-width: 300px; margin-bottom: 30px;"></div>
+            <button class="btn" onclick="game.startRound()">Next Round</button>
+        </div>
+    </div>
+
+    <script>
+        class TurnOfTheWild {
+            constructor() {
+                this.suits = ['blue', 'yellow', 'green', 'red'];
+                this.pairs = [
+                    [1, 7], [2, 8], [3, 9], [4, 10], [5, 11], [6, 12],
+                    [7, 1], [8, 2], [9, 3], [10, 4], [11, 5], [12, 6]
+                ];
+                this.players = [];
+                this.turn = 0;
+                this.leadPlayer = 0;
+                this.trickCount = 0;
+                this.trickCards = []; // {playerIndex, card}
+                this.mode = 'bots';
+                this.gameState = 'setup';
+                this.leadSuit = null;
+                this.history = [];
+            }
+
+            init(count, mode) {
+                this.mode = mode;
+                this.players = Array.from({length: count}, (_, i) => ({
+                    id: i,
+                    name: i === 0 ? "You" : (mode === 'bots' ? `Bot ${i}` : `Player ${i+1}`),
+                    isBot: mode === 'bots' && i !== 0,
+                    hand: [],
+                    tricks: 0,
+                    goals: [0, 0],
+                    points: 0
+                }));
+
+                document.getElementById('setup-overlay').style.display = 'none';
+                this.startRound();
+            }
+
+            startRound() {
+                document.getElementById('round-overlay').style.display = 'none';
+                this.trickCount = 0;
+                this.history = [];
+                this.updateLogUI();
+                
+                // Roll Dice
+                this.players.forEach(p => {
+                    p.tricks = 0;
+                    p.goals = this.rollDice();
+                });
+
+                // Determine first lead (lowest dice total)
+                const totals = this.players.map(p => p.goals[0] + p.goals[1]);
+                const minTotal = Math.min(...totals);
+                this.leadPlayer = totals.indexOf(minTotal);
+                this.turn = this.leadPlayer;
+
+                // Deal Hand
+                this.deal();
+                this.updateUI();
+                this.showBanner("ROUND START");
+                
+                if(this.players[this.turn].isBot) setTimeout(() => this.botPlay(), 1500);
+                else if(this.mode === 'humans') this.showHandoff();
+            }
+
+            rollDice() {
+                let d1 = Math.floor(Math.random() * 6) + 1;
+                let d2 = Math.floor(Math.random() * 6) + 1;
+                while(d1 === d2) d2 = Math.floor(Math.random() * 6) + 1;
+                return [d1, d2];
+            }
+
+            deal() {
+                let deck = [];
+                this.suits.forEach(suit => {
+                    this.pairs.forEach(p => {
+                        deck.push({ suit, predator: p[0], prey: p[1] });
+                    });
+                });
+                deck.sort(() => Math.random() - 0.5);
+
+                this.players.forEach((p, i) => {
+                    p.hand = deck.slice(i * 12, (i + 1) * 12);
+                });
+            }
+
+            updateUI() {
+                const phase = this.trickCount < 6 ? 'predator' : 'prey';
+                const banner = document.getElementById('phase-banner');
+                banner.textContent = phase === 'predator' ? 'PREDATORS' : 'PREY';
+                banner.className = phase;
+
+                document.body.className = `mode-${phase}`;
+                document.getElementById('round-info').textContent = `TRICK ${this.trickCount + 1} / 12`;
+
+                // Render Opponents
+                const opps = document.getElementById('opponents');
+                opps.innerHTML = '';
+                this.players.forEach((p, i) => {
+                    const div = document.createElement('div');
+                    div.className = `player-status ${this.turn === i ? 'active' : ''}`;
+                    
+                    let pips = '';
+                    for(let j=0; j<2; j++) pips += `<div class="pip ${p.points > j ? 'filled' : ''}"></div>`;
+
+                    div.innerHTML = `
+                        <div class="player-name">${p.name}</div>
+                        <div class="dice-box">
+                            <div class="die">${p.goals[0]}</div>
+                            <div class="die">${p.goals[1]}</div>
+                        </div>
+                        <div class="tricks-won">${p.tricks}</div>
+                        <div class="tricks-label">Tricks</div>
+                        <div class="score-pips">${pips}</div>
+                    `;
+                    opps.appendChild(div);
+                });
+
+                this.renderHand();
+                this.renderTable();
+            }
+
+            renderHand() {
+                const container = document.getElementById('hand');
+                container.innerHTML = '';
+                const p = this.players[this.turn];
+                const phase = this.trickCount < 6 ? 'predator' : 'prey';
+
+                // Sort hand by suit then val for clarity
+                const sorted = [...p.hand].sort((a,b) => {
+                    if(a.suit !== b.suit) return this.suits.indexOf(a.suit) - this.suits.indexOf(b.suit);
+                    return a[phase] - b[phase];
+                });
+
+                sorted.forEach(card => {
+                    const cardEl = document.createElement('div');
+                    cardEl.className = `card suit-${card.suit}`;
+                    
+                    const canPlay = this.isValidMove(card);
+                    if(!canPlay) cardEl.classList.add('disabled');
+
+                    cardEl.innerHTML = `
+                        <div class="card-inner">
+                            <div class="card-half top">
+                                <div class="card-val">${card.predator}</div>
+                                <div class="card-suit-icon">${this.getSuitIcon(card.suit)}</div>
+                            </div>
+                            <div class="card-half bottom">
+                                <div class="card-val">${card.prey}</div>
+                                <div class="card-suit-icon">${this.getSuitIcon(card.suit)}</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    if(!p.isBot && canPlay) {
+                        cardEl.onclick = () => this.handlePlay(card);
+                    }
+                    container.appendChild(cardEl);
+                });
+
+                document.getElementById('turn-label').textContent = p.isBot ? `${p.name} is thinking...` : "Your Turn";
+            }
+
+            getSuitIcon(suit) {
+                switch(suit) {
+                    case 'blue': return '🐺';
+                    case 'yellow': return '🦅';
+                    case 'green': return '🐻';
+                    case 'red': return '🦊';
+                }
+            }
+
+            isValidMove(card) {
+                if(this.turn !== this.leadPlayer && this.leadSuit) {
+                    const p = this.players[this.turn];
+                    const hasSuit = p.hand.some(c => c.suit === this.leadSuit);
+                    if(hasSuit && card.suit !== this.leadSuit) return false;
+                }
+                return true;
+            }
+
+            handlePlay(card) {
+                const p = this.players[this.turn];
+                p.hand = p.hand.filter(c => c !== card);
+                
+                if(this.turn === this.leadPlayer) this.leadSuit = card.suit;
+                
+                this.trickCards.push({ playerIndex: this.turn, card });
+                
+                this.renderTable();
+                
+                // Advance turn
+                this.turn = (this.turn + 1) % this.players.length;
+                
+                if(this.trickCards.length === this.players.length) {
+                    setTimeout(() => this.resolveTrick(), 1000);
+                } else {
+                    this.updateUI();
+                    if(this.players[this.turn].isBot) setTimeout(() => this.botPlay(), 1000);
+                    else if(this.mode === 'humans') this.showHandoff();
+                }
+            }
+
+            renderTable() {
+                const container = document.getElementById('trick-cards');
+                container.innerHTML = '';
+                
+                this.trickCards.forEach(tc => {
+                    const card = tc.card;
+                    const cardEl = document.createElement('div');
+                    cardEl.className = `card suit-${card.suit} played`;
+                    cardEl.style.cursor = 'default';
+                    cardEl.innerHTML = `
+                        <div class="card-inner">
+                            <div class="card-half top">
+                                <div class="card-val">${card.predator}</div>
+                            </div>
+                            <div class="card-half bottom">
+                                <div class="card-val">${card.prey}</div>
+                            </div>
+                        </div>
+                        <div style="position:absolute; bottom:2px; width:100%; text-align:center; font-size:0.5rem; font-weight:900; background:rgba(0,0,0,0.5)">${this.players[tc.playerIndex].name}</div>
+                    `;
+                    container.appendChild(cardEl);
+                });
+            }
+
+            resolveTrick() {
+                const phase = this.trickCount < 6 ? 'predator' : 'prey';
+                
+                let winnerIdx = -1;
+                let highVal = -1;
+
+                this.trickCards.forEach(tc => {
+                    if(tc.card.suit === this.leadSuit) {
+                        const val = tc.card[phase];
+                        if(val > highVal) {
+                            highVal = val;
+                            winnerIdx = tc.playerIndex;
+                        }
+                    }
+                });
+
+                const winner = this.players[winnerIdx];
+                winner.tricks++;
+                
+                // Log trick
+                const suitIcon = this.getSuitIcon(this.leadSuit);
+                this.logAction(`${winner.name} won trick with ${highVal} ${suitIcon}`);
+
+                this.showBanner(`${winner.name.toUpperCase()} WINS TRICK!`);
+                
+                this.trickCount++;
+                this.trickCards = [];
+                this.leadSuit = null;
+                this.leadPlayer = winnerIdx;
+                this.turn = winnerIdx;
+
+                if(this.trickCount === 6) {
+                    this.showBanner("ROTATING TO PREY...");
+                    this.logAction("--- PREY PHASE START ---");
+                }
+
+                if(this.trickCount === 12) {
+                    setTimeout(() => this.endRound(), 1500);
+                } else {
+                    setTimeout(() => {
+                        this.updateUI();
+                        if(this.players[this.turn].isBot) this.botPlay();
+                        else if(this.mode === 'humans') this.showHandoff();
+                    }, 1000);
+                }
+            }
+
+            botPlay() {
+                const p = this.players[this.turn];
+                const phase = this.trickCount < 6 ? 'predator' : 'prey';
+                
+                let playable = p.hand.filter(c => this.isValidMove(c));
+                let chosen;
+
+                if(this.turn === this.leadPlayer) {
+                    playable.sort((a,b) => b[phase] - a[phase]);
+                    chosen = playable[0];
+                } else {
+                    let leadSuitCards = playable.filter(c => c.suit === this.leadSuit);
+                    if(leadSuitCards.length > 0) {
+                        leadSuitCards.sort((a,b) => b[phase] - a[phase]);
+                        chosen = leadSuitCards[0];
+                    } else {
+                        playable.sort((a,b) => a[phase] - b[phase]);
+                        chosen = playable[0];
+                    }
+                }
+
+                this.handlePlay(chosen);
+            }
+
+            logAction(msg) {
+                this.history.unshift(msg);
+                this.updateLogUI();
+            }
+
+            toggleLog() {
+                const el = document.getElementById('log-panel');
+                el.style.display = el.style.display === 'block' ? 'none' : 'block';
+            }
+
+            updateLogUI() {
+                const list = document.getElementById('log-list');
+                list.innerHTML = this.history.map(h => `
+                    <div style="padding: 5px 10px; background: rgba(255,255,255,0.03); border-radius: 5px; border-left: 2px solid var(--accent);">
+                        ${h}
+                    </div>
+                `).join('');
+            }
+
+            showHandoff() {
+                const overlay = document.getElementById('handoff-overlay');
+                document.getElementById('handoff-name').textContent = this.players[this.turn].name;
+                overlay.style.display = 'flex';
+            }
+
+            confirmHandoff() {
+                document.getElementById('handoff-overlay').style.display = 'none';
+                this.updateUI();
+            }
+
+            showBanner(txt) {
+                const b = document.getElementById('msg-banner');
+                b.textContent = txt;
+                b.style.display = 'block';
+                setTimeout(() => b.style.display = 'none', 2000);
+            }
+
+            endRound() {
+                const results = document.getElementById('round-results');
+                results.innerHTML = '';
+                
+                let gameWinner = null;
+
+                this.players.forEach(p => {
+                    const hitGoal = p.goals.includes(p.tricks) || (p.goals.includes(6) && p.tricks === 0);
+                    if(hitGoal) p.points++;
+
+                    const div = document.createElement('div');
+                    div.style.display = 'flex';
+                    div.style.justifyContent = 'space-between';
+                    div.style.padding = '10px 0';
+                    div.style.borderBottom = '1px solid var(--border)';
+                    div.innerHTML = `
+                        <span>${p.name}</span>
+                        <span>${p.tricks} Tricks ${hitGoal ? '✅' : '❌'}</span>
+                        <span style="font-weight:900">${p.points}/2 pts</span>
+                    `;
+                    results.appendChild(div);
+
+                    if(p.points >= 2) gameWinner = p;
+                });
+
+                const overlay = document.getElementById('round-overlay');
+                const title = document.getElementById('round-title');
+                
+                if(gameWinner) {
+                    title.textContent = "GAME OVER";
+                    title.style.color = "var(--accent)";
+                    document.querySelector('#round-overlay button').textContent = "NEW GAME";
+                    document.querySelector('#round-overlay button').onclick = () => location.reload();
+                } else {
+                    title.textContent = "ROUND OVER";
+                }
+
+                overlay.style.display = 'flex';
+            }
+        }
+
+        const game = new TurnOfTheWild();
+    </script>
+</body>
+</html>

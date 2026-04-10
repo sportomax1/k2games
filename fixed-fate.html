@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fixed Fate - K2 games</title>
+    <style>
+        :root {
+            --bg: #0a0a0c;
+            --surface: #151518;
+            --accent: #6366f1; /* Indigo */
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --card-front: #1e293b;
+            --card-highlight: #334155;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; user-select: none; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        nav {
+            height: 60px;
+            padding: 0 1.5rem;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(15px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo { font-weight: 900; font-size: 1.2rem; color: var(--accent); letter-spacing: 1px; }
+        .nav-right { display: flex; gap: 10px; }
+
+        #game-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+        }
+
+        /* Log Panel */
+        #log-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 260px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            padding: 15px;
+            z-index: 300;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            font-size: 0.75rem;
+            display: none;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        #log-panel h3 { color: var(--accent); margin-bottom: 10px; font-size: 0.9rem; }
+        #log-list { display: flex; flex-direction: column; gap: 6px; }
+        .log-item { padding: 6px 10px; background: rgba(255,255,255,0.03); border-radius: 6px; border-left: 3px solid var(--border); }
+        .log-item.perform { border-left-color: var(--success); }
+        .log-item.recruit { border-left-color: var(--warning); }
+        .log-name { font-weight: 900; color: var(--accent); }
+        .log-val { font-family: monospace; font-weight: bold; }
+
+        /* Table / Active Set */
+        #table-area {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        #active-set-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .active-set-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--muted);
+        }
+
+        #active-cards {
+            display: flex;
+            gap: 8px;
+            perspective: 1000px;
+        }
+
+        /* Cards */
+        .card {
+            width: 70px;
+            height: 105px;
+            background: var(--card-front);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 8px;
+            transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+
+        .card.selected {
+            transform: translateY(-15px);
+            border-color: var(--accent);
+            box-shadow: 0 0 15px var(--accent-glow);
+            background: var(--card-highlight);
+        }
+
+        .card.recruitable {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+        }
+
+        .card-num {
+            font-size: 1.5rem;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .card-num.top { align-self: flex-start; color: var(--text); }
+        .card-num.bottom { align-self: flex-end; transform: rotate(180deg); color: var(--muted); }
+
+        /* Opponents */
+        #opponents-area {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 10px;
+        }
+
+        .player-status {
+            background: var(--surface);
+            padding: 8px 15px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            font-size: 0.8rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            min-width: 90px;
+        }
+
+        .player-status.active {
+            border-color: var(--accent);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .status-name { font-weight: 700; color: var(--muted); }
+        .player-status.active .status-name { color: var(--accent); }
+        .status-info { font-weight: 900; display: flex; gap: 8px; }
+
+        /* Player Hand Area */
+        #hand-area {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            padding-bottom: 20px;
+        }
+
+        #player-hand {
+            display: flex;
+            gap: 5px;
+            padding: 10px;
+            max-width: 100%;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        #action-bar {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-weight: 800;
+            font-size: 0.8rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: 0.2s;
+        }
+
+        .btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+        .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .btn.primary { background: var(--accent); color: white; border: none; }
+        .btn.primary:hover:not(:disabled) { background: #4f46e5; }
+
+        /* Overlays */
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .overlay h1 { font-size: 3rem; font-style: italic; font-weight: 900; color: var(--accent); margin-bottom: 10px; }
+        .overlay p { color: var(--muted); margin-bottom: 25px; max-width: 400px; line-height: 1.5; }
+
+        /* Scout Selection Overlay */
+        #scout-selection {
+            position: absolute;
+            background: var(--surface);
+            border: 1px solid var(--accent);
+            border-radius: 15px;
+            padding: 15px;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 300;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
+
+        .stats-pill {
+            background: rgba(255,255,255,0.05);
+            padding: 4px 10px;
+            border-radius: 5px;
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+
+        #msg-banner {
+            position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
+            background: var(--accent); color: white; padding: 8px 30px; border-radius: 50px;
+            font-weight: 900; z-index: 150; display: none;
+            box-shadow: 0 0 20px var(--accent-glow);
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { transform: translate(-50%, -20px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+
+        #round-summary {
+            display: none;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        @media (max-width: 600px) {
+            .card { width: 55px; height: 85px; padding: 6px; }
+            .card-num { font-size: 1.2rem; }
+            .overlay h1 { font-size: 2.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">FIXED FATE</div>
+        <div class="nav-right">
+            <button class="btn" onclick="game.toggleLog()" style="padding: 5px 12px; font-size: 0.6rem;">Log</button>
+            <button class="btn" onclick="game.toggleRules()" style="padding: 5px 12px; font-size: 0.6rem;">Rules</button>
+            <button class="btn" onclick="location.reload()" style="padding: 5px 12px; font-size: 0.6rem;">Restart</button>
+        </div>
+    </nav>
+
+    <div id="game-container">
+        <div id="msg-banner">ROUND START</div>
+
+        <div id="log-panel">
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3>Match Log</h3>
+                <div onclick="game.toggleLog()" style="cursor:pointer; opacity:0.5">✕</div>
+            </div>
+            <div id="log-list"></div>
+        </div>
+
+        <div id="opponents-area">
+            <!-- Opponents status pills -->
+        </div>
+
+        <div id="table-area">
+            <div id="active-set-container">
+                <div class="active-set-label" id="active-owner-label">Active Set</div>
+                <div id="active-cards">
+                    <!-- Cards on the table -->
+                </div>
+            </div>
+        </div>
+
+        <div id="hand-area">
+            <div class="active-set-label" id="turn-label">Your Turn</div>
+            <div id="player-hand">
+                <!-- Player's cards -->
+            </div>
+            <div id="action-bar">
+                <button class="btn primary" id="btn-perform" onclick="game.handlePerform()" disabled>Perform</button>
+                <button class="btn" id="btn-recruit" onclick="game.handleRecruit()">Recruit</button>
+                <button class="btn" id="btn-quick-recruit" onclick="game.handleQuickRecruit()" title="Quick Recruit (Once per Round)">Q & R</button>
+                <button class="btn" id="btn-flip" onclick="game.handleFlipHand()">Flip Hand</button>
+            </div>
+            <div id="action-stats" style="margin-top: 10px; display: flex; gap: 15px;">
+                <div class="stats-pill" id="stat-score">Score: 0</div>
+                <div class="stats-pill" id="stat-chips">Chips: 0</div>
+                <div class="stats-pill" id="stat-qr" style="color: var(--success)">Q&R Ready</div>
+            </div>
+        </div>
+
+        <!-- Mode Selection Overlay -->
+        <div id="start-overlay" class="overlay">
+            <h1 style="color: #fff; opacity: 0.5; font-size: 1rem; letter-spacing: 5px; margin-bottom: 0;">WELCOME TO</h1>
+            <h1>FIXED FATE</h1>
+            <p>A strategic ladder-climbing game where you cannot rearrange your hand. Recruit cards to build sets, perform them to claim victory.</p>
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
+                <button class="btn primary" onclick="game.startGame('bots', 3)">3 Players (Bots)</button>
+                <button class="btn primary" onclick="game.startGame('bots', 4)">4 Players (Bots)</button>
+                <button class="btn primary" onclick="game.startGame('humans', 2)">Pass & Play (2P)</button>
+                <button class="btn primary" onclick="game.startGame('humans', 3)">Pass & Play (3P)</button>
+            </div>
+        </div>
+
+        <!-- Handoff Overlay -->
+        <div id="handoff-overlay" class="overlay" style="display:none; background: var(--bg);">
+            <div class="active-set-label">Next Turn</div>
+            <h2 id="handoff-player-name" style="font-size: 2.5rem; margin: 15px 0;">Player X</h2>
+            <p>Please pass the device to the next player. Hide your hand!</p>
+            <button class="btn primary" onclick="game.confirmHandoff()">I Am Ready</button>
+        </div>
+
+        <!-- Round End Overlay -->
+        <div id="end-overlay" class="overlay" style="display:none">
+            <h1 id="end-title">ROUND OVER</h1>
+            <div id="round-summary">
+                <!-- Summary rows -->
+            </div>
+            <button class="btn primary" onclick="game.nextRound()">Continue</button>
+        </div>
+
+        <!-- Scout Card Orientation Selector -->
+        <div id="scout-selection">
+            <div class="active-set-label" style="margin-bottom: 5px;">Choose Orientation</div>
+            <div style="display: flex; gap: 15px; justify-content: center;" id="scout-options">
+                <!-- Two card previews -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class FixedFate {
+            constructor() {
+                this.deck = [];
+                this.players = [];
+                this.turn = 0;
+                this.activeSet = { cards: [], owner: -1 };
+                this.roundState = 'starting';
+                this.gameMode = 'bots';
+                this.selectedCardIndices = [];
+                this.oncePerRoundUsed = false;
+                this.canFlipHand = true;
+                this.history = [];
+                
+                this.colors = {
+                    1: '#4b5563', // Dim Gray
+                    2: '#6b7280', 
+                    3: '#9ca3af',
+                    4: '#4ade80', // Mint
+                    5: '#2dd4bf', // Teal
+                    6: '#38bdf8', // Sky
+                    7: '#818cf8', // Indigo
+                    8: '#fb7185', // Rose
+                    9: '#fbbf24'  // Gold
+                };
+            }
+
+            getColor(n) { return this.colors[n] || '#fff'; }
+
+            startGame(mode, count) {
+                this.gameMode = mode;
+                this.playerCount = count;
+                this.players = Array.from({length: count}, (_, i) => ({
+                    id: i,
+                    name: i === 0 ? "You" : (mode === 'bots' ? `Bot ${i}` : `Player ${i+1}`),
+                    hand: [],
+                    scorePile: [],
+                    chips: count === 2 ? 3 : 0,
+                    isBot: mode === 'bots' && i !== 0,
+                    ssAvailable: true
+                }));
+
+                this.setupRound();
+                document.getElementById('start-overlay').style.display = 'none';
+            }
+
+            setupRound() {
+                this.roundState = 'playing';
+                this.oncePerRoundUsed = false;
+                this.canFlipHand = true;
+                this.activeSet = { cards: [], owner: -1 };
+                this.selectedCardIndices = [];
+                this.history = [];
+                this.updateLogUI();
+                
+                let pairs = [];
+                for(let i=1; i<=9; i++) {
+                    for(let j=i+1; j<=9; j++) pairs.push([i, j]);
+                }
+                
+                pairs.sort(() => Math.random() - 0.5);
+                
+                const cardsPerPlayer = Math.floor(pairs.length / this.playerCount);
+                this.players.forEach((p, idx) => {
+                    p.hand = pairs.slice(idx * cardsPerPlayer, (idx + 1) * cardsPerPlayer).map(pair => {
+                        return Math.random() > 0.5 ? { top: pair[0], bottom: pair[1] } : { top: pair[1], bottom: pair[0] };
+                    });
+                    p.ssAvailable = true;
+                    p.scorePile = [];
+                    if (this.playerCount > 2) p.chips = 0;
+                });
+
+                this.turn = 0;
+                this.updateUI();
+                this.showBanner("ROUND START");
+            }
+
+            updateUI() {
+                this.renderHand();
+                this.renderTable();
+                this.renderOpponents();
+                this.updateActionButtons();
+                
+                const p = this.players[this.gameMode === 'humans' ? this.turn : 0];
+                document.getElementById('stat-score').textContent = `Score: ${p.scorePile.length}`;
+                document.getElementById('stat-chips').textContent = `Chips: ${p.chips}`;
+                document.getElementById('stat-ss').style.display = p.ssAvailable ? 'block' : 'none';
+                
+                const turnLabel = document.getElementById('turn-label');
+                const currP = this.players[this.turn];
+                turnLabel.textContent = (this.gameMode === 'humans' || this.turn === 0) ? `${currP.name}'s Turn` : `${currP.name} is thinking...`;
+            }
+
+            renderHand() {
+                const handContainer = document.getElementById('player-hand');
+                handContainer.innerHTML = '';
+                const p = this.players[this.turn];
+                
+                p.hand.forEach((card, idx) => {
+                    const cardEl = document.createElement('div');
+                    cardEl.className = 'card' + (this.selectedCardIndices.includes(idx) ? ' selected' : '');
+                    cardEl.innerHTML = `
+                        <div class="card-num top" style="color: ${this.getColor(card.top)}">${card.top}</div>
+                        <div class="card-num bottom" style="color: ${this.getColor(card.bottom)}; opacity: 0.5">${card.bottom}</div>
+                    `;
+                    cardEl.onclick = () => this.toggleCardSelection(idx);
+                    handContainer.appendChild(cardEl);
+                });
+            }
+
+            toggleCardSelection(idx) {
+                if (this.turn !== 0 && this.gameMode === 'bots') return;
+                const pos = this.selectedCardIndices.indexOf(idx);
+                if (pos !== -1) this.selectedCardIndices.splice(pos, 1);
+                else {
+                    if (this.selectedCardIndices.length > 0) {
+                        const min = Math.min(...this.selectedCardIndices);
+                        const max = Math.max(...this.selectedCardIndices);
+                        if (idx === min - 1 || idx === max + 1) this.selectedCardIndices.push(idx);
+                        else this.selectedCardIndices = [idx];
+                    } else this.selectedCardIndices = [idx];
+                }
+                this.updateUI();
+            }
+
+            renderTable() {
+                const activeCards = document.getElementById('active-cards');
+                activeCards.innerHTML = '';
+                const label = document.getElementById('active-owner-label');
+                if (this.activeSet.cards.length === 0) label.textContent = "Table Empty";
+                else {
+                    const owner = this.players[this.activeSet.owner];
+                    label.textContent = `Active Set (${owner.name})`;
+                    this.activeSet.cards.forEach((card, idx) => {
+                        const cardEl = document.createElement('div');
+                        cardEl.className = 'card';
+                        if (idx === 0 || idx === this.activeSet.cards.length - 1) {
+                            cardEl.classList.add('scoutable');
+                            cardEl.onclick = () => this.startScout(idx);
+                        }
+                        cardEl.innerHTML = `
+                            <div class="card-num top" style="color: ${this.getColor(card.top)}">${card.top}</div>
+                            <div class="card-num bottom" style="color: ${this.getColor(card.bottom)}; opacity: 0.5">${card.bottom}</div>
+                        `;
+                        activeCards.appendChild(cardEl);
+                    });
+                }
+            }
+
+            renderOpponents() {
+                const area = document.getElementById('opponents-area');
+                area.innerHTML = '';
+                this.players.forEach((p, i) => {
+                    const isMe = (this.gameMode === 'bots' && i === 0) || (this.gameMode === 'humans' && this.turn === i);
+                    const div = document.createElement('div');
+                    div.className = 'player-status' + (this.turn === i ? ' active' : '');
+                    div.innerHTML = `
+                        <div class="status-name">${p.name}</div>
+                        <div class="status-info">
+                            <span>🎴 ${isMe ? p.hand.length : '?'}</span>
+                            <span>💎 ${p.chips}</span>
+                        </div>
+                    `;
+                    area.appendChild(div);
+                });
+            }
+
+            updateActionButtons() {
+                const btnPerform = document.getElementById('btn-perform');
+                const btnRecruit = document.getElementById('btn-recruit');
+                const btnFlip = document.getElementById('btn-flip');
+                const btnQR = document.getElementById('btn-quick-recruit');
+                const isMyTurn = (this.gameMode === 'humans' || this.turn === 0);
+                const currP = this.players[this.turn];
+                btnFlip.disabled = !this.canFlipHand || !isMyTurn;
+                btnQR.disabled = !currP.ssAvailable || this.activeSet.cards.length === 0 || !isMyTurn;
+                btnRecruit.disabled = this.activeSet.cards.length === 0 || !isMyTurn;
+                if (this.selectedCardIndices.length > 0) {
+                    const selectedCards = this.selectedCardIndices.sort((a,b)=>a-b).map(idx => currP.hand[idx]);
+                    const set = this.getSetInfo(selectedCards);
+                    btnPerform.disabled = !(set.valid && this.isStronger(set, this.getSetInfo(this.activeSet.cards)));
+                } else btnPerform.disabled = true;
+            }
+
+            getSetInfo(cards) {
+                if (cards.length === 0) return { valid: false, size: 0 };
+                const vals = cards.map(c => c.top);
+                const isMatching = vals.every(v => v === vals[0]);
+                const isConsecutive = vals.every((v, i) => i === 0 || v === vals[i-1] + 1 || v === vals[i-1] - 1);
+                let sorted = true;
+                if (isConsecutive && cards.length > 1) {
+                    const diff = vals[1] - vals[0];
+                    for(let i=1; i<vals.length; i++) if (vals[i] - vals[i-1] !== diff) sorted = false;
+                }
+                const valid = isMatching || (isConsecutive && sorted);
+                const type = isMatching ? 'matching' : 'consecutive';
+                const value = isMatching ? vals[0] : Math.max(...vals);
+                return { valid, size: cards.length, type, value, cards, vals };
+            }
+
+            isStronger(newSet, oldSet) {
+                if (oldSet.size === 0) return true;
+                if (newSet.size > oldSet.size) return true;
+                if (newSet.size < oldSet.size) return false;
+                if (newSet.type === 'matching' && oldSet.type === 'consecutive') return true;
+                if (newSet.type === 'consecutive' && oldSet.type === 'matching') return false;
+                return newSet.value > oldSet.value;
+            }
+
+            handlePerform() {
+                const p = this.players[this.turn];
+                const indices = this.selectedCardIndices.sort((a,b)=>a-b);
+                const selectedCards = indices.map(idx => p.hand[idx]);
+                const info = this.getSetInfo(selectedCards);
+                
+                this.logAction('perform', `${p.name} performs [${info.vals.join(',')}]`);
+
+                if (this.activeSet.cards.length > 0) p.scorePile.push(...this.activeSet.cards);
+                p.hand = p.hand.filter((_, i) => !indices.includes(i));
+                this.activeSet = { cards: selectedCards, owner: this.turn };
+                this.selectedCardIndices = [];
+                this.canFlipHand = false;
+                if (p.hand.length === 0) { this.endRound(p.name + " emptied their hand!"); return; }
+                this.nextTurn();
+            }
+
+            handleRecruit() {
+                if (this.activeSet.cards.length === 0) return;
+                this.showBanner("SELECT A CARD FROM THE ENDS OF THE ACTIVE SET");
+            }
+
+            startScout(cardIdxInSet) {
+                const card = this.activeSet.cards[cardIdxInSet];
+                this.scoutingCard = card;
+                this.scoutingIndexInSet = cardIdxInSet;
+                const overlay = document.getElementById('scout-selection');
+                const options = document.getElementById('scout-options');
+                options.innerHTML = '';
+                [card, {top: card.bottom, bottom: card.top}].forEach((c, i) => {
+                    const opt = document.createElement('div');
+                    opt.className = 'card';
+                    opt.innerHTML = `<div class="card-num top" style="color:${this.getColor(c.top)}">${c.top}</div><div class="card-num bottom" style="color:${this.getColor(c.bottom)}; opacity:0.5">${c.bottom}</div>`;
+                    opt.onclick = () => this.finalizeRecruit(c);
+                    options.appendChild(opt);
+                });
+                overlay.style.display = 'flex';
+                overlay.style.left = '50%'; overlay.style.top = '50%'; overlay.style.transform = 'translate(-50%, -50%)';
+            }
+
+            finalizeRecruit(card) {
+                document.getElementById('scout-selection').style.display = 'none';
+                const p = this.players[this.turn];
+                const owner = this.players[this.activeSet.owner];
+                this.activeSet.cards.splice(this.scoutingIndexInSet, 1);
+                if (owner && owner.id !== p.id) owner.chips++;
+                
+                const posStr = prompt(`Enter position to insert (1 to ${p.hand.length + 1}):`, p.hand.length + 1);
+                const pos = parseInt(posStr) - 1;
+                const insertAt = isNaN(pos) ? p.hand.length : Math.max(0, Math.min(p.hand.length, pos));
+                p.hand.splice(insertAt, 0, card);
+                
+                this.logAction('recruit', `${p.name} recruits ${card.top}`);
+                this.canFlipHand = false;
+                if (this.isScoutShowing) { this.isScoutShowing = false; this.updateUI(); return; }
+                this.nextTurn();
+            }
+
+            handleQuickRecruit() {
+                const p = this.players[this.turn];
+                if (!p.ssAvailable) return;
+                p.ssAvailable = false;
+                this.isScoutShowing = true;
+                this.handleRecruit();
+            }
+
+            handleFlipHand() {
+                if (!this.canFlipHand) return;
+                const p = this.players[this.turn];
+                p.hand = p.hand.map(c => ({ top: c.bottom, bottom: c.top }));
+                this.canFlipHand = false;
+                this.logAction('flip', `${p.name} flipped their hand`);
+                this.updateUI();
+            }
+
+            nextTurn() {
+                const nextT = (this.turn + 1) % this.playerCount;
+                if (this.activeSet.owner === nextT) { this.endRound(`No one could beat ${this.players[nextT].name}'s set!`); return; }
+                this.turn = nextT;
+                this.selectedCardIndices = [];
+                if (this.players[this.turn].isBot) { this.updateUI(); setTimeout(() => this.botTurn(), 1500); }
+                else if (this.gameMode === 'humans') this.showHandoff();
+                else this.updateUI();
+            }
+
+            botTurn() {
+                const p = this.players[this.turn];
+                let bestSet = { size: 0 };
+                let bestIndices = [];
+                for(let i=0; i<p.hand.length; i++) {
+                    for(let j=i; j<p.hand.length; j++) {
+                        const sub = p.hand.slice(i, j+1);
+                        const info = this.getSetInfo(sub);
+                        if (info.valid && this.isStronger(info, this.getSetInfo(this.activeSet.cards))) {
+                            if (this.isStronger(info, bestSet)) { bestSet = info; bestIndices = Array.from({length: j-i+1}, (_, k) => i + k); }
+                        }
+                    }
+                }
+                if (bestSet.size > 0) { this.selectedCardIndices = bestIndices; this.handlePerform(); }
+                else {
+                    const end = Math.random() > 0.5 ? 0 : this.activeSet.cards.length - 1;
+                    const card = this.activeSet.cards[end];
+                    const flipped = card.bottom > card.top;
+                    const finalCard = flipped ? {top: card.bottom, bottom: card.top} : card;
+                    this.activeSet.cards.splice(end, 1);
+                    const owner = this.players[this.activeSet.owner];
+                    if (owner) owner.chips++;
+                    const pos = Math.floor(Math.random() * (p.hand.length + 1));
+                    p.hand.splice(pos, 0, finalCard);
+                    this.logAction('recruit', `${p.name} recruits ${finalCard.top}`);
+                    this.nextTurn();
+                }
+            }
+
+            logAction(type, msg) {
+                this.history.unshift({ type, msg });
+                this.updateLogUI();
+            }
+
+            toggleLog() {
+                const el = document.getElementById('log-panel');
+                el.style.display = el.style.display === 'block' ? 'none' : 'block';
+            }
+
+            updateLogUI() {
+                const list = document.getElementById('log-list');
+                list.innerHTML = this.history.map(h => `
+                    <div class="log-item ${h.type}">
+                        ${h.msg}
+                    </div>
+                `).join('');
+            }
+
+            showHandoff() {
+                // Clear hand area to prevent peeking
+                document.getElementById('player-hand').innerHTML = '';
+                const overlay = document.getElementById('handoff-overlay');
+                document.getElementById('handoff-player-name').textContent = this.players[this.turn].name;
+                overlay.style.display = 'flex';
+            }
+
+            confirmHandoff() {
+                document.getElementById('handoff-overlay').style.display = 'none';
+                this.updateUI(); // This will render the new player's hand
+            }
+
+            showBanner(txt) {
+                const b = document.getElementById('msg-banner');
+                b.textContent = txt; b.style.display = 'block';
+                setTimeout(() => b.style.display = 'none', 2000);
+            }
+
+            endRound(reason) {
+                this.roundState = 'ended';
+                const overlay = document.getElementById('end-overlay');
+                document.getElementById('end-title').textContent = reason.toUpperCase();
+                const summary = document.getElementById('round-summary');
+                summary.innerHTML = ''; summary.style.display = 'block';
+                this.players.forEach(p => {
+                    const cardsInHand = (p.id === this.activeSet.owner && reason.includes("beat")) ? 0 : p.hand.length;
+                    const roundScore = p.scorePile.length + p.chips - cardsInHand;
+                    p.totalScore = (p.totalScore || 0) + roundScore;
+                    const row = document.createElement('div');
+                    row.className = 'summary-row';
+                    row.innerHTML = `<span>${p.name}</span><span>Points: ${p.scorePile.length} + ${p.chips} - ${cardsInHand} = <b>${roundScore}</b></span>`;
+                    summary.appendChild(row);
+                });
+                overlay.style.display = 'flex';
+            }
+
+            nextRound() {
+                document.getElementById('end-overlay').style.display = 'none';
+                this.setupRound();
+            }
+
+            toggleRules() {
+                alert(`FIXED FATE RULES:\n1. NO SORTING: Hand order is fixed.\n2. FLIP: Flip hand once per round.\n3. PERFORM: Play adjacent cards stronger than active set.\n4. RECRUIT: Take card from active set end. Pay owner 1 chip.\n5. QUICK RECRUIT: Do both in one turn (once per round).`);
+            }
+        }
+        const game = new FixedFate();
+    </script>
+</body>
+</html>
