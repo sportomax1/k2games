@@ -224,6 +224,9 @@
         .card.special { background: #8b5cf6; color: #fff; font-size: 1.2rem; }
         .card.disabled { opacity: 0.3; pointer-events: none; }
 
+        .mode-btn.active { background: var(--accent) !important; color: #000 !important; }
+        .type-btn.active { background: var(--accent) !important; color: #000 !important; }
+
         /* Banner */
         #msg-banner {
             position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
@@ -257,12 +260,21 @@
         <div class="nav-right">
             <div id="score-display">Errors: 0/3</div>
             <button id="rules-toggle" onclick="game.toggleRules()">RULES</button>
+            <button id="log-toggle" onclick="game.toggleLog()" style="background:transparent; border:1px solid var(--border); color:var(--muted); padding:5px 10px; border-radius:5px; cursor:pointer; font-weight:bold; font-size:0.7rem;">LOG</button>
             <button id="library-toggle" onclick="game.toggleLibrary()" style="background:transparent; border:1px solid var(--border); color:var(--muted); padding:5px 10px; border-radius:5px; cursor:pointer; font-weight:bold; font-size:0.7rem;">CARDS</button>
             <button onclick="location.reload()" style="background:transparent; border:1px solid var(--border); color:var(--muted); padding:5px 10px; border-radius:5px; cursor:pointer; font-weight:bold; font-size:0.7rem;">RESTART</button>
         </div>
     </nav>
 
     <div id="game-layout">
+        <div id="log-panel" style="position: absolute; top: 10px; left: 10px; width: 250px; background: var(--surface); border: 1px solid var(--border); border-radius: 15px; padding: 15px; z-index: 300; box-shadow: 0 10px 30px rgba(0,0,0,0.5); font-size: 0.75rem; display: none; max-height: 70vh; overflow-y: auto;">
+            <div class="close-rules" onclick="game.toggleLog()">✕</div>
+            <h3>Match Log</h3>
+            <div id="log-list" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+                <!-- History items here -->
+            </div>
+        </div>
+
         <div id="rules-panel">
             <div class="close-rules" onclick="game.toggleRules()">✕</div>
             <h3>Number Trap Rules</h3>
@@ -271,7 +283,7 @@
                 <p style="font-weight:bold; color:var(--accent); margin-bottom:5px;">2-4 PLAYERS • 5 MIN</p>
                 
                 <h4 style="color:var(--accent); font-size:0.75rem; margin-top:8px; margin-bottom:3px;">THE GOAL</h4>
-                <p style="margin:3px 0;">Keep trap stability between <b>0 and 10</b>. Force opponents to overload!</p>
+                <p style="margin:3px 0;" id="rules-goal">Keep trap stability between 0 and 10. Force opponents to overload!</p>
                 
                 <h4 style="color:var(--accent); font-size:0.75rem; margin-top:8px; margin-bottom:3px;">HOW TO PLAY</h4>
                 <ul style="padding-left:12px; margin:3px 0; font-size:0.7rem;">
@@ -283,15 +295,17 @@
                 </ul>
                 
                 <h4 style="color:var(--accent); font-size:0.75rem; margin-top:8px; margin-bottom:3px;">OVERLOAD!</h4>
-                <p style="margin:3px 0;">If stability goes <b>above 10</b> or <b>below 0</b>, you overload! Take an error.</p>
+                <p style="margin:3px 0;">If stability goes outside <b><span id="rules-boundaries">0 and 10</span></b>, you overload! Take an error.</p>
                 
                 <h4 style="color:var(--accent); font-size:0.75rem; margin-top:8px; margin-bottom:3px;">WIN/LOSE</h4>
                 <p style="margin:3px 0;"><b>3+ errors</b> = you're out. Last survivor wins!</p>
                 
                 <h4 style="color:var(--accent); font-size:0.75rem; margin-top:8px; margin-bottom:3px;">SPECIAL CARDS</h4>
-                <p style="margin:3px 0;"><b>🔄 Reverse:</b> Flip play order</p>
-                <p style="margin:3px 0;"><b>📋 Copy:</b> Repeat last change</p>
-                <p style="margin:3px 0;"><b>±Choice:</b> Pick +2 or -2</p>
+                <p style="margin:3px 0; font-style: italic; opacity: 0.8;">Active only with 3-4 players!</p>
+                <p style="margin:3px 0;"><b>= Copy:</b> Repeat last card's change</p>
+                <p style="margin:3px 0;"><b>🔄+4:</b> Reverse order AND +4</p>
+                <p style="margin:3px 0;"><b>±8 / ±7:</b> Choose + or - value</p>
+                <p style="margin:3px 0;"><b>-1🔄:</b> -1 AND reverse order</p>
                 
                 <h4 style="color:var(--accent); font-size:0.75rem; margin-top:8px; margin-bottom:3px;">IF ROUND ENDS</h4>
                 <p style="margin:3px 0;">All players out of cards? Restart for higher stakes!</p>
@@ -305,77 +319,47 @@
             <div class="card-lib-group">
                 <h4>🔵 Fuel Cards (+)</h4>
                 <div class="card-lib-item">
-                    <span class="card-symbol">+1</span>
-                    <span class="card-desc">Increase stability by 1</span>
-                    <span class="card-count" data-card="fuel-1">×4</span>
-                </div>
-                <div class="card-lib-item">
-                    <span class="card-symbol">+2</span>
-                    <span class="card-desc">Increase stability by 2</span>
-                    <span class="card-count" data-card="fuel-2">×4</span>
-                </div>
-                <div class="card-lib-item">
-                    <span class="card-symbol">+3</span>
-                    <span class="card-desc">Increase stability by 3</span>
-                    <span class="card-count" data-card="fuel-3">×4</span>
-                </div>
-                <div class="card-lib-item">
-                    <span class="card-symbol">+4</span>
-                    <span class="card-desc">Increase stability by 4</span>
-                    <span class="card-count" data-card="fuel-4">×4</span>
-                </div>
-                <div class="card-lib-item">
-                    <span class="card-symbol">+5</span>
-                    <span class="card-desc">Increase stability by 5</span>
-                    <span class="card-count" data-card="fuel-5">×4</span>
+                    <span class="card-symbol">+1 to +5</span>
+                    <span class="card-desc">Standard stability increase</span>
+                    <span class="card-count">×20</span>
                 </div>
             </div>
 
             <div class="card-lib-group">
                 <h4>🔴 Coolant Cards (-)</h4>
                 <div class="card-lib-item">
-                    <span class="card-symbol">-1</span>
-                    <span class="card-desc">Decrease stability by 1</span>
-                    <span class="card-count" data-card="coolant-1">×4</span>
-                </div>
-                <div class="card-lib-item">
-                    <span class="card-symbol">-2</span>
-                    <span class="card-desc">Decrease stability by 2</span>
-                    <span class="card-count" data-card="coolant-2">×4</span>
-                </div>
-                <div class="card-lib-item">
-                    <span class="card-symbol">-3</span>
-                    <span class="card-desc">Decrease stability by 3</span>
-                    <span class="card-count" data-card="coolant-3">×4</span>
-                </div>
-                <div class="card-lib-item">
-                    <span class="card-symbol">-4</span>
-                    <span class="card-desc">Decrease stability by 4</span>
-                    <span class="card-count" data-card="coolant-4">×4</span>
-                </div>
-                <div class="card-lib-item">
-                    <span class="card-symbol">-5</span>
-                    <span class="card-desc">Decrease stability by 5</span>
-                    <span class="card-count" data-card="coolant-5">×4</span>
+                    <span class="card-symbol">-1 to -5</span>
+                    <span class="card-desc">Standard stability decrease</span>
+                    <span class="card-count">×20</span>
                 </div>
             </div>
 
             <div class="card-lib-group">
                 <h4>🟣 Special Cards</h4>
                 <div class="card-lib-item">
-                    <span class="card-symbol">🔄</span>
-                    <span class="card-desc">Reverse turn direction</span>
-                    <span class="card-count" data-card="special-rev">×2</span>
-                </div>
-                <div class="card-lib-item">
-                    <span class="card-symbol">📋</span>
-                    <span class="card-desc">Copy last change</span>
+                    <span class="card-symbol">=</span>
+                    <span class="card-desc">Copies last card's change</span>
                     <span class="card-count" data-card="special-copy">×2</span>
                 </div>
                 <div class="card-lib-item">
-                    <span class="card-symbol">±</span>
-                    <span class="card-desc">Choose +2 or -2</span>
-                    <span class="card-count" data-card="special-choice">×2</span>
+                    <span class="card-symbol">🔄+4</span>
+                    <span class="card-desc">Reverse turn order AND +4</span>
+                    <span class="card-count" data-card="special-rev4">×1</span>
+                </div>
+                <div class="card-lib-item">
+                    <span class="card-symbol">±8</span>
+                    <span class="card-desc">Choose +8 or -8 stability</span>
+                    <span class="card-count" data-card="special-choice8">×1</span>
+                </div>
+                <div class="card-lib-item">
+                    <span class="card-symbol">±7</span>
+                    <span class="card-desc">Choose +7 or -7 stability</span>
+                    <span class="card-count" data-card="special-choice7">×1</span>
+                </div>
+                <div class="card-lib-item">
+                    <span class="card-symbol">-1🔄</span>
+                    <span class="card-desc">Decrease 1 AND reverse turn</span>
+                    <span class="card-count" data-card="special-rev1">×1</span>
                 </div>
             </div>
         </div>
@@ -399,8 +383,8 @@
                 <div id="gauge-fill"></div>
             </div>
             <div style="display:flex; justify-content: space-between; font-size: 0.6rem; opacity: 0.5; margin-top: 5px;">
-                <span>0 MIN</span>
-                <span>10 MAX</span>
+                <span id="min-boundary">0 MIN</span>
+                <span id="max-boundary">10 MAX</span>
             </div>
         </div>
 
@@ -412,7 +396,18 @@
         <div id="start-screen" class="screen-overlay">
             <div style="font-size:0.9rem; color:var(--accent); font-weight:900; margin-bottom:15px; letter-spacing:2px;">2-4 PLAYERS • 5 MIN</div>
             <h1 style="font-size: 3.5rem; font-style: italic; color: var(--accent); font-weight: 900;">NUMBER TRAP</h1>
-            <p style="opacity: 0.7; margin-top: 10px; max-width: 450px; font-size:0.95rem;">Keep stability between 0 and 10. Force opponents to overload the trap and rack up errors!</p>
+            <p style="opacity: 0.7; margin-top: 10px; max-width: 450px; font-size:0.95rem;">Keep stability between 0-10 (Standard) or 1-9 (Advanced). Force opponents to overload!</p>
+            
+            <div style="margin-top: 25px; display: flex; gap: 10px; background: var(--reactor); padding: 5px; border-radius: 50px; border: 1px solid var(--border);">
+                <button class="mode-btn active" data-mode="standard" onclick="game.setMode('standard')" style="flex:1; border:none; background:transparent; color:white; padding:8px 20px; border-radius:40px; font-weight:bold; cursor:pointer; font-size:0.8rem;">STANDARD</button>
+                <button class="mode-btn" data-mode="advanced" onclick="game.setMode('advanced')" style="flex:1; border:none; background:transparent; color:white; padding:8px 20px; border-radius:40px; font-weight:bold; cursor:pointer; font-size:0.8rem;">ADVANCED</button>
+            </div>
+
+            <div style="margin-top: 15px; display: flex; gap: 10px; background: var(--reactor); padding: 5px; border-radius: 50px; border: 1px solid var(--border);">
+                <button class="type-btn active" data-type="bots" onclick="game.setPlayerType('bots')" style="flex:1; border:none; background:transparent; color:white; padding:8px 20px; border-radius:40px; font-weight:bold; cursor:pointer; font-size:0.8rem;">VS BOTS</button>
+                <button class="type-btn" data-type="humans" onclick="game.setPlayerType('humans')" style="flex:1; border:none; background:transparent; color:white; padding:8px 20px; border-radius:40px; font-weight:bold; cursor:pointer; font-size:0.8rem;">PASS & PLAY</button>
+            </div>
+
             <div style="margin-top: 20px; display: flex; gap: 10px;">
                 <button class="btn-large" onclick="game.init(2)" style="margin-top:0">2 PLAYERS</button>
                 <button class="btn-large" onclick="game.init(3)" style="margin-top:0; background: #818cf8; color: white;">3 PLAYERS</button>
@@ -425,6 +420,13 @@
             <p id="final-stats" style="margin-top:10px; opacity:0.8; font-size: 1.2rem;"></p>
             <button class="btn-large" onclick="location.reload()">PLAY AGAIN</button>
         </div>
+
+        <div id="handoff-screen" class="screen-overlay" style="display:none; background: var(--bg);">
+            <div style="font-size: 1.5rem; color: var(--accent); margin-bottom: 10px;">TURN TRANSFER</div>
+            <h2 style="font-size: 2.5rem; margin-bottom: 20px;" id="handoff-target">Player X</h2>
+            <p style="opacity: 0.6; margin-bottom: 30px;">Pass the device to the next player.</p>
+            <button class="btn-large" onclick="game.confirmHandoff()">I AM READY</button>
+        </div>
     </div>
 
     <script>
@@ -434,40 +436,82 @@
                 this.players = [];
                 this.turn = 0;
                 this.deck = [];
+                this.history = [];
                 this.errorsInPot = 1;
                 this.state = 'playing';
                 this.direction = 1;
+                this.mode = 'standard'; // 'standard' or 'advanced'
+                this.playerType = 'bots'; // 'bots' or 'humans'
                 
                 this.init();
+            }
+
+            setMode(m) {
+                this.mode = m;
+                document.querySelectorAll('.mode-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.mode === m);
+                });
+                
+                const rulesBoundaries = document.getElementById('rules-boundaries');
+                const rulesGoal = document.getElementById('rules-goal');
+                if (m === 'advanced') {
+                    rulesBoundaries.textContent = '1 and 9';
+                    rulesGoal.textContent = 'Keep trap stability between 1 and 9. Force opponents to overload!';
+                } else {
+                    rulesBoundaries.textContent = '0 and 10';
+                    rulesGoal.textContent = 'Keep trap stability between 0 and 10. Force opponents to overload!';
+                }
+            }
+
+            setPlayerType(t) {
+                this.playerType = t;
+                document.querySelectorAll('.type-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.type === t);
+                });
             }
 
             init(count) {
                 if(!count) return;
                 this.players = Array(count).fill(0).map((_, i) => ({
-                    id: i, name: i === 0 ? 'You' : `Bot ${i}`,
-                    errors: 0, hand: [], isBot: i !== 0
+                    id: i, name: i === 0 ? 'You' : (this.playerType === 'bots' ? `Bot ${i}` : `Player ${i+1}`),
+                    errors: 0, hand: [], isBot: this.playerType === 'bots' && i !== 0
                 }));
 
+                this.history = [];
+                this.updateLogUI();
                 this.generateDeck();
                 this.dealHands();
                 this.startRound();
                 document.getElementById('start-screen').style.display = 'none';
+                
+                const minLabel = document.getElementById('min-boundary');
+                const maxLabel = document.getElementById('max-boundary');
+                if (this.mode === 'advanced') {
+                    minLabel.textContent = '1 MIN';
+                    maxLabel.textContent = '9 MAX';
+                } else {
+                    minLabel.textContent = '0 MIN';
+                    maxLabel.textContent = '10 MAX';
+                }
             }
 
             generateDeck() {
                 this.deck = [];
-                // 1-5 Fuel (Blue)
+                // 1-5 Fuel (Blue) - 4 of each
                 for(let v=1; v<=5; v++) for(let i=0; i<4; i++) this.deck.push({ type: 'fuel', val: v });
-                // 1-5 Coolant (Red)
+                // 1-5 Coolant (Red) - 4 of each
                 for(let v=1; v<=5; v++) for(let i=0; i<4; i++) this.deck.push({ type: 'coolant', val: -v });
                 
-                if (this.players.length > 2) {
-                    for(let i=0; i<2; i++) {
-                        this.deck.push({ type: 'special', val: 'REV', name: '🔄' });
-                        this.deck.push({ type: 'special', val: 'COPY', name: '📋' });
-                        this.deck.push({ type: 'special', val: 'CHOICE', name: '±' });
-                    }
+                // Special Cards (Only if 3+ players)
+                if (this.players.length >= 3) {
+                    this.deck.push({ type: 'special', val: 'COPY', name: '=' });
+                    this.deck.push({ type: 'special', val: 'COPY', name: '=' });
+                    this.deck.push({ type: 'special', val: 'REV_4', name: '🔄+4' });
+                    this.deck.push({ type: 'special', val: 'CHOICE_8', name: '±8' });
+                    this.deck.push({ type: 'special', val: 'CHOICE_7', name: '±7' });
+                    this.deck.push({ type: 'special', val: 'REV_MINUS_1', name: '-1🔄' });
                 }
+
                 this.deck.sort(() => Math.random() - 0.5);
             }
 
@@ -481,10 +525,17 @@
 
             startRound() {
                 this.stability = 5;
+                this.lastChange = 0; 
                 this.updateUI();
                 this.renderHand();
                 this.renderOpponents();
                 document.getElementById('played-card-slot').innerHTML = '';
+                
+                if (this.players[this.turn].isBot) {
+                    setTimeout(() => this.aiTurn(), 1000);
+                } else if (this.playerType === 'humans' && this.turn !== 0) {
+                    this.showHandoff();
+                }
             }
 
             playCard(pIdx, cardIdx) {
@@ -494,26 +545,56 @@
                 this.renderPlayedCard(card, p.name);
 
                 let change = card.val;
+                let choiceText = "";
                 if (card.type === 'special') {
-                    if (card.val === 'CHOICE') {
-                        if (p.isBot) change = (this.stability > 5) ? -2 : 2;
-                        else change = prompt("Fuel (+2) or Coolant (-2)?", "2") == "2" ? 2 : -2;
+                    if (card.val === 'CHOICE_8' || card.val === 'CHOICE_7') {
+                        const amt = card.val === 'CHOICE_8' ? 8 : 7;
+                        if (p.isBot) {
+                            const limitMin = this.mode === 'advanced' ? 1 : 0;
+                            const limitMax = this.mode === 'advanced' ? 9 : 10;
+                            const canPlus = (this.stability + amt) <= limitMax;
+                            const canMinus = (this.stability - amt) >= limitMin;
+                            if (canPlus && canMinus) change = (this.stability > 5) ? -amt : amt;
+                            else if (canPlus) change = amt;
+                            else if (canMinus) change = -amt;
+                            else change = amt; 
+                        } else {
+                            change = prompt(`${p.name}: Fuel (+${amt}) or Coolant (-${amt})?`, amt.toString()) == amt.toString() ? amt : -amt;
+                        }
+                        choiceText = ` (${change > 0 ? '+' : ''}${change})`;
                     }
-                    if (card.val === 'COPY') {
-                        change = this.lastChange || 1;
+                    else if (card.val === 'COPY') {
+                        change = this.lastChange || 0;
+                        choiceText = ` (${change >= 0 ? '+' : ''}${change})`;
                     }
-                    if (card.val === 'REV') {
+                    else if (card.val === 'REV_4') {
                         this.direction *= -1;
-                        change = 0;
+                        change = 4;
+                    }
+                    else if (card.val === 'REV_MINUS_1') {
+                        this.direction *= -1;
+                        change = -1;
                     }
                 }
                 
+                let symbol = (typeof change === 'number' && change > 0) ? '+' : '';
+                this.history.unshift({
+                    player: p.name,
+                    card: typeof card.val === 'number' ? (symbol + card.val) : (card.name + choiceText),
+                    result: this.stability + change
+                });
+                this.updateLogUI();
+
                 this.lastChange = change;
                 this.stability += change;
                 
                 this.updateUI();
                 
-                if (this.stability < 0 || this.stability > 10) {
+                const isBust = this.mode === 'advanced' 
+                    ? (this.stability < 1 || this.stability > 9)
+                    : (this.stability < 0 || this.stability > 10);
+
+                if (isBust) {
                     setTimeout(() => this.triggerBust(pIdx), 800);
                 } else {
                     if (this.players.every(pl => pl.hand.length === 0)) {
@@ -551,27 +632,73 @@
             nextTurn() {
                 this.turn = (this.turn + this.direction + this.players.length) % this.players.length;
                 this.updateUI();
-                this.renderHand();
                 this.renderOpponents();
 
                 if (this.players[this.turn].isBot) {
+                    this.renderHand(); 
                     setTimeout(() => this.aiTurn(), 1000);
+                } else if (this.playerType === 'humans') {
+                    this.showHandoff();
+                } else {
+                    this.renderHand();
                 }
+            }
+
+            showHandoff() {
+                const handEl = document.getElementById('hand');
+                handEl.innerHTML = '<div style="opacity:0.5; font-size:0.8rem">Waiting for device transfer...</div>';
+                
+                const handoff = document.getElementById('handoff-screen');
+                const nextP = this.players[this.turn];
+                document.getElementById('handoff-target').textContent = nextP.name;
+                handoff.style.display = 'flex';
+            }
+
+            confirmHandoff() {
+                document.getElementById('handoff-screen').style.display = 'none';
+                this.renderHand();
             }
 
             aiTurn() {
                 const p = this.players[this.turn];
-                let bestIdx = 0;
+                const limitMin = this.mode === 'advanced' ? 1 : 0;
+                const limitMax = this.mode === 'advanced' ? 9 : 10;
+
+                const evaluate = (card) => {
+                    if (card.type !== 'special') return card.val;
+                    if (card.val === 'COPY') return this.lastChange || 0;
+                    if (card.val === 'REV_4') return 4;
+                    if (card.val === 'REV_MINUS_1') return -1;
+                    if (card.val === 'CHOICE_8' || card.val === 'CHOICE_7') {
+                        const amt = card.val === 'CHOICE_8' ? 8 : 7;
+                        const pAmt = this.stability + amt;
+                        const mAmt = this.stability - amt;
+                        const pSafe = pAmt >= limitMin && pAmt <= limitMax;
+                        const mSafe = mAmt >= limitMin && mAmt <= limitMax;
+                        if (pSafe && mSafe) return Math.abs(5 - pAmt) < Math.abs(5 - mAmt) ? amt : -amt;
+                        return pSafe ? amt : (mSafe ? -amt : amt);
+                    }
+                    return 0;
+                };
+
+                let bestIdx = -1;
                 let bestDiff = 99;
-                
+                let safeMoves = [];
+
                 p.hand.forEach((c, i) => {
-                    const v = typeof c.val === 'number' ? c.val : 0;
-                    const diff = Math.abs(5 - (this.stability + v));
-                    if (diff < bestDiff) {
-                        bestDiff = diff;
-                        bestIdx = i;
+                    const v = evaluate(c);
+                    const newVal = this.stability + v;
+                    if (newVal >= limitMin && newVal <= limitMax) {
+                        safeMoves.push({idx: i, diff: Math.abs(5 - newVal)});
                     }
                 });
+
+                if (safeMoves.length > 0) {
+                    safeMoves.sort((a,b) => a.diff - b.diff);
+                    bestIdx = safeMoves[0].idx;
+                } else {
+                    bestIdx = 0;
+                }
                 
                 this.playCard(this.turn, bestIdx);
             }
@@ -588,12 +715,11 @@
                 setTimeout(() => {
                     banner.style.display = 'none';
                     if (p.errors >= 3) {
-                        // Show multiple overhands on game end instead of immediate endGame
                         setTimeout(() => this.endGame(), 500);
                     } else {
                         this.generateDeck();
                         this.dealHands();
-                        this.direction = 1; // Reset turn direction for new round
+                        this.direction = 1;
                         this.startRound();
                     }
                 }, 2000);
@@ -611,7 +737,7 @@
                     banner.style.background = "var(--coolant)";
                     this.generateDeck();
                     this.dealHands();
-                    this.direction = 1; // Reset turn direction for new round
+                    this.direction = 1; 
                     this.startRound();
                 }, 2000);
             }
@@ -639,6 +765,21 @@
                 panel.classList.toggle('show');
             }
 
+            toggleLog() {
+                const panel = document.getElementById('log-panel');
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            }
+
+            updateLogUI() {
+                const list = document.getElementById('log-list');
+                list.innerHTML = this.history.map(item => `
+                    <div style="background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 5px; display: flex; justify-content: space-between;">
+                        <span><b>${item.player}</b> plays ${item.card}</span>
+                        <span style="color:var(--accent)">→ ${item.result}</span>
+                    </div>
+                `).join('');
+            }
+
             toggleLibrary() {
                 const panel = document.getElementById('library-panel');
                 panel.classList.toggle('show');
@@ -649,34 +790,21 @@
             }
 
             updateLibraryCounts() {
-                // Count all cards in play
                 const counts = {
-                    'fuel-1': 0, 'fuel-2': 0, 'fuel-3': 0, 'fuel-4': 0, 'fuel-5': 0,
-                    'coolant-1': 0, 'coolant-2': 0, 'coolant-3': 0, 'coolant-4': 0, 'coolant-5': 0,
-                    'special-rev': 0, 'special-copy': 0, 'special-choice': 0
+                    'special-copy': 0, 'special-rev4': 0, 'special-choice8': 0, 'special-choice7': 0, 'special-rev1': 0
                 };
 
-                // Count deck cards
-                this.deck.forEach(card => {
-                    if (card.type === 'fuel') counts[`fuel-${card.val}`]++;
-                    else if (card.type === 'coolant') counts[`coolant-${Math.abs(card.val)}`]++;
-                    else if (card.val === 'REV') counts['special-rev']++;
-                    else if (card.val === 'COPY') counts['special-copy']++;
-                    else if (card.val === 'CHOICE') counts['special-choice']++;
-                });
+                const check = (card) => {
+                    if (card.val === 'COPY') counts['special-copy']++;
+                    else if (card.val === 'REV_4') counts['special-rev4']++;
+                    else if (card.val === 'CHOICE_8') counts['special-choice8']++;
+                    else if (card.val === 'CHOICE_7') counts['special-choice7']++;
+                    else if (card.val === 'REV_MINUS_1') counts['special-rev1']++;
+                };
 
-                // Count player cards
-                this.players.forEach(p => {
-                    p.hand.forEach(card => {
-                        if (card.type === 'fuel') counts[`fuel-${card.val}`]++;
-                        else if (card.type === 'coolant') counts[`coolant-${Math.abs(card.val)}`]++;
-                        else if (card.val === 'REV') counts['special-rev']++;
-                        else if (card.val === 'COPY') counts['special-copy']++;
-                        else if (card.val === 'CHOICE') counts['special-choice']++;
-                    });
-                });
+                this.deck.forEach(check);
+                this.players.forEach(p => p.hand.forEach(check));
 
-                // Update display
                 Object.entries(counts).forEach(([key, count]) => {
                     const el = document.querySelector(`[data-card="${key}"]`);
                     if (el) el.textContent = `×${count}`;
@@ -686,40 +814,31 @@
             renderHand() {
                 const el = document.getElementById('hand');
                 el.innerHTML = '';
-                const p = this.players[0];
+                const p = this.players[this.turn];
+                if (!p || p.isBot) {
+                    el.innerHTML = '<div style="opacity:0.3; font-size:0.8rem">Waiting...</div>';
+                    return;
+                }
                 
-                // Create indexed map for O(1) lookup
                 const cardWithIndex = p.hand.map((card, idx) => ({ card, idx }));
                 
-                // Sort: fuel ascending, coolant ascending, specials at end
                 cardWithIndex.sort((a, b) => {
                     const cardA = a.card, cardB = b.card;
-                    // Specials go to end
                     if (cardA.type === 'special' && cardB.type !== 'special') return 1;
                     if (cardA.type !== 'special' && cardB.type === 'special') return -1;
                     if (cardA.type === 'special' && cardB.type === 'special') return 0;
-                    
-                    // Fuel (positive) ascending
                     if (cardA.type === 'fuel' && cardB.type === 'fuel') return cardA.val - cardB.val;
-                    
-                    // Coolant (negative) by absolute value ascending
                     if (cardA.type === 'coolant' && cardB.type === 'coolant') return cardA.val - cardB.val;
-                    
-                    // Fuel comes before Coolant
                     return cardA.type === 'fuel' ? -1 : 1;
                 });
                 
-                // Render sorted cards with correct indices
                 cardWithIndex.forEach(({ card, idx }) => {
                     const div = document.createElement('div');
                     div.className = `card ${card.type}`;
-                    
                     let symbol = '';
                     if(card.type === 'fuel') symbol = '+';
-                    
                     div.textContent = typeof card.val === 'number' ? symbol + card.val : card.name;
-                    if (this.turn !== 0) div.classList.add('disabled');
-                    div.onclick = () => this.playCard(0, idx);
+                    div.onclick = () => this.playCard(this.turn, idx);
                     el.appendChild(div);
                 });
             }
@@ -727,25 +846,28 @@
             renderOpponents() {
                 const el = document.getElementById('opponents');
                 el.innerHTML = '';
-                this.players.slice(1).forEach(p => {
-                    const div = document.createElement('div');
-                    div.className = `player-card ${this.players[this.turn] === p ? 'active' : ''}`;
-                    div.innerHTML = `
-                        <div style="font-weight:900">${p.name}</div>
-                        <div style="font-size:0.7rem; opacity:0.6">${p.hand.length} Cards</div>
-                        <div class="error-icons">${'⚠️'.repeat(p.errors)}</div>
-                    `;
-                    el.appendChild(div);
+                this.players.forEach((p, i) => {
+                    if (this.playerType === 'humans' || i !== 0) {
+                        const div = document.createElement('div');
+                        div.className = `player-card ${this.turn === i ? 'active' : ''}`;
+                        div.innerHTML = `
+                            <div style="font-weight:900">${p.name}</div>
+                            <div style="font-size:0.7rem; opacity:0.6">${p.hand.length} Cards</div>
+                            <div class="error-icons">${'⚠️'.repeat(p.errors)}</div>
+                        `;
+                        el.appendChild(div);
+                    }
                 });
                 
-                // My Errors
-                const myCard = document.createElement('div');
-                myCard.className = `player-card ${this.turn === 0 ? 'active' : ''}`;
-                myCard.innerHTML = `
-                    <div style="font-weight:900">You</div>
-                    <div class="error-icons">${'⚠️'.repeat(this.players[0].errors)}</div>
-                `;
-                el.insertBefore(myCard, el.firstChild);
+                if (this.playerType === 'bots') {
+                    const myCard = document.createElement('div');
+                    myCard.className = `player-card ${this.turn === 0 ? 'active' : ''}`;
+                    myCard.innerHTML = `
+                        <div style="font-weight:900">You</div>
+                        <div class="error-icons">${'⚠️'.repeat(this.players[0].errors)}</div>
+                    `;
+                    el.insertBefore(myCard, el.firstChild);
+                }
             }
 
             endGame() {
@@ -753,17 +875,13 @@
                 const text = document.getElementById('winner-text');
                 const stats = document.getElementById('final-stats');
                 
-                // Sort by errors, then by ID for tie breaker (lower ID = earlier player)
                 const sorted = [...this.players].sort((a, b) => {
                     if (a.errors !== b.errors) return a.errors - b.errors;
-                    // Tie breaker: player with lower ID wins (you = 0, then Bot 1, Bot 2, etc.)
                     return a.id - b.id;
                 });
                 
                 const winner = sorted[0];
                 const runnerUp = sorted.length > 1 ? sorted[1] : null;
-                
-                // Check for tie
                 const isTie = runnerUp && winner.errors === runnerUp.errors;
                 
                 if (isTie) {
@@ -775,7 +893,6 @@
                     text.style.color = winner.id === 0 ? "var(--accent)" : "var(--coolant)";
                     stats.textContent = `${winner.name} managed the trap best with ${winner.errors} overload${winner.errors === 1 ? '' : 's'}.`;
                 }
-                
                 winScreen.style.display = 'flex';
             }
         }
