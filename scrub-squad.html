@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Scrub Squad – K2 Games</title>
+<style>
+:root {
+  --bg: #071a18;
+  --surface: #0d2926;
+  --surface2: #103530;
+  --primary: #14b8a6;
+  --accent: #fbbf24;
+  --danger: #ef4444;
+  --text: #f0fdfa;
+  --muted: #5eead4;
+  --border: rgba(20,184,166,0.2);
+  --glow: rgba(20,184,166,0.3);
+  --dirty1: rgba(180,100,20,0.25);
+  --dirty2: rgba(180,60,10,0.55);
+  --biohazard: rgba(239,68,68,0.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+
+#home-btn{position:fixed;top:16px;left:16px;z-index:300;background:rgba(255,255,255,0.08);border:1px solid var(--border);color:var(--muted);text-decoration:none;padding:8px 16px;border-radius:10px;font-size:.85rem;font-weight:700;transition:.2s;}
+#home-btn:hover{background:rgba(255,255,255,0.15);color:var(--text);}
+
+/* START */
+#start-screen{position:fixed;inset:0;z-index:200;background:linear-gradient(160deg,#071a18 0%,#0d2926 60%,#071a18 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;text-align:center;padding:2rem;}
+.start-title{font-size:clamp(2.2rem,7vw,3.8rem);font-weight:900;background:linear-gradient(135deg,#14b8a6,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.start-sub{color:var(--muted);font-size:1rem;letter-spacing:2px;text-transform:uppercase;}
+.start-desc{max-width:480px;color:#99f6e4;line-height:1.7;font-size:.95rem;}
+.how-to{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.2rem 2rem;max-width:480px;text-align:left;}
+.how-to h3{color:var(--primary);margin-bottom:.6rem;font-size:.9rem;text-transform:uppercase;letter-spacing:1px;}
+.how-to ul{list-style:none;display:flex;flex-direction:column;gap:.4rem;font-size:.88rem;color:var(--muted);}
+.how-to li::before{content:'▸ ';}
+.btn-play{padding:1rem 3rem;border-radius:50px;border:none;cursor:pointer;font-size:1.2rem;font-weight:900;background:linear-gradient(135deg,#14b8a6,#0d9488);color:#071a18;box-shadow:0 4px 24px var(--glow);transition:.3s;letter-spacing:1px;}
+.btn-play:hover{transform:scale(1.06);box-shadow:0 6px 32px var(--glow);}
+
+/* HUD */
+#hud{display:none;width:100%;padding:.5rem 1rem;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);}
+.hud-row{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;justify-content:center;}
+.stat-box{background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:10px;padding:.3rem .8rem;display:flex;flex-direction:column;align-items:center;min-width:72px;}
+.stat-label{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.stat-val{font-size:1.05rem;font-weight:800;color:var(--primary);}
+.meter-wrap{flex:1;min-width:120px;}
+.meter-label{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;}
+.meter-bg{background:rgba(255,255,255,0.07);border-radius:6px;height:12px;overflow:hidden;border:1px solid var(--border);}
+#infection-bar{height:100%;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);width:0%;transition:width .4s;}
+
+/* GAME CANVAS */
+#game-wrap{flex:1;position:relative;overflow:hidden;}
+#game-canvas{display:block;width:100%;height:100%;}
+
+/* CLEANER INFO */
+#cleaner-panel{position:absolute;bottom:10px;left:10px;z-index:50;display:none;flex-direction:column;gap:4px;}
+.cleaner-chip{background:rgba(13,41,38,0.9);border:1px solid var(--border);border-radius:8px;padding:.3rem .6rem;font-size:.75rem;display:flex;align-items:center;gap:.4rem;}
+.cleaner-dot{width:10px;height:10px;border-radius:50%;}
+/* SPRAY BUTTON */
+#spray-btn{position:absolute;bottom:10px;right:10px;z-index:50;display:none;background:linear-gradient(135deg,#14b8a6,#0d9488);border:none;color:#071a18;border-radius:12px;padding:.5rem 1.1rem;font-size:.8rem;font-weight:800;cursor:pointer;transition:.2s;box-shadow:0 0 14px rgba(20,184,166,0.4);}
+#spray-btn:disabled{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.3);box-shadow:none;cursor:default;}
+#spray-btn .spray-cd{font-size:.65rem;display:block;margin-top:1px;}
+
+/* OVERLAY */
+.overlay{position:fixed;inset:0;z-index:150;background:rgba(7,26,24,0.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;text-align:center;padding:2rem;}
+.overlay.hidden{display:none;}
+.overlay h2{font-size:2.4rem;font-weight:900;}
+.score-big{font-size:3rem;font-weight:900;color:var(--primary);}
+.score-row{display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;}
+.score-item{display:flex;flex-direction:column;align-items:center;}
+.score-item span:first-child{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.score-item span:last-child{font-size:1.5rem;font-weight:800;color:var(--accent);}
+</style>
+</head>
+<body>
+
+<a href="index.html" id="home-btn">← HUB</a>
+
+<!-- START -->
+<div id="start-screen">
+  <div class="start-title">🧹 Scrub Squad</div>
+  <div class="start-sub">Clean It Before It Spreads</div>
+  <div class="start-desc">Rooms get dirty, biohazards erupt, and your cleaners can only move so fast. Click rooms to dispatch your squad — keep the infection meter down or the whole hospital goes under!</div>
+  <div class="how-to">
+    <h3>How to Play</h3>
+    <ul>
+      <li>Click a dirty room to dispatch the nearest cleaner</li>
+      <li>☣️ Biohazard rooms — URGENT! They explode if ignored</li>
+      <li>Use 💦 Power Spray (bottom-right or Spacebar) to instantly clear a biohazard</li>
+      <li>Infection meter rises when rooms stay dirty — hit 100% = Game Over</li>
+      <li>Cleaners leave trails and spin while cleaning!</li>
+    </ul>
+  </div>
+  <button class="btn-play" id="btn-start">Deploy Squad</button>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-row">
+    <div class="stat-box"><span class="stat-label">Score</span><span class="stat-val" id="hud-score">0</span></div>
+    <div class="stat-box"><span class="stat-label">Best</span><span class="stat-val" id="hud-best">0</span></div>
+    <div class="stat-box"><span class="stat-label">Cleaned</span><span class="stat-val" id="hud-cleaned">0</span></div>
+    <div class="stat-box"><span class="stat-label">Wave</span><span class="stat-val" id="hud-wave">1</span></div>
+    <div class="meter-wrap">
+      <div class="meter-label">Infection Risk</div>
+      <div class="meter-bg"><div id="infection-bar"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="game-wrap">
+  <canvas id="game-canvas"></canvas>
+  <div id="cleaner-panel"></div>
+  <button id="spray-btn" disabled><span>💦 Power Spray</span><span class="spray-cd" id="spray-cd">Ready!</span></button>
+</div>
+
+<!-- GAME OVER -->
+<div id="gameover-overlay" class="overlay hidden">
+  <h2 style="color:var(--danger)">☣️ Outbreak!</h2>
+  <div class="score-big" id="go-score">0</div>
+  <div class="score-row">
+    <div class="score-item"><span>Best</span><span id="go-best">0</span></div>
+    <div class="score-item"><span>Cleaned</span><span id="go-cleaned">0</span></div>
+    <div class="score-item"><span>Wave</span><span id="go-wave">1</span></div>
+  </div>
+  <button class="btn-play" onclick="game.restart()">Try Again</button>
+  <a href="index.html" style="color:var(--muted);text-decoration:none;font-size:.9rem;">← Back to Hub</a>
+</div>
+
+<script>
+const ROOM_DEFS = [
+  { name:'ICU',        icon:'🫀', dirtyRate: 0.025, pts: 40 },
+  { name:'Surgery',    icon:'🔪', dirtyRate: 0.030, pts: 50 },
+  { name:'Radiology',  icon:'☢️',  dirtyRate: 0.015, pts: 25 },
+  { name:'Pharmacy',   icon:'💊', dirtyRate: 0.010, pts: 20 },
+  { name:'Lab',        icon:'🧪', dirtyRate: 0.018, pts: 28 },
+  { name:'Recovery',   icon:'🛌', dirtyRate: 0.012, pts: 22 },
+  { name:'ER Bay',     icon:'🚑', dirtyRate: 0.022, pts: 35 },
+  { name:'Pediatrics', icon:'👶', dirtyRate: 0.014, pts: 24 },
+  { name:'Maternity',  icon:'🍼', dirtyRate: 0.016, pts: 26 },
+  { name:'Morgue',     icon:'💀', dirtyRate: 0.020, pts: 32 },
+  { name:'Break Room', icon:'☕', dirtyRate: 0.008, pts: 15 },
+  { name:'Reception',  icon:'🏥', dirtyRate: 0.010, pts: 18 },
+];
+
+const CLEANER_COLORS = ['#14b8a6','#fbbf24','#a78bfa','#fb923c'];
+const CLEANER_SPEED = 1.8;
+
+class ScrubSquad {
+  constructor() {
+    this.canvas = document.getElementById('game-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.highScore = parseInt(localStorage.getItem('scrubSquadHigh') || '0');
+    this.active = false;
+    this.score = 0;
+    this.cleaned = 0;
+    this.infection = 0;
+    this.wave = 1;
+    this.rooms = [];
+    this.cleaners = [];
+    this.animId = null;
+    this.lastTime = 0;
+    this.floats = []; this.particles = []; this.ripples = [];
+    this.sprayReady = true; this.sprayCooldown = 0;
+
+    this.resize();
+    window.addEventListener('resize', () => { this.resize(); this.layoutRooms(); });
+    this.canvas.addEventListener('click', e => this.onClick(e));
+    this.canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      const r = this.canvas.getBoundingClientRect();
+      const scaleX = this.canvas.width / r.width;
+      const scaleY = this.canvas.height / r.height;
+      this.handleClick((e.touches[0].clientX - r.left) * scaleX, (e.touches[0].clientY - r.top) * scaleY);
+    }, {passive:false});
+    document.getElementById('btn-start').addEventListener('click', () => this.start());
+    document.getElementById('spray-btn').addEventListener('click', () => this.powerSpray());
+    window.addEventListener('keydown', e => { if(e.code==='Space'){ e.preventDefault(); this.powerSpray(); } });
+  }
+
+  resize() {
+    const wrap = document.getElementById('game-wrap');
+    this.canvas.width = wrap.clientWidth;
+    this.canvas.height = wrap.clientHeight;
+    this.W = this.canvas.width;
+    this.H = this.canvas.height;
+  }
+
+  layoutRooms() {
+    if (!this.rooms.length) return;
+    const cols = Math.ceil(Math.sqrt(this.rooms.length));
+    const rows = Math.ceil(this.rooms.length / cols);
+    const rw = Math.floor((this.W - 40) / cols);
+    const rh = Math.floor((this.H - 60) / rows);
+    const pad = 8;
+    this.rooms.forEach((room, i) => {
+      const c = i % cols, r = Math.floor(i / cols);
+      room.x = 20 + c * rw + pad;
+      room.y = 20 + r * rh + pad;
+      room.w = rw - pad * 2;
+      room.h = rh - pad * 2;
+      room.cx = room.x + room.w / 2;
+      room.cy = room.y + room.h / 2;
+    });
+  }
+
+  buildRooms() {
+    const count = 9 + (this.wave - 1) * 1;
+    const numRooms = Math.min(count, ROOM_DEFS.length);
+    const cols = Math.ceil(Math.sqrt(numRooms));
+    const rows = Math.ceil(numRooms / cols);
+    const rw = Math.floor((this.W - 40) / cols);
+    const rh = Math.floor((this.H - 60) / rows);
+    const pad = 8;
+    this.rooms = [];
+    for (let i = 0; i < numRooms; i++) {
+      const def = ROOM_DEFS[i];
+      const c = i % cols, r = Math.floor(i / cols);
+      const x = 20 + c * rw + pad, y = 20 + r * rh + pad;
+      const w = rw - pad * 2, h = rh - pad * 2;
+      this.rooms.push({
+        id: i, name: def.name, icon: def.icon,
+        x, y, w, h, cx: x + w/2, cy: y + h/2,
+        dirty: 0,
+        dirtyRate: def.dirtyRate * (1 + (this.wave - 1) * 0.2),
+        pts: def.pts,
+        biohazard: false, biohazardTimer: 0,
+        beingCleaned: false, cleaner: null,
+      });
+    }
+  }
+
+  buildCleaners() {
+    const count = this.wave >= 3 ? 3 : 2;
+    this.cleaners = [];
+    for (let i = 0; i < count; i++) {
+      this.cleaners.push({
+        id: i, color: CLEANER_COLORS[i],
+        x: this.W / 2 + (i - count/2 + 0.5) * 50,
+        y: this.H / 2,
+        targetRoom: null, idle: true,
+        trail: [], angle: 0,
+      });
+    }
+  }
+
+  powerSpray() {
+    if (!this.active || !this.sprayReady) return;
+    // Find the most urgent biohazard room, or dirtiest room
+    let target = this.rooms.find(r => r.biohazard) || this.rooms.reduce((a,b) => b.dirty > a.dirty ? b : a);
+    if (!target || target.dirty < 0.1) return;
+    this.sprayReady = false;
+    this.sprayCooldown = 25000;
+    // Instant clean effect
+    this.spawnSparkles(target.cx, target.cy, '#14b8a6', 28);
+    target.dirty = 0; target.biohazard = false;
+    this.score += target.pts; this.cleaned++;
+    this.infection = Math.max(0, this.infection - 5);
+    this.floats.push({ text: '💦 SPRAY! +'+target.pts, x: target.cx, y: target.cy, color: '#14b8a6', t: 0 });
+    target.beingCleaned = false;
+    if (target.cleaner) { target.cleaner.targetRoom = null; target.cleaner.idle = true; target.cleaner = null; }
+    this.updateHUD();
+  }
+
+  spawnSparkles(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 / count) * i + Math.random() * 0.4;
+      const speed = 1.5 + Math.random() * 2.5;
+      this.particles.push({ x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, color, t: 0, life: 600+Math.random()*400 });
+    }
+  }
+
+  start() {
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('hud').style.display = 'block';
+    document.getElementById('gameover-overlay').classList.add('hidden');
+    document.getElementById('cleaner-panel').style.display = 'flex';
+    this.score = 0; this.cleaned = 0; this.infection = 0; this.wave = 1;
+    this.floats = []; this.particles = []; this.ripples = [];
+    this.sprayReady = true; this.sprayCooldown = 0;
+    this.active = true;
+    this.buildRooms();
+    this.buildCleaners();
+    document.getElementById('spray-btn').style.display = 'block';
+    document.getElementById('spray-btn').disabled = false;
+    document.getElementById('spray-cd').textContent = 'Ready!';
+    this.updateHUD();
+    if (this.animId) cancelAnimationFrame(this.animId);
+    this.lastTime = performance.now();
+    this.loop(this.lastTime);
+  }
+
+  restart() { this.start(); }
+
+  onClick(e) {
+    const r = this.canvas.getBoundingClientRect();
+    const scaleX = this.canvas.width / r.width;
+    const scaleY = this.canvas.height / r.height;
+    this.handleClick((e.clientX - r.left) * scaleX, (e.clientY - r.top) * scaleY);
+  }
+
+  handleClick(cx, cy) {
+    if (!this.active) return;
+    for (const room of this.rooms) {
+      if (cx >= room.x && cx <= room.x + room.w && cy >= room.y && cy <= room.y + room.h) {
+        if (room.dirty > 0.05 || room.biohazard) {
+          this.dispatchCleaner(room, cx, cy);
+        }
+        break;
+      }
+    }
+  }
+
+  dispatchCleaner(room, cx, cy) {
+    // Add ripple at click point
+    if (cx !== undefined) this.ripples.push({ x: cx, y: cy, t: 0 });
+    // Find idle cleaner, then nearest available
+    let best = null, bestDist = Infinity;
+    for (const cl of this.cleaners) {
+      if (cl.targetRoom === room) return;
+      const dist = Math.hypot(cl.x - room.cx, cl.y - room.cy);
+      if (cl.idle || dist < bestDist) { best = cl; bestDist = dist; if (cl.idle) break; }
+    }
+    if (!best) return;
+    if (best.targetRoom) { best.targetRoom.beingCleaned = false; best.targetRoom.cleaner = null; }
+    best.targetRoom = room; best.idle = false;
+    room.beingCleaned = true; room.cleaner = best;
+  }
+
+  loop(ts) {
+    if (!this.active) return;
+    const dt = Math.min(ts - this.lastTime, 50);
+    this.lastTime = ts;
+    // Spray cooldown
+    if (!this.sprayReady) {
+      this.sprayCooldown -= dt;
+      if (this.sprayCooldown <= 0) { this.sprayReady = true; this.sprayCooldown = 0; }
+      const btn = document.getElementById('spray-btn');
+      btn.disabled = !this.sprayReady;
+      document.getElementById('spray-cd').textContent = this.sprayReady ? 'Ready!' : Math.ceil(this.sprayCooldown/1000)+'s';
+    }
+    // Particles
+    for (let i = this.particles.length-1; i >= 0; i--) {
+      const p = this.particles[i]; p.t += dt;
+      p.x += p.vx * (dt/16.67); p.y += p.vy * (dt/16.67);
+      p.vx *= 0.94; p.vy *= 0.94;
+      if (p.t > p.life) this.particles.splice(i, 1);
+    }
+    // Floats
+    for (let i = this.floats.length-1; i >= 0; i--) {
+      this.floats[i].t += dt;
+      if (this.floats[i].t > 1400) this.floats.splice(i, 1);
+    }
+    // Ripples
+    for (let i = this.ripples.length-1; i >= 0; i--) {
+      this.ripples[i].t += dt;
+      if (this.ripples[i].t > 600) this.ripples.splice(i, 1);
+    }
+    this.update(dt);
+    this.draw();
+    this.updateHUD();
+    this.animId = requestAnimationFrame(ts2 => this.loop(ts2));
+  }
+
+  update(dt) {
+    const dtN = dt / 16.67;
+
+    // Dirty rooms & infection
+    let totalDirty = 0;
+    for (const room of this.rooms) {
+      if (!room.beingCleaned) {
+        room.dirty = Math.min(1, room.dirty + room.dirtyRate * dtN * 0.016);
+      }
+      if (room.dirty > 0.9 && !room.biohazard && Math.random() < 0.0008 * dtN) {
+        room.biohazard = true;
+        room.biohazardTimer = 12000;
+      }
+      if (room.biohazard) {
+        room.biohazardTimer -= dt;
+        if (room.biohazardTimer <= 0) {
+          this.infection = Math.min(100, this.infection + 15);
+          room.biohazard = false;
+          room.dirty = Math.min(1, room.dirty + 0.3);
+        }
+      }
+      totalDirty += room.dirty;
+    }
+    // Infection creep
+    this.infection = Math.min(100, this.infection + (totalDirty / this.rooms.length) * 0.012 * dtN);
+    if (this.infection >= 100) { this.gameOver(); return; }
+
+    // Move cleaners
+    for (const cl of this.cleaners) {
+      if (!cl.targetRoom) { cl.idle = true; continue; }
+      const room = cl.targetRoom;
+      const dx = room.cx - cl.x, dy = room.cy - cl.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 4) {
+        const spd = CLEANER_SPEED * dtN;
+        cl.x += (dx / dist) * spd;
+        cl.y += (dy / dist) * spd;
+      } else {
+        // Arrived — clean (spin the cleaner)
+        cl.x = room.cx; cl.y = room.cy;
+        cl.angle += 0.15 * dtN;
+        const cleanRate = 0.04 * dtN;
+        room.dirty = Math.max(0, room.dirty - cleanRate);
+        if (room.biohazard) {
+          room.biohazardTimer += dt * 3;
+          if (room.dirty < 0.1) room.biohazard = false;
+        }
+        if (room.dirty <= 0) {
+          this.score += room.pts;
+          this.cleaned++;
+          this.infection = Math.max(0, this.infection - 2);
+          this.floats.push({ text: '+'+room.pts+' pts ✓', x: room.cx, y: room.cy, color: '#14b8a6', t: 0 });
+          this.spawnSparkles(room.cx, room.cy, cl.color, 16);
+          room.beingCleaned = false; room.cleaner = null;
+          cl.targetRoom = null; cl.idle = true; cl.angle = 0;
+        }
+      }
+      // Record trail
+      cl.trail.push({ x: cl.x, y: cl.y });
+      if (cl.trail.length > 18) cl.trail.shift();
+    }
+
+    // Wave advance
+    if (this.cleaned > 0 && this.cleaned % (8 + this.wave * 2) === 0) {
+      this.wave++;
+      this.rooms.forEach(r => { r.dirtyRate *= 1.15; });
+    }
+  }
+
+  draw() {
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, this.W, this.H);
+
+    // Background grid
+    ctx.fillStyle = '#0a1e1c';
+    ctx.fillRect(0, 0, this.W, this.H);
+    ctx.strokeStyle = 'rgba(20,184,166,0.06)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < this.W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,this.H); ctx.stroke(); }
+    for (let y = 0; y < this.H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(this.W,y); ctx.stroke(); }
+
+    // Rooms
+    for (const room of this.rooms) {
+      ctx.save();
+      // Background
+      ctx.fillStyle = '#0d2926';
+      ctx.beginPath();
+      ctx.roundRect(room.x, room.y, room.w, room.h, 10);
+      ctx.fill();
+
+      // Dirt overlay
+      if (room.dirty > 0) {
+        const alpha = room.dirty * 0.7;
+        ctx.fillStyle = room.biohazard
+          ? `rgba(239,68,68,${Math.min(0.6, alpha)})`
+          : `rgba(160,80,10,${Math.min(0.55, alpha)})`;
+        ctx.beginPath();
+        ctx.roundRect(room.x, room.y, room.w, room.h, 10);
+        ctx.fill();
+      }
+
+      // Biohazard glow
+      if (room.biohazard) {
+        ctx.shadowColor = '#ef4444';
+        ctx.shadowBlur = 18 + Math.sin(performance.now() / 200) * 6;
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.roundRect(room.x + 1, room.y + 1, room.w - 2, room.h - 2, 10);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      } else if (room.beingCleaned) {
+        ctx.strokeStyle = '#14b8a6';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5,5]);
+        ctx.beginPath();
+        ctx.roundRect(room.x + 1, room.y + 1, room.w - 2, room.h - 2, 10);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      } else {
+        ctx.strokeStyle = room.dirty > 0.5 ? '#ef4444' : room.dirty > 0.2 ? '#f59e0b' : 'rgba(20,184,166,0.2)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(room.x + 1, room.y + 1, room.w - 2, room.h - 2, 10);
+        ctx.stroke();
+      }
+
+      // Icon
+      ctx.font = `${Math.min(28, room.h * 0.3)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(room.biohazard ? '☣️' : room.icon, room.cx, room.cy - room.h * 0.1);
+
+      // Name
+      ctx.font = `bold ${Math.min(11, room.w * 0.1)}px Segoe UI`;
+      ctx.fillStyle = '#f0fdfa';
+      ctx.fillText(room.name, room.cx, room.cy + room.h * 0.2);
+
+      // Dirt bar
+      const barW = room.w - 16;
+      const barY = room.y + room.h - 10;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.roundRect(room.x + 8, barY, barW, 5, 3);
+      ctx.fill();
+      if (room.dirty > 0) {
+        ctx.fillStyle = room.dirty > 0.7 ? '#ef4444' : room.dirty > 0.4 ? '#f59e0b' : '#14b8a6';
+        ctx.beginPath();
+        ctx.roundRect(room.x + 8, barY, barW * room.dirty, 5, 3);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Path lines from cleaners to their targets
+    for (const cl of this.cleaners) {
+      if (!cl.targetRoom || cl.idle) continue;
+      ctx.save();
+      ctx.strokeStyle = cl.color + '50';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 8]);
+      ctx.beginPath(); ctx.moveTo(cl.x, cl.y); ctx.lineTo(cl.targetRoom.cx, cl.targetRoom.cy); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // Particles
+    for (const p of this.particles) {
+      const a = Math.max(0, 1 - p.t / p.life);
+      ctx.save(); ctx.globalAlpha = a;
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 3 * a, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    // Cleaners (with trails and spin)
+    for (const cl of this.cleaners) {
+      // Trail
+      for (let i = 0; i < cl.trail.length; i++) {
+        const a = (i / cl.trail.length) * 0.35;
+        ctx.save(); ctx.globalAlpha = a;
+        ctx.fillStyle = cl.color;
+        ctx.beginPath(); ctx.arc(cl.trail[i].x, cl.trail[i].y, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+      ctx.save();
+      ctx.shadowColor = cl.color; ctx.shadowBlur = 12;
+      ctx.translate(cl.x, cl.y);
+      if (!cl.idle && cl.targetRoom && Math.hypot(cl.x - cl.targetRoom.cx, cl.y - cl.targetRoom.cy) < 8) {
+        ctx.rotate(cl.angle); // spin when cleaning
+      }
+      // Body
+      ctx.fillStyle = cl.color;
+      ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+      // Head
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#fde68a';
+      ctx.beginPath(); ctx.arc(0, -12, 7, 0, Math.PI * 2); ctx.fill();
+      // Mop icon
+      ctx.font = '14px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('🧹', 10, 2);
+      ctx.restore();
+    }
+
+    // Float texts
+    for (const f of this.floats) {
+      const a = Math.max(0, 1 - f.t / 1400);
+      ctx.save(); ctx.globalAlpha = a;
+      ctx.font = 'bold 13px Segoe UI'; ctx.fillStyle = f.color;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(f.text, f.x, f.y - 20 - (f.t / 1400) * 35);
+      ctx.restore();
+    }
+
+    // Ripples
+    for (const r of this.ripples) {
+      const rad = (r.t / 600) * 36; const a = (1 - r.t / 600) * 0.6;
+      ctx.save(); ctx.globalAlpha = a;
+      ctx.strokeStyle = '#14b8a6'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(r.x, r.y, rad, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  updateHUD() {
+    document.getElementById('hud-score').textContent = this.score;
+    document.getElementById('hud-best').textContent = Math.max(this.score, this.highScore);
+    document.getElementById('hud-cleaned').textContent = this.cleaned;
+    document.getElementById('hud-wave').textContent = this.wave;
+    document.getElementById('infection-bar').style.width = this.infection + '%';
+
+    // Cleaner chips
+    const panel = document.getElementById('cleaner-panel');
+    panel.innerHTML = '';
+    for (const cl of this.cleaners) {
+      const chip = document.createElement('div');
+      chip.className = 'cleaner-chip';
+      const dot = document.createElement('div');
+      dot.className = 'cleaner-dot';
+      dot.style.background = cl.color;
+      chip.appendChild(dot);
+      chip.appendChild(document.createTextNode(cl.idle ? 'Idle' : '→ ' + (cl.targetRoom ? cl.targetRoom.name : '?')));
+      panel.appendChild(chip);
+    }
+  }
+
+  gameOver() {
+    this.active = false;
+    if (this.score > this.highScore) {
+      this.highScore = this.score;
+      localStorage.setItem('scrubSquadHigh', this.highScore);
+    }
+    document.getElementById('go-score').textContent = this.score;
+    document.getElementById('go-best').textContent = this.highScore;
+    document.getElementById('go-cleaned').textContent = this.cleaned;
+    document.getElementById('go-wave').textContent = this.wave;
+    document.getElementById('gameover-overlay').classList.remove('hidden');
+  }
+}
+
+const game = new ScrubSquad();
+</script>
+</body>
+</html>

@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Parking Lot Boss – K2 Games</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #1c2330;
+  --primary: #38bdf8;
+  --accent: #fbbf24;
+  --text: #f0f6fc;
+  --muted: #8b949e;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --border: rgba(56,189,248,0.2);
+  --glow: rgba(56,189,248,0.35);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+
+#home-btn{position:fixed;top:16px;left:16px;z-index:300;background:rgba(255,255,255,0.08);border:1px solid var(--border);color:var(--muted);text-decoration:none;padding:8px 16px;border-radius:10px;font-size:.85rem;font-weight:700;transition:.2s;}
+#home-btn:hover{background:rgba(255,255,255,0.15);color:var(--text);}
+
+/* START */
+#start-screen{position:fixed;inset:0;z-index:200;background:linear-gradient(160deg,#0d1117 0%,#161b22 60%,#0d1117 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;text-align:center;padding:2rem;}
+.start-title{font-size:clamp(2.2rem,7vw,3.8rem);font-weight:900;background:linear-gradient(135deg,#38bdf8,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.start-sub{color:var(--muted);font-size:1rem;letter-spacing:2px;text-transform:uppercase;}
+.start-desc{max-width:480px;color:#bae6fd;line-height:1.7;font-size:.95rem;}
+.how-to{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.2rem 2rem;max-width:480px;text-align:left;}
+.how-to h3{color:var(--primary);margin-bottom:.6rem;font-size:.9rem;text-transform:uppercase;letter-spacing:1px;}
+.how-to ul{list-style:none;display:flex;flex-direction:column;gap:.4rem;font-size:.88rem;color:var(--muted);}
+.how-to li::before{content:'▸ ';}
+.btn-play{padding:1rem 3rem;border-radius:50px;border:none;cursor:pointer;font-size:1.2rem;font-weight:900;background:linear-gradient(135deg,#38bdf8,#0284c7);color:#0d1117;box-shadow:0 4px 24px var(--glow);transition:.3s;letter-spacing:1px;}
+.btn-play:hover{transform:scale(1.06);box-shadow:0 6px 32px var(--glow);}
+
+/* HUD */
+#hud{display:none;width:100%;padding:.5rem 1rem;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);}
+.hud-row{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;justify-content:center;}
+.stat-box{background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:10px;padding:.3rem .8rem;display:flex;flex-direction:column;align-items:center;min-width:68px;}
+.stat-label{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.stat-val{font-size:1.05rem;font-weight:800;color:var(--primary);}
+#lives-display{display:flex;gap:2px;}
+
+/* GAME CANVAS */
+#game-wrap{flex:1;position:relative;overflow:hidden;}
+#game-canvas{display:block;width:100%;height:100%;}
+
+/* MOBILE DPAD */
+#dpad{display:none;position:absolute;bottom:20px;right:20px;z-index:50;width:120px;height:120px;}
+.dpad-btn{position:absolute;background:rgba(56,189,248,0.15);border:1px solid var(--border);border-radius:10px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:.1s;}
+.dpad-btn:active{background:rgba(56,189,248,0.35);}
+#dpad-up{top:0;left:42px;}
+#dpad-down{bottom:0;left:42px;}
+#dpad-left{top:42px;left:0;}
+#dpad-right{top:42px;right:0;}
+
+/* OVERLAY */
+.overlay{position:fixed;inset:0;z-index:150;background:rgba(13,17,23,0.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;text-align:center;padding:2rem;}
+.overlay.hidden{display:none;}
+.overlay h2{font-size:2.4rem;font-weight:900;}
+.score-big{font-size:3rem;font-weight:900;color:var(--primary);}
+.score-row{display:flex;gap:2rem;justify-content:center;}
+.score-item{display:flex;flex-direction:column;align-items:center;}
+.score-item span:first-child{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.score-item span:last-child{font-size:1.5rem;font-weight:800;color:var(--accent);}
+
+/* CRASH FLASH */
+#crash-flash{position:fixed;inset:0;background:rgba(239,68,68,0.4);pointer-events:none;opacity:0;z-index:140;transition:opacity .15s;}
+</style>
+</head>
+<body>
+
+<a href="index.html" id="home-btn">← HUB</a>
+
+<!-- START -->
+<div id="start-screen">
+  <div class="start-title">🚗 Parking Lot Boss</div>
+  <div class="start-sub">Pre-Shopping Showdown</div>
+  <div class="start-desc">Navigate the chaotic parking lot and grab a spot before someone else does. Dodge NPC cars and rogue shopping carts. The closer to the entrance, the bigger the score!</div>
+  <div class="how-to">
+    <h3>How to Play</h3>
+    <ul>
+      <li>Arrow Keys / WASD to drive</li>
+      <li>Reach a glowing open parking space 🟩</li>
+      <li>Avoid NPC cars (red) and shopping carts 🛒</li>
+      <li>Closer to entrance = higher score bonus</li>
+      <li>3 crashes = Game Over</li>
+    </ul>
+  </div>
+  <button class="btn-play" id="btn-start">Find My Spot</button>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-row">
+    <div class="stat-box"><span class="stat-label">Score</span><span class="stat-val" id="hud-score">0</span></div>
+    <div class="stat-box"><span class="stat-label">Best</span><span class="stat-val" id="hud-best">0</span></div>
+    <div class="stat-box"><span class="stat-label">Time</span><span class="stat-val" id="hud-time">0s</span></div>
+    <div class="stat-box"><span class="stat-label">Parked</span><span class="stat-val" id="hud-parked">0</span></div>
+    <div class="stat-box"><span class="stat-label">Lives</span><div id="lives-display"></div></div>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="game-wrap">
+  <canvas id="game-canvas"></canvas>
+  <div id="dpad">
+    <div class="dpad-btn" id="dpad-up">▲</div>
+    <div class="dpad-btn" id="dpad-down">▼</div>
+    <div class="dpad-btn" id="dpad-left">◀</div>
+    <div class="dpad-btn" id="dpad-right">▶</div>
+  </div>
+</div>
+<div id="crash-flash"></div>
+
+<!-- GAME OVER -->
+<div id="gameover-overlay" class="overlay hidden">
+  <h2 id="go-title">🚗 Game Over!</h2>
+  <div class="score-big" id="go-score">0</div>
+  <div class="score-row">
+    <div class="score-item"><span>Best</span><span id="go-best">0</span></div>
+    <div class="score-item"><span>Parked</span><span id="go-parked">0</span></div>
+    <div class="score-item"><span>Best Time</span><span id="go-time">0s</span></div>
+  </div>
+  <button class="btn-play" onclick="game.restart()">Try Again</button>
+  <a href="index.html" style="color:var(--muted);text-decoration:none;font-size:.9rem;">← Back to Hub</a>
+</div>
+
+<script>
+// ──────────────────────────────────────────────────────────
+// LAYOUT CONSTANTS
+// ──────────────────────────────────────────────────────────
+const TILE = 44;           // grid tile size
+const COLS = 18;
+const ROWS = 16;
+const CAR_W = 28;
+const CAR_H = 44;
+const CART_W = 18;
+const CART_H = 22;
+const PLAYER_SPEED = 2.6;
+const NPC_SPEED = 1.1;
+
+// Grid cell types
+const EMPTY = 0, SPACE = 1, ROAD = 2, BUILDING = 3, ENTRANCE = 4;
+
+// Layout: 16 rows x 18 cols
+// R=road, S=parking space, B=building, E=entrance row
+function buildGrid(W, H) {
+  // Row layout pattern: road, park, park, road, park, park, road, ...
+  // 0=building, 1=space, 2=road, 4=entrance road
+  const rowTypes = [2,1,1,2,1,1,2,1,1,2,1,1,2,4,4,4];
+  const grid = [];
+  for (let r = 0; r < ROWS; r++) {
+    const row = [];
+    for (let c = 0; c < COLS; c++) {
+      row.push(rowTypes[r]);
+    }
+    grid.push(row);
+  }
+  return grid;
+}
+
+// Which rows are roads (player/NPC driving lanes)
+const ROAD_ROWS = [0,3,6,9,12,13,14,15];
+const PARK_ROW_PAIRS = [[1,2],[4,5],[7,8],[10,11]];
+
+class ParkingLotBoss {
+  constructor() {
+    this.canvas = document.getElementById('game-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.highScore = parseInt(localStorage.getItem('parkingBossHigh') || '0');
+    this.score = 0;
+    this.lives = 3;
+    this.parked = 0;
+    this.timer = 0;
+    this.bestTime = Infinity;
+    this.active = false;
+    this.animId = null;
+    this.lastTime = 0;
+    this.keys = {};
+    this.invincible = 0;
+
+    this.camX = 0; this.camY = 0;
+
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+
+    window.addEventListener('keydown', e => { this.keys[e.key] = true; });
+    window.addEventListener('keyup', e => { this.keys[e.key] = false; });
+
+    // D-pad touch
+    const dpadMap = { 'dpad-up':'ArrowUp','dpad-down':'ArrowDown','dpad-left':'ArrowLeft','dpad-right':'ArrowRight' };
+    for (const [id, key] of Object.entries(dpadMap)) {
+      const el = document.getElementById(id);
+      el.addEventListener('touchstart', e => { e.preventDefault(); this.keys[key] = true; }, {passive:false});
+      el.addEventListener('touchend', e => { e.preventDefault(); this.keys[key] = false; }, {passive:false});
+      el.addEventListener('mousedown', () => this.keys[key] = true);
+      el.addEventListener('mouseup', () => this.keys[key] = false);
+    }
+
+    document.getElementById('btn-start').addEventListener('click', () => this.start());
+  }
+
+  resize() {
+    const wrap = document.getElementById('game-wrap');
+    this.canvas.width = wrap.clientWidth;
+    this.canvas.height = wrap.clientHeight;
+    this.W = this.canvas.width;
+    this.H = this.canvas.height;
+    // Show dpad on small/touch screens
+    const isMobile = this.W < 700 || 'ontouchstart' in window;
+    document.getElementById('dpad').style.display = isMobile ? 'block' : 'none';
+  }
+
+  buildLevel() {
+    // World size
+    this.worldW = COLS * TILE;
+    this.worldH = ROWS * TILE;
+
+    // Parking spaces: rows 1,2 (pair 0), 4,5 (pair 1), 7,8 (pair 2), 10,11 (pair 3)
+    // Spaces face the roads. We'll mark specific cells as spaces.
+    this.spaces = [];
+    const pairRoads = [0, 3, 6, 9];
+    for (let p = 0; p < 4; p++) {
+      for (let col = 1; col < COLS - 1; col += 3) {
+        // top space of pair (faces road above)
+        this.spaces.push({ row: p * 3 + 1, col, occupied: Math.random() < 0.65, open: false });
+        this.spaces.push({ row: p * 3 + 2, col, occupied: Math.random() < 0.65, open: false });
+      }
+    }
+    // Pick 1–3 open spaces
+    const available = this.spaces.filter(s => !s.occupied);
+    const numOpen = Math.min(3, available.length);
+    const shuffled = available.sort(() => Math.random() - 0.5);
+    for (let i = 0; i < numOpen; i++) shuffled[i].open = true;
+
+    // Entrance is at bottom rows (row 13–15), center columns
+    this.entranceX = Math.floor(COLS / 2) * TILE;
+    this.entranceY = (ROWS - 3) * TILE;
+
+    // Player start: bottom-center road
+    this.player = {
+      x: this.entranceX + TILE / 2,
+      y: (ROWS - 2) * TILE + TILE / 2,
+      vx: 0, vy: 0, angle: -Math.PI / 2,
+      w: CAR_W, h: CAR_H,
+    };
+
+    // NPC cars
+    this.npcs = [];
+    const roadRowsForNPC = [0, 3, 6, 9];
+    for (const row of roadRowsForNPC) {
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      const startCol = dir === 1 ? 1 : COLS - 2;
+      this.npcs.push({
+        x: startCol * TILE + TILE / 2,
+        y: row * TILE + TILE / 2,
+        vx: NPC_SPEED * dir, vy: 0,
+        w: CAR_W, h: CAR_H,
+        minX: TILE, maxX: (COLS - 1) * TILE,
+        color: `hsl(${Math.floor(Math.random()*40)},80%,50%)`,
+      });
+      // Add second NPC offset
+      this.npcs.push({
+        x: (startCol + (dir > 0 ? 5 : -5)) * TILE + TILE / 2,
+        y: row * TILE + TILE / 2,
+        vx: NPC_SPEED * dir, vy: 0,
+        w: CAR_W, h: CAR_H,
+        minX: TILE, maxX: (COLS - 1) * TILE,
+        color: `hsl(${Math.floor(Math.random()*40+10)},75%,55%)`,
+      });
+    }
+
+    // Shopping carts
+    this.carts = [];
+    for (let i = 0; i < 6; i++) {
+      const row = ROAD_ROWS[Math.floor(Math.random() * (ROAD_ROWS.length - 3))];
+      this.carts.push({
+        x: (2 + Math.floor(Math.random() * (COLS - 4))) * TILE + TILE / 2,
+        y: row * TILE + TILE / 2,
+        vx: (Math.random() - 0.5) * 0.8,
+        vy: (Math.random() - 0.5) * 0.4,
+        w: CART_W, h: CART_H,
+      });
+    }
+  }
+
+  start() {
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('hud').style.display = 'block';
+    document.getElementById('gameover-overlay').classList.add('hidden');
+    this.score = 0; this.lives = 3; this.parked = 0;
+    this.timer = 0; this.invincible = 0;
+    this.buildLevel();
+    this.active = true;
+    this.updateHUD();
+    if (this.animId) cancelAnimationFrame(this.animId);
+    this.lastTime = performance.now();
+    this.loop(this.lastTime);
+  }
+
+  restart() { this.start(); }
+
+  loop(ts) {
+    if (!this.active) return;
+    const dt = Math.min(ts - this.lastTime, 50);
+    this.lastTime = ts;
+    this.timer += dt / 1000;
+    if (this.invincible > 0) this.invincible -= dt;
+
+    this.update(dt);
+    this.draw();
+    this.updateHUD();
+    this.animId = requestAnimationFrame(ts2 => this.loop(ts2));
+  }
+
+  update(dt) {
+    const p = this.player;
+    const spd = PLAYER_SPEED * (dt / 16.67);
+
+    // Input → velocity
+    if (this.keys['ArrowUp'] || this.keys['w'] || this.keys['W']) {
+      p.vy -= spd * 0.6;
+    }
+    if (this.keys['ArrowDown'] || this.keys['s'] || this.keys['S']) {
+      p.vy += spd * 0.6;
+    }
+    if (this.keys['ArrowLeft'] || this.keys['a'] || this.keys['A']) {
+      p.vx -= spd * 0.6;
+    }
+    if (this.keys['ArrowRight'] || this.keys['d'] || this.keys['D']) {
+      p.vx += spd * 0.6;
+    }
+
+    // Friction
+    p.vx *= 0.82;
+    p.vy *= 0.82;
+
+    // Clamp speed
+    const maxV = PLAYER_SPEED * 1.5;
+    const spMag = Math.hypot(p.vx, p.vy);
+    if (spMag > maxV) { p.vx = p.vx / spMag * maxV; p.vy = p.vy / spMag * maxV; }
+
+    // Update angle from velocity
+    if (spMag > 0.2) p.angle = Math.atan2(p.vy, p.vx) + Math.PI / 2;
+
+    // Move player
+    p.x += p.vx;
+    p.y += p.vy;
+
+    // World bounds
+    p.x = Math.max(CAR_W/2, Math.min(this.worldW - CAR_W/2, p.x));
+    p.y = Math.max(CAR_H/2, Math.min(this.worldH - CAR_H/2, p.y));
+
+    // Camera follow
+    this.camX = p.x - this.W / 2;
+    this.camY = p.y - this.H / 2;
+    this.camX = Math.max(0, Math.min(this.worldW - this.W, this.camX));
+    this.camY = Math.max(0, Math.min(this.worldH - this.H, this.camY));
+
+    // Update NPCs
+    for (const npc of this.npcs) {
+      npc.x += npc.vx * (dt / 16.67);
+      if (npc.x < npc.minX || npc.x > npc.maxX) { npc.vx *= -1; }
+    }
+
+    // Update carts
+    for (const cart of this.carts) {
+      cart.x += cart.vx * (dt / 16.67);
+      cart.y += cart.vy * (dt / 16.67);
+      if (cart.x < TILE || cart.x > (COLS-1)*TILE) cart.vx *= -1;
+      if (cart.y < TILE || cart.y > (ROWS-3)*TILE) cart.vy *= -1;
+    }
+
+    // Collision with NPCs
+    if (this.invincible <= 0) {
+      for (const npc of this.npcs) {
+        if (this.aabb(p, npc)) {
+          this.crash(); return;
+        }
+      }
+      for (const cart of this.carts) {
+        if (this.aabb(p, cart)) {
+          this.crash(); return;
+        }
+      }
+    }
+
+    // Check parking
+    for (const sp of this.spaces) {
+      if (!sp.open) continue;
+      const sx = sp.col * TILE + TILE / 2;
+      const sy = sp.row * TILE + TILE / 2;
+      const dist = Math.hypot(p.x - sx, p.y - sy);
+      if (dist < TILE * 0.75 && Math.hypot(p.vx, p.vy) < 1.2) {
+        this.park(sp);
+        return;
+      }
+    }
+  }
+
+  aabb(a, b) {
+    const hw = (a.w + b.w) / 2 - 4;
+    const hh = (a.h + b.h) / 2 - 4;
+    return Math.abs(a.x - b.x) < hw && Math.abs(a.y - b.y) < hh;
+  }
+
+  crash() {
+    this.lives--;
+    this.invincible = 1500;
+    this.player.vx = 0; this.player.vy = 0;
+    // Flash screen
+    const el = document.getElementById('crash-flash');
+    el.style.opacity = '1';
+    setTimeout(() => el.style.opacity = '0', 200);
+    if (this.lives <= 0) {
+      setTimeout(() => this.gameOver(), 300);
+    }
+    this.updateHUD();
+  }
+
+  park(space) {
+    space.open = false;
+    space.occupied = true;
+    this.parked++;
+    // Score based on proximity to entrance (row 13 area)
+    const distFromEntrance = Math.abs(space.row * TILE - this.entranceY);
+    const maxDist = ROWS * TILE;
+    const bonus = Math.floor((1 - distFromEntrance / maxDist) * 500) + 100;
+    const timeBonus = Math.max(0, 300 - Math.floor(this.timer) * 5);
+    this.score += bonus + timeBonus;
+
+    // Show score popup
+    const el = document.createElement('div');
+    el.style.cssText = `position:fixed;top:40%;left:50%;transform:translate(-50%,-50%);font-size:2rem;font-weight:900;color:#22c55e;z-index:200;pointer-events:none;text-align:center;text-shadow:0 0 12px rgba(34,197,94,.6);`;
+    el.innerHTML = `✅ PARKED!<br>+${bonus + timeBonus} pts`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1500);
+
+    if (this.timer < this.bestTime) this.bestTime = this.timer;
+
+    // Pick new open space
+    const available = this.spaces.filter(s => !s.occupied && !s.open);
+    if (available.length > 0) {
+      const newOpen = available[Math.floor(Math.random() * available.length)];
+      newOpen.open = true;
+      // Reset timer for next spot
+      this.timer = 0;
+    }
+    this.player.vx = 0; this.player.vy = 0;
+    this.updateHUD();
+  }
+
+  updateHUD() {
+    document.getElementById('hud-score').textContent = this.score;
+    document.getElementById('hud-best').textContent = Math.max(this.score, this.highScore);
+    document.getElementById('hud-time').textContent = Math.floor(this.timer) + 's';
+    document.getElementById('hud-parked').textContent = this.parked;
+    const ld = document.getElementById('lives-display');
+    ld.innerHTML = '';
+    for (let i = 0; i < 3; i++) {
+      const pip = document.createElement('span');
+      pip.style.fontSize = '1rem';
+      pip.textContent = i < this.lives ? '🚗' : '💥';
+      ld.appendChild(pip);
+    }
+  }
+
+  draw() {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(-this.camX, -this.camY);
+    ctx.clearRect(this.camX, this.camY, this.W, this.H);
+
+    // Draw world
+    this.drawWorld(ctx);
+    this.drawNPCs(ctx);
+    this.drawCarts(ctx);
+    this.drawPlayer(ctx);
+
+    ctx.restore();
+
+    // Minimap
+    this.drawMinimap(ctx);
+  }
+
+  drawWorld(ctx) {
+    const rowTypes = [2,1,1,2,1,1,2,1,1,2,1,1,2,4,4,4];
+    for (let r = 0; r < ROWS; r++) {
+      const ty = rowTypes[r];
+      for (let c = 0; c < COLS; c++) {
+        const x = c * TILE, y = r * TILE;
+        if (ty === 2) {
+          // Road
+          ctx.fillStyle = '#1c2128';
+          ctx.fillRect(x, y, TILE, TILE);
+          // Center line
+          if (c % 3 === 0) {
+            ctx.strokeStyle = 'rgba(251,191,36,0.25)';
+            ctx.setLineDash([8,10]);
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(x + TILE/2, y);
+            ctx.lineTo(x + TILE/2, y + TILE);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+        } else if (ty === 4) {
+          // Entrance road
+          ctx.fillStyle = '#222b3a';
+          ctx.fillRect(x, y, TILE, TILE);
+          if (r === ROWS - 1) {
+            // Entrance marking
+            ctx.fillStyle = 'rgba(56,189,248,0.12)';
+            ctx.fillRect(x, y, TILE, TILE);
+          }
+        } else {
+          // Parking space area
+          ctx.fillStyle = '#141a24';
+          ctx.fillRect(x, y, TILE, TILE);
+        }
+      }
+    }
+
+    // Draw parking spaces
+    for (const sp of this.spaces) {
+      const x = sp.col * TILE;
+      const y = sp.row * TILE;
+      if (sp.open) {
+        // Glowing open space
+        ctx.save();
+        ctx.shadowColor = '#22c55e';
+        ctx.shadowBlur = 14;
+        ctx.fillStyle = 'rgba(34,197,94,0.25)';
+        ctx.fillRect(x + 3, y + 3, TILE - 6, TILE - 6);
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 3, y + 3, TILE - 6, TILE - 6);
+        ctx.font = '18px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#22c55e';
+        ctx.fillText('P', x + TILE/2, y + TILE/2);
+        ctx.restore();
+      } else if (sp.occupied) {
+        ctx.fillStyle = '#232f3e';
+        ctx.fillRect(x + 3, y + 3, TILE - 6, TILE - 6);
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 3, y + 3, TILE - 6, TILE - 6);
+        // Parked car indicator
+        ctx.fillStyle = `hsl(${(sp.col * 47) % 360},55%,45%)`;
+        ctx.beginPath();
+        ctx.roundRect(x + 9, y + 6, TILE - 18, TILE - 12, 3);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#1a2234';
+        ctx.fillRect(x + 3, y + 3, TILE - 6, TILE - 6);
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 3, y + 3, TILE - 6, TILE - 6);
+      }
+    }
+
+    // Entrance sign
+    ctx.save();
+    ctx.fillStyle = '#0284c7';
+    ctx.beginPath();
+    ctx.roundRect(this.entranceX - 60, this.entranceY + TILE * 2.1, 120, 26, 6);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🏪 STORE ENTRANCE', this.entranceX, this.entranceY + TILE * 2.1 + 13);
+    ctx.restore();
+  }
+
+  drawCar(ctx, x, y, angle, w, h, color, isPlayer, invincible) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    if (invincible && Math.floor(performance.now() / 120) % 2 === 0) {
+      ctx.globalAlpha = 0.5;
+    }
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(2, 3, w/2, h/2.2, 0, 0, Math.PI*2);
+    ctx.fill();
+    // Body
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.roundRect(-w/2, -h/2, w, h, 5);
+    ctx.fill();
+    // Windshield
+    ctx.fillStyle = 'rgba(200,240,255,0.6)';
+    ctx.fillRect(-w/2 + 4, -h/2 + 6, w - 8, h * 0.28);
+    // Headlights
+    ctx.fillStyle = isPlayer ? '#fef08a' : '#fca5a5';
+    ctx.fillRect(-w/2 + 3, -h/2 + 2, 6, 4);
+    ctx.fillRect(w/2 - 9, -h/2 + 2, 6, 4);
+    ctx.restore();
+  }
+
+  drawPlayer(ctx) {
+    const p = this.player;
+    this.drawCar(ctx, p.x, p.y, p.angle, p.w, p.h, '#38bdf8', true, this.invincible > 0);
+    // Player label
+    ctx.save();
+    ctx.font = 'bold 9px Segoe UI';
+    ctx.fillStyle = '#f0f6fc';
+    ctx.textAlign = 'center';
+    ctx.fillText('YOU', p.x, p.y - p.h/2 - 8);
+    ctx.restore();
+  }
+
+  drawNPCs(ctx) {
+    for (const npc of this.npcs) {
+      const angle = npc.vx > 0 ? Math.PI/2 : -Math.PI/2;
+      this.drawCar(ctx, npc.x, npc.y, angle, npc.w, npc.h, npc.color, false, false);
+    }
+  }
+
+  drawCarts(ctx) {
+    for (const cart of this.carts) {
+      ctx.save();
+      ctx.translate(cart.x, cart.y);
+      ctx.font = '16px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🛒', 0, 0);
+      ctx.restore();
+    }
+  }
+
+  drawMinimap(ctx) {
+    const mW = 100, mH = 70;
+    const mx = this.W - mW - 10, my = 10;
+    ctx.save();
+    ctx.fillStyle = 'rgba(13,17,23,0.85)';
+    ctx.beginPath();
+    ctx.roundRect(mx - 2, my - 2, mW + 4, mH + 4, 6);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(56,189,248,0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // World scale
+    const scaleX = mW / this.worldW;
+    const scaleY = mH / this.worldH;
+    // Background
+    ctx.fillStyle = '#161b22';
+    ctx.fillRect(mx, my, mW, mH);
+    // Open spaces
+    for (const sp of this.spaces) {
+      if (sp.open) {
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(mx + sp.col * TILE * scaleX, my + sp.row * TILE * scaleY, 4, 3);
+      }
+    }
+    // NPCs
+    ctx.fillStyle = '#ef4444';
+    for (const npc of this.npcs) {
+      ctx.fillRect(mx + npc.x * scaleX - 1, my + npc.y * scaleY - 1, 3, 3);
+    }
+    // Player
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(mx + this.player.x * scaleX - 2, my + this.player.y * scaleY - 2, 4, 4);
+    ctx.restore();
+  }
+
+  gameOver() {
+    this.active = false;
+    if (this.score > this.highScore) {
+      this.highScore = this.score;
+      localStorage.setItem('parkingBossHigh', this.highScore);
+    }
+    document.getElementById('go-title').textContent = this.lives <= 0 ? '💥 Too Many Crashes!' : '🏁 Time\'s Up!';
+    document.getElementById('go-score').textContent = this.score;
+    document.getElementById('go-best').textContent = this.highScore;
+    document.getElementById('go-parked').textContent = this.parked;
+    document.getElementById('go-time').textContent = this.bestTime === Infinity ? '—' : Math.floor(this.bestTime) + 's';
+    document.getElementById('gameover-overlay').classList.remove('hidden');
+  }
+}
+
+const game = new ParkingLotBoss();
+</script>
+</body>
+</html>

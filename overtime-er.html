@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Overtime ER – K2 Games</title>
+<style>
+:root {
+  --bg: #0e0808; --surface: #1a0f0f; --primary: #ef4444; --accent: #fb923c;
+  --teal: #14b8a6; --text: #fef2f2; --muted: #fca5a5;
+  --success: #22c55e; --warning: #f59e0b;
+  --border: rgba(239,68,68,0.2); --glow: rgba(239,68,68,0.3);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+#home-btn{position:fixed;top:16px;left:16px;z-index:300;background:rgba(255,255,255,0.08);border:1px solid var(--border);color:var(--muted);text-decoration:none;padding:8px 16px;border-radius:10px;font-size:.85rem;font-weight:700;transition:.2s;}
+#home-btn:hover{background:rgba(255,255,255,0.15);color:var(--text);}
+/* START */
+#start-screen{position:fixed;inset:0;z-index:200;background:linear-gradient(160deg,#0e0808 0%,#1a0f0f 60%,#0e0808 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;text-align:center;padding:2rem;}
+.start-title{font-size:clamp(2.2rem,7vw,3.8rem);font-weight:900;background:linear-gradient(135deg,#ef4444,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.start-sub{color:var(--muted);font-size:1rem;letter-spacing:2px;text-transform:uppercase;}
+.start-desc{max-width:480px;color:#fecaca;line-height:1.7;font-size:.95rem;}
+.how-to{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.2rem 2rem;max-width:480px;text-align:left;}
+.how-to h3{color:var(--primary);margin-bottom:.6rem;font-size:.9rem;text-transform:uppercase;letter-spacing:1px;}
+.how-to ul{list-style:none;display:flex;flex-direction:column;gap:.4rem;font-size:.88rem;color:var(--muted);}
+.how-to li::before{content:'▸ ';}
+.btn-play{padding:1rem 3rem;border-radius:50px;border:none;cursor:pointer;font-size:1.2rem;font-weight:900;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 4px 24px var(--glow);transition:.3s;letter-spacing:1px;}
+.btn-play:hover{transform:scale(1.06);box-shadow:0 6px 32px var(--glow);}
+/* HUD */
+#hud{display:none;width:100%;padding:.45rem .8rem;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);}
+.hud-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;justify-content:center;}
+.stat-box{background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:10px;padding:.28rem .7rem;display:flex;flex-direction:column;align-items:center;min-width:66px;}
+.stat-label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.stat-val{font-size:1rem;font-weight:800;color:var(--primary);}
+.fat-wrap{flex:1;min-width:120px;}
+.meter-label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;}
+.meter-bg{background:rgba(255,255,255,0.07);border-radius:6px;height:11px;overflow:hidden;border:1px solid var(--border);}
+#fatigue-bar{height:100%;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);width:0%;transition:width .4s;}
+/* GAME */
+#game-wrap{flex:1;position:relative;overflow:hidden;}
+#game-canvas{display:block;width:100%;height:100%;}
+/* OVERLAY */
+.overlay{position:fixed;inset:0;z-index:150;background:rgba(14,8,8,0.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;text-align:center;padding:2rem;}
+.overlay.hidden{display:none;}
+.overlay h2{font-size:2.4rem;font-weight:900;}
+.score-big{font-size:3rem;font-weight:900;color:var(--primary);}
+.score-row{display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;}
+.score-item{display:flex;flex-direction:column;align-items:center;}
+.score-item span:first-child{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.score-item span:last-child{font-size:1.4rem;font-weight:800;color:var(--accent);}
+</style>
+</head>
+<body>
+<a href="index.html" id="home-btn">← HUB</a>
+
+<div id="start-screen">
+  <div class="start-title">🚑 Overtime ER</div>
+  <div class="start-sub">The Shift Never Ends</div>
+  <div class="start-desc">Patients arrive at the ER entrance. Click a patient to select them, then click an available room to assign them. Match severity to room type for bonus points. Don't let fatigue hit 100%!</div>
+  <div class="how-to">
+    <h3>How to Play</h3>
+    <ul>
+      <li>Click a patient in the waiting area to select</li>
+      <li>Click an available room (green glow) to assign</li>
+      <li>🔴 Critical → Trauma rooms (double points)</li>
+      <li>🟡 Urgent → Exam rooms (bonus points)</li>
+      <li>🟢 Stable → Ward beds</li>
+      <li>Patients left waiting too long raise fatigue</li>
+    </ul>
+  </div>
+  <button class="btn-play" id="btn-start">Begin Shift</button>
+</div>
+
+<div id="hud">
+  <div class="hud-row">
+    <div class="stat-box"><span class="stat-label">Score</span><span class="stat-val" id="hud-score">0</span></div>
+    <div class="stat-box"><span class="stat-label">Best</span><span class="stat-val" id="hud-best">0</span></div>
+    <div class="stat-box"><span class="stat-label">Treated</span><span class="stat-val" id="hud-treated">0</span></div>
+    <div class="stat-box"><span class="stat-label">Lost</span><span class="stat-val" id="hud-lost" style="color:var(--primary)">0</span></div>
+    <div class="fat-wrap"><div class="meter-label">Staff Fatigue</div><div class="meter-bg"><div id="fatigue-bar"></div></div></div>
+  </div>
+</div>
+
+<div id="game-wrap"><canvas id="game-canvas"></canvas></div>
+
+<div id="gameover-overlay" class="overlay hidden">
+  <h2 style="color:var(--primary)">😮‍💨 Shift Over</h2>
+  <div class="score-big" id="go-score">0</div>
+  <div class="score-row">
+    <div class="score-item"><span>Best</span><span id="go-best">0</span></div>
+    <div class="score-item"><span>Treated</span><span id="go-treated">0</span></div>
+    <div class="score-item"><span>Lost</span><span id="go-lost">0</span></div>
+  </div>
+  <button class="btn-play" onclick="game.restart()">Next Shift</button>
+  <a href="index.html" style="color:var(--muted);text-decoration:none;font-size:.9rem;">← Back to Hub</a>
+</div>
+
+<script>
+// Room definitions
+const ROOM_DEFS = [
+  { id:'trauma1', label:'Trauma 1', type:'critical', icon:'🚨', color:'#ef4444', treatMs:8000  },
+  { id:'trauma2', label:'Trauma 2', type:'critical', icon:'🚨', color:'#ef4444', treatMs:8000  },
+  { id:'exam1',   label:'Exam 1',   type:'urgent',   icon:'🏥', color:'#f59e0b', treatMs:12000 },
+  { id:'exam2',   label:'Exam 2',   type:'urgent',   icon:'🏥', color:'#f59e0b', treatMs:12000 },
+  { id:'exam3',   label:'Exam 3',   type:'urgent',   icon:'🏥', color:'#f59e0b', treatMs:12000 },
+  { id:'ward1',   label:'Ward 1',   type:'stable',   icon:'🛏️', color:'#60a5fa', treatMs:16000 },
+  { id:'ward2',   label:'Ward 2',   type:'stable',   icon:'🛏️', color:'#60a5fa', treatMs:16000 },
+  { id:'ward3',   label:'Ward 3',   type:'stable',   icon:'🛏️', color:'#60a5fa', treatMs:16000 },
+];
+// Score multiplier for correct room type
+const SEV_PREFERRED = { critical:'critical', urgent:'urgent', stable:'stable' };
+const BASE_SCORE = { critical:100, urgent:60, stable:30 };
+const NAMES = ['Chen','Patel','Garcia','Kim','Okafor','Rossi','Murphy','Santos','Lee','Novak','Hassan','Torres'];
+const SEV_COLORS = { critical:'#ef4444', urgent:'#f59e0b', stable:'#22c55e' };
+const SEV_EMOJIS = { critical:'🤕', urgent:'😷', stable:'🤒' };
+const TIMER_MS = { critical:14000, urgent:22000, stable:35000 };
+let pidx = 0;
+
+class OvertimeER {
+  constructor() {
+    this.canvas = document.getElementById('game-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.highScore = parseInt(localStorage.getItem('overtimeERHigh')||'0');
+    this.active=false; this.score=0; this.fatigue=0; this.treated=0; this.lost=0;
+    this.patients=[]; // waiting
+    this.rooms=[];    // room state
+    this.transitions=[]; // patients moving
+    this.selected=null;
+    this.floats=[]; this.ripples=[];
+    this.spawnInterval=null; this.fatigueInterval=null; this.tickInterval=null;
+    this.animId=null; this.lastTime=0;
+    this.roomRects={}; // roomId -> {x,y,w,h,cx,cy}
+    this.waitArea={};
+
+    this.resize();
+    window.addEventListener('resize', ()=>{ this.resize(); if(this.active) this.buildLayout(); });
+    this.canvas.addEventListener('click', e=>this.onClick(e));
+    this.canvas.addEventListener('touchstart', e=>{
+      e.preventDefault();
+      const r=this.canvas.getBoundingClientRect();
+      this.handleClick((e.touches[0].clientX-r.left)*(this.canvas.width/r.width),(e.touches[0].clientY-r.top)*(this.canvas.height/r.height));
+    },{passive:false});
+    document.getElementById('btn-start').addEventListener('click', ()=>this.start());
+  }
+
+  resize() {
+    const wrap=document.getElementById('game-wrap');
+    this.canvas.width=wrap.clientWidth; this.canvas.height=wrap.clientHeight;
+    this.W=this.canvas.width; this.H=this.canvas.height;
+  }
+
+  buildLayout() {
+    // Floor plan: hospital from top to bottom
+    // Row 0 (top): 2 Trauma rooms
+    // Row 1: 3 Exam rooms
+    // Row 2: 3 Ward rooms
+    // Bottom 22%: Waiting / Entrance area
+    const floorH = Math.floor(this.H * 0.78);
+    const waitY = floorH + 6;
+    const waitH = this.H - waitY - 4;
+    this.waitArea = { x:4, y:waitY, w:this.W-8, h:waitH };
+
+    // Corridor heights
+    const corH = 18;
+    const rowH = Math.floor((floorH - corH*2) / 3) - 4;
+
+    // Row positions
+    const rowY = [4, 4+rowH+corH+4, 4+rowH*2+corH*2+8];
+
+    // Room widths
+    const rPad = 8;
+    // Trauma row: 2 rooms
+    const tW = Math.floor((this.W - rPad*3) / 2);
+    // Exam row: 3 rooms
+    const eW = Math.floor((this.W - rPad*4) / 3);
+    // Ward row: 3 rooms
+    const wW = Math.floor((this.W - rPad*4) / 3);
+
+    this.roomRects = {};
+    // Trauma rooms
+    this.roomRects['trauma1'] = {x:rPad,              y:rowY[0], w:tW, h:rowH};
+    this.roomRects['trauma2'] = {x:rPad*2+tW,         y:rowY[0], w:tW, h:rowH};
+    // Exam rooms
+    this.roomRects['exam1']   = {x:rPad,              y:rowY[1], w:eW, h:rowH};
+    this.roomRects['exam2']   = {x:rPad*2+eW,         y:rowY[1], w:eW, h:rowH};
+    this.roomRects['exam3']   = {x:rPad*3+eW*2,       y:rowY[1], w:eW, h:rowH};
+    // Ward rooms
+    this.roomRects['ward1']   = {x:rPad,              y:rowY[2], w:wW, h:rowH};
+    this.roomRects['ward2']   = {x:rPad*2+wW,         y:rowY[2], w:wW, h:rowH};
+    this.roomRects['ward3']   = {x:rPad*3+wW*2,       y:rowY[2], w:wW, h:rowH};
+
+    // Add center points
+    for(const [id, r] of Object.entries(this.roomRects)) {
+      r.cx = r.x + r.w/2; r.cy = r.y + r.h/2;
+    }
+  }
+
+  start() {
+    document.getElementById('start-screen').style.display='none';
+    document.getElementById('hud').style.display='block';
+    document.getElementById('gameover-overlay').classList.add('hidden');
+    this.score=0; this.fatigue=0; this.treated=0; this.lost=0;
+    this.patients=[]; this.transitions=[]; this.selected=null;
+    this.floats=[]; this.ripples=[]; this.active=true;
+
+    // Init rooms
+    this.rooms = ROOM_DEFS.map(def=>({...def, patient:null, treatStart:0}));
+    this.buildLayout(); this.updateHUD();
+
+    clearInterval(this.spawnInterval); clearInterval(this.fatigueInterval); clearInterval(this.tickInterval);
+    this.spawnPatient();
+    this.spawnInterval = setInterval(()=>{ if(this.active){ this.spawnPatient(); if(this.patients.length>3) this.spawnPatient(); } }, 5500);
+    this.fatigueInterval = setInterval(()=>{ if(!this.active) return; this.fatigue=Math.min(100,this.fatigue+0.7+this.lost*0.3); if(this.fatigue>=100) this.gameOver(); this.updateHUD(); }, 1000);
+    this.tickInterval = setInterval(()=>this.tick(), 500);
+    if(this.animId) cancelAnimationFrame(this.animId);
+    this.lastTime=performance.now(); this.loop(this.lastTime);
+  }
+
+  restart() {
+    clearInterval(this.spawnInterval); clearInterval(this.fatigueInterval); clearInterval(this.tickInterval);
+    if(this.animId) cancelAnimationFrame(this.animId);
+    this.start();
+  }
+
+  spawnPatient() {
+    const roll=Math.random();
+    const sev=roll<0.25?'critical':roll<0.6?'urgent':'stable';
+    const id='pt'+(++pidx);
+    this.patients.push({ id, name:NAMES[Math.floor(Math.random()*NAMES.length)],
+      severity:sev, arrival:Date.now(), limit:TIMER_MS[sev] });
+  }
+
+  onClick(e) {
+    const r=this.canvas.getBoundingClientRect();
+    this.handleClick((e.clientX-r.left)*(this.canvas.width/r.width),(e.clientY-r.top)*(this.canvas.height/r.height));
+  }
+
+  handleClick(cx, cy) {
+    if(!this.active) return;
+    this.ripples.push({x:cx,y:cy,t:0});
+    const wa=this.waitArea;
+
+    // Click in waiting area → select patient
+    if(cy>=wa.y && cy<=wa.y+wa.h) {
+      const ptW=Math.min(90,Math.floor((wa.w-10)/Math.max(1,Math.min(8,this.patients.length))));
+      const ptH=wa.h-12;
+      for(let i=0;i<this.patients.length;i++){
+        const px=wa.x+6+i*(ptW+4);
+        if(cx>=px && cx<=px+ptW) { this.selected=this.patients[i].id; return; }
+      }
+      this.selected=null; return;
+    }
+
+    // Click on a room → assign selected patient
+    if(this.selected) {
+      const pt=this.patients.find(p=>p.id===this.selected);
+      if(pt) {
+        for(const room of this.rooms) {
+          if(room.patient) continue;
+          const rr=this.roomRects[room.id];
+          if(!rr) continue;
+          if(cx>=rr.x && cx<=rr.x+rr.w && cy>=rr.y && cy<=rr.y+rr.h) {
+            this.assignPatient(pt, room); return;
+          }
+        }
+      }
+    }
+  }
+
+  assignPatient(pt, room) {
+    const wa=this.waitArea;
+    const idx=this.patients.indexOf(pt);
+    const ptW=Math.min(90,Math.floor((wa.w-10)/Math.max(1,Math.min(8,this.patients.length))));
+    const fromX=wa.x+6+idx*(ptW+4)+ptW/2;
+    const fromY=wa.y+wa.h/2;
+    const rr=this.roomRects[room.id];
+
+    // Score: bonus for correct room type
+    let pts=BASE_SCORE[pt.severity];
+    if(room.type===SEV_PREFERRED[pt.severity]) pts*=2;
+    else if(pt.severity==='critical'&&room.type==='stable') pts=Math.floor(pts*0.6);
+    this.score+=pts;
+    this.floats.push({text:'+'+pts+(room.type===SEV_PREFERRED[pt.severity]?' ✓':''), x:rr.cx, y:rr.y, color:SEV_COLORS[pt.severity], t:0});
+
+    // Penalize fatigue for wrong room
+    if(pt.severity==='critical'&&room.type!=='critical') {
+      this.fatigue=Math.min(100,this.fatigue+12);
+      this.floats.push({text:'Wrong room! +fatigue', x:rr.cx, y:rr.y-20, color:'#ef4444', t:0});
+    }
+
+    this.transitions.push({patient:{...pt}, x:fromX, y:fromY, tx:rr.cx, ty:rr.cy, progress:0});
+    room.patient=pt; room.treatStart=Date.now();
+    this.patients=this.patients.filter(p=>p.id!==pt.id);
+    this.selected=null; this.updateHUD();
+  }
+
+  tick() {
+    if(!this.active) return;
+    const now=Date.now();
+    // Patient timers
+    for(let i=this.patients.length-1;i>=0;i--){
+      const p=this.patients[i];
+      if(now-p.arrival>p.limit){
+        this.lost++; this.fatigue=Math.min(100,this.fatigue+8);
+        if(this.fatigue>=100){this.gameOver();return;}
+        this.patients.splice(i,1); this.updateHUD();
+      }
+    }
+    // Room treatment
+    for(const room of this.rooms){
+      if(!room.patient) continue;
+      const elapsed=now-room.treatStart;
+      if(elapsed>=room.treatMs){
+        this.treated++; this.fatigue=Math.max(0,this.fatigue-3);
+        const rr=this.roomRects[room.id];
+        this.floats.push({text:'✅ Treated!', x:rr.cx, y:rr.y, color:'#22c55e', t:0});
+        room.patient=null; room.treatStart=0; this.updateHUD();
+      }
+    }
+  }
+
+  loop(ts) {
+    if(!this.active) return;
+    const dt=Math.min(ts-this.lastTime,50); this.lastTime=ts;
+    for(let i=this.transitions.length-1;i>=0;i--){
+      const t=this.transitions[i]; t.progress+=dt/700;
+      t.x+=(t.tx-t.x)*0.13; t.y+=(t.ty-t.y)*0.13;
+      if(t.progress>=1) this.transitions.splice(i,1);
+    }
+    for(const r of this.ripples) r.t+=dt;
+    this.ripples=this.ripples.filter(r=>r.t<500);
+    for(const f of this.floats) f.t+=dt;
+    this.floats=this.floats.filter(f=>f.t<1400);
+    this.draw();
+    this.animId=requestAnimationFrame(ts2=>this.loop(ts2));
+  }
+
+  draw() {
+    const ctx=this.ctx;
+    ctx.clearRect(0,0,this.W,this.H);
+    ctx.fillStyle='#0e0808'; ctx.fillRect(0,0,this.W,this.H);
+    this.drawFloorPlan(ctx);
+    this.drawRooms(ctx);
+    this.drawWaitingArea(ctx);
+    this.drawTransitions(ctx);
+    this.drawFloats(ctx);
+    this.drawRipples(ctx);
+  }
+
+  drawFloorPlan(ctx) {
+    // Floor tile pattern for corridors
+    ctx.fillStyle='#120c0c';
+    ctx.fillRect(0,0,this.W,Math.floor(this.H*0.78)+2);
+    // Subtle tile grid
+    ctx.strokeStyle='rgba(239,68,68,0.04)'; ctx.lineWidth=1;
+    for(let x=0;x<this.W;x+=36){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,this.H*0.78);ctx.stroke();}
+    for(let y=0;y<this.H*0.78;y+=36){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(this.W,y);ctx.stroke();}
+
+    // Section labels
+    const floorH=Math.floor(this.H*0.78);
+    const rowH=Math.floor((floorH-36)/3)-4;
+    const rowY=[4,4+rowH+22,4+rowH*2+44];
+    const labels=[{y:rowY[0],t:'CRITICAL CARE',c:'#ef4444'},{y:rowY[1],t:'URGENT CARE',c:'#f59e0b'},{y:rowY[2],t:'GENERAL WARD',c:'#60a5fa'}];
+    for(const lb of labels){
+      ctx.font='bold 9px Segoe UI'; ctx.fillStyle=lb.c+'88';
+      ctx.textAlign='right'; ctx.textBaseline='top';
+      ctx.fillText(lb.t, this.W-8, lb.y+3);
+    }
+  }
+
+  drawRooms(ctx) {
+    const now=Date.now();
+    for(const room of this.rooms){
+      const rr=this.roomRects[room.id];
+      if(!rr) continue;
+      const def=ROOM_DEFS.find(d=>d.id===room.id);
+      const isAvail=!room.patient;
+      const selPt=this.selected?this.patients.find(p=>p.id===this.selected):null;
+      const canReceive=selPt&&isAvail;
+      const correctRoom=selPt&&canReceive&&room.type===SEV_PREFERRED[selPt.severity];
+
+      ctx.save();
+      // Room body
+      ctx.fillStyle=isAvail?'#1a0f0f':'#1f0f0f';
+      ctx.beginPath(); ctx.roundRect(rr.x,rr.y,rr.w,rr.h,10); ctx.fill();
+
+      // Border glow for available/highlighted rooms
+      if(correctRoom){
+        const p=Math.sin(performance.now()/220)*0.5+0.5;
+        ctx.shadowColor='#22c55e'; ctx.shadowBlur=12+p*10;
+        ctx.strokeStyle='#22c55e'; ctx.lineWidth=2.5;
+      } else if(canReceive&&isAvail){
+        ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1.5;
+      } else if(isAvail){
+        ctx.strokeStyle=def.color+'40'; ctx.lineWidth=1.5;
+      } else {
+        ctx.strokeStyle=def.color; ctx.lineWidth=2;
+      }
+      ctx.beginPath(); ctx.roundRect(rr.x,rr.y,rr.w,rr.h,10); ctx.stroke();
+      ctx.shadowBlur=0;
+
+      // Door indicator (bottom edge)
+      ctx.fillStyle=isAvail?'#22c55e':'#ef4444';
+      ctx.fillRect(rr.cx-12,rr.y+rr.h-5,24,5);
+      ctx.beginPath(); ctx.roundRect(rr.cx-12,rr.y+rr.h-5,24,5,[0,0,4,4]); ctx.fill();
+
+      // Room header strip
+      ctx.fillStyle=def.color+'20';
+      ctx.beginPath(); ctx.roundRect(rr.x+1,rr.y+1,rr.w-2,28,[9,9,0,0]); ctx.fill();
+
+      // Label
+      ctx.font='bold '+Math.min(11,rr.w*0.13)+'px Segoe UI';
+      ctx.fillStyle=def.color; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(def.label,rr.cx,rr.y+14);
+
+      if(isAvail){
+        // Empty room - show bed/equipment icon
+        ctx.font=Math.min(26,rr.h*0.32)+'px serif';
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(def.icon,rr.cx,rr.cy+6);
+        if(canReceive){
+          ctx.font='bold 10px Segoe UI'; ctx.fillStyle=correctRoom?'#22c55e':'rgba(255,255,255,0.4)';
+          ctx.fillText(correctRoom?'← Assign here':'Available',rr.cx,rr.y+rr.h-14);
+        } else {
+          ctx.font='10px Segoe UI'; ctx.fillStyle='rgba(255,255,255,0.2)';
+          ctx.fillText('Available',rr.cx,rr.y+rr.h-14);
+        }
+      } else {
+        // Occupied — show patient
+        const p=room.patient;
+        const elapsed=now-room.treatStart;
+        const pct=Math.min(1,elapsed/room.treatMs);
+        ctx.font=Math.min(24,rr.h*0.28)+'px serif';
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(SEV_EMOJIS[p.severity],rr.cx,rr.cy-8);
+        ctx.font='bold '+Math.min(10,rr.w*0.12)+'px Segoe UI';
+        ctx.fillStyle='#fef2f2'; ctx.textBaseline='alphabetic';
+        ctx.fillText(p.name,rr.cx,rr.cy+14);
+        // Treatment bar
+        const bY=rr.y+rr.h-14; const bW=rr.w-20;
+        ctx.fillStyle='rgba(0,0,0,0.3)';
+        ctx.beginPath(); ctx.roundRect(rr.x+10,bY,bW,6,3); ctx.fill();
+        ctx.fillStyle=def.color;
+        ctx.beginPath(); ctx.roundRect(rr.x+10,bY,bW*pct,6,3); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  drawWaitingArea(ctx) {
+    const wa=this.waitArea;
+    // Background
+    ctx.fillStyle='#150d0d';
+    ctx.beginPath(); ctx.roundRect(wa.x,wa.y,wa.w,wa.h,10); ctx.fill();
+    ctx.strokeStyle='rgba(239,68,68,0.15)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.roundRect(wa.x,wa.y,wa.w,wa.h,10); ctx.stroke();
+
+    // Entrance sign
+    ctx.fillStyle='rgba(239,68,68,0.1)';
+    ctx.beginPath(); ctx.roundRect(wa.x+2,wa.y+2,wa.w-4,24,[8,8,0,0]); ctx.fill();
+    ctx.font='bold 10px Segoe UI'; ctx.fillStyle='#fca5a5';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('🚑 ER ENTRANCE — WAITING AREA',wa.x+wa.w/2,wa.y+14);
+
+    // Hint when no selection
+    if(!this.selected && this.patients.length>0){
+      ctx.font='10px Segoe UI'; ctx.fillStyle='rgba(252,165,165,0.4)';
+      ctx.textAlign='center'; ctx.textBaseline='top';
+      ctx.fillText('↑ Click a patient to select',wa.x+wa.w/2,wa.y+wa.h-18);
+    }
+
+    if(this.patients.length===0){
+      ctx.font='11px Segoe UI'; ctx.fillStyle='rgba(252,165,165,0.3)';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('Waiting for patients...',wa.x+wa.w/2,wa.y+wa.h/2+5);
+      return;
+    }
+
+    const maxVis=Math.min(10, this.patients.length);
+    const ptW=Math.min(90,Math.floor((wa.w-10)/maxVis)-4);
+    const ptH=wa.h-34; const ptY=wa.y+28;
+    const now=Date.now();
+
+    for(let i=0;i<this.patients.length;i++){
+      const p=this.patients[i];
+      const px=wa.x+6+i*(ptW+4);
+      if(px+ptW>wa.x+wa.w-4) break;
+      const isSel=p.id===this.selected;
+      const tLeft=Math.max(0,1-(now-p.arrival)/p.limit);
+      const sevColor=SEV_COLORS[p.severity];
+
+      ctx.save();
+      ctx.fillStyle=isSel?sevColor+'30':sevColor+'18';
+      ctx.beginPath(); ctx.roundRect(px,ptY,ptW,ptH,8); ctx.fill();
+      ctx.strokeStyle=isSel?'#fbbf24':sevColor;
+      ctx.lineWidth=isSel?2.5:1.5;
+      if(isSel){ctx.shadowColor='#fbbf24';ctx.shadowBlur=10;}
+      ctx.beginPath(); ctx.roundRect(px,ptY,ptW,ptH,8); ctx.stroke();
+      ctx.shadowBlur=0;
+
+      // Patient icon
+      ctx.font=Math.min(22,ptH*0.38)+'px serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(SEV_EMOJIS[p.severity],px+ptW/2,ptY+ptH*0.32);
+
+      // Name (truncate)
+      ctx.font='bold '+Math.min(9,ptW*0.12)+'px Segoe UI';
+      ctx.fillStyle='#fef2f2'; ctx.textBaseline='alphabetic';
+      ctx.fillText(p.name.substring(0,6),px+ptW/2,ptY+ptH*0.65);
+
+      // Severity dot
+      ctx.fillStyle=sevColor;
+      ctx.beginPath(); ctx.arc(px+ptW/2,ptY+ptH*0.8,4,0,Math.PI*2); ctx.fill();
+
+      // Timer bar
+      const bY=ptY+ptH-8; const bW=ptW-10;
+      ctx.fillStyle='rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.roundRect(px+5,bY,bW,5,3); ctx.fill();
+      ctx.fillStyle=tLeft>0.5?sevColor:tLeft>0.25?'#f59e0b':'#ef4444';
+      ctx.beginPath(); ctx.roundRect(px+5,bY,bW*tLeft,5,3); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  drawTransitions(ctx) {
+    for(const t of this.transitions){
+      const a=Math.max(0,1-t.progress*1.4);
+      const sev=t.patient.severity;
+      ctx.save(); ctx.globalAlpha=a;
+      ctx.shadowColor=SEV_COLORS[sev]; ctx.shadowBlur=12;
+      ctx.fillStyle=SEV_COLORS[sev]+'80';
+      ctx.beginPath(); ctx.arc(t.x,t.y,14,0,Math.PI*2); ctx.fill();
+      ctx.shadowBlur=0;
+      ctx.font='15px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(SEV_EMOJIS[sev],t.x,t.y);
+      ctx.restore();
+    }
+  }
+
+  drawFloats(ctx) {
+    for(const f of this.floats){
+      const a=Math.max(0,1-f.t/1400);
+      ctx.save(); ctx.globalAlpha=a;
+      ctx.font='bold 12px Segoe UI'; ctx.fillStyle=f.color;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(f.text, f.x, f.y-15-(f.t/1400)*35);
+      ctx.restore();
+    }
+  }
+
+  drawRipples(ctx) {
+    for(const r of this.ripples){
+      const rad=(r.t/500)*26; const a=(1-r.t/500)*0.5;
+      ctx.save(); ctx.globalAlpha=a;
+      ctx.strokeStyle='#ef4444'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(r.x,r.y,rad,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  updateHUD() {
+    document.getElementById('hud-score').textContent=this.score;
+    document.getElementById('hud-best').textContent=Math.max(this.score,this.highScore);
+    document.getElementById('hud-treated').textContent=this.treated;
+    document.getElementById('hud-lost').textContent=this.lost;
+    document.getElementById('fatigue-bar').style.width=this.fatigue+'%';
+  }
+
+  gameOver() {
+    this.active=false;
+    clearInterval(this.spawnInterval); clearInterval(this.fatigueInterval); clearInterval(this.tickInterval);
+    if(this.animId) cancelAnimationFrame(this.animId);
+    if(this.score>this.highScore){this.highScore=this.score;localStorage.setItem('overtimeERHigh',this.highScore);}
+    document.getElementById('go-score').textContent=this.score;
+    document.getElementById('go-best').textContent=this.highScore;
+    document.getElementById('go-treated').textContent=this.treated;
+    document.getElementById('go-lost').textContent=this.lost;
+    document.getElementById('gameover-overlay').classList.remove('hidden');
+  }
+}
+
+const game = new OvertimeER();
+</script>
+</body>
+</html>

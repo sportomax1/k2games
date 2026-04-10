@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Cruise Control – K2 Games</title>
+<style>
+:root{--bg:#04111f;--ocean:#073a5a;--hull:#c0a060;--deck:#1a2a3a;--deck2:#162030;--steel:#7a8fa6;--panel:#0d1e2e;--panelborder:#1e3a50;--text:#e2eaf5;--muted:#6b8099;--accent:#3b9fd8;--gold:#f5c842;--green:#22c55e;--red:#ef4444;--orange:#f97316;}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',sans-serif;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+#topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 18px;background:rgba(4,12,24,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--panelborder);flex-shrink:0;gap:10px;}
+#topbar a{text-decoration:none;color:var(--muted);font-size:13px;padding:3px 10px;border:1px solid rgba(255,255,255,.1);border-radius:7px;}
+#topbar a:hover{color:var(--text);}
+.tb-stat{display:flex;flex-direction:column;align-items:center;}
+.tb-val{font-size:18px;font-weight:800;color:var(--gold);}
+.tb-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+#sat-bar-wrap{flex:1;max-width:180px;}
+#sat-bar-bg{height:8px;border-radius:4px;background:rgba(255,255,255,.12);}
+#sat-bar{height:8px;border-radius:4px;background:var(--green);transition:width .4s;}
+#main{display:flex;flex:1;overflow:hidden;}
+#ship-wrap{flex:1;position:relative;overflow:hidden;}
+canvas{display:block;width:100%;height:100%;}
+#sidebar{width:200px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--panelborder);display:flex;flex-direction:column;overflow:hidden;}
+#sidebar h3{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:10px 12px 4px;}
+#event-log{flex:1;overflow-y:auto;padding:4px 10px;font-size:12px;line-height:1.7;}
+.ev-entry{border-bottom:1px solid rgba(255,255,255,.05);padding:3px 0;color:var(--muted);}
+.ev-entry span{color:var(--accent);}
+#controls-panel{padding:10px 12px;border-top:1px solid var(--panelborder);}
+.ctrl-btn{display:block;width:100%;margin-bottom:6px;padding:7px;border-radius:8px;border:none;background:rgba(59,159,216,.18);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(59,159,216,.3);transition:.15s;}
+.ctrl-btn:hover{background:rgba(59,159,216,.3);}
+.ctrl-btn.warn{background:rgba(249,115,22,.15);color:var(--orange);border-color:rgba(249,115,22,.3);}
+.ctrl-btn.warn:hover{background:rgba(249,115,22,.28);}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.4rem;z-index:100;background:rgba(4,12,24,.93);backdrop-filter:blur(10px);}
+.screen h1{font-size:clamp(2rem,6vw,3rem);font-weight:900;background:linear-gradient(135deg,#3b9fd8,#f5c842);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.screen p{color:var(--muted);max-width:380px;text-align:center;line-height:1.65;font-size:.9rem;}
+.btn{padding:.7rem 2rem;border-radius:12px;border:none;background:linear-gradient(135deg,#2563eb,#0ea5e9);color:#fff;font-size:1.05rem;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,.3);}
+.btn:hover{filter:brightness(1.1);}
+.go-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;}
+.go-cell{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:.5rem .8rem;text-align:center;}
+.go-val{font-size:1.4rem;font-weight:800;color:var(--gold);}
+.go-lbl{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <a href="index.html">← Back</a>
+  <div class="tb-stat"><div class="tb-val" id="tb-pax">0</div><div class="tb-lbl">Passengers</div></div>
+  <div class="tb-stat"><div class="tb-val" id="tb-happy">–</div><div class="tb-lbl">Happy</div></div>
+  <div class="tb-stat" style="flex:0 0 180px">
+    <div id="sat-bar-wrap"><div id="sat-bar-bg"><div id="sat-bar" style="width:100%"></div></div></div>
+    <div class="tb-lbl">Satisfaction</div>
+  </div>
+  <div class="tb-stat"><div class="tb-val" id="tb-day">Day 1</div><div class="tb-lbl">Time</div></div>
+  <div class="tb-stat"><div class="tb-val" id="tb-score">0</div><div class="tb-lbl">Score</div></div>
+</div>
+<div id="main">
+  <div id="ship-wrap"><canvas id="c"></canvas></div>
+  <div id="sidebar">
+    <h3>Event Log</h3>
+    <div id="event-log"></div>
+    <div id="controls-panel">
+      <button class="ctrl-btn" onclick="callElevator()">🛗 Boost Elevators</button>
+      <button class="ctrl-btn" onclick="openPool()">🏊 Open Pool (Deck 9)</button>
+      <button class="ctrl-btn warn" onclick="triggerDrillEvent()">🚨 Safety Drill</button>
+    </div>
+  </div>
+</div>
+
+<!-- Start screen -->
+<div class="screen" id="start-screen">
+  <h1>🚢 Cruise Control</h1>
+  <p>Manage every deck of your cruise ship. Keep passengers moving, Happy, and out of jams. Watch the cross-section come alive!</p>
+  <p style="font-size:.75rem">Click/tap decks to highlight routes · Use controls to manage events</p>
+  <button class="btn" onclick="startGame()">Set Sail!</button>
+</div>
+
+<!-- Game over screen -->
+<div class="screen" id="gameover-screen" style="display:none">
+  <h1>Voyage Complete!</h1>
+  <div class="go-grid">
+    <div class="go-cell"><div class="go-val" id="go-score">0</div><div class="go-lbl">Score</div></div>
+    <div class="go-cell"><div class="go-val" id="go-sat">0%</div><div class="go-lbl">Avg Satisfaction</div></div>
+    <div class="go-cell"><div class="go-val" id="go-events">0</div><div class="go-lbl">Events Handled</div></div>
+  </div>
+  <button class="btn" onclick="startGame()">⚓ New Voyage</button>
+  <button class="btn" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13)" onclick="showStart()">↩ Menu</button>
+</div>
+
+<script>
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+let W,H;
+
+// ── Resize ──
+function resize(){
+  const wrap=document.getElementById('ship-wrap');
+  W=canvas.width=wrap.clientWidth;
+  H=canvas.height=wrap.clientHeight;
+}
+resize();
+new ResizeObserver(resize).observe(document.getElementById('ship-wrap'));
+
+// ── Deck config ──
+const DECK_NAMES=['Bridge','Promenade','Pool Deck','Spa & Gym','Theater','Casino','Dining A','Dining B','Cabins (Aft)','Cabins (Fwd)'];
+const DECK_ICONS=['🧭','🛍','🏊','💆','🎭','🎰','🍽','🍷','🛏','🛏'];
+const DECK_COLORS=['#162535','#1a3048','#0f3050','#1a2d3a','#1e1a35','#1f2b12','#3a1a10','#2a1510','#15222f','#15222f'];
+const NDECK=10;
+
+// ── State ──
+let passengers=[],evators=[],gameActive=false;
+let satisfaction=100,satHistory=[],score=0,eventsHandled=0;
+let dayTime=0,dayCount=1,totalTicks=0;
+let elevBoost=0,poolOpen=false,drillActive=false;
+let pendingEvents=[],highlight=-1;
+let shotTimer=null;
+
+// ── Passenger interests ──
+const INTERESTS=[
+  {label:'Spa',deck:3},{label:'Pool',deck:2},{label:'Theater',deck:4},
+  {label:'Casino',deck:5},{label:'Dining',deck:6},{label:'Bar',deck:7},
+  {label:'Shopping',deck:1},{label:'Cabins',deck:8}
+];
+
+function makePax(id){
+  const startDeck=Math.floor(Math.random()*NDECK);
+  const interest=INTERESTS[Math.floor(Math.random()*INTERESTS.length)];
+  const schedule=[];
+  const anchors=[6,10,13,17,21].map(h=>h+Math.random()*1.5);
+  const dests=[...INTERESTS].sort(()=>Math.random()-.5).slice(0,4);
+  dests.forEach((d,i)=>{schedule.push({hour:anchors[i],deck:d.deck});});
+  schedule.sort((a,b)=>a.hour-b.hour);
+  return{id,deck:startDeck,targetDeck:startDeck,
+         x:Math.random(),y:0.4+Math.random()*0.2,
+         vx:(Math.random()-.5)*0.6,progress:0,
+         moving:false,happy:true,interest,schedule,schedIdx:0,
+         color:`hsl(${Math.floor(Math.random()*360)},50%,55%)`,
+         frustrated:0};
+}
+
+function initPax(count){
+  passengers=[];
+  for(let i=0;i<count;i++)passengers.push(makePax(i));
+}
+
+// ── Passenger AI ──
+function updatePax(dt){
+  const hour=(dayTime/60)%24;
+  passengers.forEach(p=>{
+    // Check schedule
+    if(p.schedIdx<p.schedule.length){
+      const ev=p.schedule[p.schedIdx];
+      if(hour>=ev.hour){p.targetDeck=ev.deck;p.schedIdx++;}
+    }
+    if(p.pool_forced)p.targetDeck=2;
+    if(p.drill_forced)p.targetDeck=0;
+
+    if(p.deck!==p.targetDeck){
+      p.moving=true;
+      // Move towards target
+      const diff=p.targetDeck-p.deck;
+      const elevSpeed=elevBoost>0?3:1.5;
+      p.progress+=dt*elevSpeed;
+      if(p.progress>=1){
+        p.progress=0;
+        p.deck+=Math.sign(diff);
+        if(p.deck===p.targetDeck){p.moving=false;}
+      }
+      p.frustrated=Math.min(1,p.frustrated+dt*0.004);
+    } else {
+      p.moving=false;p.frustrated=Math.max(0,p.frustrated-dt*0.015);
+      // Wander on current deck
+      p.x+=p.vx*dt*0.03;
+      if(p.x<0.05||p.x>0.95)p.vx*=-1;
+    }
+    p.happy=p.frustrated<0.6;
+  });
+  if(elevBoost>0)elevBoost-=dt;
+}
+
+function avgSatisfaction(){
+  if(!passengers.length)return 100;
+  const happy=passengers.filter(p=>p.happy).length;
+  return Math.round(happy/passengers.length*100);
+}
+
+// ── Layout ──
+function getDeckRect(di){
+  const shipMarginX=Math.min(80,W*0.08),shipTop=30,shipBottom=H-22;
+  const totalH=shipBottom-shipTop;
+  const dh=totalH/NDECK;
+  const taperTop=Math.min(60,W*0.05),taperBot=0;
+  const leftX=shipMarginX+taperTop*(di/NDECK);
+  const rightX=W-shipMarginX-taperTop*(di/NDECK);
+  const y=shipTop+di*dh;
+  return{x:leftX,y,w:rightX-leftX,h:dh};
+}
+
+// ── Draw ship ──
+function drawShip(){
+  computeVP:;
+  const shipMarginX=Math.min(80,W*0.08);
+  const shipTop=30,shipBottom=H-22;
+
+  // Ocean
+  const sea=ctx.createLinearGradient(0,shipBottom-30,0,H);
+  sea.addColorStop(0,'#052d4a');sea.addColorStop(1,'#02182b');
+  ctx.fillStyle=sea;ctx.fillRect(0,shipBottom-30,W,H-(shipBottom-30));
+
+  // Waves animation
+  const wOff=(Date.now()*0.001)%1;
+  ctx.save();ctx.strokeStyle='rgba(100,200,255,0.15)';ctx.lineWidth=2;
+  for(let w=0;w<4;w++){
+    ctx.beginPath();
+    for(let x=0;x<W;x+=15){
+      const y=shipBottom+(w*12)+Math.sin((x/90+wOff*Math.PI*2+w)*Math.PI*2)*5;
+      x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Hull outer shape
+  ctx.save();
+  ctx.shadowColor='rgba(59,159,216,0.2)';ctx.shadowBlur=30;
+  ctx.strokeStyle='rgba(100,150,180,0.5)';ctx.lineWidth=3;
+  // Bow (right)
+  const topR=getDeckRect(0);const botR=getDeckRect(NDECK-1);
+  ctx.beginPath();
+  ctx.moveTo(topR.x,topR.y);
+  ctx.lineTo(topR.x+topR.w,topR.y);
+  // bow curve
+  ctx.quadraticCurveTo(topR.x+topR.w+40,shipTop+(shipBottom-shipTop)*0.5,
+    botR.x+botR.w,botR.y+botR.h);
+  ctx.lineTo(botR.x,botR.y+botR.h);
+  ctx.quadraticCurveTo(topR.x-20,shipTop+(shipBottom-shipTop)*0.65,topR.x,topR.y);
+  ctx.fillStyle='#071624';ctx.fill();ctx.stroke();
+  ctx.restore();
+
+  // Decks
+  for(let di=0;di<NDECK;di++){
+    const r=getDeckRect(di);
+    const isHl=highlight===di;
+    ctx.save();
+    ctx.beginPath();ctx.rect(r.x,r.y,r.w,r.h);ctx.clip();
+
+    // Deck background
+    ctx.fillStyle=DECK_COLORS[di];
+    ctx.fillRect(r.x,r.y,r.w,r.h);
+
+    if(isHl){
+      ctx.fillStyle='rgba(59,159,216,0.12)';ctx.fillRect(r.x,r.y,r.w,r.h);
+    }
+
+    // Deck name & icon
+    ctx.font=`bold ${Math.max(10,Math.min(14,r.h*0.38))}px 'Segoe UI',sans-serif`;
+    ctx.fillStyle=isHl?'#7dd3fc':'rgba(180,210,240,0.6)';
+    ctx.textAlign='left';
+    ctx.fillText(`${DECK_ICONS[di]} ${DECK_NAMES[di]}`,r.x+12,r.y+r.h*0.62);
+
+    // Deck floor line
+    ctx.strokeStyle='rgba(100,160,200,0.25)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(r.x,r.y+r.h);ctx.lineTo(r.x+r.w,r.y+r.h);ctx.stroke();
+
+    // Porthole windows
+    const nWindows=Math.floor(r.w/45);
+    for(let wi=0;wi<nWindows;wi++){
+      const wx=r.x+40+wi*(r.w-60)/(Math.max(1,nWindows-1));
+      const wy=r.y+r.h*0.32;
+      const wr=Math.min(7,r.h*0.22);
+      // Glow
+      const wg=ctx.createRadialGradient(wx,wy,0,wx,wy,wr*2.5);
+      wg.addColorStop(0,'rgba(200,240,255,0.15)');wg.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=wg;ctx.beginPath();ctx.arc(wx,wy,wr*2.5,0,Math.PI*2);ctx.fill();
+      // Window
+      ctx.fillStyle='rgba(180,240,255,0.12)';
+      ctx.strokeStyle='rgba(100,170,220,0.55)';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.arc(wx,wy,wr,0,Math.PI*2);ctx.fill();ctx.stroke();
+    }
+
+    // Elevator shaft
+    const ex=r.x+r.w-28;
+    ctx.fillStyle='rgba(59,159,216,0.15)';ctx.strokeStyle='rgba(59,159,216,0.4)';ctx.lineWidth=1.5;
+    ctx.strokeRect(ex,r.y+2,22,r.h-4);
+    ctx.fillRect(ex,r.y+2,22,r.h-4);
+    if(elevBoost>0){
+      ctx.fillStyle='rgba(245,200,66,0.25)';ctx.fillRect(ex,r.y+2,22,r.h-4);
+    }
+
+    ctx.restore();
+  }
+
+  // Draw passengers on their decks
+  drawPassengers();
+
+  // Draw elevator cars
+  drawElevatorCars();
+}
+
+function drawPassengers(){
+  const byDeck=Array.from({length:NDECK},()=>[]);
+  passengers.forEach(p=>{byDeck[p.deck]?.push(p);});
+  byDeck.forEach((dps,di)=>{
+    if(!dps.length)return;
+    const r=getDeckRect(di);
+    const maxShow=Math.min(dps.length,20);
+    dps.slice(0,maxShow).forEach((p,i)=>{
+      const col=Math.floor(i%10);const row=Math.floor(i/10);
+      const px=r.x+30+col*(r.w-80)/10+Math.sin(p.x*10+di)*4;
+      const py=r.y+r.h*(0.7-row*0.3);
+      const sz=Math.max(3,Math.min(8,r.h*0.22));
+      // Shadow
+      ctx.save();ctx.globalAlpha=0.3;ctx.fillStyle='#000';
+      ctx.beginPath();ctx.ellipse(px,py+sz,sz*0.8,sz*0.25,0,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=1;
+      // Body
+      ctx.fillStyle=p.happy?p.color:'#6b7280';
+      ctx.beginPath();ctx.arc(px,py,sz,0,Math.PI*2);ctx.fill();
+      // Frustrated indicator
+      if(!p.happy){
+        ctx.fillStyle='#ef4444';ctx.font=`${sz+2}px sans-serif`;ctx.textAlign='center';
+        ctx.fillText('😤',px,py-sz-1);
+      }
+      if(p.moving){
+        ctx.strokeStyle='rgba(59,159,216,0.5)';ctx.lineWidth=1;ctx.setLineDash([2,3]);
+        ctx.beginPath();ctx.moveTo(px,py-sz);ctx.lineTo(px,py-sz-10);ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+    });
+    // Count bubble
+    if(dps.length>0){
+      const cx2=r.x+r.w*0.45;
+      const cy2=r.y+r.h*0.45;
+      ctx.save();ctx.font=`bold ${Math.max(9,r.h*0.35)}px sans-serif`;ctx.textAlign='center';
+      ctx.fillStyle='rgba(255,255,255,0.55)';
+      ctx.fillText(dps.length,cx2,cy2);ctx.restore();
+    }
+  });
+}
+
+function drawElevatorCars(){
+  // Animated elevator dot
+  const t=(Date.now()*0.002)%1;
+  const r0=getDeckRect(0),rN=getDeckRect(NDECK-1);
+  const ex=r0.x+r0.w-17;
+  const topY=r0.y+8,botY=rN.y+rN.h-8;
+  const cy=topY+(botY-topY)*Math.abs(Math.sin(t*Math.PI));
+  ctx.save();
+  ctx.fillStyle=elevBoost>0?'#f5c842':'#3b9fd8';
+  ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=8;
+  ctx.beginPath();ctx.arc(ex,cy,6,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+
+// ── Events ──
+const SHIP_EVENTS=[
+  {id:'dinner',label:'🍽 Dinner Rush!',effect:()=>passengers.forEach(p=>{p.targetDeck=p.targetDeck<6?6:p.targetDeck;})},
+  {id:'show',label:'🎭 Show Starting!',effect:()=>passengers.forEach(p=>{if(Math.random()<0.4)p.targetDeck=4;})},
+  {id:'pool_party',label:'🏊 Pool Party!',effect:()=>passengers.forEach(p=>{if(Math.random()<0.35){p.pool_forced=true;p.targetDeck=2;setTimeout(()=>{p.pool_forced=false;},8000);}})},
+  {id:'storm',label:'⛈ Rough Seas!',effect:()=>{passengers.forEach(p=>{p.frustrated=Math.min(1,p.frustrated+0.3);});addLog('<span>⛈ Rough seas reducing satisfaction!</span>');}},
+  {id:'celebrity',label:'⭐ Celebrity Sighting!',effect:()=>passengers.forEach(p=>{p.frustrated=Math.max(0,p.frustrated-0.2);})},
+];
+
+function triggerRandomEvent(){
+  const ev=SHIP_EVENTS[Math.floor(Math.random()*SHIP_EVENTS.length)];
+  ev.effect();eventsHandled++;
+  addLog(`<span>${ev.label}</span>`);
+}
+
+function callElevator(){elevBoost=8;addLog('<span>🛗 Elevator boost active for 8s</span>');}
+function openPool(){
+  if(!poolOpen){
+    poolOpen=true;passengers.forEach(p=>{if(Math.random()<0.25){p.targetDeck=2;}});
+    addLog('<span>🏊 Pool deck opened — passengers heading up!</span>');
+  }
+}
+function triggerDrillEvent(){
+  drillActive=true;
+  passengers.forEach(p=>{p.drill_forced=true;p.targetDeck=0;});
+  addLog('<span>🚨 Safety drill! All passengers to Bridge deck.</span>');
+  setTimeout(()=>{drillActive=false;passengers.forEach(p=>{p.drill_forced=false;});},10000);
+}
+
+// ── Highlights ──
+canvas.addEventListener('click',e=>{
+  const rect=canvas.getBoundingClientRect();
+  const sx=e.clientX-rect.left,sy=e.clientY-rect.top;
+  for(let di=0;di<NDECK;di++){
+    const r=getDeckRect(di);
+    if(sx>=r.x&&sx<=r.x+r.w&&sy>=r.y&&sy<=r.y+r.h){
+      highlight=highlight===di?-1:di;
+      if(highlight>=0)addLog(`<span>Deck ${NDECK-di}: ${DECK_NAMES[di]}</span> selected`);
+      return;
+    }
+  }
+});
+
+// ── Log ──
+function addLog(msg){
+  const el=document.getElementById('event-log');
+  const d=document.createElement('div');d.className='ev-entry';
+  const now=new Date();
+  d.innerHTML=`<small style="color:var(--muted);">${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}</small> ${msg}`;
+  el.prepend(d);
+  while(el.children.length>40)el.removeChild(el.lastChild);
+}
+
+// ── HUD update ──
+function updateHUD(){
+  const sat=avgSatisfaction();satisfaction=sat;
+  document.getElementById('tb-pax').textContent=passengers.length;
+  document.getElementById('tb-happy').textContent=passengers.filter(p=>p.happy).length;
+  document.getElementById('sat-bar').style.width=sat+'%';
+  document.getElementById('sat-bar').style.background=sat>75?'var(--green)':sat>40?'var(--orange)':'var(--red)';
+  const h=Math.floor(((dayTime/60)%24));const m=Math.floor(dayTime%60);
+  document.getElementById('tb-day').textContent=`Day ${dayCount} ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  document.getElementById('tb-score').textContent=Math.round(score);
+}
+
+// ── Game loop ──
+let lastT=null;
+function loop(ts){
+  if(!gameActive){requestAnimationFrame(loop);return;}
+  const dt=lastT?Math.min(50,(ts-lastT)/16.67):1;lastT=ts;
+  totalTicks+=dt;dayTime+=dt*(1/6);
+
+  // Day progression
+  const oldDay=dayCount;
+  dayCount=1+Math.floor(dayTime/60/24);
+  if(dayCount!==oldDay)addLog(`<span>📅 Day ${dayCount} begins</span>`);
+
+  // Score from satisfaction
+  score+=avgSatisfaction()*dt*0.002;
+
+  // Events
+  if(Math.floor(totalTicks/400)>pendingEvents.length){
+    pendingEvents.push(Date.now());triggerRandomEvent();
+  }
+
+  updatePax(dt);updateHUD();
+
+  ctx.clearRect(0,0,W,H);
+  drawShip();
+
+  // End after 5 days
+  if(dayCount>5){endGame();}
+  else requestAnimationFrame(loop);
+}
+
+// ── Start / End ──
+function startGame(){
+  score=0;eventsHandled=0;dayTime=0;dayCount=1;totalTicks=0;
+  elevBoost=0;poolOpen=false;drillActive=false;pendingEvents=[];highlight=-1;
+  document.getElementById('event-log').innerHTML='';
+  initPax(80);gameActive=true;lastT=null;
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('gameover-screen').style.display='none';
+  addLog('<span>⚓ Bon voyage! Ship departed.</span>');
+  requestAnimationFrame(loop);
+}
+
+function endGame(){
+  gameActive=false;
+  const sat=avgSatisfaction();
+  document.getElementById('go-score').textContent=Math.round(score);
+  document.getElementById('go-sat').textContent=sat+'%';
+  document.getElementById('go-events').textContent=eventsHandled;
+  document.getElementById('gameover-screen').style.display='flex';
+}
+
+function showStart(){
+  gameActive=false;
+  document.getElementById('gameover-screen').style.display='none';
+  document.getElementById('start-screen').style.display='flex';
+}
+
+// ── Start loop ready ──
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

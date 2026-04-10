@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Room Rush – K2 Games</title>
+<style>
+:root {
+  --bg: #080d1e; --surface: #0f1730; --surface2: #141e3a;
+  --primary: #60a5fa; --accent: #fbbf24; --danger: #ef4444;
+  --text: #eff6ff; --muted: #93c5fd; --border: rgba(96,165,250,0.2);
+  --glow: rgba(96,165,250,0.3);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+#home-btn{position:fixed;top:16px;left:16px;z-index:300;background:rgba(255,255,255,0.08);border:1px solid var(--border);color:var(--muted);text-decoration:none;padding:8px 16px;border-radius:10px;font-size:.85rem;font-weight:700;transition:.2s;}
+#home-btn:hover{background:rgba(255,255,255,0.15);color:var(--text);}
+/* START */
+#start-screen{position:fixed;inset:0;z-index:200;background:linear-gradient(160deg,#080d1e 0%,#0f1730 60%,#080d1e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;text-align:center;padding:2rem;}
+.start-title{font-size:clamp(2.2rem,7vw,3.5rem);font-weight:900;background:linear-gradient(135deg,#60a5fa,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.start-sub{color:var(--muted);font-size:1rem;letter-spacing:2px;text-transform:uppercase;}
+.start-desc{max-width:460px;color:#bfdbfe;line-height:1.6;font-size:.9rem;}
+.diff-row{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center;}
+.diff-btn{background:var(--surface);border:2px solid var(--border);border-radius:14px;padding:.9rem 1.6rem;cursor:pointer;transition:.25s;min-width:130px;color:var(--text);}
+.diff-btn:hover{border-color:var(--primary);transform:translateY(-3px);}
+.diff-btn.selected{border-color:var(--accent);box-shadow:0 0 20px rgba(251,191,36,.35);}
+.diff-btn .d-icon{font-size:1.8rem;margin-bottom:.3rem;}
+.diff-btn .d-label{font-weight:800;font-size:1rem;margin-bottom:.2rem;}
+.diff-btn .d-desc{font-size:.72rem;color:var(--muted);}
+.how-to{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1rem 1.8rem;max-width:460px;text-align:left;}
+.how-to h3{color:var(--primary);margin-bottom:.5rem;font-size:.85rem;text-transform:uppercase;letter-spacing:1px;}
+.how-to ul{list-style:none;display:flex;flex-direction:column;gap:.35rem;font-size:.84rem;color:var(--muted);}
+.how-to li::before{content:'▸ ';}
+.legend{display:flex;gap:.8rem;flex-wrap:wrap;justify-content:center;font-size:.8rem;}
+.lg{display:flex;align-items:center;gap:.3rem;}
+.lg-dot{width:10px;height:10px;border-radius:3px;}
+.btn-play{padding:.95rem 2.8rem;border-radius:50px;border:none;cursor:pointer;font-size:1.15rem;font-weight:900;background:linear-gradient(135deg,#60a5fa,#3b82f6);color:#080d1e;box-shadow:0 4px 24px var(--glow);transition:.3s;letter-spacing:1px;}
+.btn-play:hover{transform:scale(1.06);box-shadow:0 6px 32px var(--glow);}
+/* HUD */
+#hud{display:none;width:100%;padding:.45rem .8rem;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);}
+.hud-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;justify-content:center;}
+.stat-box{background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:10px;padding:.28rem .7rem;display:flex;flex-direction:column;align-items:center;min-width:66px;}
+.stat-label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.stat-val{font-size:1rem;font-weight:800;color:var(--primary);}
+.cap-wrap{flex:1;min-width:120px;}
+.meter-label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;}
+.meter-bg{background:rgba(255,255,255,0.07);border-radius:6px;height:11px;overflow:hidden;border:1px solid var(--border);}
+#capacity-bar{height:100%;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);width:0%;transition:width .4s;}
+/* GAME */
+#game-wrap{flex:1;position:relative;overflow:hidden;}
+#game-canvas{display:block;width:100%;height:100%;}
+/* OVERLAY */
+.overlay{position:fixed;inset:0;z-index:150;background:rgba(8,13,30,0.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;text-align:center;padding:2rem;}
+.overlay.hidden{display:none;}
+.overlay h2{font-size:2.4rem;font-weight:900;}
+.score-big{font-size:3rem;font-weight:900;color:var(--primary);}
+.score-row{display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;}
+.score-item{display:flex;flex-direction:column;align-items:center;}
+.score-item span:first-child{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.score-item span:last-child{font-size:1.4rem;font-weight:800;color:var(--accent);}
+</style>
+</head>
+<body>
+<a href="index.html" id="home-btn">← HUB</a>
+
+<div id="start-screen">
+  <div class="start-title">🛏️ Room Rush</div>
+  <div class="start-sub">Manage the Ward</div>
+  <div class="start-desc">Patients arrive and need the right beds. Click a patient, then click the correct bed in the matching ward. Wrong ward? It'll bounce back. Keep the hospital moving!</div>
+  <div class="diff-row">
+    <div class="diff-btn" data-diff="easy"><div class="d-icon">🟢</div><div class="d-label">Easy</div><div class="d-desc">More time · More beds</div></div>
+    <div class="diff-btn selected" data-diff="medium"><div class="d-icon">🟡</div><div class="d-label">Medium</div><div class="d-desc">Standard pressure</div></div>
+    <div class="diff-btn" data-diff="hard"><div class="d-icon">🔴</div><div class="d-label">Hard</div><div class="d-desc">Total chaos</div></div>
+  </div>
+  <div class="how-to">
+    <h3>How to Play</h3>
+    <ul>
+      <li>Click a patient card to select them (gold border)</li>
+      <li>Matching ward beds will glow — click any to assign</li>
+      <li>Wrong ward: bed flashes red, no assignment</li>
+      <li>Patients discharge automatically after treatment</li>
+      <li>Too many waiting with no beds = Game Over</li>
+    </ul>
+    <div class="legend" style="margin-top:.8rem;">
+      <div class="lg"><div class="lg-dot" style="background:#ef4444"></div>ICU</div>
+      <div class="lg"><div class="lg-dot" style="background:#60a5fa"></div>General</div>
+      <div class="lg"><div class="lg-dot" style="background:#a78bfa"></div>Pediatric</div>
+      <div class="lg"><div class="lg-dot" style="background:#22c55e"></div>Recovery</div>
+    </div>
+  </div>
+  <button class="btn-play" id="btn-start">Open the Ward</button>
+</div>
+
+<div id="hud">
+  <div class="hud-row">
+    <div class="stat-box"><span class="stat-label">Score</span><span class="stat-val" id="hud-score">0</span></div>
+    <div class="stat-box"><span class="stat-label">Best</span><span class="stat-val" id="hud-best">0</span></div>
+    <div class="stat-box"><span class="stat-label">Admitted</span><span class="stat-val" id="hud-admitted">0</span></div>
+    <div class="stat-box"><span class="stat-label">Discharged</span><span class="stat-val" id="hud-discharged">0</span></div>
+    <div class="cap-wrap"><div class="meter-label">Hospital Capacity</div><div class="meter-bg"><div id="capacity-bar"></div></div></div>
+  </div>
+</div>
+
+<div id="game-wrap"><canvas id="game-canvas"></canvas></div>
+
+<div id="gameover-overlay" class="overlay hidden">
+  <h2 style="color:var(--danger)">🏥 Hospital Full!</h2>
+  <div class="score-big" id="go-score">0</div>
+  <div class="score-row">
+    <div class="score-item"><span>Best</span><span id="go-best">0</span></div>
+    <div class="score-item"><span>Admitted</span><span id="go-admitted">0</span></div>
+    <div class="score-item"><span>Discharged</span><span id="go-discharged">0</span></div>
+  </div>
+  <button class="btn-play" onclick="game.restart()">New Shift</button>
+  <a href="index.html" style="color:var(--muted);text-decoration:none;font-size:.9rem;">← Back to Hub</a>
+</div>
+
+<script>
+const DIFF = {
+  easy:   { spawnMs:7000, timerMs:42000, bedsPerWard:4, label:'Easy' },
+  medium: { spawnMs:4200, timerMs:26000, bedsPerWard:3, label:'Medium' },
+  hard:   { spawnMs:2400, timerMs:15000, bedsPerWard:2, label:'Hard' },
+};
+const WARDS = [
+  { id:'icu',      label:'ICU',       emoji:'🫀', color:'#ef4444', light:'rgba(239,68,68,0.12)',   stayMs:20000 },
+  { id:'general',  label:'General',   emoji:'🛏️', color:'#60a5fa', light:'rgba(96,165,250,0.12)',  stayMs:13000 },
+  { id:'peds',     label:'Pediatric', emoji:'👶', color:'#a78bfa', light:'rgba(167,139,250,0.12)', stayMs:11000 },
+  { id:'recovery', label:'Recovery',  emoji:'💪', color:'#22c55e', light:'rgba(34,197,94,0.12)',   stayMs:9000  },
+];
+const SCORE_MAP = { icu:120, general:60, peds:70, recovery:50 };
+const NAMES = ['Patel','Chen','Garcia','Kim','Okafor','Santos','Murphy','Torres','Hassan','Novak','Rossi','Lee'];
+let pidx = 0;
+
+class RoomRush {
+  constructor() {
+    this.canvas = document.getElementById('game-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.highScore = parseInt(localStorage.getItem('roomRushHigh') || '0');
+    this.diff = 'medium';
+    this.active = false;
+    this.score = 0; this.admitted = 0; this.discharged = 0;
+    this.patients = []; this.beds = []; this.wardRects = [];
+    this.transitions = []; this.selected = null;
+    this.ripples = []; this.floats = [];
+    this.layout = null;
+    this.spawnTimer = null; this.tickTimer = null; this.animId = null;
+    this.lastTime = 0;
+
+    this.resize();
+    window.addEventListener('resize', () => { this.resize(); if (this.active) this.buildLayout(); });
+    this.canvas.addEventListener('click', e => this.onClick(e));
+    this.canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      const r = this.canvas.getBoundingClientRect();
+      this.handleClick((e.touches[0].clientX - r.left)*(this.canvas.width/r.width),(e.touches[0].clientY - r.top)*(this.canvas.height/r.height));
+    }, {passive:false});
+    document.querySelectorAll('.diff-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.diff = btn.dataset.diff;
+        document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+    });
+    document.getElementById('btn-start').addEventListener('click', () => this.start());
+  }
+
+  resize() {
+    const wrap = document.getElementById('game-wrap');
+    this.canvas.width = wrap.clientWidth;
+    this.canvas.height = wrap.clientHeight;
+    this.W = this.canvas.width; this.H = this.canvas.height;
+  }
+
+  buildLayout() {
+    const s = DIFF[this.diff];
+    const waitW = Math.max(150, Math.floor(this.W * 0.26));
+    const wardX = waitW + 10, wardW = this.W - wardX - 4, wardH = this.H - 4;
+    this.layout = { waitX:4, waitY:4, waitW:waitW-8, waitH:this.H-8, wardX, wardW, wardH };
+    const colW = Math.floor(wardW/2) - 4, rowH = Math.floor(wardH/2) - 4;
+    const wPos = [
+      {x:wardX+2, y:2}, {x:wardX+colW+10, y:2},
+      {x:wardX+2, y:rowH+10}, {x:wardX+colW+10, y:rowH+10},
+    ];
+    this.beds = [];
+    this.wardRects = WARDS.map((ward, wi) => {
+      const {x:wx, y:wy} = wPos[wi];
+      const bpw = s.bedsPerWard;
+      const bcols = Math.min(3, bpw), brows = Math.ceil(bpw/bcols);
+      const bw = Math.min(68, Math.floor((colW-16)/bcols)-6);
+      const bh = Math.min(52, Math.floor((rowH-52)/brows)-6);
+      const bSX = wx + (colW - bcols*(bw+6)+6)/2;
+      const bSY = wy + 44;
+      for (let i = 0; i < bpw; i++) {
+        const bc = i%bcols, br = Math.floor(i/bcols);
+        this.beds.push({ id:`${ward.id}-${i}`, ward:ward.id, wardDef:ward,
+          x:bSX+bc*(bw+6), y:bSY+br*(bh+6), w:bw, h:bh,
+          patient:null, dischargeAt:0, wrongFlash:0 });
+      }
+      return { ...ward, x:wx, y:wy, w:colW, h:rowH };
+    });
+  }
+
+  start() {
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('hud').style.display = 'block';
+    document.getElementById('gameover-overlay').classList.add('hidden');
+    const s = DIFF[this.diff];
+    this.score=0; this.admitted=0; this.discharged=0;
+    this.patients=[]; this.transitions=[]; this.selected=null;
+    this.ripples=[]; this.floats=[]; this.active=true;
+    this.buildLayout(); this.updateHUD();
+    clearInterval(this.spawnTimer); clearInterval(this.tickTimer);
+    this.spawnPatient();
+    this.spawnTimer = setInterval(() => { if(this.active) this.spawnPatient(); }, s.spawnMs);
+    this.tickTimer = setInterval(() => { if(this.active) this.tick(); }, 400);
+    if(this.animId) cancelAnimationFrame(this.animId);
+    this.lastTime = performance.now();
+    this.loop(this.lastTime);
+  }
+
+  restart() { this.start(); }
+
+  spawnPatient() {
+    const ward = WARDS[Math.floor(Math.random()*WARDS.length)];
+    const s = DIFF[this.diff];
+    this.patients.push({ id:'pt'+(++pidx), name:NAMES[Math.floor(Math.random()*NAMES.length)],
+      ward:ward.id, wardDef:ward, arrival:Date.now(), limit:s.timerMs });
+  }
+
+  onClick(e) {
+    const r = this.canvas.getBoundingClientRect();
+    this.handleClick((e.clientX-r.left)*(this.canvas.width/r.width),(e.clientY-r.top)*(this.canvas.height/r.height));
+  }
+
+  handleClick(cx, cy) {
+    if(!this.active) return;
+    this.ripples.push({x:cx,y:cy,t:0});
+    const {waitX,waitY,waitW,waitH} = this.layout;
+    // Patient click
+    if(cx>=waitX && cx<=waitX+waitW+14) {
+      const ptH=64, ptPad=5, sY=waitY+42;
+      for(let i=0;i<this.patients.length;i++) {
+        const py = sY+i*(ptH+ptPad);
+        if(cy>=py && cy<=py+ptH && py+ptH<=waitY+waitH-10) {
+          this.selected = this.patients[i].id; return;
+        }
+      }
+      this.selected = null; return;
+    }
+    // Bed click
+    if(this.selected) {
+      const pt = this.patients.find(p=>p.id===this.selected);
+      if(pt) {
+        for(const bed of this.beds) {
+          if(cx>=bed.x && cx<=bed.x+bed.w && cy>=bed.y && cy<=bed.y+bed.h) {
+            if(bed.patient) return;
+            if(bed.ward!==pt.ward) { bed.wrongFlash=700; return; }
+            this.assignPatient(pt, bed); return;
+          }
+        }
+      }
+    }
+  }
+
+  assignPatient(pt, bed) {
+    const idx = this.patients.indexOf(pt);
+    const ptH=64, ptPad=5, sY=this.layout.waitY+42;
+    const fromX = this.layout.waitX+this.layout.waitW/2;
+    const fromY = sY+idx*(ptH+ptPad)+ptH/2;
+    this.transitions.push({patient:{...pt}, x:fromX, y:fromY, tx:bed.x+bed.w/2, ty:bed.y+bed.h/2, progress:0});
+    bed.patient = pt; bed.dischargeAt = Date.now()+pt.wardDef.stayMs;
+    this.patients = this.patients.filter(p=>p.id!==pt.id);
+    this.selected = null; this.admitted++;
+    const pts = SCORE_MAP[pt.ward];
+    this.score += pts;
+    this.floats.push({text:'+'+pts, x:bed.x+bed.w/2, y:bed.y, color:pt.wardDef.color, t:0});
+    this.updateHUD();
+  }
+
+  tick() {
+    const now = Date.now();
+    for(let i=this.patients.length-1;i>=0;i--) {
+      if(now-this.patients[i].arrival>this.patients[i].limit) {
+        this.score=Math.max(0,this.score-20);
+        this.patients.splice(i,1); this.updateHUD();
+      }
+    }
+    for(const bed of this.beds) {
+      if(bed.patient && now>=bed.dischargeAt) {
+        this.discharged++; this.score+=Math.floor(SCORE_MAP[bed.patient.ward]*0.5);
+        this.floats.push({text:'✓ Discharged', x:bed.x+bed.w/2, y:bed.y, color:'#22c55e', t:0});
+        bed.patient=null; bed.dischargeAt=0; this.updateHUD();
+      }
+    }
+    const occ = this.beds.filter(b=>b.patient).length;
+    const total = this.beds.length;
+    const pct = (occ/total)*60+(this.patients.length/6)*40;
+    document.getElementById('capacity-bar').style.width=Math.min(100,pct)+'%';
+    if(occ>=total-1 && this.patients.length>=5) this.gameOver();
+  }
+
+  loop(ts) {
+    if(!this.active) return;
+    const dt = Math.min(ts-this.lastTime,50); this.lastTime=ts;
+    for(let i=this.transitions.length-1;i>=0;i--) {
+      const t=this.transitions[i]; t.progress+=dt/700;
+      t.x+=(t.tx-t.x)*0.13; t.y+=(t.ty-t.y)*0.13;
+      if(t.progress>=1) this.transitions.splice(i,1);
+    }
+    for(const r of this.ripples) r.t+=dt;
+    this.ripples=this.ripples.filter(r=>r.t<500);
+    for(const f of this.floats) f.t+=dt;
+    this.floats=this.floats.filter(f=>f.t<1200);
+    for(const bed of this.beds) if(bed.wrongFlash>0) bed.wrongFlash-=dt;
+    this.draw();
+    this.animId = requestAnimationFrame(ts2=>this.loop(ts2));
+  }
+
+  draw() {
+    const ctx=this.ctx;
+    ctx.clearRect(0,0,this.W,this.H);
+    ctx.fillStyle='#080d1e'; ctx.fillRect(0,0,this.W,this.H);
+    this.drawWaiting(ctx);
+    this.drawWards(ctx);
+    this.drawTransitions(ctx);
+    this.drawFloats(ctx);
+    this.drawRipples(ctx);
+  }
+
+  drawWaiting(ctx) {
+    const {waitX,waitY,waitW,waitH}=this.layout;
+    ctx.fillStyle='#0f1730';
+    ctx.beginPath(); ctx.roundRect(waitX,waitY,waitW,waitH,10); ctx.fill();
+    ctx.strokeStyle='rgba(96,165,250,0.15)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.roundRect(waitX,waitY,waitW,waitH,10); ctx.stroke();
+    // Header
+    ctx.fillStyle='rgba(96,165,250,0.1)';
+    ctx.beginPath(); ctx.roundRect(waitX+2,waitY+2,waitW-4,34,[8,8,0,0]); ctx.fill();
+    ctx.font='bold 11px Segoe UI'; ctx.fillStyle='#93c5fd';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('🏥 WAITING ROOM',waitX+waitW/2,waitY+19);
+    const ptH=64,ptPad=5,sY=waitY+42;
+    const now=Date.now();
+    for(let i=0;i<this.patients.length;i++) {
+      const p=this.patients[i], py=sY+i*(ptH+ptPad);
+      if(py+ptH>waitY+waitH-12) break;
+      const isSel=p.id===this.selected, wd=p.wardDef;
+      const tLeft=Math.max(0,1-(now-p.arrival)/p.limit);
+      ctx.fillStyle=wd.light;
+      ctx.beginPath(); ctx.roundRect(waitX+5,py,waitW-10,ptH,8); ctx.fill();
+      ctx.strokeStyle=isSel?'#fbbf24':wd.color; ctx.lineWidth=isSel?2.5:1.5;
+      if(isSel){ctx.shadowColor='#fbbf24';ctx.shadowBlur=10;}
+      ctx.beginPath(); ctx.roundRect(waitX+5,py,waitW-10,ptH,8); ctx.stroke();
+      ctx.shadowBlur=0;
+      ctx.font='22px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(wd.emoji,waitX+24,py+ptH/2-5);
+      ctx.font='bold 11px Segoe UI'; ctx.fillStyle='#eff6ff';
+      ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+      ctx.fillText(p.name,waitX+42,py+26);
+      ctx.font='10px Segoe UI'; ctx.fillStyle=wd.color;
+      ctx.fillText(wd.label,waitX+42,py+40);
+      const bY=py+ptH-9;
+      ctx.fillStyle='rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.roundRect(waitX+8,bY,waitW-16,5,3); ctx.fill();
+      ctx.fillStyle=tLeft>0.5?wd.color:tLeft>0.25?'#f59e0b':'#ef4444';
+      ctx.beginPath(); ctx.roundRect(waitX+8,bY,(waitW-16)*tLeft,5,3); ctx.fill();
+    }
+    if(this.patients.length>4){
+      ctx.fillStyle='rgba(239,68,68,0.15)';
+      ctx.beginPath(); ctx.roundRect(waitX+2,waitY+waitH-28,waitW-4,24,[0,0,8,8]); ctx.fill();
+      ctx.font='bold 10px Segoe UI'; ctx.fillStyle='#ef4444';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('⚠️ '+this.patients.length+' waiting',waitX+waitW/2,waitY+waitH-16);
+    }
+    ctx.strokeStyle='rgba(96,165,250,0.2)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(this.layout.waitX+this.layout.waitW+6,0); ctx.lineTo(this.layout.waitX+this.layout.waitW+6,this.H); ctx.stroke();
+  }
+
+  drawWards(ctx) {
+    const now=Date.now();
+    for(const wr of this.wardRects) {
+      ctx.fillStyle=wr.light;
+      ctx.beginPath(); ctx.roundRect(wr.x,wr.y,wr.w,wr.h,10); ctx.fill();
+      ctx.strokeStyle=wr.color+'55'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.roundRect(wr.x,wr.y,wr.w,wr.h,10); ctx.stroke();
+      ctx.fillStyle=wr.color+'28';
+      ctx.beginPath(); ctx.roundRect(wr.x+1,wr.y+1,wr.w-2,36,[9,9,0,0]); ctx.fill();
+      ctx.font='bold 12px Segoe UI'; ctx.fillStyle=wr.color;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(wr.emoji+' '+wr.label,wr.x+wr.w/2,wr.y+18);
+      for(const bed of this.beds.filter(b=>b.ward===wr.id)) this.drawBed(ctx,bed,wr,now);
+    }
+  }
+
+  drawBed(ctx,bed,wr,now) {
+    const selPt=this.selected?this.patients.find(p=>p.id===this.selected):null;
+    const matchSel=selPt&&selPt.ward===bed.ward&&!bed.patient;
+    ctx.save();
+    if(bed.wrongFlash>0) {
+      ctx.fillStyle='rgba(239,68,68,0.35)';
+      ctx.beginPath(); ctx.roundRect(bed.x-4,bed.y-4,bed.w+8,bed.h+8,10); ctx.fill();
+    }
+    if(!bed.patient) {
+      ctx.fillStyle=matchSel?wr.color+'28':'rgba(255,255,255,0.04)';
+      ctx.beginPath(); ctx.roundRect(bed.x,bed.y,bed.w,bed.h,7); ctx.fill();
+      if(matchSel) {
+        const p=Math.sin(performance.now()/200)*0.5+0.5;
+        ctx.shadowColor=wr.color; ctx.shadowBlur=8+p*10;
+        ctx.strokeStyle=wr.color; ctx.lineWidth=2.5;
+      } else { ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1; }
+      ctx.beginPath(); ctx.roundRect(bed.x,bed.y,bed.w,bed.h,7); ctx.stroke();
+      ctx.shadowBlur=0;
+      ctx.font=Math.min(20,bed.h*0.38)+'px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('🛌',bed.x+bed.w/2,bed.y+bed.h/2);
+    } else {
+      const p=bed.patient, tLeft=Math.max(0,(bed.dischargeAt-now)/p.wardDef.stayMs);
+      const wd=p.wardDef;
+      ctx.fillStyle=wd.color+'1e';
+      ctx.beginPath(); ctx.roundRect(bed.x,bed.y,bed.w,bed.h,7); ctx.fill();
+      ctx.strokeStyle=wd.color; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.roundRect(bed.x,bed.y,bed.w,bed.h,7); ctx.stroke();
+      ctx.font=Math.min(18,bed.h*0.35)+'px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(wd.emoji,bed.x+bed.w/2,bed.y+bed.h*0.38);
+      ctx.font='bold '+Math.min(10,bed.w*0.14)+'px Segoe UI'; ctx.fillStyle='#eff6ff';
+      ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+      ctx.fillText(p.name,bed.x+bed.w/2,bed.y+bed.h*0.8);
+      ctx.fillStyle='rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.roundRect(bed.x+4,bed.y+bed.h-7,bed.w-8,4,2); ctx.fill();
+      ctx.fillStyle=wd.color;
+      ctx.beginPath(); ctx.roundRect(bed.x+4,bed.y+bed.h-7,(bed.w-8)*(1-tLeft),4,2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  drawTransitions(ctx) {
+    for(const t of this.transitions) {
+      const wd=t.patient.wardDef;
+      ctx.save(); ctx.globalAlpha=Math.max(0,1-t.progress*1.4);
+      ctx.shadowColor=wd.color; ctx.shadowBlur=12;
+      ctx.fillStyle=wd.color+'80';
+      ctx.beginPath(); ctx.arc(t.x,t.y,15,0,Math.PI*2); ctx.fill();
+      ctx.shadowBlur=0;
+      ctx.font='16px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(wd.emoji,t.x,t.y); ctx.restore();
+    }
+  }
+
+  drawFloats(ctx) {
+    for(const f of this.floats) {
+      const a=Math.max(0,1-f.t/1200);
+      ctx.save(); ctx.globalAlpha=a;
+      ctx.font='bold 13px Segoe UI'; ctx.fillStyle=f.color;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(f.text,f.x,f.y-20-(f.t/1200)*30); ctx.restore();
+    }
+  }
+
+  drawRipples(ctx) {
+    for(const r of this.ripples) {
+      const rad=(r.t/500)*28, a=(1-r.t/500)*0.5;
+      ctx.save(); ctx.globalAlpha=a;
+      ctx.strokeStyle='#60a5fa'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(r.x,r.y,rad,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  updateHUD() {
+    document.getElementById('hud-score').textContent=this.score;
+    document.getElementById('hud-best').textContent=Math.max(this.score,this.highScore);
+    document.getElementById('hud-admitted').textContent=this.admitted;
+    document.getElementById('hud-discharged').textContent=this.discharged;
+  }
+
+  gameOver() {
+    this.active=false;
+    clearInterval(this.spawnTimer); clearInterval(this.tickTimer);
+    if(this.animId) cancelAnimationFrame(this.animId);
+    if(this.score>this.highScore){this.highScore=this.score;localStorage.setItem('roomRushHigh',this.highScore);}
+    document.getElementById('go-score').textContent=this.score;
+    document.getElementById('go-best').textContent=this.highScore;
+    document.getElementById('go-admitted').textContent=this.admitted;
+    document.getElementById('go-discharged').textContent=this.discharged;
+    document.getElementById('gameover-overlay').classList.remove('hidden');
+  }
+}
+
+const game = new RoomRush();
+</script>
+</body>
+</html>

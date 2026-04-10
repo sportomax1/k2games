@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Impulse Override – K2 Games</title>
+<style>
+:root {
+  --bg: #0f0a1e;
+  --surface: #1a1035;
+  --surface2: #221440;
+  --primary: #818cf8;
+  --accent: #f59e0b;
+  --text: #f8fafc;
+  --muted: #a5b4fc;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --border: rgba(129,140,248,0.2);
+  --glow: rgba(129,140,248,0.35);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+
+#home-btn{position:fixed;top:16px;left:16px;z-index:300;background:rgba(255,255,255,0.08);border:1px solid var(--border);color:var(--muted);text-decoration:none;padding:8px 16px;border-radius:10px;font-size:.85rem;font-weight:700;transition:.2s;}
+#home-btn:hover{background:rgba(255,255,255,0.15);color:var(--text);}
+
+/* START */
+#start-screen{position:fixed;inset:0;z-index:200;background:linear-gradient(160deg,#0f0a1e 0%,#1a1035 60%,#0f0a1e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;text-align:center;padding:2rem;}
+.start-title{font-size:clamp(2.2rem,7vw,3.8rem);font-weight:900;background:linear-gradient(135deg,#818cf8,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.start-sub{color:var(--muted);font-size:1rem;letter-spacing:2px;text-transform:uppercase;}
+.start-desc{max-width:480px;color:#c7d2fe;line-height:1.7;font-size:.95rem;}
+.how-to{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.2rem 2rem;max-width:480px;text-align:left;}
+.how-to h3{color:var(--primary);margin-bottom:.6rem;font-size:.9rem;text-transform:uppercase;letter-spacing:1px;}
+.how-to ul{list-style:none;display:flex;flex-direction:column;gap:.4rem;font-size:.88rem;color:var(--muted);}
+.how-to li::before{content:'▸ ';}
+.btn-play{padding:1rem 3rem;border-radius:50px;border:none;cursor:pointer;font-size:1.2rem;font-weight:900;background:linear-gradient(135deg,#818cf8,#6366f1);color:#fff;box-shadow:0 4px 24px var(--glow);transition:.3s;letter-spacing:1px;}
+.btn-play:hover{transform:scale(1.06);box-shadow:0 6px 32px var(--glow);}
+
+/* HUD */
+#hud{display:none;width:100%;padding:.5rem 1rem;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);}
+.hud-row{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;justify-content:center;}
+.stat-box{background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:10px;padding:.3rem .8rem;display:flex;flex-direction:column;align-items:center;min-width:72px;}
+.stat-label{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.stat-val{font-size:1.1rem;font-weight:800;color:var(--primary);}
+#impulse-wrap{flex:1;min-width:140px;}
+.meter-label{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;}
+#impulse-bar-bg{background:rgba(255,255,255,0.08);border-radius:6px;height:14px;overflow:hidden;border:1px solid var(--border);}
+#impulse-bar{height:100%;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);width:0%;transition:width .4s;border-radius:6px;}
+
+/* GAME CANVAS */
+#game-wrap{flex:1;position:relative;overflow:hidden;}
+#game-canvas{display:block;width:100%;height:100%;}
+
+/* EVENT CARD */
+#event-card{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);z-index:100;background:var(--surface2);border:2px solid var(--primary);border-radius:20px;padding:2rem;max-width:340px;width:90%;text-align:center;box-shadow:0 0 40px var(--glow);transition:transform .25s cubic-bezier(.34,1.56,.64,1);}
+#event-card.show{transform:translate(-50%,-50%) scale(1);}
+#event-icon{font-size:3rem;margin-bottom:.5rem;}
+#event-title{font-size:1.4rem;font-weight:900;color:var(--accent);margin-bottom:.4rem;}
+#event-desc{font-size:.9rem;color:var(--muted);line-height:1.6;margin-bottom:1.2rem;}
+.event-btns{display:flex;gap:.8rem;justify-content:center;}
+.btn-resist{padding:.8rem 1.8rem;border-radius:12px;border:none;cursor:pointer;font-size:1rem;font-weight:800;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;transition:.2s;}
+.btn-resist:hover{transform:scale(1.05);}
+.btn-givein{padding:.8rem 1.8rem;border-radius:12px;border:none;cursor:pointer;font-size:1rem;font-weight:800;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;transition:.2s;}
+.btn-givein:hover{transform:scale(1.05);}
+
+/* OVERLAY */
+.overlay{position:fixed;inset:0;z-index:150;background:rgba(15,10,30,0.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;text-align:center;padding:2rem;}
+.overlay.hidden{display:none;}
+.overlay h2{font-size:2.4rem;font-weight:900;}
+.score-big{font-size:3rem;font-weight:900;color:var(--primary);}
+.score-row{display:flex;gap:2rem;justify-content:center;}
+.score-item{display:flex;flex-direction:column;align-items:center;}
+.score-item span:first-child{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.score-item span:last-child{font-size:1.5rem;font-weight:800;color:var(--accent);}
+
+/* FLOAT TEXT */
+.float-text{position:absolute;font-size:1.3rem;font-weight:900;pointer-events:none;animation:floatUp 1.2s ease forwards;}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0);}100%{opacity:0;transform:translateY(-60px);}}
+</style>
+</head>
+<body>
+
+<a href="index.html" id="home-btn">← HUB</a>
+
+<!-- START -->
+<div id="start-screen">
+  <div class="start-title">🧠 Impulse Override</div>
+  <div class="start-sub">Mind Over Cart</div>
+  <div class="start-desc">Walk through the store and resist temptation. Every display, deal, and free sample pushes your Impulse Meter higher. Stay disciplined, stick to the list, and save your budget before the cart overflows!</div>
+  <div class="how-to">
+    <h3>How to Play</h3>
+    <ul>
+      <li>Move right with Arrow Right / D / tap right side</li>
+      <li>Events pop up — choose Resist ✅ or Give In ❌</li>
+      <li>Resist = earn discipline points, keep meter low</li>
+      <li>Give In = fills impulse meter, wastes budget</li>
+      <li>Impulse meter at 100% = cart overflow = Game Over</li>
+    </ul>
+  </div>
+  <button class="btn-play" id="btn-start">Enter Store</button>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-row">
+    <div class="stat-box"><span class="stat-label">Score</span><span class="stat-val" id="hud-score">0</span></div>
+    <div class="stat-box"><span class="stat-label">Best</span><span class="stat-val" id="hud-best">0</span></div>
+    <div class="stat-box"><span class="stat-label">Budget</span><span class="stat-val" id="hud-budget">$50</span></div>
+    <div class="stat-box"><span class="stat-label">Aisle</span><span class="stat-val" id="hud-aisle">1</span></div>
+    <div id="impulse-wrap">
+      <div class="meter-label">Impulse Meter</div>
+      <div id="impulse-bar-bg"><div id="impulse-bar"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="game-wrap">
+  <canvas id="game-canvas"></canvas>
+  <!-- Event Card -->
+  <div id="event-card">
+    <div id="event-icon">🍕</div>
+    <div id="event-title">Free Sample!</div>
+    <div id="event-desc">A cheerful vendor hands you a bite. Just one couldn't hurt... right?</div>
+    <div class="event-btns">
+      <button class="btn-resist" id="btn-resist">✅ Resist</button>
+      <button class="btn-givein" id="btn-givein">❌ Give In</button>
+    </div>
+  </div>
+</div>
+
+<!-- GAME OVER -->
+<div id="gameover-overlay" class="overlay hidden">
+  <h2 id="go-title" style="color:var(--danger)">🛒 Cart Overflow!</h2>
+  <div class="score-big" id="go-score">0</div>
+  <div class="score-row">
+    <div class="score-item"><span>Best</span><span id="go-best">0</span></div>
+    <div class="score-item"><span>Resists</span><span id="go-resists">0</span></div>
+    <div class="score-item"><span>Budget Left</span><span id="go-budget">$50</span></div>
+  </div>
+  <button class="btn-play" onclick="game.restart()">Try Again</button>
+  <a href="index.html" style="color:var(--muted);text-decoration:none;font-size:.9rem;">← Back to Hub</a>
+</div>
+
+<script>
+const EVENTS = [
+  { icon:'🍕', title:'Free Pizza Sample', desc:'A cheerful vendor offers you a slice. Nothing is ever truly free...', resistPts:15, givePts:5, impulse:18, cost:8 },
+  { icon:'🍫', title:'BOGO Chocolate', desc:'"Buy One Get One Free!" screams the sign. You only needed milk.', resistPts:20, givePts:3, impulse:22, cost:12 },
+  { icon:'🛍️', title:'Off-List Snack', desc:'Those chips are calling your name. They\'re not on the list, but...', resistPts:12, givePts:6, impulse:15, cost:6 },
+  { icon:'🎰', title:'Loyalty Spin', desc:'Spin the wheel! Win a free product! (Must spend $20 to enter)', resistPts:18, givePts:4, impulse:20, cost:20 },
+  { icon:'⭐', title:'Premium Brand Display', desc:'The fancy version is right there. Only $4 more than the generic.', resistPts:10, givePts:8, impulse:12, cost:4 },
+  { icon:'🍷', title:'Wine Tasting', desc:'A sommelier catches your eye. "Just a sip, on us!"', resistPts:14, givePts:10, impulse:16, cost:15 },
+  { icon:'📦', title:'Bulk Deal', desc:'"Buy 6, save 10%!" You only needed 1 of these.', resistPts:16, givePts:5, impulse:19, cost:18 },
+  { icon:'🧴', title:'New Product Launch', desc:'This shiny thing promises to change your life. It probably won\'t.', resistPts:22, givePts:2, impulse:25, cost:25 },
+  { icon:'🥐', title:'Fresh Bakery Aroma', desc:'The bakery pumps warm croissant smell into the aisle. Devious.', resistPts:12, givePts:12, impulse:14, cost:5 },
+  { icon:'🏷️', title:'Flash Sale — 1 Hour Left!', desc:'40% off! But you don\'t need it. Timer ticking...', resistPts:25, givePts:2, impulse:28, cost:30 },
+];
+
+const SHELF_COLORS = ['#1e1040','#1a0a30','#1c0e3a','#130d2e','#18103a'];
+const FLOOR_COLOR = '#13082a';
+const ITEM_EMOJIS = ['🥫','🧃','🍞','🧄','🥕','🫙','🥓','🧀','🥑','🍋','🍎','🌽'];
+
+class ImpulseOverride {
+  constructor() {
+    this.canvas = document.getElementById('game-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.highScore = parseInt(localStorage.getItem('impulseOverrideHigh') || '0');
+    this.score = 0;
+    this.impulse = 0;
+    this.budget = 50;
+    this.resists = 0;
+    this.aisle = 1;
+    this.active = false;
+    this.eventActive = false;
+    this.currentEvent = null;
+    this.scrollX = 0;
+    this.playerX = 80;
+    this.playerY = 0;
+    this.nextEventX = 400 + Math.random() * 200;
+    this.distanceTraveled = 0;
+    this.keys = { right: false, left: false };
+    this.shelfItems = this.generateShelfItems(0, 6000);
+    this.floatTexts = [];
+    this.animId = null;
+    this.lastTime = 0;
+
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    window.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight' || e.key === 'd') this.keys.right = true;
+      if (e.key === 'ArrowLeft' || e.key === 'a') this.keys.left = true;
+    });
+    window.addEventListener('keyup', e => {
+      if (e.key === 'ArrowRight' || e.key === 'd') this.keys.right = false;
+      if (e.key === 'ArrowLeft' || e.key === 'a') this.keys.left = false;
+    });
+
+    let touchStartX = 0;
+    this.canvas.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, {passive:true});
+    this.canvas.addEventListener('touchmove', e => {
+      const dx = e.touches[0].clientX - touchStartX;
+      this.keys.right = dx > 20;
+      this.keys.left = dx < -20;
+    }, {passive:true});
+    this.canvas.addEventListener('touchend', () => { this.keys.right = false; this.keys.left = false; });
+
+    document.getElementById('btn-start').addEventListener('click', () => this.start());
+    document.getElementById('btn-resist').addEventListener('click', () => this.resolveEvent(true));
+    document.getElementById('btn-givein').addEventListener('click', () => this.resolveEvent(false));
+  }
+
+  resize() {
+    const wrap = document.getElementById('game-wrap');
+    this.canvas.width = wrap.clientWidth;
+    this.canvas.height = wrap.clientHeight;
+    this.W = this.canvas.width;
+    this.H = this.canvas.height;
+    this.playerY = this.H * 0.6;
+  }
+
+  generateShelfItems(startX, endX) {
+    const items = [];
+    for (let x = startX; x < endX; x += 55 + Math.random() * 30) {
+      items.push({
+        x,
+        yRow: Math.random() < 0.5 ? 0 : 1,
+        emoji: ITEM_EMOJIS[Math.floor(Math.random() * ITEM_EMOJIS.length)],
+        scale: 0.8 + Math.random() * 0.4,
+      });
+    }
+    return items;
+  }
+
+  start() {
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('hud').style.display = 'block';
+    document.getElementById('gameover-overlay').classList.add('hidden');
+    this.score = 0; this.impulse = 0; this.budget = 50;
+    this.resists = 0; this.aisle = 1;
+    this.scrollX = 0; this.distanceTraveled = 0;
+    this.nextEventX = 400 + Math.random() * 200;
+    this.shelfItems = this.generateShelfItems(0, 8000);
+    this.floatTexts = [];
+    this.eventActive = false;
+    this.active = true;
+    document.getElementById('event-card').classList.remove('show');
+    this.updateHUD();
+    if (this.animId) cancelAnimationFrame(this.animId);
+    this.lastTime = performance.now();
+    this.loop(this.lastTime);
+  }
+
+  restart() { this.start(); }
+
+  triggerEvent() {
+    this.eventActive = true;
+    this.keys.right = false; this.keys.left = false;
+    this.currentEvent = EVENTS[Math.floor(Math.random() * EVENTS.length)];
+    const ev = this.currentEvent;
+    document.getElementById('event-icon').textContent = ev.icon;
+    document.getElementById('event-title').textContent = ev.title;
+    document.getElementById('event-desc').textContent = ev.desc;
+    const card = document.getElementById('event-card');
+    card.classList.add('show');
+  }
+
+  resolveEvent(resist) {
+    document.getElementById('event-card').classList.remove('show');
+    const ev = this.currentEvent;
+    if (resist) {
+      const pts = ev.resistPts;
+      this.score += pts;
+      this.resists++;
+      this.impulse = Math.max(0, this.impulse - 5);
+      this.showFloat('+' + pts + ' pts', '#22c55e', this.W/2, this.H * 0.45);
+      this.showFloat('✅ Disciplined!', '#a5b4fc', this.W/2, this.H * 0.38);
+    } else {
+      this.score += ev.givePts;
+      this.impulse = Math.min(100, this.impulse + ev.impulse);
+      this.budget -= ev.cost;
+      this.showFloat('-$' + ev.cost, '#ef4444', this.W/2, this.H * 0.45);
+      this.showFloat('❌ Impulse!' , '#f59e0b', this.W/2, this.H * 0.38);
+      if (this.impulse >= 100) {
+        setTimeout(() => this.gameOver(), 400);
+        return;
+      }
+    }
+    this.nextEventX = this.distanceTraveled + 350 + Math.random() * 250;
+    this.eventActive = false;
+    this.updateHUD();
+    this.aisle = Math.floor(this.distanceTraveled / 600) + 1;
+  }
+
+  showFloat(text, color, x, y) {
+    const el = document.createElement('div');
+    el.className = 'float-text';
+    el.textContent = text;
+    el.style.cssText = `left:${x}px;top:${y}px;color:${color};transform:translateX(-50%);`;
+    document.getElementById('game-wrap').appendChild(el);
+    setTimeout(() => el.remove(), 1200);
+  }
+
+  updateHUD() {
+    document.getElementById('hud-score').textContent = this.score;
+    document.getElementById('hud-best').textContent = Math.max(this.score, this.highScore);
+    document.getElementById('hud-budget').textContent = '$' + Math.max(0, this.budget);
+    document.getElementById('hud-aisle').textContent = this.aisle;
+    document.getElementById('impulse-bar').style.width = this.impulse + '%';
+  }
+
+  loop(ts) {
+    if (!this.active) return;
+    const dt = Math.min(ts - this.lastTime, 50);
+    this.lastTime = ts;
+
+    if (!this.eventActive) {
+      const speed = 2.5 * (dt / 16.67);
+      if (this.keys.right) {
+        this.scrollX += speed;
+        this.distanceTraveled += speed;
+        this.score += 0.05;
+        this.impulse = Math.max(0, this.impulse - 0.01 * (dt / 16.67));
+      }
+      if (this.keys.left) {
+        this.scrollX = Math.max(0, this.scrollX - speed * 0.6);
+      }
+      if (this.distanceTraveled >= this.nextEventX) {
+        this.triggerEvent();
+      }
+    }
+
+    this.draw();
+    this.aisle = Math.floor(this.distanceTraveled / 600) + 1;
+    this.updateHUD();
+    this.animId = requestAnimationFrame(ts2 => this.loop(ts2));
+  }
+
+  draw() {
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, this.W, this.H);
+
+    // Floor
+    ctx.fillStyle = FLOOR_COLOR;
+    ctx.fillRect(0, 0, this.W, this.H);
+
+    // Floor tiles
+    const tileSize = 60;
+    for (let x = -(this.scrollX % tileSize); x < this.W; x += tileSize) {
+      for (let y = 0; y < this.H; y += tileSize) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, tileSize, tileSize);
+      }
+    }
+
+    const shelfH = this.H * 0.38;
+    const shelfTopY = this.H * 0.08;
+    const shelfBotY = this.H * 0.5;
+
+    // Draw shelves (top and bottom)
+    for (const side of ['top', 'bottom']) {
+      const sy = side === 'top' ? shelfTopY : shelfBotY;
+      const sh = shelfH;
+      const colorIdx = (Math.floor(this.scrollX / 300) + (side === 'top' ? 0 : 2)) % SHELF_COLORS.length;
+      ctx.fillStyle = SHELF_COLORS[colorIdx];
+      ctx.fillRect(0, sy, this.W, sh);
+      ctx.strokeStyle = 'rgba(129,140,248,0.15)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0, sy, this.W, sh);
+
+      // Shelf planks
+      for (let p = 0; p < 3; p++) {
+        const py = sy + (sh / 3) * p;
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillRect(0, py, this.W, 4);
+      }
+
+      // Shelf items
+      for (const item of this.shelfItems) {
+        const sx = item.x - this.scrollX;
+        if (sx < -60 || sx > this.W + 60) continue;
+        const rowY = side === 'top'
+          ? sy + (item.yRow === 0 ? sh * 0.25 : sh * 0.62)
+          : sy + (item.yRow === 0 ? sh * 0.25 : sh * 0.62);
+        ctx.font = `${Math.floor(22 * item.scale)}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(item.emoji, sx, rowY);
+      }
+    }
+
+    // Walking aisle (middle)
+    const aisleY = shelfTopY + shelfH;
+    const aisleH = shelfBotY - aisleY;
+    ctx.fillStyle = '#1a0e38';
+    ctx.fillRect(0, aisleY, this.W, aisleH);
+    // Aisle center line
+    ctx.setLineDash([20, 15]);
+    ctx.strokeStyle = 'rgba(129,140,248,0.2)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, aisleY + aisleH / 2);
+    ctx.lineTo(this.W, aisleY + aisleH / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Player
+    const pX = this.playerX;
+    const pY = aisleY + aisleH / 2;
+    const moving = this.keys.right || this.keys.left;
+    ctx.save();
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(pX, pY + 22, 18, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Body
+    ctx.fillStyle = '#6366f1';
+    ctx.beginPath();
+    ctx.roundRect(pX - 14, pY - 18, 28, 36, 6);
+    ctx.fill();
+    // Head
+    ctx.fillStyle = '#fde68a';
+    ctx.beginPath();
+    ctx.arc(pX, pY - 26, 14, 0, Math.PI * 2);
+    ctx.fill();
+    // Cart
+    ctx.font = '1.4rem serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🛒', pX + 22, pY + 10);
+    // Walking animation
+    if (moving) {
+      const t = performance.now() / 180;
+      ctx.fillStyle = '#818cf8';
+      ctx.beginPath();
+      ctx.ellipse(pX - 6 + Math.sin(t) * 6, pY + 22, 5, 10, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(pX + 6 + Math.sin(t + Math.PI) * 6, pY + 22, 5, 10, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Upcoming event indicator
+    const distToEvent = this.nextEventX - this.distanceTraveled;
+    if (!this.eventActive && distToEvent < 300) {
+      const alpha = 1 - distToEvent / 300;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.font = 'bold 13px Segoe UI';
+      ctx.fillStyle = '#f59e0b';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚠️ Event ahead!', this.W / 2, aisleY - 12);
+      ctx.restore();
+    }
+
+    // Distance indicator
+    ctx.font = 'bold 11px Segoe UI';
+    ctx.fillStyle = 'rgba(165,180,252,0.5)';
+    ctx.textAlign = 'right';
+    ctx.fillText('MOVE → to walk', this.W - 12, this.H - 10);
+  }
+
+  gameOver() {
+    this.active = false;
+    if (this.score > this.highScore) {
+      this.highScore = Math.floor(this.score);
+      localStorage.setItem('impulseOverrideHigh', this.highScore);
+    }
+    document.getElementById('go-title').textContent = this.impulse >= 100 ? '🛒 Cart Overflow!' : '🏪 Shopping Done!';
+    document.getElementById('go-score').textContent = Math.floor(this.score);
+    document.getElementById('go-best').textContent = this.highScore;
+    document.getElementById('go-resists').textContent = this.resists;
+    document.getElementById('go-budget').textContent = '$' + Math.max(0, this.budget);
+    document.getElementById('gameover-overlay').classList.remove('hidden');
+  }
+}
+
+const game = new ImpulseOverride();
+</script>
+</body>
+</html>
