@@ -28,6 +28,14 @@ canvas{display:block;cursor:crosshair;}
 .go-lbl{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
 #mode-btns{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center;}
 </style>
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CCZ9JJGEDP"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-CCZ9JJGEDP');
+    </script>
 </head>
 <body>
 <a href="index.html" id="back">← Back</a>
@@ -44,12 +52,12 @@ canvas{display:block;cursor:crosshair;}
 </div>
 <div class="screen" id="start-screen">
   <h1>🏀 Half Court Hoops</h1>
-  <p>Move to position, hold to charge power, release to shoot! Chain swishes for epic streaks.</p>
+  <p>Tap &amp; drag UP to aim — drag left/right for lateral control. Release to shoot! Chain swishes for epic streaks.</p>
   <div id="mode-btns">
     <button class="btn" onclick="startGame(60)">⏱ 60s Classic</button>
     <button class="btn" style="background:linear-gradient(135deg,#7c3aed,#4f46e5)" onclick="startGame(0)">♾ Free Shoot</button>
   </div>
-  <p style="font-size:.75rem">Mouse/Touch to aim · Hold &amp; release to shoot · 3-pt arc bonus</p>
+  <p style="font-size:.75rem">Tap &amp; drag UP = power · Drag left/right = direction · Release to shoot</p>
 </div>
 <div class="screen" id="gameover-screen" style="display:none">
   <h1>Game Over!</h1>
@@ -77,21 +85,23 @@ resize();window.addEventListener('resize',resize);
 let score=0,shotsTaken=0,shotsMade=0,swishes=0,threesMade=0;
 let streak=0,bestStreak=0;
 let gameActive=false,timedMode=false,timeLeft=60,lastMode=60;
-let charging=false,chargeStart=0;const chargeMax=900;
+let shootState='idle',dragOrigin=null,aimPower=0,aimLateral=0;
 let ball=null,particles=[],floats=[],rimShakes=[];
-let playerCX=0,playerCD=0.55,aimX=0,aimY=0;
+let playerCX=0,playerCD=0.55;
 let tickTimer=null;
 
 // ── Projection ──
 let VP={};
 function computeVP(){
-  VP={horizon:H*0.37,floorY:H*0.93,vpX:W*0.5,focalLen:H*0.9};
+  VP={horizon:H*0.30,floorY:H*0.95,vpX:W*0.5,focalLen:H*0.85};
 }
 function project(cx,cd,ch){
   computeVP();
-  const scale=VP.focalLen/(VP.focalLen+cd*VP.focalLen*1.8);
-  const baseY=VP.floorY-(VP.floorY-VP.horizon)*(1-(1-cd*0.75));
-  return{sx:VP.vpX+cx*W*0.48*scale,sy:baseY-ch*H*0.52*scale,scale};
+  // cd=0 is near (player end), cd≈0.88 is basket end, cd=1 is baseline behind basket
+  const depth=0.12+cd*0.88;           // remap so near side doesn't collapse
+  const scale=VP.focalLen/(VP.focalLen+depth*VP.focalLen*1.55);
+  const baseY=VP.horizon+(VP.floorY-VP.horizon)*Math.pow(cd,0.72);
+  return{sx:VP.vpX+cx*W*0.44*scale, sy:baseY-ch*H*0.48*scale, scale};
 }
 function screenToCourt(sx,sy){
   computeVP();
@@ -125,97 +135,207 @@ function evalArc(a,t){
          cH:u*u*a.fromH+2*u*t*a.peakH+t*t*a.toH};
 }
 
-// ── Shot result ──
-function evalShot(cx,cd,power){
-  const zone=getZone(cx,cd);
-  const rand=Math.random();
-  const sweet=power>=0.58&&power<=0.84;
-  const ok=power>=0.46&&power<=0.90;
-  if(sweet&&rand>0.08)return{result:rand>0.45?'swish':'make',pts:zone.pts};
-  if(ok&&rand>0.38)return{result:'make',pts:zone.pts};
-  if(rand>0.55)return{result:'rim',pts:0};
+// ── Aim arc (drag-based, deterministic) ──
+const PERFECT_POWER=0.55;
+function getAimArc(){
+  const depthFactor=(aimPower-PERFECT_POWER)*0.52;
+  const toCX=HOOP_CX+aimLateral*0.30;
+  const toCD=Math.max(0.28,Math.min(1.06,HOOP_CD+depthFactor));
+  const peakH=Math.max(HOOP_H,0.5)+1.5+aimPower*2.4;
+  return{fromCX:playerCX,fromCD:playerCD,fromH:0.15,
+         toCX,toCD,toH:HOOP_H,peakH,_toCX:toCX,_toCD:toCD};
+}
+function getAimQuality(toCX,toCD){
+  const latQ=Math.max(0,1-Math.abs(toCX-HOOP_CX)/0.07);
+  const dptQ=Math.max(0,1-Math.abs(toCD-HOOP_CD)/0.22);
+  return latQ*dptQ;
+}
+function checkShotResult(toCX,toCD){
+  const zone=getZone(playerCX,playerCD);
+  const latErr=Math.abs(toCX-HOOP_CX);
+  const dptErr=Math.abs(toCD-HOOP_CD);
+  if(latErr<0.020&&dptErr<0.044)return{result:'swish',pts:zone.pts};
+  if(latErr<0.038&&dptErr<0.100)return{result:'make', pts:zone.pts};
+  if(latErr<0.065&&dptErr<0.190)return{result:'rim',  pts:0};
   return{result:'miss',pts:0};
 }
 
 // ── Draw Court ──
 function drawCourt(){
   computeVP();
-  // Sky
+
+  // ── Background / arena ──
   const sky=ctx.createLinearGradient(0,0,0,VP.horizon);
-  sky.addColorStop(0,'#050a14');sky.addColorStop(1,'#0f1e3a');
+  sky.addColorStop(0,'#04080f');sky.addColorStop(1,'#0a1628');
   ctx.fillStyle=sky;ctx.fillRect(0,0,W,VP.horizon);
 
-  // Floor
-  const flr=ctx.createLinearGradient(0,VP.horizon,0,VP.floorY+30);
-  flr.addColorStop(0,'#3d1f0a');flr.addColorStop(0.5,'#8b4513');flr.addColorStop(1,'#a0522d');
+  // Arena wall behind basket
+  ctx.fillStyle='#0d1f3c';
+  ctx.fillRect(0,VP.horizon-60,W,80);
+
+  // Scoreboard / jumbotron on back wall
+  const jW=W*0.28,jH=H*0.12;
+  const jX=W*0.5-jW*0.5,jY=VP.horizon-55;
+  ctx.save();
+  ctx.fillStyle='#0f0f0f';ctx.strokeStyle='#facc15';ctx.lineWidth=2;
+  ctx.roundRect(jX,jY,jW,jH,6);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#facc15';ctx.font=`bold ${Math.max(11,H*0.018)}px monospace`;
+  ctx.textAlign='center';ctx.fillText('K2 ARENA',W*0.5,jY+jH*0.45);
+  ctx.fillStyle='rgba(255,200,50,0.5)';ctx.font=`${Math.max(9,H*0.013)}px monospace`;
+  ctx.fillText('HALF-COURT HOOPS',W*0.5,jY+jH*0.78);
+  ctx.restore();
+
+  // Crowd row
+  ctx.save();
+  const crowdGrad=ctx.createLinearGradient(0,VP.horizon-30,0,VP.horizon+15);
+  crowdGrad.addColorStop(0,'rgba(20,40,90,0)');crowdGrad.addColorStop(1,'rgba(10,25,60,0.9)');
+  ctx.fillStyle=crowdGrad;ctx.fillRect(0,VP.horizon-30,W,55);
+  const crowdColors=['#3b82f6','#ef4444','#22c55e','#facc15','#a78bfa','#f97316','#fff'];
+  for(let i=0;i<180;i++){
+    const cx_=((i*137.5)%W),cy_=VP.horizon-18+Math.sin(i*1.9)*8;
+    ctx.globalAlpha=0.45+Math.sin(i*0.7)*0.2;
+    ctx.fillStyle=crowdColors[i%crowdColors.length];
+    // head
+    ctx.beginPath();ctx.arc(cx_,cy_,4+Math.sin(i*2)*1.5,0,Math.PI*2);ctx.fill();
+    // body stump
+    ctx.fillRect(cx_-3,cy_+3,6,6);
+  }
+  ctx.globalAlpha=1;
+  ctx.restore();
+
+  // Arena spotlights
+  ctx.save();
+  for(let i=0;i<4;i++){
+    const lx=W*(0.15+i*0.23);const ly=VP.horizon-10;
+    const lg=ctx.createRadialGradient(lx,ly,1,lx,VP.floorY*0.7,H*0.55);
+    lg.addColorStop(0,'rgba(255,240,180,0.08)');lg.addColorStop(1,'rgba(255,240,180,0)');
+    ctx.fillStyle=lg;ctx.beginPath();ctx.arc(lx,VP.floorY*0.5,H*0.5,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+
+  // ── Floor ──
+  const flr=ctx.createLinearGradient(0,VP.horizon,0,VP.floorY+40);
+  flr.addColorStop(0,'#5c2d0a');flr.addColorStop(0.4,'#8b4513');flr.addColorStop(0.8,'#a0522d');flr.addColorStop(1,'#7a3a0d');
   ctx.fillStyle=flr;
   ctx.beginPath();ctx.moveTo(0,VP.horizon);ctx.lineTo(W,VP.horizon);
-  ctx.lineTo(W,VP.floorY+30);ctx.lineTo(0,VP.floorY+30);ctx.fill();
+  ctx.lineTo(W,VP.floorY+40);ctx.lineTo(0,VP.floorY+40);ctx.closePath();ctx.fill();
 
-  // Wood grain
-  ctx.save();ctx.globalAlpha=0.1;
-  for(let d=0.05;d<1;d+=0.045){
-    const l=project(-1.3,d,0),r=project(1.3,d,0);
+  // Wood planks (perspective lines converging to VP)
+  ctx.save();ctx.globalAlpha=0.07;
+  for(let x=-28;x<=28;x+=2){
+    const near=project(x*0.065,0.02,0),far=project(x*0.065,1,0);
     ctx.strokeStyle='#fff';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(near.sx,near.sy);ctx.lineTo(far.sx,far.sy);ctx.stroke();
+  }
+  ctx.restore();
+  // Horizontal grain lines
+  ctx.save();ctx.globalAlpha=0.06;
+  for(let d=0.04;d<1;d+=0.04){
+    const l=project(-1.4,d,0),r=project(1.4,d,0);
+    ctx.strokeStyle='#fff';ctx.lineWidth=0.8;
     ctx.beginPath();ctx.moveTo(l.sx,l.sy);ctx.lineTo(r.sx,r.sy);ctx.stroke();
   }
   ctx.restore();
 
-  // Crowd
-  const crowd=ctx.createLinearGradient(0,VP.horizon-40,0,VP.horizon+20);
-  crowd.addColorStop(0,'rgba(30,50,90,0)');crowd.addColorStop(0.3,'rgba(40,60,120,0.5)');crowd.addColorStop(1,'rgba(20,40,80,0.8)');
-  ctx.fillStyle=crowd;ctx.fillRect(0,VP.horizon-40,W,80);
-  // crowd dots
-  ctx.save();
-  for(let i=0;i<120;i++){
-    const cx_=Math.random()*W,cy_=VP.horizon-5+Math.sin(i*1.7)*12;
-    const hue=200+Math.sin(i*0.3)*50;
-    ctx.globalAlpha=0.4+Math.sin(i)*0.2;
-    ctx.fillStyle=`hsl(${hue},50%,55%)`;
-    ctx.beginPath();ctx.arc(cx_,cy_,3+Math.sin(i*2)*1.5,0,Math.PI*2);ctx.fill();
-  }
-  ctx.restore();
-
-  // Court lines
-  function courtLine(cx1,cd1,cx2,cd2,color='rgba(255,255,255,0.55)',lw=2){
+  // ── Court line helper ──
+  function cline(cx1,cd1,cx2,cd2,col='rgba(255,255,255,0.7)',lw=2){
     const a=project(cx1,cd1,0),b=project(cx2,cd2,0);
-    ctx.strokeStyle=color;ctx.lineWidth=lw;
+    ctx.strokeStyle=col;ctx.lineWidth=lw;
     ctx.beginPath();ctx.moveTo(a.sx,a.sy);ctx.lineTo(b.sx,b.sy);ctx.stroke();
   }
 
-  // Baseline
-  courtLine(-1,1,1,1,'rgba(255,255,255,0.6)',2);
-  // Sidelines
-  courtLine(-1,0,-1,1,'rgba(255,255,255,0.5)',2);
-  courtLine(1,0,1,1,'rgba(255,255,255,0.5)',2);
-  // Midline
-  courtLine(-1,0,1,0,'rgba(255,255,255,0.3)',1.5);
-
-  // Paint
-  const pw=0.18;
-  courtLine(-pw,HOOP_CD-0.06,-pw,1,'rgba(255,255,255,0.4)',1.5);
-  courtLine(pw,HOOP_CD-0.06,pw,1,'rgba(255,255,255,0.4)',1.5);
-  courtLine(-pw,HOOP_CD-0.06,pw,HOOP_CD-0.06,'rgba(255,255,255,0.4)',1.5);
-
-  // Free throw line
-  courtLine(-pw,HOOP_CD-0.3,pw,HOOP_CD-0.3,'rgba(255,255,255,0.35)',1.5);
-
-  // 3-point arc
+  // ── Paint / key box ──
+  // regulation: key is ~1.8m wide total on each side, free-throw line ~4.6m from basket
+  const pw=0.22;   // half-width of key in court units
+  const ftD=HOOP_CD-0.32; // free throw line depth
+  const baseD=HOOP_CD+0.04; // baseline just past basket
+  // Paint fill
   ctx.save();
-  ctx.strokeStyle='rgba(255,200,50,0.5)';ctx.lineWidth=2.5;
+  const p0=project(-pw,baseD,0),p1=project(pw,baseD,0),
+        p2=project(pw,ftD,0),  p3=project(-pw,ftD,0);
+  ctx.fillStyle='rgba(200,50,30,0.22)';
+  ctx.beginPath();ctx.moveTo(p0.sx,p0.sy);ctx.lineTo(p1.sx,p1.sy);
+  ctx.lineTo(p2.sx,p2.sy);ctx.lineTo(p3.sx,p3.sy);ctx.closePath();ctx.fill();
+  ctx.restore();
+  // Paint border lines
+  cline(-pw,baseD,-pw,ftD);cline(pw,baseD,pw,ftD);
+  cline(-pw,ftD,pw,ftD);  // free throw line
+  cline(-pw,baseD,pw,baseD,'rgba(255,255,255,0.5)',1.5); // baseline
+
+  // Free throw circle (top half only, above FT line = closer to us)
+  ctx.save();ctx.strokeStyle='rgba(255,255,255,0.55)';ctx.lineWidth=2;
   ctx.beginPath();
-  for(let i=0;i<=40;i++){
-    const ang=(i/40)*Math.PI;
-    const r=0.43;
-    const p=project(HOOP_CX+Math.cos(ang)*r,Math.max(0.01,HOOP_CD-Math.sin(ang)*r),0);
+  const ftCir=16;
+  for(let i=0;i<=ftCir;i++){
+    const ang=(i/ftCir)*Math.PI; // top half
+    const r=pw*0.92;
+    const p=project(HOOP_CX+Math.cos(ang)*r,ftD-Math.sin(ang)*r*0.6,0);
+    i===0?ctx.moveTo(p.sx,p.sy):ctx.lineTo(p.sx,p.sy);
+  }
+  ctx.stroke();
+  // Bottom dashed half (away from player = deeper)
+  ctx.setLineDash([8,8]);
+  ctx.beginPath();
+  for(let i=0;i<=ftCir;i++){
+    const ang=Math.PI+(i/ftCir)*Math.PI;
+    const r=pw*0.92;
+    const p=project(HOOP_CX+Math.cos(ang)*r,ftD-Math.sin(ang)*r*0.6,0);
+    i===0?ctx.moveTo(p.sx,p.sy):ctx.lineTo(p.sx,p.sy);
+  }
+  ctx.stroke();ctx.setLineDash([]);ctx.restore();
+
+  // Restricted arc (small under basket)
+  ctx.save();ctx.strokeStyle='rgba(255,255,255,0.45)';ctx.lineWidth=1.5;
+  ctx.beginPath();
+  for(let i=0;i<=20;i++){
+    const ang=(i/20)*Math.PI;
+    const r=0.075;
+    const p=project(HOOP_CX+Math.cos(ang)*r,HOOP_CD+Math.sin(ang)*r*0.5,0);
     i===0?ctx.moveTo(p.sx,p.sy):ctx.lineTo(p.sx,p.sy);
   }
   ctx.stroke();ctx.restore();
 
-  // Center ring
-  ctx.save();ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.lineWidth=1.5;
+  // Sidelines
+  cline(-1,0.02,-1,baseD,'rgba(255,255,255,0.55)',2);
+  cline(1,0.02,1,baseD,'rgba(255,255,255,0.55)',2);
+
+  // Midcourt line
+  cline(-1,0.02,1,0.02,'rgba(255,255,255,0.35)',1.5);
+
+  // ── 3-point arc ──
+  // NBA: 6.75m radius from basket; short corners are straight lines
+  const r3=0.44, cornerD=HOOP_CD-0.015; // depth where corner 3-pt lines end
+  // Corner straight lines
+  cline(-r3,baseD,-r3,cornerD,'rgba(255,210,40,0.7)',2.5);
+  cline(r3,baseD,r3,cornerD,'rgba(255,210,40,0.7)',2.5);
+  // Arc (semicircle)
+  ctx.save();ctx.strokeStyle='rgba(255,210,40,0.7)';ctx.lineWidth=2.5;
   ctx.beginPath();
-  for(let i=0;i<=36;i++){const a=(i/36)*Math.PI*2,p=project(Math.cos(a)*0.1,0.02,0);i===0?ctx.moveTo(p.sx,p.sy):ctx.lineTo(p.sx,p.sy);}
+  const arcSpts=48;
+  for(let i=0;i<=arcSpts;i++){
+    const ang=(i/arcSpts)*Math.PI; // 0=right corner, PI=left corner
+    const px=HOOP_CX+Math.cos(ang)*r3;
+    const pdd=HOOP_CD-Math.sin(ang)*r3*0.56;
+    if(pdd<0.02){if(i>0)break;continue;}
+    const p=project(px,pdd,0);
+    i===0?ctx.moveTo(p.sx,p.sy):ctx.lineTo(p.sx,p.sy);
+  }
+  ctx.stroke();ctx.restore();
+
+  // Lane tick marks
+  ctx.save();ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1.5;
+  const ticks=[0.06,0.13,0.2];
+  for(const t of ticks){
+    const td=ftD+t;
+    cline(-pw-0.025,td,-pw,td,'rgba(255,255,255,0.4)',1.5);
+    cline(pw,td,pw+0.025,td,'rgba(255,255,255,0.4)',1.5);
+  }
+  ctx.restore();
+
+  // Center court logo (faint)
+  ctx.save();ctx.globalAlpha=0.12;ctx.strokeStyle='#fff';ctx.lineWidth=2;
+  ctx.beginPath();
+  for(let i=0;i<=36;i++){const a=(i/36)*Math.PI*2,p=project(Math.cos(a)*0.1,0.03,0);i===0?ctx.moveTo(p.sx,p.sy):ctx.lineTo(p.sx,p.sy);}
   ctx.stroke();ctx.restore();
 }
 
@@ -223,39 +343,85 @@ function drawCourt(){
 function drawHoop(){
   const shake=rimShakes.length?rimShakes[0].ampl*Math.sin(rimShakes[0].phase*0.8):0;
 
-  // Shot clock / pole
-  const pole0=project(0.17,HOOP_CD,0),pole1=project(0.17,HOOP_CD,4.1);
-  ctx.strokeStyle='#cbd5e1';ctx.lineWidth=Math.max(2,5*pole0.scale);
-  ctx.beginPath();ctx.moveTo(pole0.sx,pole0.sy);ctx.lineTo(pole1.sx,pole1.sy);ctx.stroke();
-
-  // Backboard
-  const bbl=project(-0.13,HOOP_CD,3.55),bbr=project(0.13,HOOP_CD,3.55);
-  const bbt=project(0.13,HOOP_CD,4.05),bbb=project(-0.13,HOOP_CD,4.05);
-  // board glow border
+  // ── Support structure ──
+  // Main stanchion pole (floor to top, offset to right of baseline)
+  const poleFtX=0.28, poleFtD=HOOP_CD+0.06; // foot of pole, behind basket on floor
+  const poleTopH=4.05;
+  const poleFoot=project(poleFtX,poleFtD,0);
+  const poleTop =project(poleFtX,poleFtD,poleTopH);
   ctx.save();
-  ctx.shadowColor='rgba(100,180,255,0.5)';ctx.shadowBlur=15;
-  ctx.strokeStyle='rgba(200,230,255,0.9)';ctx.lineWidth=2;
-  ctx.fillStyle='rgba(180,220,255,0.15)';
-  ctx.beginPath();ctx.moveTo(bbl.sx,bbl.sy);ctx.lineTo(bbr.sx,bbr.sy);
-  ctx.lineTo(bbt.sx,bbt.sy);ctx.lineTo(bbb.sx,bbb.sy);ctx.closePath();
-  ctx.fill();ctx.stroke();
-  // inner square
-  const il=project(-0.055,HOOP_CD,3.68),ir=project(0.055,HOOP_CD,3.68);
-  const it=project(0.055,HOOP_CD,3.88),ib=project(-0.055,HOOP_CD,3.88);
-  ctx.strokeStyle='rgba(255,50,50,0.8)';ctx.lineWidth=1.5;
-  ctx.beginPath();ctx.moveTo(il.sx,il.sy);ctx.lineTo(ir.sx,ir.sy);
-  ctx.lineTo(it.sx,it.sy);ctx.lineTo(ib.sx,ib.sy);ctx.closePath();ctx.stroke();
+  ctx.strokeStyle='#94a3b8';ctx.lineWidth=Math.max(3,7*poleFoot.scale);
+  ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(poleFoot.sx,poleFoot.sy);ctx.lineTo(poleTop.sx,poleTop.sy);ctx.stroke();
+  // Horizontal arm extending from top of pole toward basket
+  const armBase=project(poleFtX,poleFtD,poleTopH);
+  const armEnd =project(0,HOOP_CD+0.01,poleTopH);
+  ctx.strokeStyle='#94a3b8';ctx.lineWidth=Math.max(2,5*armBase.scale);
+  ctx.beginPath();ctx.moveTo(armBase.sx,armBase.sy);ctx.lineTo(armEnd.sx,armEnd.sy);ctx.stroke();
+  // Diagonal brace from mid-pole to mid-arm
+  const braceBase=project(poleFtX,poleFtD,poleTopH*0.62);
+  const braceEnd =project(HOOP_CX*0.3+poleFtX*0.5,HOOP_CD+0.03,poleTopH*0.9);
+  ctx.strokeStyle='#64748b';ctx.lineWidth=Math.max(1.5,3*poleFoot.scale);
+  ctx.beginPath();ctx.moveTo(braceBase.sx,braceBase.sy);ctx.lineTo(braceEnd.sx,braceEnd.sy);ctx.stroke();
   ctx.restore();
 
-  // Rim
-  const rimH=HOOP_H+shake*0.025;
-  const rimP=project(HOOP_CX,HOOP_CD,rimH);
-  const rimR2=project(HOOP_CX+RIM_R*2.2,HOOP_CD,rimH);
-  const rxpx=Math.abs(rimR2.sx-rimP.sx);
+  // ── Backboard ──
+  // Backboard hangs from arm end, centred on basket, slightly behind rim
+  const bbD=HOOP_CD+0.025; // just behind rim depth
+  const bbW=0.155;          // half-width
+  const bbBot=HOOP_H+0.08;  // bottom of board (just above rim)
+  const bbTop=HOOP_H+0.90;  // top of board
+
+  // Board fill (frosted glass look)
+  const bbl=project(-bbW,bbD,bbBot), bbr=project( bbW,bbD,bbBot);
+  const bbt=project( bbW,bbD,bbTop), bbb=project(-bbW,bbD,bbTop);
   ctx.save();
-  ctx.shadowColor='rgba(255,80,80,0.6)';ctx.shadowBlur=10;
-  ctx.strokeStyle='#ef4444';ctx.lineWidth=Math.max(2,4*rimP.scale);
-  ctx.beginPath();ctx.ellipse(rimP.sx,rimP.sy,rxpx,rxpx*0.28,0,0,Math.PI*2);ctx.stroke();
+  ctx.shadowColor='rgba(120,200,255,0.6)';ctx.shadowBlur=18;
+  ctx.fillStyle='rgba(190,225,255,0.18)';
+  ctx.beginPath();ctx.moveTo(bbl.sx,bbl.sy);ctx.lineTo(bbr.sx,bbr.sy);
+  ctx.lineTo(bbt.sx,bbt.sy);ctx.lineTo(bbb.sx,bbb.sy);ctx.closePath();ctx.fill();
+  // Board border
+  ctx.strokeStyle='rgba(210,235,255,0.95)';ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(bbl.sx,bbl.sy);ctx.lineTo(bbr.sx,bbr.sy);
+  ctx.lineTo(bbt.sx,bbt.sy);ctx.lineTo(bbb.sx,bbb.sy);ctx.closePath();ctx.stroke();
+  ctx.restore();
+
+  // Shooter's square (regulation: 59cm × 45cm)
+  const sqW=0.065, sqBot=HOOP_H+0.15, sqTop=HOOP_H+0.55;
+  const sql=project(-sqW,bbD,sqBot),sqr=project(sqW,bbD,sqBot);
+  const sqt=project( sqW,bbD,sqTop),sqb=project(-sqW,bbD,sqTop);
+  ctx.save();ctx.strokeStyle='rgba(255,60,60,0.9)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(sql.sx,sql.sy);ctx.lineTo(sqr.sx,sqr.sy);
+  ctx.lineTo(sqt.sx,sqt.sy);ctx.lineTo(sqb.sx,sqb.sy);ctx.closePath();ctx.stroke();
+  ctx.restore();
+
+  // Backboard-to-rim connector (flat bracket under board)
+  const brktL=project(-0.04,bbD,HOOP_H+0.05), brktR=project(0.04,bbD,HOOP_H+0.05);
+  const rimBack=project(0,HOOP_CD,HOOP_H);
+  ctx.save();ctx.strokeStyle='#94a3b8';ctx.lineWidth=Math.max(1.5,3*rimBack.scale);
+  ctx.beginPath();ctx.moveTo(brktL.sx,brktL.sy);ctx.lineTo(rimBack.sx,rimBack.sy);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(brktR.sx,brktR.sy);ctx.lineTo(rimBack.sx,rimBack.sy);ctx.stroke();
+  ctx.restore();
+
+  // ── Rim ──
+  const rimH=HOOP_H+shake*0.025;
+  const rimP  =project(HOOP_CX,HOOP_CD,rimH);
+  const rimR2 =project(HOOP_CX+RIM_R*2.4,HOOP_CD,rimH);
+  const rxpx=Math.abs(rimR2.sx-rimP.sx);
+  // Rim shadow
+  ctx.save();
+  ctx.globalAlpha=0.25;
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.ellipse(rimP.sx,rimP.sy+3,rxpx*1.05,rxpx*0.32,0,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  // Rim body
+  ctx.save();
+  ctx.shadowColor='rgba(255,80,40,0.7)';ctx.shadowBlur=14;
+  ctx.strokeStyle='#ff4500';ctx.lineWidth=Math.max(3,5.5*rimP.scale);
+  ctx.beginPath();ctx.ellipse(rimP.sx,rimP.sy,rxpx,rxpx*0.30,0,0,Math.PI*2);ctx.stroke();
+  // Rim highlight (top arc bright)
+  ctx.strokeStyle='rgba(255,160,80,0.7)';ctx.lineWidth=Math.max(1.5,2.5*rimP.scale);
+  ctx.beginPath();ctx.ellipse(rimP.sx,rimP.sy,rxpx,rxpx*0.30,0,Math.PI,Math.PI*2);ctx.stroke();
   ctx.restore();
 
   // Net
@@ -263,19 +429,27 @@ function drawHoop(){
 }
 
 function drawNet(rimP,rx,shake){
-  const segs=10,netH=rx*1.4;
+  const segs=12,netH=rx*1.6;
   ctx.save();
-  ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1;
+  // Vertical strands
+  ctx.lineWidth=1;
   for(let i=0;i<segs;i++){
     const a=(i/segs)*Math.PI*2;
-    const tx=rimP.sx+Math.cos(a)*rx,ty=rimP.sy+Math.sin(a)*rx*0.28;
-    const sway=Math.sin(shake*0.5+i*0.8)*3;
-    const bx=rimP.sx+Math.cos(a)*rx*0.35+sway,by=rimP.sy+netH;
+    const tx=rimP.sx+Math.cos(a)*rx,ty=rimP.sy+Math.sin(a)*rx*0.30;
+    const sway=Math.sin(shake*0.6+i*0.9)*3;
+    const bx=rimP.sx+Math.cos(a)*rx*0.28+sway,by=rimP.sy+netH;
+    const alpha=0.55+0.25*Math.sin(a);
+    ctx.strokeStyle=`rgba(240,240,240,${alpha})`;
     ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(bx,by);ctx.stroke();
   }
+  // Horizontal rings (4 tiers)
   for(let r=1;r<=4;r++){
-    const pct=r/5,rx2=rx*(1-pct*0.65),ry2=rx*0.28*(1-pct*0.5);
-    ctx.beginPath();ctx.ellipse(rimP.sx,rimP.sy+netH*pct,rx2,ry2,0,0,Math.PI*2);ctx.stroke();
+    const pct=r/5;
+    const rx2=rx*(1-pct*0.72),ry2=rx*0.30*(1-pct*0.55);
+    const yOff=netH*pct;
+    ctx.strokeStyle=`rgba(220,220,220,${0.5-r*0.06})`;
+    ctx.lineWidth=0.8;
+    ctx.beginPath();ctx.ellipse(rimP.sx,rimP.sy+yOff,rx2,ry2,0,0,Math.PI*2);ctx.stroke();
   }
   ctx.restore();
 }
@@ -314,14 +488,12 @@ function drawPlayer(){
 
   // Arms
   ctx.strokeStyle='#fca5a5';ctx.lineWidth=5*s;ctx.lineCap='round';
-  if(charging){
-    const t=Math.min(1,(Date.now()-chargeStart)/chargeMax);
-    const ang=-Math.PI/2-t*0.45*Math.PI;
+  if(shootState==='aiming'){
+    const ang=-Math.PI/2-aimPower*0.48*Math.PI;
     ctx.beginPath();ctx.moveTo(x,y-h*0.7);ctx.lineTo(x+Math.cos(ang)*18*s,y-h*0.7+Math.sin(ang)*18*s);ctx.stroke();
     ctx.beginPath();ctx.moveTo(x,y-h*0.7);ctx.lineTo(x-13*s,y-h*0.5);ctx.stroke();
-    // ball in hand
     const bx=x+Math.cos(ang)*18*s,by=y-h*0.7+Math.sin(ang)*18*s;
-    drawBallAt(bx,by,7*s,t*Math.PI*4);
+    drawBallAt(bx,by,7*s,aimPower*Math.PI*4);
   } else {
     ctx.beginPath();ctx.moveTo(x,y-h*0.7);ctx.lineTo(x+14*s,y-h*0.52);ctx.stroke();
     ctx.beginPath();ctx.moveTo(x,y-h*0.7);ctx.lineTo(x-12*s,y-h*0.5);ctx.stroke();
@@ -384,38 +556,74 @@ function drawBall(){
 function drawAim(){
   if(!gameActive||ball)return;
   const zone=getZone(playerCX,playerCD);
-  ctx.save();
-  ctx.setLineDash([5,9]);ctx.strokeStyle=zone.color;ctx.lineWidth=1.5;ctx.globalAlpha=0.4;
-  ctx.beginPath();
-  const arcPrev=computeArc(playerCX,playerCD,0.5,HOOP_CX,HOOP_CD,HOOP_H,zone.pts);
-  for(let i=0;i<=18;i++){
-    const pe=evalArc(arcPrev,i/18),pp=project(pe.cX,pe.cD,pe.cH);
-    i===0?ctx.moveTo(pp.sx,pp.sy):ctx.lineTo(pp.sx,pp.sy);
-  }
-  ctx.stroke();ctx.restore();
-
-  // Power ring
-  if(charging){
-    const power=Math.min(1,(Date.now()-chargeStart)/chargeMax);
-    const pp=project(playerCX,playerCD,0);
-    ctx.save();
-    ctx.globalAlpha=0.85;
-    ctx.strokeStyle=power<0.5?'#facc15':power<0.82?'#f97316':'#ef4444';
-    ctx.lineWidth=5;ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=12;
-    ctx.beginPath();ctx.arc(pp.sx,pp.sy-85*pp.scale,25*pp.scale,-Math.PI/2,-Math.PI/2+power*Math.PI*2);
-    ctx.stroke();
-    // power number
-    ctx.font=`bold ${14*pp.scale}px sans-serif`;ctx.textAlign='center';ctx.fillStyle='#fff';
-    ctx.fillText(Math.round(power*100)+'%',pp.sx,pp.sy-80*pp.scale+5*pp.scale);
-    ctx.restore();
-  }
+  const pp2=project(playerCX,playerCD,0);
 
   // Zone badge
-  const pp2=project(playerCX,playerCD,0);
   ctx.save();ctx.font=`bold ${Math.max(10,13*pp2.scale)}px sans-serif`;
   ctx.textAlign='center';ctx.fillStyle=zone.color;
   ctx.shadowColor=zone.color;ctx.shadowBlur=8;
-  ctx.fillText(zone.label,pp2.sx,pp2.sy-100*pp2.scale);
+  ctx.fillText(zone.label,pp2.sx,pp2.sy-110*pp2.scale);
+  ctx.restore();
+
+  if(shootState!=='aiming'){
+    // Idle: faint hint arc straight to basket
+    const hintArc=computeArc(playerCX,playerCD,0.15,HOOP_CX,HOOP_CD,HOOP_H,zone.pts);
+    ctx.save();ctx.setLineDash([3,10]);ctx.strokeStyle='rgba(255,255,255,0.12)';
+    ctx.lineWidth=1.5;ctx.beginPath();
+    for(let i=0;i<=14;i++){const pe=evalArc(hintArc,i/14),pp=project(pe.cX,pe.cD,pe.cH);i===0?ctx.moveTo(pp.sx,pp.sy):ctx.lineTo(pp.sx,pp.sy);}
+    ctx.stroke();ctx.restore();
+    ctx.save();ctx.font=`bold ${Math.max(9,11*pp2.scale)}px sans-serif`;ctx.textAlign='center';
+    ctx.fillStyle='rgba(255,255,255,0.35)';ctx.fillText('HOLD & DRAG UP TO SHOOT',pp2.sx,pp2.sy-90*pp2.scale);
+    ctx.restore();
+    return;
+  }
+
+  const arc=getAimArc();
+  const quality=getAimQuality(arc._toCX,arc._toCD);
+  const arcColor=quality>0.72?'#22c55e':quality>0.38?'#facc15':'#ef4444';
+
+  // Live trajectory arc
+  ctx.save();
+  ctx.setLineDash([6,8]);ctx.strokeStyle=arcColor;ctx.lineWidth=2.5;
+  ctx.globalAlpha=0.75;ctx.shadowColor=arcColor;ctx.shadowBlur=10;
+  ctx.beginPath();
+  for(let i=0;i<=28;i++){const pe=evalArc(arc,i/28),pp=project(pe.cX,pe.cD,pe.cH);i===0?ctx.moveTo(pp.sx,pp.sy):ctx.lineTo(pp.sx,pp.sy);}
+  ctx.stroke();ctx.restore();
+
+  // Landing dot
+  const endP=project(arc._toCX,arc._toCD,HOOP_H);
+  ctx.save();ctx.globalAlpha=0.95;ctx.fillStyle=arcColor;
+  ctx.shadowColor=arcColor;ctx.shadowBlur=14;
+  ctx.beginPath();ctx.arc(endP.sx,endP.sy,7,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+
+  // Power bar
+  const barH=78*pp2.scale,barW=9*pp2.scale;
+  const barX=pp2.sx+32*pp2.scale,barY=pp2.sy-barH;
+  ctx.save();
+  ctx.fillStyle='rgba(255,255,255,0.12)';
+  ctx.roundRect(barX,barY,barW,barH,3);ctx.fill();
+  const fillH=barH*aimPower;
+  const pColor=aimPower<0.38?'#ef4444':aimPower<0.72?'#22c55e':'#ef4444';
+  ctx.fillStyle=pColor;ctx.shadowColor=pColor;ctx.shadowBlur=8;
+  ctx.roundRect(barX,barY+barH-fillH,barW,fillH,3);ctx.fill();
+  // Sweet-spot tick
+  const sweetY=barY+barH*(1-PERFECT_POWER);
+  ctx.strokeStyle='rgba(255,255,255,0.65)';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);
+  ctx.beginPath();ctx.moveTo(barX-5,sweetY);ctx.lineTo(barX+barW+5,sweetY);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,255,255,0.55)';ctx.font=`bold ${Math.max(8,9*pp2.scale)}px sans-serif`;
+  ctx.textAlign='left';ctx.fillText('SWEET',barX+barW+7,sweetY+4);
+  ctx.restore();
+
+  // Quality arc ring
+  ctx.save();ctx.globalAlpha=0.7;
+  ctx.strokeStyle=arcColor;ctx.lineWidth=3.5;ctx.shadowColor=arcColor;ctx.shadowBlur=12;
+  ctx.beginPath();ctx.arc(pp2.sx,pp2.sy-38*pp2.scale,22*pp2.scale,-Math.PI/2,-Math.PI/2+aimPower*Math.PI*2);
+  ctx.stroke();
+  ctx.fillStyle='#fff';ctx.globalAlpha=0.9;ctx.font=`bold ${Math.max(9,11*pp2.scale)}px sans-serif`;
+  ctx.textAlign='center';
+  ctx.fillText(Math.round(aimPower*100)+'%',pp2.sx,pp2.sy-33*pp2.scale);
   ctx.restore();
 }
 
@@ -514,13 +722,14 @@ function drawTimerBar(){
 }
 
 // ── Shoot ──
-function shoot(power){
+function shoot(){
   if(!gameActive||ball)return;
+  if(aimPower<0.06){shootState='idle';dragOrigin=null;return;}
   shotsTaken++;
-  const zone=getZone(playerCX,playerCD);
-  const arc=computeArc(playerCX,playerCD,0.15,HOOP_CX,HOOP_CD,HOOP_H,zone.pts);
-  const result=evalShot(playerCX,playerCD,power);
-  ball={arc,t:0,speed:0.02+power*0.009,result,pts:zone.pts};
+  const arc=getAimArc();
+  const result=checkShotResult(arc._toCX,arc._toCD);
+  ball={arc,t:0,speed:0.016+aimPower*0.010,result,pts:getZone(playerCX,playerCD).pts};
+  shootState='idle';dragOrigin=null;
 }
 
 function onLand(){
@@ -598,31 +807,57 @@ function showStart(){
 }
 
 // ── Input ──
-function ptrMove(sx,sy){
-  if(!gameActive||ball||charging)return;
+function ptrDown(sx,sy){
+  if(!gameActive||ball)return;
+  // Set player position from press location
   const c=screenToCourt(sx,sy);
   playerCX=Math.max(-0.85,Math.min(0.85,c.cX));
   playerCD=Math.max(0.08,Math.min(0.86,c.cD));
+  dragOrigin={x:sx,y:sy};aimPower=0;aimLateral=0;shootState='aiming';
+  updateHUD();
 }
+function ptrMove(sx,sy){
+  if(!gameActive||ball)return;
+  if(shootState==='aiming'&&dragOrigin){
+    // Vertical drag UP = power; horizontal = lateral aim
+    const dy=dragOrigin.y-sy;   // positive when dragged up
+    const dx=sx-dragOrigin.x;
+    aimPower=Math.max(0,Math.min(1,dy/165));
+    aimLateral=Math.max(-1,Math.min(1,dx/145));
+    return;
+  }
+  // Idle: move player
+  if(shootState==='idle'){
+    const c=screenToCourt(sx,sy);
+    playerCX=Math.max(-0.85,Math.min(0.85,c.cX));
+    playerCD=Math.max(0.08,Math.min(0.86,c.cD));
+    updateHUD();
+  }
+}
+function ptrUp(){
+  if(!gameActive||ball)return;
+  if(shootState==='aiming')shoot();
+  shootState='idle';dragOrigin=null;
+}
+canvas.addEventListener('mousedown',e=>ptrDown(e.clientX,e.clientY));
 canvas.addEventListener('mousemove',e=>ptrMove(e.clientX,e.clientY));
+canvas.addEventListener('mouseup',ptrUp);
+canvas.addEventListener('touchstart',e=>{e.preventDefault();ptrDown(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
 canvas.addEventListener('touchmove',e=>{e.preventDefault();ptrMove(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
-
-canvas.addEventListener('mousedown',e=>{if(!gameActive||ball)return;charging=true;chargeStart=Date.now();});
-canvas.addEventListener('touchstart',e=>{
-  e.preventDefault();if(!gameActive||ball)return;
-  ptrMove(e.touches[0].clientX,e.touches[0].clientY);
-  charging=true;chargeStart=Date.now();
-},{passive:false});
-
-function release(){
-  if(!charging||!gameActive||ball)return;
-  const power=Math.min(1,(Date.now()-chargeStart)/chargeMax);
-  charging=false;shoot(power);
-}
-canvas.addEventListener('mouseup',release);
-canvas.addEventListener('touchend',e=>{e.preventDefault();release();},{passive:false});
-document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();if(!gameActive||ball||charging)return;charging=true;chargeStart=Date.now();}});
-document.addEventListener('keyup',e=>{if(e.code==='Space'){e.preventDefault();release();}});
+canvas.addEventListener('touchend',e=>{e.preventDefault();ptrUp();},{passive:false});
+// Keyboard: Space=start aim at player pos, arrows adjust lateral/power while held
+let _spaceDown=false;
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();if(!gameActive||ball||_spaceDown)return;_spaceDown=true;
+    dragOrigin={x:W/2,y:H*0.72};aimPower=0;aimLateral=0;shootState='aiming';}
+  if(shootState==='aiming'){
+    if(e.code==='ArrowUp')  {e.preventDefault();aimPower  =Math.min(1,aimPower+0.06);}
+    if(e.code==='ArrowDown'){e.preventDefault();aimPower  =Math.max(0,aimPower-0.06);}
+    if(e.code==='ArrowLeft'){e.preventDefault();aimLateral=Math.max(-1,aimLateral-0.12);}
+    if(e.code==='ArrowRight'){e.preventDefault();aimLateral=Math.min(1,aimLateral+0.12);}
+  }
+});
+document.addEventListener('keyup',e=>{if(e.code==='Space'){e.preventDefault();_spaceDown=false;if(shootState==='aiming')shoot();}});
 
 // ── Main loop ──
 function loop(){

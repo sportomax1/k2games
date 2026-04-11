@@ -3,7 +3,1116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Home Run Derby: World Series - K2 games</title>
+    <title>Backyard Blast Baseball - K2 games</title>
+    <style>
+        :root {
+            --grass: #4ade80;
+            --dirt: #d97706;
+            --sky: #38bdf8;
+            --gold: #fbbf24;
+            --red: #ef4444;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        body { background: #0f172a; color: white; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+        #game-view { flex: 1; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        canvas { display: block; max-width: 100%; max-height: 100%; }
+
+        #hud {
+            position: absolute; inset: 0; pointer-events: none; z-index: 50;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 14px 18px;
+        }
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+        .hud-bottom { display: flex; justify-content: center; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+
+        .hud-card {
+            background: rgba(2,6,23,0.75); backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+            padding: 8px 16px; text-align: center; min-width: 90px;
+        }
+        .hud-card .label { font-size: 0.55rem; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; font-weight: 900; }
+        .hud-card .val { font-size: 1.5rem; font-weight: 900; color: var(--gold); font-family: monospace; line-height: 1.1; }
+
+        #inning-display { font-size: 0.75rem; background: rgba(2,6,23,0.75); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 6px 14px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+        .bases-display { display: grid; grid-template-columns: repeat(3, 14px); grid-template-rows: repeat(2, 14px); gap: 2px; }
+        .base-dot { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); transform: rotate(45deg); border-radius: 2px; }
+        .base-dot.on { background: var(--gold); border-color: var(--gold); }
+
+        .meter-bar { width: 100px; height: 8px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden; margin-top: 3px; }
+        .meter-fill { height: 100%; border-radius: 4px; transition: width 0.15s; }
+        .stamina-fill { background: linear-gradient(90deg, #22c55e, #86efac); }
+        .focus-fill { background: linear-gradient(90deg, #3b82f6, #93c5fd); }
+        .meter-fill.warn { background: linear-gradient(90deg, #ef4444, #fca5a5); }
+
+        #powerup-bar { display: flex; gap: 8px; align-items: center; pointer-events: auto; }
+        .pu-slot {
+            width: 48px; height: 48px; background: rgba(255,255,255,0.06);
+            border: 2px solid rgba(255,255,255,0.15); border-radius: 10px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 1.3rem; cursor: pointer; transition: 0.15s; position: relative;
+        }
+        .pu-slot.active { border-color: var(--gold); background: rgba(251,191,36,0.15); box-shadow: 0 0 14px rgba(251,191,36,0.4); }
+        .pu-slot:hover { transform: translateY(-2px); }
+        .pu-slot .pu-label { font-size: 0.4rem; color: #94a3b8; text-align: center; line-height: 1; margin-top: 1px; font-weight: 900; text-transform: uppercase; }
+        .pu-slot .pu-count { position: absolute; top: 2px; right: 4px; font-size: 0.55rem; color: var(--gold); font-weight: 900; }
+
+        /* Swing controls (bottom) */
+        #swing-controls { display: flex; gap: 8px; align-items: flex-end; pointer-events: auto; }
+        .swing-btn {
+            border: none; border-radius: 10px; font-weight: 900; cursor: pointer;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 2px; transition: 0.1s; padding: 8px 12px;
+        }
+        .swing-btn .icon { font-size: 1.3rem; }
+        .swing-btn .slabel { font-size: 0.5rem; text-transform: uppercase; letter-spacing: 1px; }
+        .swing-btn:active { transform: scale(0.9); }
+        .swing-btn.grounder  { background: #8b5cf6; color: white; }
+        .swing-btn.line      { background: #3b82f6; color: white; }
+        .swing-btn.power     { background: #ef4444; color: white; }
+        .swing-btn.bunt      { background: #10b981; color: white; }
+        .swing-btn.selected  { box-shadow: 0 0 0 3px white; transform: translateY(-3px); }
+
+        /* Commentary banner */
+        #commentary {
+            position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+            background: rgba(2,6,23,0.9); border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 50px; padding: 8px 24px; white-space: nowrap;
+            font-size: 0.85rem; font-weight: 700; color: #f1f5f9;
+            opacity: 0; transition: opacity 0.3s; z-index: 60; pointer-events: none;
+        }
+        #commentary.visible { opacity: 1; }
+
+        /* Event banner */
+        #event-banner {
+            position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 5rem; font-weight: 900; font-style: italic; color: #fff;
+            text-shadow: 0 0 40px rgba(251,191,36,0.9), 0 4px 8px rgba(0,0,0,0.6);
+            display: none; z-index: 200; text-align: center; pointer-events: none;
+            animation: popZoom 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes popZoom { 0% { transform: translate(-50%,-50%) scale(0.1); opacity:0; } 100% { transform: translate(-50%,-50%) scale(1); opacity:1; } }
+
+        /* Overlay screens */
+        .screen {
+            position: absolute; inset: 0; z-index: 300;
+            background: rgba(2,6,23,0.97);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 30px; text-align: center;
+        }
+        .screen h1 { font-size: 4rem; font-style: italic; font-weight: 900; line-height: 0.85; margin-bottom: 12px; }
+        .screen h1 span { color: var(--gold); }
+        .screen p { color: #94a3b8; max-width: 480px; line-height: 1.6; margin-bottom: 28px; font-size: 0.95rem; }
+
+        .btn-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+        .btn-main {
+            padding: 14px 40px; border-radius: 50px; border: none; cursor: pointer;
+            font-weight: 900; font-size: 1.1rem; transition: 0.15s;
+        }
+        .btn-main.primary { background: var(--gold); color: #000; }
+        .btn-main.secondary { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); }
+        .btn-main:active { transform: scale(0.95); }
+        .btn-main:hover { filter: brightness(1.1); }
+
+        /* Roster picker */
+        #roster-screen .kids-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(90px,1fr));
+            gap: 10px; max-width: 700px; width: 100%; margin-bottom: 20px; max-height: 50vh; overflow-y: auto;
+        }
+        .kid-card {
+            background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 12px; padding: 10px 6px; cursor: pointer; transition: 0.15s;
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+        }
+        .kid-card:hover { border-color: var(--gold); background: rgba(251,191,36,0.08); }
+        .kid-card.selected { border-color: var(--gold); background: rgba(251,191,36,0.18); box-shadow: 0 0 12px rgba(251,191,36,0.3); }
+        .kid-card .kid-emoji { font-size: 2rem; }
+        .kid-card .kid-name { font-size: 0.6rem; font-weight: 900; color: #f1f5f9; text-align: center; }
+        .kid-card .kid-stats { font-size: 0.5rem; color: #64748b; text-align: center; }
+
+        /* Field selector */
+        #field-screen .fields-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr));
+            gap: 12px; max-width: 700px; width: 100%; margin-bottom: 20px;
+        }
+        .field-card {
+            background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 14px; padding: 14px; cursor: pointer; transition: 0.15s;
+        }
+        .field-card:hover { border-color: #38bdf8; }
+        .field-card.selected { border-color: var(--gold); background: rgba(251,191,36,0.08); }
+        .field-card .field-icon { font-size: 2rem; margin-bottom: 6px; }
+        .field-card h3 { font-size: 0.75rem; font-weight: 900; margin-bottom: 3px; }
+        .field-card p { font-size: 0.55rem; color: #64748b; line-height: 1.4; }
+
+        /* Pitch type display */
+        #pitch-indicator {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(2,6,23,0.8); border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px; padding: 8px 20px; font-size: 0.8rem; font-weight: 900;
+            pointer-events: none; z-index: 55; opacity: 0; transition: opacity 0.3s;
+            text-align: center; white-space: nowrap;
+        }
+        .pitch-zone {
+            width: 90px; height: 90px; border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 8px; position: absolute;
+            pointer-events: none; z-index: 40;
+        }
+
+        #back-link { position: fixed; top: 14px; left: 14px; color: #94a3b8; text-decoration: none; font-size: 0.75rem; font-weight: bold; z-index: 400; }
+
+        @media (max-width: 768px) {
+            #event-banner { font-size: 3rem; }
+            .hud-card .val { font-size: 1.1rem; }
+            .swing-btn .icon { font-size: 1rem; }
+        }
+    </style>
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CCZ9JJGEDP"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-CCZ9JJGEDP');
+    </script>
+</head>
+<body>
+<a href="index.html" id="back-link">← HUB</a>
+
+<div id="game-view">
+    <canvas id="gameCanvas" width="1000" height="680"></canvas>
+
+    <!-- HUD -->
+    <div id="hud">
+        <div class="hud-top">
+            <!-- Scoreboard LEFT -->
+            <div class="hud-card" style="min-width:120px;">
+                <div class="label">Score</div>
+                <div class="val" id="hud-score">0 – 0</div>
+                <div style="font-size:0.55rem;color:#64748b;margin-top:2px;" id="hud-inning">Inn 1 ▲</div>
+            </div>
+            <!-- Bases + Outs CENTER -->
+            <div id="inning-display">
+                <div class="label" style="color:#94a3b8;font-size:0.55rem;font-weight:900;">BASES</div>
+                <div class="bases-display" id="bases-display">
+                    <div></div><div class="base-dot" id="base-2nd"></div><div></div>
+                    <div class="base-dot" id="base-3rd"></div><div></div><div class="base-dot" id="base-1st"></div>
+                </div>
+                <div style="font-size:0.6rem;color:#94a3b8;margin-top:3px;">Outs: <span id="hud-outs" style="color:var(--red);font-weight:900;">0</span></div>
+            </div>
+            <!-- Pitcher meters RIGHT -->
+            <div class="hud-card" style="min-width:130px;">
+                <div class="label">Pitcher</div>
+                <div style="font-size:0.6rem;color:#94a3b8;margin-top:3px;">Stamina</div>
+                <div class="meter-bar"><div class="meter-fill stamina-fill" id="stamina-fill" style="width:100%"></div></div>
+                <div style="font-size:0.6rem;color:#94a3b8;margin-top:3px;">Focus</div>
+                <div class="meter-bar"><div class="meter-fill focus-fill" id="focus-fill" style="width:100%"></div></div>
+            </div>
+        </div>
+
+        <div class="hud-bottom">
+            <!-- Power-ups -->
+            <div id="powerup-bar">
+                <div class="pu-slot" id="pu-0" onclick="game.activatePowerup(0)" title="Use power-up">
+                    <span id="pu-icon-0">⚡</span>
+                    <span class="pu-label" id="pu-name-0">–</span>
+                    <span class="pu-count" id="pu-cnt-0"></span>
+                </div>
+                <div class="pu-slot" id="pu-1" onclick="game.activatePowerup(1)">
+                    <span id="pu-icon-1">⚡</span>
+                    <span class="pu-label" id="pu-name-1">–</span>
+                    <span class="pu-count" id="pu-cnt-1"></span>
+                </div>
+                <div class="pu-slot" id="pu-2" onclick="game.activatePowerup(2)">
+                    <span id="pu-icon-2">⚡</span>
+                    <span class="pu-label" id="pu-name-2">–</span>
+                    <span class="pu-count" id="pu-cnt-2"></span>
+                </div>
+            </div>
+            <!-- Swing type selector -->
+            <div id="swing-controls">
+                <div class="swing-btn grounder" onclick="game.setSwing('grounder')">
+                    <span class="icon">🏏</span><span class="slabel">Grounder</span>
+                </div>
+                <div class="swing-btn line selected" onclick="game.setSwing('line')">
+                    <span class="icon">⚡</span><span class="slabel">Line Drive</span>
+                </div>
+                <div class="swing-btn power" onclick="game.setSwing('power')">
+                    <span class="icon">💥</span><span class="slabel">Power</span>
+                </div>
+                <div class="swing-btn bunt" onclick="game.setSwing('bunt')">
+                    <span class="icon">🎯</span><span class="slabel">Bunt</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="commentary"></div>
+    <div id="event-banner"></div>
+    <div id="pitch-indicator"></div>
+
+    <!-- SCREENS -->
+    <div class="screen" id="title-screen">
+        <div style="font-size:3rem;margin-bottom:8px;">⚾</div>
+        <h1>BACKYARD<br><span>BLAST</span></h1>
+        <p>Pick your crew, choose your field, and bring the chaos. Power-ups, wild pitches, and neighborhood legends await.</p>
+        <div class="btn-row">
+            <button class="btn-main primary" onclick="game.goPickup()">PICKUP GAME</button>
+            <button class="btn-main secondary" onclick="game.goSeason()">SEASON MODE</button>
+        </div>
+    </div>
+
+    <div class="screen" id="roster-screen" style="display:none;">
+        <h1 style="font-size:2.5rem;">BUILD YOUR<br><span>TEAM</span></h1>
+        <p>Pick up to 5 kids. Each has unique skills.</p>
+        <div class="kids-grid" id="kids-grid"></div>
+        <div class="btn-row">
+            <button class="btn-main secondary" onclick="game.showScreen('title-screen')">← Back</button>
+            <button class="btn-main primary" onclick="game.goFieldSelect()">Choose Field →</button>
+        </div>
+    </div>
+
+    <div class="screen" id="field-screen" style="display:none;">
+        <h1 style="font-size:2.5rem;">PICK YOUR<br><span>FIELD</span></h1>
+        <div class="fields-grid" id="fields-grid"></div>
+        <div class="btn-row">
+            <button class="btn-main secondary" onclick="game.showScreen('roster-screen')">← Back</button>
+            <button class="btn-main primary" onclick="game.startGame()">PLAY BALL! ⚾</button>
+        </div>
+    </div>
+
+    <div class="screen" id="gameover-screen" style="display:none;">
+        <h1 id="go-title">GAME<br><span>OVER</span></h1>
+        <div id="go-stats" style="margin: 16px 0; font-size:0.9rem; color: #94a3b8; line-height: 2;"></div>
+        <div class="btn-row">
+            <button class="btn-main secondary" onclick="game.showScreen('title-screen')">Main Menu</button>
+            <button class="btn-main primary" onclick="game.goFieldSelect()">Play Again</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  DATA
+// ─────────────────────────────────────────────
+const KIDS = [
+    { name:'Pablo',   emoji:'👦', hit:9, run:7, pitch:5, field:6,  special:'Power Hitter', color:'#ef4444' },
+    { name:'Keisha',  emoji:'👧', hit:7, run:9, pitch:6, field:8,  special:'Speed Burner', color:'#8b5cf6' },
+    { name:'Mikey',   emoji:'🧒', hit:5, run:6, pitch:9, field:7,  special:'Ace Pitcher',  color:'#3b82f6' },
+    { name:'Greta',   emoji:'👩', hit:8, run:5, pitch:7, field:9,  special:'Wall Catch',   color:'#10b981' },
+    { name:'Ronnie',  emoji:'👦', hit:6, run:8, pitch:5, field:8,  special:'Steal King',   color:'#f59e0b' },
+    { name:'Daria',   emoji:'👧', hit:7, run:7, pitch:8, field:6,  special:'Knuckleball',  color:'#ec4899' },
+    { name:'Big T',   emoji:'🧔', hit:10,run:3, pitch:4, field:5,  special:'Demolisher',   color:'#64748b' },
+    { name:'Zippy',   emoji:'🧑', hit:5, run:10,pitch:6, field:7,  special:'Lightning Legs',color:'#fde047' },
+    { name:'Cassie',  emoji:'👩', hit:8, run:6, pitch:9, field:8,  special:'Curve Artist', color:'#f87171' },
+    { name:'Coach Jr',emoji:'👴', hit:6, run:4, pitch:10,field:9,  special:'All-Knowing',  color:'#94a3b8' },
+];
+
+const FIELDS = [
+    { id:'sandlot',   name:'The Sandlot',       icon:'🏜️',  color:'#d97706', altColor:'#92400e', rule:'Ball in tire = Ground Rule Double', wallDist:340 },
+    { id:'park',      name:'Community Park',     icon:'🌳',  color:'#16a34a', altColor:'#15803d', rule:'Ball in fountain = fan interference', wallDist:380 },
+    { id:'cement',    name:'Cement Gardens',     icon:'🏙️',  color:'#64748b', altColor:'#475569', rule:'Off the wall = in play!',           wallDist:300 },
+    { id:'parking',   name:'Parking Lot',        icon:'🚗',  color:'#334155', altColor:'#1e293b', rule:'Hit a car = Home Run!',              wallDist:310 },
+    { id:'rooftop',   name:'Rooftop Rumble',    icon:'🏠',  color:'#7c3aed', altColor:'#6d28d9', rule:'Over the roof = +2 runs!',           wallDist:280 },
+];
+
+const PITCH_TYPES = [
+    { id:'fastball', name:'🔥 Fastball',   speed:1.9, curve:0,   wildness:0.1 },
+    { id:'slowball', name:'🐢 Slowball',   speed:0.8, curve:0,   wildness:0.15 },
+    { id:'sinker',   name:'⬇️ Sinker',    speed:1.4, curve:0.3, wildness:0.2 },
+    { id:'curveball',name:'🌀 Curveball', speed:1.3, curve:0.5, wildness:0.25 },
+    { id:'rising',   name:'⬆️ Riser',    speed:1.5, curve:-0.2,wildness:0.15 },
+];
+
+const POWERUPS = [
+    { id:'fireball',     name:'Fireball',      icon:'🔥', type:'pitch',   desc:'Unhittable blazing pitch!',   offensive:false },
+    { id:'spitball',     name:'Spitball',      icon:'💧', type:'pitch',   desc:'Unpredictable wet pitch',      offensive:false },
+    { id:'bigfreeze',    name:'Big Freeze',    icon:'❄️', type:'pitch',   desc:'Batter freezes!',             offensive:false },
+    { id:'undergrounder',name:'Undergrounder', icon:'🌀', type:'hit',     desc:'Ball goes underground!',       offensive:true  },
+    { id:'aluminum',     name:'Alum Power',    icon:'⚡', type:'hit',     desc:'Next hit flies 2x farther!',  offensive:true  },
+    { id:'zapper',       name:'Zapper',        icon:'⚡', type:'hit',     desc:'Instant homer if contact!',   offensive:true  },
+];
+
+const COMMENTARY_LINES = {
+    hit:     ['🎙️ Sunny Day: "Oh, it\'s a rocket!"', '🐐 Vinnie: "He CRUSHED that one, folks!"', '🎙️ "Beautiful contact right there!"', '🐐 "That ball is still going!"'],
+    miss:    ['🐐 "He swung right through it!"', '🎙️ "Fanned on the breaking ball."', '🐐 "Looked like he was swatting a fly!"', '🎙️ "Strike three? That\'s gotta sting."'],
+    homer:   ['🎙️ "IT\'S OUTTA HERE! GONE! ADIOS!"', '🐐 "MOONSHOT! Pack your bags, ball!"', '🎙️ "Grand slam! The neighborhood goes WILD!"', '🐐 "That\'s the longest blast I\'ve ever seen!"'],
+    powerup: ['🎙️ "Power-up activated! Anything can happen now!"', '🐐 "Oh no — wild pitch incoming!"', '🎙️ "The crowd is on their feet!"'],
+    steal:   ['🐐 "He\'s running! Is he going for it?!"', '🎙️ "Safe by a hair! What a play!"'],
+    out:     ['🎙️ "Right at the fielder, no dice."', '🐐 "Caught at the warning track. So close!"', '🎙️ "Double play! Inning over, just like that."'],
+};
+
+// ─────────────────────────────────────────────
+//  GAME
+// ─────────────────────────────────────────────
+class BackyardBlast {
+    constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.W = 1000; this.H = 680;
+
+        this.state = 'title';
+        this.selectedKids = [];
+        this.selectedField = FIELDS[0];
+        this.isSeason = false;
+        this.seasonInning = 1;
+        this.seasonWins = 0;
+
+        // Game state
+        this.score = [0, 0];       // [player, cpu]
+        this.inning = 1;
+        this.topInning = true;     // top = CPU batting, bottom = player batting
+        this.outs = 0;
+        this.bases = [false, false, false]; // 1st, 2nd, 3rd
+        this.balls = 0;
+        this.strikes = 0;
+        this.maxInnings = 6;
+
+        this.pitcher = { stamina: 100, focus: 100 };
+        this.activePowerups = [null, null, null];
+        this.selectedSwing = 'line';
+        this.activePuIdx = -1;
+
+        this.ball = { x: 500, y: 200, vx: 0, vy: 0, active: false, type: 'normal', size: 12 };
+        this.bat = { angle: -1.2, swinging: false, target: -1.2 };
+        this.particles = [];
+        this.clouds = Array(6).fill(0).map(() => ({ x: Math.random()*1000, y: 20+Math.random()*100, s: 0.1+Math.random()*0.25 }));
+        this.crowd = [];
+        this.fieldRunners = []; // base runners
+        this.pitchZoneY = 490;
+
+        this._commentaryTimeout = null;
+        this._bannerTimeout = null;
+        this._pitchPending = false;
+        this._swingPending = false;
+
+        this.buildRosterUI();
+        this.buildFieldUI();
+        this.setupInput();
+        this.loop();
+    }
+
+    // ── UI BUILDERS ────────────────────────────
+    buildRosterUI() {
+        const grid = document.getElementById('kids-grid');
+        grid.innerHTML = KIDS.map((k, i) => `
+            <div class="kid-card" id="kid-card-${i}" onclick="game.toggleKid(${i})">
+                <span class="kid-emoji">${k.emoji}</span>
+                <span class="kid-name" style="color:${k.color}">${k.name}</span>
+                <span class="kid-stats">Hit ${k.hit} | Spd ${k.run}</span>
+                <span class="kid-stats" style="color:#f59e0b;">${k.special}</span>
+            </div>`).join('');
+    }
+
+    buildFieldUI() {
+        const grid = document.getElementById('fields-grid');
+        grid.innerHTML = FIELDS.map((f, i) => `
+            <div class="field-card ${i===0?'selected':''}" id="field-card-${i}" onclick="game.selectField(${i})">
+                <div class="field-icon">${f.icon}</div>
+                <h3>${f.name}</h3>
+                <p style="color:#f59e0b;font-size:0.55rem;font-weight:900;">⚡ ${f.rule}</p>
+            </div>`).join('');
+    }
+
+    toggleKid(i) {
+        const idx = this.selectedKids.indexOf(i);
+        const card = document.getElementById(`kid-card-${i}`);
+        if(idx === -1) {
+            if(this.selectedKids.length >= 5) { this.say('Max 5 players!', 'miss'); return; }
+            this.selectedKids.push(i);
+            card.classList.add('selected');
+        } else {
+            this.selectedKids.splice(idx, 1);
+            card.classList.remove('selected');
+        }
+    }
+
+    selectField(i) {
+        document.querySelectorAll('.field-card').forEach(c => c.classList.remove('selected'));
+        document.getElementById(`field-card-${i}`).classList.add('selected');
+        this.selectedField = FIELDS[i];
+    }
+
+    showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+        const el = document.getElementById(id);
+        if(el) el.style.display = 'flex';
+    }
+
+    goPickup()    { this.isSeason = false; this.maxInnings = 6; this.showScreen('roster-screen'); }
+    goSeason()    { this.isSeason = true;  this.maxInnings = 9; this.showScreen('roster-screen'); }
+    goFieldSelect(){ this.showScreen('field-screen'); }
+
+    goPickup() {
+        if(this.selectedKids.length === 0) {
+            // Auto-select random 5
+            const shuffled = KIDS.map((_,i)=>i).sort(()=>Math.random()-0.5);
+            this.selectedKids = shuffled.slice(0,5);
+            this.selectedKids.forEach(i => document.getElementById(`kid-card-${i}`).classList.add('selected'));
+        }
+        this.isSeason = false; this.maxInnings = 6;
+        this.showScreen('roster-screen');
+    }
+    goSeason() {
+        this.isSeason = true; this.maxInnings = 9;
+        this.showScreen('roster-screen');
+    }
+
+    // ── SETUP ──────────────────────────────────
+    setupInput() {
+        window.addEventListener('keydown', e => {
+            if(this.state !== 'play') return;
+            if(e.code === 'Space') { e.preventDefault(); this.swing(); }
+            if(e.code === 'KeyG') this.setSwing('grounder');
+            if(e.code === 'KeyL') this.setSwing('line');
+            if(e.code === 'KeyP') this.setSwing('power');
+            if(e.code === 'KeyB') this.setSwing('bunt');
+            if(e.code === 'Digit1') this.activatePowerup(0);
+            if(e.code === 'Digit2') this.activatePowerup(1);
+            if(e.code === 'Digit3') this.activatePowerup(2);
+        });
+    }
+
+    setSwing(type) {
+        this.selectedSwing = type;
+        document.querySelectorAll('.swing-btn').forEach(b => b.classList.remove('selected'));
+        const map = { grounder:0, line:1, power:2, bunt:3 };
+        document.querySelectorAll('.swing-btn')[map[type]].classList.add('selected');
+    }
+
+    startGame() {
+        if(this.selectedKids.length === 0) {
+            this.selectedKids = KIDS.map((_,i)=>i).sort(()=>Math.random()-0.5).slice(0,5);
+        }
+        this.showScreen(null);
+        document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+        this.resetGame();
+    }
+
+    resetGame() {
+        this.state = 'play';
+        this.score = [0, 0];
+        this.inning = 1;
+        this.topInning = true;
+        this.outs = 0;
+        this.bases = [false, false, false];
+        this.balls = 0;
+        this.strikes = 0;
+        this.pitcher = { stamina: 100, focus: 100 };
+        this.activePowerups = [null, null, null];
+        this.fieldRunners = [];
+        this.particles = [];
+        this.ball.active = false;
+        this._pitchPending = false;
+        this._swingPending = false;
+        this.addRandomPowerup();
+        this.updateHUD();
+        setTimeout(() => this.doPitch(), 1200);
+    }
+
+    // ── POWERUPS ───────────────────────────────
+    addRandomPowerup() {
+        const empty = this.activePowerups.map((v,i)=>v===null?i:-1).filter(v=>v>=0);
+        if(empty.length === 0) return;
+        const slot = empty[Math.floor(Math.random()*empty.length)];
+        const pu = POWERUPS[Math.floor(Math.random()*POWERUPS.length)];
+        this.activePowerups[slot] = { ...pu, count: 1 + Math.floor(Math.random()*2) };
+        this.updatePUBar();
+    }
+
+    activatePowerup(slot) {
+        if(this.state !== 'play') return;
+        const pu = this.activePowerups[slot];
+        if(!pu) return;
+        this.activePuIdx = slot;
+        document.querySelectorAll('.pu-slot').forEach((el,i) => el.classList.toggle('active', i===slot));
+        this.showBanner(pu.icon + ' ' + pu.name.toUpperCase() + '!', '#f59e0b');
+        this.comment('powerup');
+
+        // Defensive powerups fire immediately on next pitch
+        if(pu.type === 'pitch') {
+            this.ball.type = pu.id;
+        }
+    }
+
+    updatePUBar() {
+        this.activePowerups.forEach((pu, i) => {
+            document.getElementById(`pu-icon-${i}`).textContent = pu ? pu.icon : '⚡';
+            document.getElementById(`pu-name-${i}`).textContent = pu ? pu.name.slice(0,6) : '–';
+            document.getElementById(`pu-cnt-${i}`).textContent = pu ? (pu.count > 1 ? pu.count : '') : '';
+        });
+    }
+
+    consumePowerup() {
+        if(this.activePuIdx < 0) return;
+        const pu = this.activePowerups[this.activePuIdx];
+        if(!pu) return;
+        pu.count--;
+        if(pu.count <= 0) this.activePowerups[this.activePuIdx] = null;
+        this.activePuIdx = -1;
+        document.querySelectorAll('.pu-slot').forEach(el => el.classList.remove('active'));
+        this.updatePUBar();
+    }
+
+    // ── PITCH ──────────────────────────────────
+    doPitch() {
+        if(this.state !== 'play') return;
+        if(this._pitchPending) return;
+        this._pitchPending = true;
+        this._swingPending = false;
+
+        // Pick pitch type based on pitcher focus
+        const pitchPool = this.pitcher.focus > 50 ? PITCH_TYPES : PITCH_TYPES.slice(0,3);
+        const ptype = pitchPool[Math.floor(Math.random()*pitchPool.length)];
+
+        // Show pitch type indicator briefly
+        const pi = document.getElementById('pitch-indicator');
+        pi.textContent = ptype.name; pi.style.opacity = '1';
+        setTimeout(() => { pi.style.opacity = '0'; }, 700);
+
+        // Wild pitch on low focus
+        const focusFactor = this.pitcher.focus / 100;
+        const wildness = ptype.wildness * (1 - focusFactor * 0.7);
+
+        let sx = 500 + (Math.random() - 0.5) * wildness * 200;
+        let sy = 100;
+        let tx = 500 + (Math.random() - 0.5) * wildness * 100;
+
+        let speed = ptype.speed;
+        let type = this.ball.type || 'normal';
+
+        // Special pitch powerup overrides
+        if(type === 'fireball')  { speed = 3.5; }
+        if(type === 'spitball')  { sx += (Math.random()-0.5)*80; speed = 1.2; }
+        if(type === 'bigfreeze') { speed = 1.0; }
+
+        const dy = this.pitchZoneY - sy;
+        const dx = tx - sx;
+
+        this.ball = {
+            x: sx, y: sy, active: true,
+            vx: dx / (dy / speed),
+            vy: speed * (dy > 0 ? 1 : -1),
+            type,
+            curveX: ptype.curve * (Math.random() > 0.5 ? 1 : -1),
+            size: 12,
+            inFlight: false,
+        };
+
+        // Drain pitcher stamina
+        this.pitcher.stamina = Math.max(5, this.pitcher.stamina - 3 - Math.random()*4);
+        this.pitcher.focus   = Math.max(5, this.pitcher.focus   - 2 - Math.random()*3);
+        this.updateMeterBars();
+    }
+
+    // ── SWING ──────────────────────────────────
+    swing() {
+        if(this.state !== 'play') return;
+        if(this._swingPending) return;
+        if(!this.ball.active) return;
+        this._swingPending = true;
+
+        this.bat.swinging = true;
+        this.bat.target = 1.2;
+
+        const dist = Math.abs(this.ball.y - this.pitchZoneY);
+        const inZone = dist < 70;
+
+        // Quality of contact
+        const hitBonus = this.selectedKids.length > 0
+            ? KIDS[this.selectedKids[0]].hit / 10
+            : 0.5;
+        const quality = inZone ? (1 - dist/70) * hitBonus : 0;
+
+        setTimeout(() => {
+            this.bat.swinging = false;
+            this.bat.angle = -1.2;
+            this.bat.target = -1.2;
+        }, 350);
+
+        // Big Freeze forces a miss
+        if(this.ball.type === 'bigfreeze') {
+            this.showBanner('❄️ FROZEN!', '#38bdf8');
+            this._pitchPending = false;
+            this.addStrike();
+            return;
+        }
+
+        if(quality > 0.25) {
+            this.handleHit(quality);
+        } else {
+            this.comment('miss');
+            this._pitchPending = false;
+            this.addStrike();
+        }
+    }
+
+    handleHit(quality) {
+        const pu = this.activePuIdx >= 0 ? this.activePowerups[this.activePuIdx] : null;
+
+        let power = quality;
+        let isHomer = false;
+
+        if(pu?.id === 'aluminum')   { power = Math.min(1, power * 2); this.consumePowerup(); }
+        if(pu?.id === 'zapper')     { power = 0.99; this.consumePowerup(); }
+        if(pu?.id === 'undergrounder') {
+            this.ball.active = false;
+            this.comment('hit');
+            this.showBanner('🌀 UNDERGROUNDER!', '#8b5cf6');
+            this.advanceBases(1 + Math.floor(Math.random()*2));
+            this._pitchPending = false;
+            setTimeout(() => this.doPitch(), 1800);
+            this.consumePowerup();
+            return;
+        }
+
+        // Swing style modifiers
+        const swingMult = { grounder: 0.5, line: 1.0, power: 1.4, bunt: 0.3 }[this.selectedSwing] || 1.0;
+        power *= swingMult;
+
+        // Launch the ball
+        const launchX = -350 + Math.random()*700;
+        this.ball.inFlight = true;
+        this.ball.vx = launchX / 60;
+        this.ball.vy = -(8 + power * 20);
+        this.ball.size = 12;
+
+        this.comment('hit');
+        this.spawnParticles(this.ball.x, this.ball.y, '#fbbf24', 20);
+
+        const wallDist = this.selectedField.wallDist;
+        isHomer = power > 0.55;
+
+        // Field-specific rules
+        if(this.selectedField.id === 'parking' && Math.random() < 0.2) isHomer = true;  // Hit a car
+        if(this.selectedField.id === 'rooftop' && isHomer) { /* +2 runs handled in score */ }
+
+        if(isHomer) {
+            this.comment('homer');
+            const bonusRuns = this.selectedField.id === 'rooftop' ? 2 : 1;
+            const runners = 1 + this.bases.filter(Boolean).length; // batter + all on base
+            const totalRuns = runners * bonusRuns;
+            setTimeout(() => {
+                this.showBanner(totalRuns >= 4 ? '🏆 GRAND SLAM!' : totalRuns >= 2 ? '💥 MULTI-RUN!' : '⚾ HOME RUN!', '#fbbf24');
+                this.score[1] += totalRuns;
+                this.bases = [false, false, false];
+                this.spawnParticles(500, 300, '#fbbf24', 60);
+                this.updateHUD();
+                this._pitchPending = false;
+                setTimeout(() => this.doPitch(), 2200);
+                setTimeout(() => this.addRandomPowerup(), 2000);
+            }, 800);
+        } else {
+            // Single / Double / Triple
+            const extra = this.selectedSwing === 'power' ? Math.random() < 0.4 ? 2 : 1 : 1;
+            setTimeout(() => {
+                this.comment('out');
+                this.advanceBases(extra);
+                this._pitchPending = false;
+                setTimeout(() => this.doPitch(), 1500);
+            }, 600);
+        }
+    }
+
+    advanceBases(bases) {
+        let runs = 0;
+        // Push runners forward
+        for(let i = 2; i >= 0; i--) {
+            if(this.bases[i]) {
+                const newBase = i + bases;
+                if(newBase >= 3) { runs++; this.bases[i] = false; }
+                else { this.bases[newBase] = true; this.bases[i] = false; }
+            }
+        }
+        // Batter goes to first (or further)
+        const batBase = bases - 1;
+        if(batBase >= 3) runs++;
+        else this.bases[batBase] = true;
+
+        if(runs > 0) {
+            this.score[1] += runs;
+            this.spawnParticles(500, 400, '#4ade80', 15);
+        }
+        this.updateHUD();
+    }
+
+    addStrike() {
+        this.strikes++;
+        if(this.strikes >= 3) {
+            this.ball.active = false;
+            this.strikes = 0; this.balls = 0;
+            this.addOut();
+        }
+        this.updateHUD();
+    }
+
+    addBall() {
+        this.balls++;
+        if(this.balls >= 4) {
+            // Walk
+            this.balls = 0; this.strikes = 0;
+            this.advanceBases(1);
+            this._pitchPending = false;
+            setTimeout(() => this.doPitch(), 1200);
+        }
+        this.updateHUD();
+    }
+
+    addOut() {
+        this.outs++;
+        if(this.outs >= 3) {
+            this.outs = 0;
+            this.bases = [false, false, false];
+            this.balls = 0; this.strikes = 0;
+
+            if(this.topInning) {
+                this.topInning = false; // switch to bottom (player bats)
+            } else {
+                this.topInning = true;
+                this.inning++;
+                if(this.inning > this.maxInnings) {
+                    setTimeout(() => this.endGame(), 1000);
+                    return;
+                }
+            }
+            this.pitcher = { stamina: Math.min(100, this.pitcher.stamina + 30), focus: Math.min(100, this.pitcher.focus + 20) };
+            this.updateMeterBars();
+            this.showBanner('3 OUTS — CHANGE SIDES', '#94a3b8');
+        }
+        // CPU also scores in top inning
+        if(this.topInning) {
+            if(Math.random() < 0.35) this.score[0] += 1 + Math.floor(Math.random()*2);
+        }
+        this.updateHUD();
+        if(this.state === 'play') {
+            setTimeout(() => { this._pitchPending = false; this.doPitch(); }, 1600);
+        }
+    }
+
+    endGame() {
+        this.state = 'gameover';
+        const won = this.score[1] > this.score[0];
+        document.getElementById('go-title').innerHTML = won ? 'VICTORY!<br><span>CHAMPION!</span>' : 'FINAL<br><span>BUZZER</span>';
+        document.getElementById('go-stats').innerHTML = `
+            Final Score: <strong>${this.score[1]} – ${this.score[0]}</strong><br>
+            Innings: ${this.inning} | Mode: ${this.isSeason ? 'Season' : 'Pickup'}<br>
+            Field: ${this.selectedField.name}
+        `;
+        this.showScreen('gameover-screen');
+    }
+
+    // ── HUD ────────────────────────────────────
+    updateHUD() {
+        document.getElementById('hud-score').textContent = `${this.score[1]} – ${this.score[0]}`;
+        document.getElementById('hud-inning').textContent = `Inn ${this.inning} ${this.topInning?'▲':'▼'}`;
+        document.getElementById('hud-outs').textContent = this.outs;
+        document.getElementById('base-1st').classList.toggle('on', this.bases[0]);
+        document.getElementById('base-2nd').classList.toggle('on', this.bases[1]);
+        document.getElementById('base-3rd').classList.toggle('on', this.bases[2]);
+    }
+
+    updateMeterBars() {
+        const sf = document.getElementById('stamina-fill');
+        const ff = document.getElementById('focus-fill');
+        sf.style.width = this.pitcher.stamina + '%';
+        ff.style.width = this.pitcher.focus + '%';
+        sf.classList.toggle('warn', this.pitcher.stamina < 30);
+        ff.classList.toggle('warn', this.pitcher.focus < 30);
+    }
+
+    // ── COMMENTARY ─────────────────────────────
+    comment(type) {
+        const lines = COMMENTARY_LINES[type] || [];
+        if(!lines.length) return;
+        const line = lines[Math.floor(Math.random()*lines.length)];
+        const el = document.getElementById('commentary');
+        el.textContent = line; el.classList.add('visible');
+        clearTimeout(this._commentaryTimeout);
+        this._commentaryTimeout = setTimeout(() => el.classList.remove('visible'), 3000);
+    }
+
+    showBanner(text, color='#fbbf24') {
+        const el = document.getElementById('event-banner');
+        el.textContent = text;
+        el.style.color = color;
+        el.style.display = 'block';
+        el.style.animation = 'none'; el.offsetHeight; // reflow
+        el.style.animation = '';
+        clearTimeout(this._bannerTimeout);
+        this._bannerTimeout = setTimeout(() => { el.style.display = 'none'; }, 2200);
+    }
+
+    // ── PARTICLES ──────────────────────────────
+    spawnParticles(x, y, color, count) {
+        for(let i=0; i<count; i++) {
+            this.particles.push({
+                x, y, color,
+                vx: (Math.random()-0.5)*20,
+                vy: (Math.random()-0.5)*20 - 5,
+                life: 1, gravity: 0.4
+            });
+        }
+    }
+
+    // ── UPDATE ─────────────────────────────────
+    update() {
+        this.clouds.forEach(c => { c.x += c.s; if(c.x > 1100) c.x = -200; });
+
+        this.particles.forEach(p => {
+            p.x += p.vx; p.y += p.vy; p.vy += p.gravity;
+            p.life -= 0.03;
+        });
+        this.particles = this.particles.filter(p => p.life > 0);
+
+        if(!this.ball.active) return;
+
+        // Apply curve
+        if(this.ball.curveX) this.ball.vx += this.ball.curveX * 0.05;
+
+        this.ball.x += this.ball.vx;
+        this.ball.y += this.ball.vy;
+
+        // Gravity when in flight (hit)
+        if(this.ball.inFlight) {
+            this.ball.vy += 0.4;
+            if(this.ball.y > this.H + 50 || this.ball.x < -100 || this.ball.x > this.W + 100) {
+                this.ball.active = false;
+                this.ball.inFlight = false;
+            }
+        } else {
+            // Pitched ball — check if past batter zone
+            if(this.ball.y > this.pitchZoneY + 90) {
+                this.ball.active = false;
+                this._pitchPending = false;
+                if(!this._swingPending) {
+                    // Ball or strike
+                    const isStrike = Math.abs(this.ball.x - 500) < 55;
+                    if(isStrike) this.addStrike();
+                    else this.addBall();
+                } else {
+                    this._swingPending = false;
+                    setTimeout(() => this.doPitch(), 1000);
+                }
+            }
+        }
+
+        // Bat swing animation
+        if(this.bat.swinging) {
+            this.bat.angle += (this.bat.target - this.bat.angle) * 0.35;
+        } else {
+            this.bat.angle += (-1.2 - this.bat.angle) * 0.2;
+        }
+    }
+
+    // ── DRAW ───────────────────────────────────
+    draw() {
+        const ctx = this.ctx;
+        const f = this.selectedField;
+        ctx.clearRect(0, 0, this.W, this.H);
+
+        // Sky gradient
+        const sky = ctx.createLinearGradient(0, 0, 0, 420);
+        sky.addColorStop(0, '#0369a1');
+        sky.addColorStop(1, '#7dd3fc');
+        ctx.fillStyle = sky; ctx.fillRect(0, 0, this.W, 420);
+
+        // Clouds
+        this.clouds.forEach(c => {
+            ctx.fillStyle = 'rgba(255,255,255,0.85)';
+            ctx.beginPath(); ctx.ellipse(c.x, c.y, 55*c.s+30, 20*c.s+12, 0, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(c.x+25, c.y-8, 35*c.s+15, 16*c.s+8, 0, 0, Math.PI*2); ctx.fill();
+        });
+
+        this.drawField(ctx, f);
+        this.drawCrowd(ctx);
+        this.drawPlayers(ctx);
+        this.drawBatAndPitchZone(ctx);
+
+        if(this.ball.active) this.drawBall(ctx);
+
+        // Particles
+        this.particles.forEach(p => {
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2); ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+
+        // Pitch zone box during play
+        if(this.state === 'play' && !this.ball.inFlight) {
+            ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+            ctx.lineWidth = 2; ctx.setLineDash([5,5]);
+            ctx.strokeRect(455, this.pitchZoneY - 45, 90, 90);
+            ctx.setLineDash([]);
+        }
+    }
+
+    drawField(ctx, f) {
+        // Grass + infield
+        ctx.fillStyle = f.color; ctx.fillRect(0, 320, this.W, this.H - 320);
+
+        // Mowed stripe pattern
+        ctx.fillStyle = f.altColor;
+        for(let i=0; i<10; i++) ctx.fillRect(i*100, 320, 50, this.H-320);
+
+        // Dirt infield diamond
+        ctx.fillStyle = '#c2824a';
+        ctx.beginPath(); ctx.moveTo(500, 640); ctx.lineTo(130, 380); ctx.lineTo(500, 310); ctx.lineTo(870, 380); ctx.closePath(); ctx.fill();
+
+        // Outfield wall
+        const grad = ctx.createLinearGradient(0, 310, 0, 330);
+        grad.addColorStop(0, f.altColor); grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = '#064e3b';
+        ctx.beginPath(); ctx.arc(500, 380, f.wallDist + 250, Math.PI*0.9, Math.PI*0.1, true); ctx.lineTo(500,310); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#042f2e'; ctx.lineWidth = 14;
+        ctx.beginPath(); ctx.arc(500, 380, f.wallDist + 250, Math.PI*0.9, Math.PI*0.1, true); ctx.stroke();
+
+        // Field rule sign
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center';
+        ctx.fillText('⚡ ' + f.rule, 500, 340);
+
+        // Home plate
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.moveTo(500,655); ctx.lineTo(485,645); ctx.lineTo(485,635); ctx.lineTo(515,635); ctx.lineTo(515,645); ctx.closePath(); ctx.fill();
+
+        // Bases
+        const basePositions = [{x:680,y:480},{x:500,y:360},{x:320,y:480}];
+        basePositions.forEach((pos,i) => {
+            ctx.fillStyle = this.bases[i] ? '#fbbf24' : '#fff';
+            ctx.save(); ctx.translate(pos.x,pos.y); ctx.rotate(Math.PI/4);
+            ctx.fillRect(-12,-12,24,24); ctx.restore();
+        });
+    }
+
+    drawCrowd(ctx) {
+        const time = Date.now() * 0.003;
+        for(let row=0; row<3; row++) {
+            const r = 740 + row * 20;
+            const yOff = row * 10;
+            for(let a = Math.PI * 0.78; a < Math.PI * 1.22; a += 0.05) {
+                const px = 500 + Math.cos(a) * r;
+                const py = 380 + Math.sin(a) * r + yOff;
+                if(py > 0 && py < 430) {
+                    const bob = Math.sin(time * 3 + a * 15) * 3;
+                    ctx.fillStyle = `hsl(${(a*400)%360},55%,48%)`;
+                    ctx.fillRect(px-4, py+bob-6, 8, 10);
+                    ctx.fillStyle = '#ffdbac';
+                    ctx.beginPath(); ctx.arc(px, py+bob-12, 5, 0, Math.PI*2); ctx.fill();
+                }
+            }
+        }
+    }
+
+    drawPlayers(ctx) {
+        // Pitcher
+        this.drawKid(ctx, 500, 370, '#ef4444', 1.0, 'pitcher');
+        // Batter
+        const batColor = this.selectedKids.length > 0 ? KIDS[this.selectedKids[0]].color : '#3b82f6';
+        this.drawKid(ctx, 445, 625, batColor, 1.3, 'batter');
+        // Field emoji letters
+        if(this.selectedKids.length > 1) {
+            const fieldPos = [{x:700,y:490},{x:300,y:490},{x:200,y:420},{x:800,y:420},{x:500,y:410}];
+            this.selectedKids.slice(1).forEach((ki, i) => {
+                if(fieldPos[i]) {
+                    const kid = KIDS[ki];
+                    ctx.font = '22px Arial'; ctx.textAlign = 'center';
+                    ctx.fillText(kid.emoji, fieldPos[i].x, fieldPos[i].y);
+                }
+            });
+        }
+    }
+
+    drawKid(ctx, x, y, color, scale, role) {
+        ctx.save();
+        ctx.translate(x, y); ctx.scale(scale, scale);
+        const t = Date.now() * 0.008;
+        const breath = Math.sin(t) * 2;
+
+        // Legs
+        ctx.fillStyle = '#111';
+        const legSwing = role === 'pitcher' ? Math.sin(t)*5 : 0;
+        ctx.fillRect(-10, -2+legSwing, 8, 14); ctx.fillRect(4, -2-legSwing, 8, 14);
+
+        // Body
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.roundRect(-13, -36+breath, 26, 34, 7); ctx.fill();
+        ctx.fillStyle = '#000'; ctx.fillRect(-13, -10+breath, 26, 4); // belt
+
+        // Arms
+        ctx.strokeStyle = '#ffdbac'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+        if(role === 'batter') {
+            const swing = this.bat.swinging ? this.bat.angle * 15 : 0;
+            ctx.beginPath(); ctx.moveTo(-12, -28+breath); ctx.lineTo(18+swing, -18+breath); ctx.stroke();
+        } else {
+            const windup = Math.sin(t*4)*8;
+            ctx.beginPath(); ctx.moveTo(-12,-28+breath); ctx.lineTo(-18,-12+breath+windup); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(12,-28+breath);  ctx.lineTo(18,-12+breath-windup); ctx.stroke();
+        }
+
+        // Head
+        ctx.fillStyle = '#ffdbac';
+        ctx.beginPath(); ctx.arc(0, -50+breath, 14, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(-5,-53+breath,2.5,0,Math.PI*2); ctx.arc(5,-53+breath,2.5,0,Math.PI*2); ctx.fill();
+
+        // Cap
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.arc(0,-56+breath,14,Math.PI,0); ctx.fill();
+        ctx.fillRect(0,-60+breath,20,5);
+
+        ctx.restore();
+    }
+
+    drawBatAndPitchZone(ctx) {
+        ctx.save();
+        ctx.translate(455, 630);
+        ctx.rotate(this.bat.angle);
+        // Handle
+        ctx.fillStyle = '#b45309';
+        ctx.beginPath(); ctx.roundRect(0, -8, 90, 16, 5); ctx.fill();
+        ctx.fillStyle = '#d97706'; ctx.fillRect(0, -8, 90, 5); // shine
+        ctx.restore();
+    }
+
+    drawBall(ctx) {
+        const { x, y, type, size } = this.ball;
+        ctx.save();
+        if(type === 'fireball') {
+            ctx.shadowBlur = 25; ctx.shadowColor = '#f97316';
+            ctx.fillStyle = '#f97316';
+        } else if(type === 'spitball') {
+            ctx.shadowBlur = 12; ctx.shadowColor = '#38bdf8';
+            ctx.fillStyle = '#bae6fd';
+        } else if(type === 'bigfreeze') {
+            ctx.shadowBlur = 20; ctx.shadowColor = '#38bdf8';
+            ctx.fillStyle = '#e0f2fe';
+        } else {
+            ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(255,255,255,0.6)';
+            ctx.fillStyle = '#fff';
+        }
+        ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Seams
+        if(type === 'normal') {
+            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.arc(x-2, y, size*0.7, -0.5, 0.5); ctx.stroke();
+            ctx.beginPath(); ctx.arc(x+2, y, size*0.7, Math.PI-0.5, Math.PI+0.5); ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    loop() {
+        if(this.state === 'play') this.update();
+        this.draw();
+        requestAnimationFrame(() => this.loop());
+    }
+}
+
+window.game = new BackyardBlast();
+</script>
+</body>
+</html>
     <style>
         :root {
             --grass: #2e7d32;
@@ -100,6 +1209,14 @@
 
         .back-link { position: fixed; top: 20px; left: 20px; color: #94a3b8; text-decoration: none; font-weight: bold; font-size: 0.8rem; z-index: 1100; }
     </style>
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CCZ9JJGEDP"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-CCZ9JJGEDP');
+    </script>
 </head>
 <body>
     <a href="index.html" class="back-link">← HUB</a>
