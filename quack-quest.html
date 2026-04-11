@@ -74,6 +74,14 @@
         #ui-toast { position: absolute; top: 40px; background: #0c4a6e; color: white; padding: 10px 30px; border-radius: 50px; font-weight: 900; transform: translateY(-150px); transition: 0.4s; z-index: 50; }
         #ui-toast.show { transform: translateY(0); }
     </style>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-CCZ9JJGEDP"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-CCZ9JJGEDP');
+</script>
 </head>
 <body>
     <aside id="sidebar">
@@ -414,22 +422,45 @@
                 if(!this.currentMap) return;
                 const ctx = this.ctx; ctx.clearRect(0,0,this.width,this.height);
                 ctx.fillStyle = MAPS[this.currentMap].bg; ctx.fillRect(0,0,this.width,this.height);
-                this.scenery.forEach(s => { ctx.fillStyle = s.color; if(s.r) { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill(); } else ctx.fillRect(s.x, s.y, s.w, s.h); });
-                this.poops.forEach(p => { ctx.fillStyle = '#713f12'; ctx.beginPath(); ctx.arc(p.x, p.y+20, 6, 0, Math.PI*2); ctx.fill(); });
-                this.items.forEach(i => { if(!i.held) { ctx.font = '40px Arial'; ctx.fillText(i.emoji, i.x-20, i.y+20); if(i.active) { ctx.font='15px Arial'; ctx.fillText('🎵', i.x, i.y-25); } } });
-                this.npcs.forEach(n => { ctx.font = '50px Arial'; ctx.fillText(n.emoji, n.x - 25, n.y + 25); });
+                this.scenery.forEach(s => { ctx.globalAlpha = 1; ctx.fillStyle = s.color; if(s.r) { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill(); } else ctx.fillRect(s.x, s.y, s.w, s.h); });
+                this.poops.forEach(p => { ctx.globalAlpha = 1; ctx.fillStyle = '#713f12'; ctx.beginPath(); ctx.arc(p.x, p.y+20, 6, 0, Math.PI*2); ctx.fill(); });
 
-                ctx.save(); ctx.translate(this.player.x, this.player.y); if(this.player.dir === -1) ctx.scale(-1, 1);
-                const waddle = Math.sin(this.player.anim)*5;
-                ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.beginPath(); ctx.ellipse(0, 25, 25, 10, 0, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = this.player.sneaking ? '#cbd5e1' : '#fff';
-                ctx.beginPath(); ctx.ellipse(0, waddle, 30, this.player.sneaking ? 12 : 20, 0, 0, Math.PI*2); ctx.fill();
-                if(this.player.flapping > 0) { const flap = Math.sin(Date.now()/50)*20; ctx.beginPath(); ctx.ellipse(-5, waddle-10, 15, 10, flap*0.1, 0, Math.PI*2); ctx.fill(); }
-                ctx.beginPath(); ctx.arc(25, (this.player.sneaking ? 0 : -15) + waddle, 14, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.ellipse(38, (this.player.sneaking ? 0 : -15) + waddle, 10, 5, 0, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(28, (this.player.sneaking ? -3 : -18) + waddle, 2.5, 0, Math.PI*2); ctx.fill();
-                if(this.player.honking) { ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(45, -15+waddle, 20, -0.5, 0.5); ctx.stroke(); }
-                ctx.restore();
+                // Build y-sorted draw list for items, NPCs, and player
+                const drawList = [];
+                this.items.forEach(i => { if(!i.held) drawList.push({ y: i.y, type: 'item', obj: i }); });
+                this.npcs.forEach(n => drawList.push({ y: n.y, type: 'npc', obj: n }));
+                drawList.push({ y: this.player.y, type: 'player' });
+                drawList.sort((a, b) => a.y - b.y);
+
+                drawList.forEach(entry => {
+                    const behindPlayer = entry.type !== 'player' && entry.y < this.player.y;
+                    ctx.globalAlpha = behindPlayer ? 0.6 : 1;
+
+                    if(entry.type === 'item') {
+                        const i = entry.obj;
+                        ctx.font = '40px Arial'; ctx.fillText(i.emoji, i.x-20, i.y+20);
+                        if(i.active) { ctx.globalAlpha = 1; ctx.font='15px Arial'; ctx.fillText('🎵', i.x, i.y-25); }
+                    } else if(entry.type === 'npc') {
+                        const n = entry.obj;
+                        ctx.font = '50px Arial'; ctx.fillText(n.emoji, n.x - 25, n.y + 25);
+                    } else {
+                        // Draw player
+                        ctx.globalAlpha = 1;
+                        ctx.save(); ctx.translate(this.player.x, this.player.y); if(this.player.dir === -1) ctx.scale(-1, 1);
+                        const waddle = Math.sin(this.player.anim)*5;
+                        ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.beginPath(); ctx.ellipse(0, 25, 25, 10, 0, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = this.player.sneaking ? '#cbd5e1' : '#fff';
+                        ctx.beginPath(); ctx.ellipse(0, waddle, 30, this.player.sneaking ? 12 : 20, 0, 0, Math.PI*2); ctx.fill();
+                        if(this.player.flapping > 0) { const flap = Math.sin(Date.now()/50)*20; ctx.beginPath(); ctx.ellipse(-5, waddle-10, 15, 10, flap*0.1, 0, Math.PI*2); ctx.fill(); }
+                        ctx.beginPath(); ctx.arc(25, (this.player.sneaking ? 0 : -15) + waddle, 14, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.ellipse(38, (this.player.sneaking ? 0 : -15) + waddle, 10, 5, 0, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(28, (this.player.sneaking ? -3 : -18) + waddle, 2.5, 0, Math.PI*2); ctx.fill();
+                        if(this.player.honking) { ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(45, -15+waddle, 20, -0.5, 0.5); ctx.stroke(); }
+                        ctx.restore();
+                    }
+                });
+
+                ctx.globalAlpha = 1;
                 if(this.player.held) { ctx.font='40px Arial'; ctx.fillText(this.player.held.emoji, this.player.held.x-20, this.player.held.y+20); }
             }
 
