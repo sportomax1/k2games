@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Belly Bump Bash - K2 Games</title>
+    <style>
+        :root {
+            --bg: #1a0a2e;
+            --ring: #f5e6c8;
+            --accent: #ff6b35;
+            --accent2: #ffd700;
+            --panel: #2d1b4e;
+            --text: #f0e6ff;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; touch-action: none; }
+        body {
+            background: var(--bg);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh; display: flex; flex-direction: row; overflow: hidden;
+            color: var(--text);
+        }
+        @media (max-width: 900px) {
+            body { flex-direction: column; }
+            #sidebar { width: 100% !important; height: auto !important; min-height: 0; border-right: none !important; border-bottom: 2px solid #3d2a6e; max-height: 38vh; }
+            #main-view { flex: 1; padding: 0 !important; min-height: 0; }
+            canvas { width: 100% !important; height: 100% !important; border-radius: 0 !important; }
+        }
+        #sidebar {
+            width: 300px; background: var(--panel); padding: 1rem; display: flex; flex-direction: column; gap: 0.7rem;
+            box-shadow: 4px 0 30px rgba(0,0,0,0.5); z-index: 10; border-right: 2px solid #3d2a6e; overflow-y: auto; flex-shrink: 0;
+        }
+        .logo {
+            font-size: 1.4rem; font-weight: 900; color: var(--accent2); letter-spacing: -1px; font-style: italic;
+            border-bottom: 4px solid var(--accent); padding-bottom: 0.4rem; line-height: 1.2;
+        }
+        .logo small { font-size: 0.65rem; font-style: normal; color: #a78bfa; display: block; font-weight: 600; margin-top: 3px; letter-spacing: 0.05em; text-transform: uppercase; }
+        .section-title { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.25em; color: #a78bfa; font-weight: 800; margin-top: 0.2rem; }
+        .stat-panel {
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+            padding: 0.7rem; border-radius: 8px;
+        }
+        .stat-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; margin-bottom: 4px; }
+        .stat-val { font-weight: 900; color: var(--accent2); font-size: 0.85rem; }
+        .heat-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-top: 4px; }
+        .heat-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #ff6b35, #ff0040); transition: width 0.3s; }
+        .lives-row { display: flex; gap: 4px; margin-top: 6px; }
+        .life-pip { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: 2px solid var(--accent2); font-size: 0.65rem; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .life-pip.lost { background: rgba(255,255,255,0.08); border-color: #444; }
+        .round-panel {
+            background: rgba(255,107,53,0.15); border: 1px solid rgba(255,107,53,0.3);
+            padding: 0.6rem; border-radius: 8px;
+        }
+        .round-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.15em; color: #f9a8d4; font-weight: 700; }
+        .round-val { font-size: 1.8rem; font-weight: 900; color: var(--accent2); line-height: 1; }
+        .round-sub { font-size: 0.55rem; color: #a78bfa; margin-top: 2px; }
+        .tip-box { background: rgba(255,255,255,0.04); border-radius: 6px; padding: 0.5rem; font-size: 0.6rem; line-height: 1.6; color: #94a3b8; }
+        .tip-box b { color: #e2e8f0; }
+        #main-view { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; background: #0a0018; overflow: hidden; }
+        canvas { display: block; max-width: 100%; max-height: 100%; }
+        .overlay {
+            position: absolute; inset: 0; background: rgba(10,0,24,0.97); z-index: 200;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: var(--text); text-align: center; padding: 2rem;
+        }
+        .overlay.hidden { display: none; }
+        .big-title { font-size: clamp(2rem,5vw,3.5rem); font-weight: 900; font-style: italic; letter-spacing: -2px; line-height: 1; }
+        .start-btn {
+            background: var(--accent); color: #fff; border: none; padding: 14px 48px;
+            border-radius: 50px; font-weight: 900; font-size: 1.1rem; cursor: pointer;
+            margin-top: 1.5rem; transition: 0.15s; letter-spacing: 0.05em;
+            box-shadow: 0 4px 24px rgba(255,107,53,0.4);
+        }
+        .start-btn:hover { transform: scale(1.06); background: #ff4500; }
+        .diff-grid { display: flex; gap: 12px; margin-top: 1.2rem; flex-wrap: wrap; justify-content: center; }
+        .diff-btn {
+            padding: 10px 22px; border-radius: 12px; font-weight: 800; font-size: 0.85rem;
+            cursor: pointer; border: 2px solid transparent; transition: 0.15s; min-width: 100px;
+        }
+        .diff-btn.easy   { background: #dcfce7; color: #166534; }
+        .diff-btn.medium { background: #fef3c7; color: #92400e; }
+        .diff-btn.hard   { background: #fee2e2; color: #991b1b; }
+        .diff-btn.active, .diff-btn:hover { transform: scale(1.08); border-color: var(--accent2); }
+        #mobile-controls {
+            position: absolute; bottom: 12px; left: 0; right: 0; padding: 0 16px;
+            display: none; justify-content: space-between; align-items: flex-end; z-index: 100; pointer-events: none;
+        }
+        @media (max-width: 900px) { #mobile-controls { display: flex; } }
+        .joystick-base { width: 90px; height: 90px; background: rgba(255,255,255,0.12); border-radius: 50%; display: flex; align-items: center; justify-content: center; pointer-events: auto; border: 2px solid rgba(255,255,255,0.2); }
+        .joystick-thumb { width: 36px; height: 36px; background: rgba(255,255,255,0.85); border-radius: 50%; pointer-events: none; transition: none; }
+        .action-btns { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; pointer-events: auto; }
+        .action-btn {
+            width: 52px; height: 52px; border-radius: 50%; background: rgba(255,255,255,0.15);
+            border: 2px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; font-weight: 900; cursor: pointer; color: #fff; pointer-events: auto;
+        }
+        .action-btn:active { background: var(--accent); border-color: var(--accent2); transform: scale(0.92); }
+        #toast {
+            position: absolute; top: 14px; left: 50%; transform: translateX(-50%) translateY(-80px);
+            background: rgba(30,10,60,0.92); border: 2px solid var(--accent); color: #fff;
+            padding: 6px 24px; border-radius: 50px; font-weight: 900; font-size: 0.9rem;
+            transition: transform 0.35s cubic-bezier(.34,1.56,.64,1); z-index: 300; white-space: nowrap;
+        }
+        #toast.show { transform: translateX(-50%) translateY(0); }
+        #round-banner {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(0);
+            background: var(--accent); color: #fff; padding: 16px 48px; border-radius: 16px;
+            font-weight: 900; font-size: 2rem; z-index: 250; letter-spacing: 0.05em;
+            transition: transform 0.3s cubic-bezier(.34,1.56,.64,1); pointer-events: none;
+        }
+        #round-banner.show { transform: translate(-50%,-50%) scale(1); }
+    </style>
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CCZ9JJGEDP"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-CCZ9JJGEDP');
+    </script>
+</head>
+<body>
+
+<aside id="sidebar">
+    <div class="logo">
+        🥊 BELLY BUMP BASH
+        <small>Top-Down Sumo Brawler</small>
+    </div>
+
+    <div class="round-panel">
+        <div class="round-label">Round</div>
+        <div class="round-val" id="sb-round">1</div>
+        <div class="round-sub" id="sb-round-sub">vs 1 opponent</div>
+    </div>
+
+    <div class="stat-panel">
+        <div class="stat-row">
+            <span>Score</span><span class="stat-val" id="sb-score">0</span>
+        </div>
+        <div class="stat-row">
+            <span>Best</span><span class="stat-val" id="sb-best">0</span>
+        </div>
+        <div class="stat-row" style="margin-top:4px;">
+            <span style="font-size:0.6rem;color:#a78bfa;">HEAT</span>
+            <span id="sb-heat-pct" style="font-size:0.65rem;font-weight:800;color:#ff6b35;">0%</span>
+        </div>
+        <div class="heat-bar"><div class="heat-fill" id="sb-heat-bar" style="width:0%"></div></div>
+        <div class="section-title" style="margin-top:8px;">Lives</div>
+        <div class="lives-row" id="lives-row"></div>
+    </div>
+
+    <div class="tip-box">
+        <b>WASD / Arrows</b> — Move<br>
+        <b>Space / J</b> — Charge Dash<br>
+        <b>K / Shift</b> — Shove<br>
+        <b>Mobile:</b> Joystick + buttons
+    </div>
+</aside>
+
+<main id="main-view">
+    <canvas id="gameCanvas"></canvas>
+    <div id="toast">RING OUT!</div>
+    <div id="round-banner">ROUND 1</div>
+
+    <!-- Mobile controls -->
+    <div id="mobile-controls">
+        <div class="joystick-base" id="joy-base"><div class="joystick-thumb" id="joy-thumb"></div></div>
+        <div class="action-btns">
+            <div class="action-btn" id="btn-dash">💨</div>
+            <div class="action-btn" id="btn-shove">👊</div>
+        </div>
+    </div>
+
+    <!-- Start / difficulty screen -->
+    <div id="start-overlay" class="overlay">
+        <div style="font-size:4rem;margin-bottom:0.5rem;">🥋</div>
+        <div class="big-title" style="color:var(--accent2);">BELLY BUMP BASH</div>
+        <p style="color:#a78bfa;margin-top:0.6rem;font-size:0.9rem;max-width:340px;">Circle, charge, and shove rivals out of the ring.<br>Survive all 8 rounds to claim the championship!</p>
+        <div class="diff-grid">
+            <div class="diff-btn easy active" onclick="game.setDiff('easy',this)">🟢 EASY</div>
+            <div class="diff-btn medium" onclick="game.setDiff('medium',this)">🟡 MEDIUM</div>
+            <div class="diff-btn hard" onclick="game.setDiff('hard',this)">🔴 HARD</div>
+        </div>
+        <button class="start-btn" onclick="game.startRound()">ENTER THE RING →</button>
+    </div>
+
+    <!-- Round win overlay -->
+    <div id="win-overlay" class="overlay hidden">
+        <div style="font-size:3.5rem;" id="win-icon">🏆</div>
+        <div class="big-title" style="color:var(--accent2);" id="win-title">ROUND CLEAR!</div>
+        <p style="color:#a78bfa;margin-top:0.5rem;font-size:0.85rem;" id="win-sub">+500 pts</p>
+        <button class="start-btn" onclick="game.nextRound()" id="win-btn">NEXT ROUND →</button>
+    </div>
+
+    <!-- Game Over overlay -->
+    <div id="gameover-overlay" class="overlay hidden">
+        <div style="font-size:3rem;">💥</div>
+        <div class="big-title" style="color:#ef4444;">RING OUT!</div>
+        <p style="color:#a78bfa;margin-top:0.5rem;" id="go-sub">Better luck next time.</p>
+        <div id="go-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:280px;width:100%;margin:1rem auto;"></div>
+        <button class="start-btn" onclick="game.restart()">TRY AGAIN</button>
+    </div>
+</main>
+
+<script>
+// ─── Constants ───────────────────────────────────────────────────────────────
+const W = 800, H = 650;
+const RING_CX = W/2, RING_CY = H/2;
+
+const ROUNDS = [
+    { opponents:1, ringR:230, ringShrink:0, label:'Round 1 — One push away from glory' },
+    { opponents:1, ringR:220, ringShrink:0, label:'Round 2 — They\'re quicker now' },
+    { opponents:2, ringR:215, ringShrink:0, label:'Round 3 — Outnumbered!' },
+    { opponents:2, ringR:205, ringShrink:0, label:'Round 4 — Tight quarters' },
+    { opponents:3, ringR:200, ringShrink:0, label:'Round 5 — Chaos mode' },
+    { opponents:3, ringR:190, ringShrink:0, label:'Round 6 — Tiny arena, big bumps' },
+    { opponents:3, ringR:180, ringShrink:0, label:'Round 7 — Championship semi-final' },
+    { opponents:3, ringR:170, ringShrink:0, label:'Round 8 — GRAND FINALE' },
+];
+
+const DIFF = {
+    easy:   { aiSpeed:1.4, aiChargeFreq:200, aiChargePower:4,   aiReactDist:160, lives:5 },
+    medium: { aiSpeed:2.0, aiChargeFreq:130, aiChargePower:5.5, aiReactDist:210, lives:3 },
+    hard:   { aiSpeed:2.7, aiChargeFreq:70,  aiChargePower:7.5, aiReactDist:260, lives:2 },
+};
+
+// Sumo colours
+const COLORS = ['#ff6b35','#6366f1','#10b981','#f59e0b','#ec4899'];
+const EMOJIS = ['🥋','🤼','💪','🏋️','🤸'];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function dist(a, b) { return Math.hypot(a.x-b.x, a.y-b.y); }
+function clamp(v,lo,hi) { return Math.max(lo,Math.min(hi,v)); }
+function lerp(a,b,t) { return a+(b-a)*t; }
+function rnd(lo,hi) { return lo+Math.random()*(hi-lo); }
+
+// ─── Game class ──────────────────────────────────────────────────────────────
+class BellyBumpGame {
+    constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.canvas.width = W; this.canvas.height = H;
+
+        this.diff = 'easy';
+        this.roundIdx = 0;
+        this.score = 0;
+        this.lives = DIFF[this.diff].lives;
+        this.best = parseInt(localStorage.getItem('bellyBumpBest')||'0');
+        this.heat = 0;
+        this.running = false;
+        this.state = 'start'; // start | playing | win | gameover
+
+        this.keys = {};
+        this.joy = { active:false, x:0, y:0 };
+
+        this.player = null;
+        this.opponents = [];
+        this.effects = [];
+        this.shockwaves = [];
+        this.floorParticles = [];
+
+        this.currentRingR = 230;
+        this.displayRingR = 230;
+
+        this.setupInputs();
+        this.updateSidebar();
+        this.gameLoop();
+    }
+
+    // ── Difficulty ────────────────────────────────────────────────────────────
+    setDiff(d, el) {
+        this.diff = d;
+        document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('active'));
+        el.classList.add('active');
+    }
+
+    // ── Round management ──────────────────────────────────────────────────────
+    startRound() {
+        const rd = ROUNDS[this.roundIdx];
+        const df = DIFF[this.diff];
+
+        this.currentRingR = rd.ringR;
+        this.displayRingR = rd.ringR + 30; // animate in
+        this.heat = 0;
+
+        // Player
+        this.player = {
+            x: RING_CX, y: RING_CY + rd.ringR * 0.55,
+            vx: 0, vy: 0, r: 26,
+            speed: 3.8, mass: 1,
+            dashCD: 0, dashPower: 0,
+            shoveCD: 0,
+            isPlayer: true,
+            color: COLORS[0],
+            emoji: '🥋',
+            anim: 0, dir: 0, squish: 1,
+            stunned: 0,
+            eliminated: false,
+        };
+
+        // Opponents
+        this.opponents = [];
+        const count = rd.opponents;
+        for(let i=0; i<count; i++) {
+            const angle = ((i/count)*Math.PI*2) + (Math.PI * 0.8);
+            const spawnR = rd.ringR * 0.55;
+            this.opponents.push({
+                x: RING_CX + Math.cos(angle)*spawnR,
+                y: RING_CY + Math.sin(angle)*spawnR,
+                vx: 0, vy: 0, r: 26,
+                speed: df.aiSpeed + rnd(-0.2,0.2),
+                mass: 1,
+                dashCD: 0, dashPower: 0,
+                shoveCD: 0,
+                isPlayer: false,
+                color: COLORS[1+i],
+                emoji: EMOJIS[1+i],
+                anim: 0, dir: 0, squish: 1,
+                stunned: 0,
+                chargeTimer: Math.floor(rnd(30, df.aiChargeFreq)),
+                aiChargeFreq: df.aiChargeFreq,
+                aiChargePower: df.aiChargePower,
+                aiReactDist: df.aiReactDist,
+                eliminated: false,
+            });
+        }
+
+        this.effects = [];
+        this.shockwaves = [];
+        this.floorParticles = this.makeFloorDots();
+
+        this.state = 'playing';
+        this.running = true;
+
+        // Hide all overlays
+        ['start-overlay','win-overlay','gameover-overlay'].forEach(id=>
+            document.getElementById(id).classList.add('hidden')
+        );
+
+        this.showRoundBanner(`ROUND ${this.roundIdx+1}`);
+        this.updateSidebar();
+    }
+
+    nextRound() {
+        this.roundIdx++;
+        if(this.roundIdx >= ROUNDS.length) {
+            this.showChampion();
+            return;
+        }
+        document.getElementById('win-overlay').classList.add('hidden');
+        this.startRound();
+    }
+
+    restart() {
+        this.roundIdx = 0;
+        this.score = 0;
+        this.lives = DIFF[this.diff].lives;
+        this.heat = 0;
+        document.getElementById('gameover-overlay').classList.add('hidden');
+        document.getElementById('start-overlay').classList.remove('hidden');
+        this.state = 'start';
+        this.player = null;
+        this.opponents = [];
+        this.updateSidebar();
+    }
+
+    makeFloorDots() {
+        const dots = [];
+        for(let i=0;i<40;i++) {
+            const a = rnd(0, Math.PI*2), r = rnd(10, this.currentRingR-20);
+            dots.push({ x: RING_CX+Math.cos(a)*r, y: RING_CY+Math.sin(a)*r, s: rnd(1,3), a: rnd(0.1,0.3) });
+        }
+        return dots;
+    }
+
+    // ── Input setup ───────────────────────────────────────────────────────────
+    setupInputs() {
+        window.addEventListener('keydown', e => {
+            this.keys[e.code] = true;
+            if(e.code==='Space'||e.code==='KeyJ') { e.preventDefault(); this.triggerDash(); }
+            if(e.code==='KeyK'||e.code==='ShiftLeft'||e.code==='ShiftRight') this.triggerShove();
+        });
+        window.addEventListener('keyup', e => { this.keys[e.code] = false; });
+
+        // Joystick
+        const base = document.getElementById('joy-base');
+        const thumb = document.getElementById('joy-thumb');
+        const handleJoy = (e) => {
+            if(!this.joy.touching) return;
+            const rect = base.getBoundingClientRect();
+            const t = e.touches ? e.touches[0] : e;
+            const dx = t.clientX - (rect.left+rect.width/2);
+            const dy = t.clientY - (rect.top+rect.height/2);
+            const len = Math.hypot(dx,dy), maxR = 32;
+            const nx = len>maxR ? (dx/len)*maxR : dx;
+            const ny = len>maxR ? (dy/len)*maxR : dy;
+            this.joy.x = nx/maxR; this.joy.y = ny/maxR;
+            thumb.style.transform = `translate(${nx}px,${ny}px)`;
+        };
+        base.addEventListener('touchstart', e=>{ e.preventDefault(); this.joy.touching=true; handleJoy(e); });
+        window.addEventListener('touchmove', e=>handleJoy(e), {passive:true});
+        window.addEventListener('touchend', ()=>{
+            this.joy.touching=false; this.joy.x=0; this.joy.y=0;
+            thumb.style.transform='translate(0,0)';
+        });
+
+        document.getElementById('btn-dash').addEventListener('touchstart', e=>{ e.preventDefault(); this.triggerDash(); });
+        document.getElementById('btn-shove').addEventListener('touchstart', e=>{ e.preventDefault(); this.triggerShove(); });
+    }
+
+    triggerDash() {
+        if(!this.player || this.player.dashCD > 0 || this.player.stunned > 0) return;
+        const dx = this.keys['KeyD']||this.keys['ArrowRight'] ? 1 : (this.keys['KeyA']||this.keys['ArrowLeft'] ? -1 : (this.joy.x !== 0 ? Math.sign(this.joy.x) : this.player.dir || 0));
+        const dy = this.keys['KeyS']||this.keys['ArrowDown'] ? 1 : (this.keys['KeyW']||this.keys['ArrowUp'] ? -1 : (this.joy.y !== 0 ? Math.sign(this.joy.y) : 0));
+        const len = Math.hypot(dx, dy) || 1;
+        this.player.vx += (dx/len)*9;
+        this.player.vy += (dy/len)*9;
+        this.player.dashCD = 45;
+        this.player.dashPower = 18;
+        this.spawnEffect(this.player.x, this.player.y, '💨', '#60a5fa', 1.4);
+        this.shockwaves.push({ x:this.player.x, y:this.player.y, r:0, maxR:60, life:1 });
+        this.showToast('CHARGE! 💨');
+        this.heat = Math.min(100, this.heat+6);
+    }
+
+    triggerShove() {
+        if(!this.player || this.player.shoveCD > 0 || this.player.stunned > 0) return;
+        // Push nearby opponents
+        const shoveR = this.player.r + 50;
+        let hit = 0;
+        this.opponents.forEach(op => {
+            if(op.eliminated) return;
+            const d = dist(this.player, op);
+            if(d < shoveR) {
+                const ang = Math.atan2(op.y-this.player.y, op.x-this.player.x);
+                op.vx += Math.cos(ang)*7;
+                op.vy += Math.sin(ang)*7;
+                op.stunned = 20;
+                op.squish = 1.4;
+                this.spawnEffect(op.x, op.y-30, 'SHOVE!', '#ffd700', 1.2);
+                this.shockwaves.push({ x:(this.player.x+op.x)/2, y:(this.player.y+op.y)/2, r:0, maxR:45, life:1 });
+                hit++;
+            }
+        });
+        this.player.shoveCD = 35;
+        this.player.squish = 0.7;
+        if(hit>0) { this.showToast('SHOVE! 💪'); this.heat = Math.min(100, this.heat+10); }
+    }
+
+    // ── AI ────────────────────────────────────────────────────────────────────
+    updateAI(op) {
+        if(op.eliminated || op.stunned > 0) return;
+        op.chargeTimer--;
+        const toPlayerAng = Math.atan2(this.player.y-op.y, this.player.x-op.x);
+        const toCenterAng = Math.atan2(RING_CY-op.y, RING_CX-op.x);
+        const dToEdge = this.currentRingR - dist(op, {x:RING_CX,y:RING_CY});
+        const dToPlayer = dist(op, this.player);
+
+        // If near ring edge, retreat toward center
+        if(dToEdge < 55) {
+            op.vx += Math.cos(toCenterAng)*0.6;
+            op.vy += Math.sin(toCenterAng)*0.6;
+        } else if(op.chargeTimer <= 0 && dToPlayer < op.aiReactDist) {
+            // Charge at player
+            op.vx += Math.cos(toPlayerAng)*op.aiChargePower*0.25;
+            op.vy += Math.sin(toPlayerAng)*op.aiChargePower*0.25;
+            op.chargeTimer = op.aiChargeFreq + Math.floor(rnd(-20,20));
+            op.dashPower = op.aiChargePower;
+            this.shockwaves.push({ x:op.x, y:op.y, r:0, maxR:35, life:1 });
+        } else {
+            // Circle around player
+            const perpAng = toPlayerAng + Math.PI*0.5;
+            op.vx += Math.cos(perpAng)*0.25 + Math.cos(toPlayerAng)*0.08;
+            op.vy += Math.sin(perpAng)*0.25 + Math.sin(toPlayerAng)*0.08;
+        }
+    }
+
+    // ── Physics ───────────────────────────────────────────────────────────────
+    applyPhysics(body) {
+        if(body.eliminated) return;
+        // Friction
+        const friction = body.stunned > 0 ? 0.94 : 0.88;
+        body.vx *= friction;
+        body.vy *= friction;
+
+        // Cap velocity
+        const spd = Math.hypot(body.vx,body.vy);
+        const maxSpd = 16;
+        if(spd > maxSpd) { body.vx=(body.vx/spd)*maxSpd; body.vy=(body.vy/spd)*maxSpd; }
+
+        body.x += body.vx;
+        body.y += body.vy;
+
+        // Squish recover
+        body.squish = lerp(body.squish, 1, 0.15);
+
+        // Anim
+        body.anim += 0.12;
+        if(Math.abs(body.vx)>0.2) body.dir = body.vx > 0 ? 1 : -1;
+
+        // Cooldowns & stun
+        if(body.dashCD>0) body.dashCD--;
+        if(body.shoveCD>0) body.shoveCD--;
+        if(body.stunned>0) body.stunned--;
+        if(body.dashPower>0) body.dashPower--;
+    }
+
+    checkBodyCollisions(bodies) {
+        for(let i=0;i<bodies.length;i++) {
+            for(let j=i+1;j<bodies.length;j++) {
+                const a=bodies[i], b=bodies[j];
+                if(a.eliminated||b.eliminated) continue;
+                const d = dist(a,b);
+                const minD = a.r+b.r;
+                if(d < minD && d > 0) {
+                    const ang = Math.atan2(b.y-a.y, b.x-a.x);
+                    const overlap = minD-d;
+                    a.x -= Math.cos(ang)*overlap*0.5;
+                    a.y -= Math.sin(ang)*overlap*0.5;
+                    b.x += Math.cos(ang)*overlap*0.5;
+                    b.y += Math.sin(ang)*overlap*0.5;
+
+                    // Impact velocities — heavier hit = more push
+                    const relVx = a.vx-b.vx, relVy = a.vy-b.vy;
+                    const relSpd = Math.cos(ang)*relVx + Math.sin(ang)*relVy;
+                    if(relSpd > 0) {
+                        const impulse = relSpd * 1.35;
+                        a.vx -= Math.cos(ang)*impulse*0.5;
+                        a.vy -= Math.sin(ang)*impulse*0.5;
+                        b.vx += Math.cos(ang)*impulse*0.5;
+                        b.vy += Math.sin(ang)*impulse*0.5;
+                        if(impulse > 1.5) {
+                            this.shockwaves.push({ x:(a.x+b.x)/2, y:(a.y+b.y)/2, r:0, maxR:50, life:1 });
+                            a.squish = lerp(a.squish, 0.65, 0.6);
+                            b.squish = lerp(b.squish, 0.65, 0.6);
+                            if(impulse > 3) this.spawnEffect((a.x+b.x)/2,(a.y+b.y)/2-25,'BUMP!','#ffd700');
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    checkRingOut(bodies) {
+        bodies.forEach(body => {
+            if(body.eliminated) return;
+            const d = dist(body, {x:RING_CX,y:RING_CY});
+            if(d + body.r > this.currentRingR) {
+                body.eliminated = true;
+                this.spawnEffect(body.x, body.y-30, body.isPlayer ? '😱 OUT!' : '💥 RING OUT!', body.isPlayer ? '#ef4444' : '#ffd700', 1.5);
+                this.shockwaves.push({ x:body.x, y:body.y, r:0, maxR:90, life:1 });
+                if(!body.isPlayer) {
+                    const pts = 200 + this.roundIdx*150;
+                    this.score += pts;
+                    this.heat = Math.min(100, this.heat+20);
+                    this.spawnEffect(RING_CX, RING_CY-40, `+${pts}`, '#10b981');
+                    this.updateSidebar();
+                }
+            }
+        });
+    }
+
+    // ── Update ────────────────────────────────────────────────────────────────
+    update() {
+        if(this.state !== 'playing' || !this.player) return;
+
+        // Animate ring size
+        this.displayRingR = lerp(this.displayRingR, this.currentRingR, 0.07);
+
+        // Player movement
+        const p = this.player;
+        if(p.stunned <= 0) {
+            let dx = 0, dy = 0;
+            if(this.keys['KeyA']||this.keys['ArrowLeft'])  dx -= 1;
+            if(this.keys['KeyD']||this.keys['ArrowRight']) dx += 1;
+            if(this.keys['KeyW']||this.keys['ArrowUp'])    dy -= 1;
+            if(this.keys['KeyS']||this.keys['ArrowDown'])  dy += 1;
+            if(this.joy.touching) { dx += this.joy.x; dy += this.joy.y; }
+            const len = Math.hypot(dx,dy);
+            if(len > 0) { p.vx += (dx/len)*p.speed*0.35; p.vy += (dy/len)*p.speed*0.35; }
+        }
+
+        // AI updates
+        this.opponents.forEach(op => this.updateAI(op));
+
+        // Physics
+        const all = [this.player, ...this.opponents];
+        all.forEach(b => this.applyPhysics(b));
+        this.checkBodyCollisions(all);
+        this.checkRingOut(all);
+
+        // Heat decay
+        this.heat = Math.max(0, this.heat - 0.08);
+
+        // Effects
+        this.effects.forEach(ef => { ef.y += ef.vy; ef.life--; ef.alpha = ef.life/ef.maxLife; });
+        this.effects = this.effects.filter(ef => ef.life > 0);
+        this.shockwaves.forEach(sw => { sw.r += 4; sw.life -= 0.08; });
+        this.shockwaves = this.shockwaves.filter(sw => sw.life > 0);
+
+        // Round over checks
+        const opAlive = this.opponents.filter(o=>!o.eliminated).length;
+        const playerOut = this.player.eliminated;
+
+        if(playerOut) {
+            this.lives--;
+            this.updateSidebar();
+            this.state = 'gameover_pending';
+            setTimeout(()=>this.showGameOver(), 800);
+        } else if(opAlive === 0) {
+            this.state = 'win_pending';
+            setTimeout(()=>this.showWin(), 800);
+        }
+
+        this.updateSidebar();
+    }
+
+    // ── Overlays ──────────────────────────────────────────────────────────────
+    showWin() {
+        const isLast = this.roundIdx >= ROUNDS.length-1;
+        const pts = 200 + this.roundIdx*150;
+        document.getElementById('win-icon').textContent = isLast ? '🏆' : '⭐';
+        document.getElementById('win-title').textContent = isLast ? 'CHAMPION!' : 'ROUND CLEAR!';
+        document.getElementById('win-sub').textContent = `+${pts} bonus pts`;
+        document.getElementById('win-btn').textContent = isLast ? 'PLAY AGAIN' : `ROUND ${this.roundIdx+2} →`;
+        document.getElementById('win-overlay').classList.remove('hidden');
+        if(this.score > this.best) { this.best = this.score; localStorage.setItem('bellyBumpBest',this.best); }
+        this.state = 'win';
+    }
+
+    showChampion() {
+        document.getElementById('win-icon').textContent = '🏆';
+        document.getElementById('win-title').textContent = 'CHAMPION!';
+        document.getElementById('win-sub').textContent = `Final score: ${this.score}`;
+        document.getElementById('win-btn').textContent = 'PLAY AGAIN';
+        document.getElementById('win-btn').onclick = ()=>this.restart();
+        document.getElementById('win-overlay').classList.remove('hidden');
+        this.state = 'win';
+    }
+
+    showGameOver() {
+        if(this.lives > 0) {
+            // Retry this round
+            this.showToast(`💔 ${this.lives} ${this.lives===1?'life':'lives'} left!`);
+            this.startRound();
+            return;
+        }
+        if(this.score > this.best) { this.best = this.score; localStorage.setItem('bellyBumpBest',this.best); }
+        document.getElementById('go-sub').textContent = `Round ${this.roundIdx+1} — Score: ${this.score}`;
+        document.getElementById('go-stats').innerHTML = `
+            <div style="background:rgba(255,255,255,0.05);padding:8px 12px;border-radius:8px;display:flex;justify-content:space-between;font-size:0.8rem;"><span>🏆 Score</span><span>${this.score}</span></div>
+            <div style="background:rgba(255,255,255,0.05);padding:8px 12px;border-radius:8px;display:flex;justify-content:space-between;font-size:0.8rem;"><span>🎯 Round</span><span>${this.roundIdx+1}/8</span></div>
+            <div style="background:rgba(255,255,255,0.05);padding:8px 12px;border-radius:8px;display:flex;justify-content:space-between;font-size:0.8rem;"><span>🥇 Best</span><span>${this.best}</span></div>
+            <div style="background:rgba(255,255,255,0.05);padding:8px 12px;border-radius:8px;display:flex;justify-content:space-between;font-size:0.8rem;"><span>🌡️ Heat</span><span>${Math.round(this.heat)}%</span></div>
+        `;
+        document.getElementById('gameover-overlay').classList.remove('hidden');
+        this.state = 'gameover';
+    }
+
+    showRoundBanner(txt) {
+        const b = document.getElementById('round-banner');
+        b.textContent = txt;
+        b.classList.add('show');
+        setTimeout(()=>b.classList.remove('show'), 1400);
+    }
+
+    showToast(txt) {
+        const t = document.getElementById('toast');
+        t.textContent = txt; t.classList.add('show');
+        clearTimeout(this._toastTO);
+        this._toastTO = setTimeout(()=>t.classList.remove('show'), 1400);
+    }
+
+    spawnEffect(x, y, text, color, scale=1) {
+        this.effects.push({ x, y, text, color, scale, life:55, maxLife:55, vy:-1.2, alpha:1 });
+    }
+
+    updateSidebar() {
+        document.getElementById('sb-round').textContent = this.roundIdx+1;
+        document.getElementById('sb-round-sub').textContent = ROUNDS[this.roundIdx]?.label.split('—')[1]?.trim() || '';
+        document.getElementById('sb-score').textContent = this.score.toLocaleString();
+        document.getElementById('sb-best').textContent = this.best.toLocaleString();
+        document.getElementById('sb-heat-pct').textContent = Math.round(this.heat)+'%';
+        document.getElementById('sb-heat-bar').style.width = this.heat+'%';
+
+        // Lives
+        const lr = document.getElementById('lives-row');
+        const total = DIFF[this.diff].lives;
+        lr.innerHTML = '';
+        for(let i=0;i<total;i++) {
+            const pip = document.createElement('div');
+            pip.className = 'life-pip' + (i >= this.lives ? ' lost' : '');
+            pip.textContent = i < this.lives ? '🥊' : '';
+            lr.appendChild(pip);
+        }
+    }
+
+    // ── Draw ──────────────────────────────────────────────────────────────────
+    draw() {
+        const ctx = this.ctx;
+        ctx.clearRect(0,0,W,H);
+
+        // Background
+        ctx.fillStyle = '#0a0018';
+        ctx.fillRect(0,0,W,H);
+
+        // Ambient glow behind ring
+        const grd = ctx.createRadialGradient(RING_CX,RING_CY,0,RING_CX,RING_CY,this.displayRingR*1.4);
+        grd.addColorStop(0,'rgba(100,50,180,0.18)');
+        grd.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0,0,W,H);
+
+        // ── Ring ──────────────────────────────────────────────────────────────
+        // Outer ring shadow
+        ctx.save();
+        ctx.shadowColor = 'rgba(255,107,53,0.3)';
+        ctx.shadowBlur = 30;
+        ctx.strokeStyle = 'rgba(255,107,53,0.5)';
+        ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.arc(RING_CX,RING_CY,this.displayRingR,0,Math.PI*2); ctx.stroke();
+        ctx.restore();
+
+        // Ring floor
+        const ringFill = ctx.createRadialGradient(RING_CX-30,RING_CY-30,0,RING_CX,RING_CY,this.displayRingR);
+        ringFill.addColorStop(0,'#fffde7');
+        ringFill.addColorStop(0.7,'#f5e6c8');
+        ringFill.addColorStop(1,'#e8d4a0');
+        ctx.beginPath(); ctx.arc(RING_CX,RING_CY,this.displayRingR,0,Math.PI*2);
+        ctx.fillStyle = ringFill; ctx.fill();
+
+        // Floor texture dots
+        this.floorParticles.forEach(d => {
+            ctx.beginPath(); ctx.arc(d.x,d.y,d.s,0,Math.PI*2);
+            ctx.fillStyle = `rgba(180,150,80,${d.a})`; ctx.fill();
+        });
+
+        // Ring center mark
+        ctx.strokeStyle = 'rgba(160,120,60,0.35)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8,6]);
+        ctx.beginPath(); ctx.arc(RING_CX,RING_CY,this.displayRingR*0.35,0,Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Ring cross lines
+        ctx.strokeStyle = 'rgba(160,120,60,0.18)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(RING_CX-this.displayRingR,RING_CY); ctx.lineTo(RING_CX+this.displayRingR,RING_CY); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(RING_CX,RING_CY-this.displayRingR); ctx.lineTo(RING_CX,RING_CY+this.displayRingR); ctx.stroke();
+
+        // Ring border double-line
+        ctx.strokeStyle = '#8b6914'; ctx.lineWidth = 8;
+        ctx.beginPath(); ctx.arc(RING_CX,RING_CY,this.displayRingR,0,Math.PI*2); ctx.stroke();
+        ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(RING_CX,RING_CY,this.displayRingR-5,0,Math.PI*2); ctx.stroke();
+
+        // ── Shockwaves ────────────────────────────────────────────────────────
+        this.shockwaves.forEach(sw => {
+            ctx.save();
+            ctx.globalAlpha = sw.life * 0.4;
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(sw.x,sw.y,sw.r,0,Math.PI*2); ctx.stroke();
+            ctx.restore();
+        });
+
+        // ── Bodies ────────────────────────────────────────────────────────────
+        const all = this.player ? [this.player, ...this.opponents] : [];
+        all.forEach(b => this.drawBody(b));
+
+        // ── Effects ───────────────────────────────────────────────────────────
+        this.effects.forEach(ef => {
+            ctx.save();
+            ctx.globalAlpha = ef.alpha;
+            ctx.font = `${Math.round(16*(ef.scale||1))}px 'Segoe UI', sans-serif`;
+            ctx.fontWeight = '900';
+            ctx.fillStyle = ef.color;
+            ctx.textAlign = 'center';
+            ctx.fillText(ef.text, ef.x, ef.y);
+            ctx.restore();
+        });
+
+        // Eliminated flash
+        all.filter(b=>b.eliminated).forEach(b => {
+            ctx.save();
+            ctx.globalAlpha = 0.3 + 0.3*Math.sin(Date.now()*0.015);
+            ctx.strokeStyle = b.isPlayer ? '#ef4444' : '#ffd700';
+            ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.arc(b.x, b.y, b.r+6, 0, Math.PI*2); ctx.stroke();
+            ctx.restore();
+        });
+
+        // ── HUD indicators ────────────────────────────────────────────────────
+        if(this.state==='playing' && this.player && !this.player.eliminated) {
+            // Dash cooldown arc
+            if(this.player.dashCD > 0) {
+                const prog = 1-(this.player.dashCD/45);
+                ctx.save();
+                ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(this.player.x, this.player.y, this.player.r+9, -Math.PI*0.5, -Math.PI*0.5+prog*Math.PI*2);
+                ctx.stroke();
+                ctx.restore();
+            }
+            // Shove cooldown arc
+            if(this.player.shoveCD > 0) {
+                const prog = 1-(this.player.shoveCD/35);
+                ctx.save();
+                ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.6;
+                ctx.beginPath();
+                ctx.arc(this.player.x, this.player.y, this.player.r+14, -Math.PI*0.5, -Math.PI*0.5+prog*Math.PI*2);
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // Danger ring flash when near edge
+        if(this.player && !this.player.eliminated) {
+            const d = dist(this.player, {x:RING_CX,y:RING_CY});
+            const proximity = clamp((d - (this.currentRingR - 60)) / 60, 0, 1);
+            if(proximity > 0) {
+                ctx.save();
+                ctx.globalAlpha = proximity * 0.35 * (0.6+0.4*Math.sin(Date.now()*0.012));
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 12;
+                ctx.beginPath(); ctx.arc(RING_CX,RING_CY,this.displayRingR-3,0,Math.PI*2); ctx.stroke();
+                ctx.restore();
+            }
+        }
+    }
+
+    drawBody(body) {
+        if(!body) return;
+        const ctx = this.ctx;
+        const { x, y, r, color, squish, anim, dir, eliminated } = body;
+        const bob = Math.sin(anim)*2;
+        const sx = squish > 1 ? squish : (2-squish); // x squish
+        const sy = squish < 1 ? squish : (2-squish); // y squish
+        const facing = dir || 1;
+        const punch = body.dashPower > 0 ? 1 : 0;
+
+        ctx.save();
+        if(eliminated) ctx.globalAlpha = 0.35;
+        ctx.translate(x, y+bob);
+        ctx.scale(sx, sy);
+
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        ctx.beginPath(); ctx.ellipse(0, r*0.9, r*0.9*sx, r*0.3, 0, 0, Math.PI*2); ctx.fill();
+
+        // Legs / stance
+        ctx.fillStyle = '#f1c7a3';
+        ctx.beginPath(); ctx.roundRect(-r*0.34, r*0.2, r*0.24, r*0.56, r*0.08); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(r*0.1, r*0.2, r*0.24, r*0.56, r*0.08); ctx.fill();
+
+        // Torso
+        const torso = ctx.createRadialGradient(-r*0.25,-r*0.25,0,0,0,r*1.08);
+        torso.addColorStop(0, '#ffd7b5');
+        torso.addColorStop(0.65, '#eeb88e');
+        torso.addColorStop(1, '#d79a72');
+        ctx.fillStyle = torso;
+        ctx.beginPath();
+        ctx.ellipse(0, r*0.03, r*0.63, r*0.72, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        // Chest definition
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.beginPath(); ctx.ellipse(-r*0.2, -r*0.2, r*0.22, r*0.16, -0.5, 0, Math.PI*2); ctx.fill();
+
+        // Mawashi (sumo belt)
+        const mawashi = ctx.createLinearGradient(-r*0.5,0,r*0.5,0);
+        mawashi.addColorStop(0, lighten(color, -0.35));
+        mawashi.addColorStop(0.5, lighten(color, -0.15));
+        mawashi.addColorStop(1, lighten(color, -0.35));
+        ctx.fillStyle = mawashi;
+        ctx.beginPath();
+        ctx.roundRect(-r*0.5, r*0.09, r, r*0.28, r*0.08);
+        ctx.fill();
+        ctx.fillStyle = lighten(color, -0.45);
+        ctx.beginPath();
+        ctx.roundRect(-r*0.13, r*0.33, r*0.26, r*0.36, r*0.06);
+        ctx.fill();
+
+        // Arms (dynamic action pose)
+        const armForward = -r*0.07 - punch*r*0.18;
+        const armBack = -r*0.02 + punch*r*0.12;
+        ctx.fillStyle = '#edbe9a';
+        ctx.beginPath(); ctx.roundRect(-r*0.76, armBack, r*0.33, r*0.19, r*0.1); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(r*0.43, armForward, r*0.38, r*0.2, r*0.1); ctx.fill();
+
+        // Hands
+        ctx.fillStyle = '#e3af88';
+        ctx.beginPath(); ctx.arc(-r*0.76, armBack + r*0.1, r*0.09, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(r*0.83, armForward + r*0.1, r*0.1, 0, Math.PI*2); ctx.fill();
+
+        // Head
+        const fx = facing*r*0.12;
+        const fy = -r*0.62;
+        ctx.fillStyle = '#f3caa8';
+        ctx.beginPath(); ctx.ellipse(fx, fy, r*0.31, r*0.3, 0, 0, Math.PI*2); ctx.fill();
+
+        // Topknot and hairline
+        ctx.fillStyle = '#111827';
+        ctx.beginPath(); ctx.ellipse(fx, fy-r*0.33, r*0.11, r*0.08, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(fx, fy-r*0.02, r*0.29, Math.PI, Math.PI*2);
+        ctx.lineTo(fx+r*0.29, fy-r*0.04);
+        ctx.lineTo(fx-r*0.29, fy-r*0.04);
+        ctx.closePath();
+        ctx.fill();
+
+        // Face
+        if(body.stunned > 0) {
+            ctx.font = `${Math.round(r*0.38)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText('😵', fx, fy+r*0.08);
+        } else {
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath(); ctx.arc(fx-r*0.09, fy-r*0.03, r*0.04, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(fx+r*0.09, fy-r*0.03, r*0.04, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#7f1d1d';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(fx, fy+r*0.05, r*0.08, 0.15, Math.PI-0.15);
+            ctx.stroke();
+        }
+
+        // Cheeks / sweat for action
+        ctx.fillStyle = 'rgba(255,120,120,0.3)';
+        ctx.beginPath(); ctx.ellipse(fx-r*0.18, fy+r*0.04, r*0.08, r*0.05, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(fx+r*0.18, fy+r*0.04, r*0.08, r*0.05, 0, 0, Math.PI*2); ctx.fill();
+        if(punch) {
+            ctx.fillStyle = 'rgba(120,220,255,0.45)';
+            ctx.beginPath(); ctx.ellipse(fx+r*0.26, fy-r*0.02, r*0.04, r*0.07, 0.2, 0, Math.PI*2); ctx.fill();
+        }
+
+        // Dash trail
+        if(body.dashPower > 0) {
+            ctx.globalAlpha *= (body.dashPower/18)*0.5;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.arc(0, 0, r+8, 0, Math.PI*2); ctx.stroke();
+        }
+
+        ctx.restore();
+
+        // Name tag (AI only)
+        if(!body.isPlayer && !eliminated) {
+            ctx.save();
+            ctx.font = '11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.fillText(body.emoji || '🤼', x, y-r-8);
+            ctx.restore();
+        }
+    }
+
+    // ── Main loop ─────────────────────────────────────────────────────────────
+    gameLoop() {
+        this.update();
+        this.draw();
+        requestAnimationFrame(()=>this.gameLoop());
+    }
+}
+
+// Color utility
+function lighten(hex, amt) {
+    let col = hex.replace('#','');
+    if(col.length===3) col=col.split('').map(c=>c+c).join('');
+    let r=parseInt(col.slice(0,2),16), g=parseInt(col.slice(2,4),16), b=parseInt(col.slice(4,6),16);
+    r = clamp(Math.round(r+amt*255),0,255);
+    g = clamp(Math.round(g+amt*255),0,255);
+    b = clamp(Math.round(b+amt*255),0,255);
+    return `rgb(${r},${g},${b})`;
+}
+
+const game = new BellyBumpGame();
+</script>
+</body>
+</html>
