@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>Jump Junkie – K2 Games</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#1a1a1a;overflow:hidden;touch-action:none;font-family:'Segoe UI',sans-serif;user-select:none;padding-top:max(0,env(safe-area-inset-top));}
+canvas{display:block;width:100vw;height:100vh;}
+#ui{position:fixed;top:max(.8rem,env(safe-area-inset-top));left:0;width:100%;display:flex;justify-content:space-between;padding:0 1rem;pointer-events:none;z-index:10;}
+.stat{background:rgba(0,0,0,.6);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:.5rem 1rem;color:#fff;font-size:.9rem;font-weight:700;}
+.stat span{color:#ff6b35;font-weight:900;font-size:1.1rem;}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;background:rgba(26,26,26,.96);backdrop-filter:blur(16px);padding:1rem;}
+.screen h1{font-size:clamp(2.5rem,8vw,4rem);font-weight:900;background:linear-gradient(135deg,#ff6b35,#ff8c42,#ffa500);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.5rem;text-shadow:0 0 30px rgba(255,107,53,.3);}
+.screen p{color:#aaa;margin:.8rem 0 2rem;font-size:1.05rem;text-align:center;max-width:360px;line-height:1.6;}
+.btn{padding:1rem 2.8rem;border-radius:50px;border:none;cursor:pointer;font-size:1.05rem;font-weight:900;letter-spacing:1.5px;background:linear-gradient(135deg,#ff6b35,#ff8c42);color:#fff;transition:.3s;box-shadow:0 0 30px rgba(255,107,53,.4);text-transform:uppercase;}
+.btn:hover{transform:scale(1.08);filter:brightness(1.15);}
+.btn:active{transform:scale(0.96);}
+.btn-ghost{margin-top:1rem;background:transparent;border:2px solid rgba(255,255,255,.3);color:#aaa;box-shadow:none;font-weight:700;}
+.score-big{font-size:clamp(3rem,12vw,6rem);font-weight:900;color:#ff6b35;text-shadow:0 0 50px rgba(255,107,53,.6);margin:1rem 0;}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(26,26,26,.98);z-index:30;}
+.spinner{width:60px;height:60px;border:4px solid rgba(255,107,53,.3);border-top-color:#ff6b35;border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+#touch-ctrl{position:fixed;bottom:max(1rem,env(safe-area-inset-bottom));left:0;right:0;display:flex;justify-content:center;gap:1rem;padding:0 1rem;pointer-events:none;z-index:10;}
+.touch-zone{width:80px;height:80px;background:rgba(255,107,53,.15);border:2px solid rgba(255,107,53,.4);border-radius:12px;backdrop-filter:blur(4px);pointer-events:auto;display:flex;align-items:center;justify-content:center;color:#ff6b35;font-weight:900;font-size:.9rem;}
+.touch-zone.active{background:rgba(255,107,53,.35);border-color:#ff6b35;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div class="stat">LEVEL <span id="lev">1</span></div>
+  <div class="stat">SCORE <span id="sco">0</span></div>
+  <div class="stat">POS <span id="str">1/4</span></div>
+</div>
+<div id="touch-ctrl">
+  <div id="ltz" class="touch-zone">◀ LEFT</div>
+  <div id="rtz" class="touch-zone">RIGHT ▶</div>
+</div>
+
+<div class="screen" id="ss">
+  <h1>🚛 JUMP JUNKIE</h1>
+  <p>Race down the stadium circuit in a monster truck!</p>
+  <p style="font-size:.95rem;color:#888;">Steer LEFT/RIGHT to dodge obstacles & ramps. Hit ramps for air time!</p>
+  <button class="btn" id="sb">RACE NOW!</button>
+  <button class="btn btn-ghost" onclick="location='index.html'">← Back to Vault</button>
+</div>
+<div class="screen" id="os" style="display:none">
+  <h1>MISSION COMPLETE! 🎉</h1>
+  <div class="score-big" id="fs">0</div>
+  <p id="msg">Amazing stunt work!</p>
+  <button class="btn" id="rb">NEXT LEVEL</button>
+  <button class="btn btn-ghost" onclick="location='index.html'">← Back to Vault</button>
+</div>
+<div class="screen" id="ls" style="display:none">
+  <h1>CRASH! 💥</h1>
+  <div class="score-big" id="cs">0</div>
+  <button class="btn" id="lb">RETRY</button>
+  <button class="btn btn-ghost" onclick="location='index.html'">← Back to Vault</button>
+</div>
+
+<script>
+const C=document.getElementById('c'),X=C.getContext('2d');
+let W,H;
+function resize(){W=C.width=innerWidth;H=C.height=innerHeight;}
+addEventListener('resize',resize);resize();
+
+let GS='idle',fc=0,lv=1,sc=0,laps=0,dist=0;
+let truck={alive:false,health:3},obstacles=[],dust=[],opponents=[];
+let lapCrosses=0;
+let place=1;
+let shakeT=0,shakeMag=0;
+let startCountdown=0;
+
+// Input
+const keys={};
+addEventListener('keydown',e=>{keys[e.code]=true;if(['ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();});
+addEventListener('keyup',e=>{keys[e.code]=false;});
+let tL=false,tR=false;
+document.getElementById('ltz').addEventListener('pointerdown',()=>tL=true);
+document.getElementById('ltz').addEventListener('pointerup',()=>tL=false);
+document.getElementById('rtz').addEventListener('pointerdown',()=>tR=true);
+document.getElementById('rtz').addEventListener('pointerup',()=>tR=false);
+
+function inp(){return{L:keys.ArrowLeft||keys.KeyA||tL,R:keys.ArrowRight||keys.KeyD||tR};}
+
+function mkTruck(){return{angle:0,speed:2.4+lv*0.2,alive:true,airT:0,rot:0,health:3,lane:0,lastSin:0};}
+function mkObs(angle){return{angle,type:['rock','log','ramp'][Math.random()*3|0],hit:false,lane:Math.random()*2-1};}
+function mkOpponent(i){
+  const cols=['#60a5fa','#34d399','#f472b6'];
+  return{
+    angle:Math.random()*Math.PI*2,
+    speed:2.2+Math.random()*0.9+lv*.08,
+    lane:-.8+i*.8,
+    color:cols[i%cols.length],
+    laps:0,
+    lastSin:0
+  };
+}
+
+function init(){
+  fc=0;sc=0;laps=0;dist=0;lapCrosses=0;startCountdown=120;
+  truck=mkTruck();
+  obstacles=[];dust=[];opponents=[];place=1;
+  for(let i=0;i<Math.max(4,2+lv);i++){
+    obstacles.push(mkObs(Math.random()*Math.PI*2));
+  }
+  for(let i=0;i<3;i++)opponents.push(mkOpponent(i));
+}
+
+function upd(){
+  fc++;
+  if(startCountdown>0){startCountdown--;updateUI();return;}
+  const rx=Math.min(W*.33,290);
+  const ry=Math.min(H*.23,210);
+  const laneOffset=rx*.2;
+  
+  if(truck.alive){
+    const i=inp();
+    const steer=(i.R?1:0)-(i.L?1:0);
+    const targetSpeed=2.5+lv*0.22;
+    truck.speed+=(targetSpeed-truck.speed)*0.06;
+    truck.speed=Math.max(1.8,Math.min(5.2,truck.speed));
+    truck.angle+=truck.speed*0.010;
+    truck.lane+=steer*.045;
+    truck.lane=Math.max(-1,Math.min(1,truck.lane));
+    dist+=truck.speed;
+    
+    // Rooster tail dust: stronger with speed + steering
+    const dustRate=Math.min(.35,.05 + truck.speed*.02 + Math.abs(steer)*.10);
+    if(Math.random()<dustRate){
+      const bx=W/2+Math.cos(truck.angle)*(rx+truck.lane*laneOffset);
+      const by=H/2+Math.sin(truck.angle)*(ry);
+      const backAng=truck.angle+Math.PI;
+      const spread=(Math.random()-.5)*.9;
+      const sp=.7+truck.speed*.09+Math.random()*.7;
+      dust.push({
+        x:bx+Math.cos(backAng+spread)*8,
+        y:by+Math.sin(backAng+spread)*8,
+        vx:Math.cos(backAng+spread)*sp,
+        vy:Math.sin(backAng+spread)*sp,
+        life:1,
+        dc:0.02+Math.random()*0.02
+      });
+    }
+  }
+
+  for(const op of opponents){
+    op.angle+=op.speed*0.010;
+    op.lane+=Math.sin(fc*.03+op.speed)*.004;
+    op.lane=Math.max(-1,Math.min(1,op.lane));
+    const os=Math.sin(op.angle);
+    if(op.lastSin<0&&os>=0&&Math.cos(op.angle)>0.95)op.laps++;
+    op.lastSin=os;
+  }
+  
+  // Obstacle collision
+  for(let j=obstacles.length-1;j>=0;j--){
+    const o=obstacles[j];
+    const obsX=W/2+Math.cos(o.angle)*(rx+o.lane*laneOffset);
+    const obsY=H/2+Math.sin(o.angle)*(ry);
+    const truckX=W/2+Math.cos(truck.angle)*(rx+truck.lane*laneOffset);
+    const truckY=H/2+Math.sin(truck.angle)*(ry);
+    const dist=Math.hypot(obsX-truckX,obsY-truckY);
+    
+    if(dist<60&&!o.hit){
+      if(o.type==='ramp'){
+        truck.airT=14;
+        truck.rot=1.6;
+        sc+=200;
+        shakeT=8;shakeMag=3.5;
+      }else{
+        truck.health--;
+        shakeT=10;shakeMag=4.5;
+        if(truck.health<=0){
+          truck.alive=false;
+          fail();
+        }
+      }
+      o.hit=true;
+      for(let d=0;d<20;d++){
+        dust.push({
+          x:obsX,
+          y:obsY,
+          vx:(Math.random()-.5)*(0.8+Math.random()*1.1),
+          vy:(Math.random()-.5)*(0.8+Math.random()*1.1),
+          life:1,
+          dc:0.015+Math.random()*0.03
+        });
+      }
+    }
+  }
+  
+  // Lap counter: count only when crossing start line at top of oval
+  const s=Math.sin(truck.angle);
+  if(truck.lastSin < 0 && s >= 0 && Math.cos(truck.angle) > 0.95){
+    lapCrosses++;
+    laps=Math.min(2,lapCrosses);
+    if(laps>=2){endLevel();}
+  }
+  truck.lastSin=s;
+  
+  // Air physics
+  if(truck.airT>0)truck.airT--;else truck.rot*=0.9;
+  
+  // Dust cleanup
+  for(let i=dust.length-1;i>=0;i--){
+    dust[i].x+=(dust[i].vx||0);
+    dust[i].y+=(dust[i].vy||0);
+    dust[i].vx=(dust[i].vx||0)*.94;
+    dust[i].vy=(dust[i].vy||0)*.94;
+    dust[i].life-=dust[i].dc;
+    if(dust[i].life<=0)dust.splice(i,1);
+  }
+
+  if(shakeT>0){shakeT--;shakeMag*=.9;}
+
+  const playerProg=laps*(Math.PI*2)+truck.angle;
+  const all=[playerProg,...opponents.map(o=>o.laps*(Math.PI*2)+o.angle)].sort((a,b)=>b-a);
+  place=all.indexOf(playerProg)+1;
+  
+  updateUI();
+}
+
+// Visuals
+function mkHit(x,y){
+  for(let i=0;i<5;i++){
+    const a=Math.random()*Math.PI*2;
+    const sp=1.5+Math.random()*2.5;
+  }
+}
+
+function drw(){
+  const sx=shakeT>0?(Math.random()-.5)*shakeMag:0;
+  const sy=shakeT>0?(Math.random()-.5)*shakeMag:0;
+  X.save();
+  X.translate(sx,sy);
+
+  // Night sky/stadium roof
+  const bg=X.createRadialGradient(W/2,H/2,100,W/2,H/2,W);
+  bg.addColorStop(0,'#1a1a2e');
+  bg.addColorStop(1,'#0f0f1e');
+  X.fillStyle=bg;X.fillRect(0,0,W,H);
+  
+  // Floodlights
+  for(let i=0;i<4;i++){
+    const lx=[W*.15,W*.85,W*.15,W*.85][i];
+    const ly=H*.08;
+    const lg=X.createRadialGradient(lx,ly,20,lx,ly,200);
+    lg.addColorStop(0,`rgba(255,220,150,${0.15+i*0.05})`);
+    lg.addColorStop(1,'rgba(255,220,150,0)');
+    X.fillStyle=lg;X.fillRect(0,0,W,H);
+  }
+  
+  // STADIUM SEATS (crowd)
+  for(let i=0;i<80;i++){
+    const cx=Math.random()*W;
+    const cy=Math.random()*H*.3;
+    X.fillStyle=`rgba(${50+Math.random()*100},${50+Math.random()*100},${50+Math.random()*100},.4)`;
+    X.beginPath();X.ellipse(cx,cy,Math.random()*12+6,Math.random()*6+3,0,0,Math.PI*2);X.fill();
+  }
+  
+  // DIRT TRACK - OVAL
+  const cx=W/2,cy=H/2;
+  const rx=Math.min(W*.33,290);
+  const ry=Math.min(H*.23,210);
+  const laneOffset=rx*.2;
+  
+  // Outer dirt banks
+  const dirtOuter=X.createRadialGradient(cx,cy,Math.max(20,rx-40),cx,cy,rx+80);
+  dirtOuter.addColorStop(0,'#6b5344');
+  dirtOuter.addColorStop(0.5,'#8b7355');
+  dirtOuter.addColorStop(1,'#5a4a3a');
+  X.fillStyle=dirtOuter;
+  X.beginPath();X.ellipse(cx,cy,rx+80,ry+80,0,0,Math.PI*2);X.fill();
+  
+  // Inner grass
+  X.fillStyle='#1a3a1a';
+  X.beginPath();X.ellipse(cx,cy,rx-40,ry-40,0,0,Math.PI*2);X.fill();
+  
+  // TRACK SURFACE - darker oval center
+  const trackGrad=X.createRadialGradient(cx,cy-30,rx-20,cx,cy,rx+20);
+  trackGrad.addColorStop(0,'#4a3a2a');
+  trackGrad.addColorStop(0.6,'#6a5a4a');
+  trackGrad.addColorStop(1,'#5a4a3a');
+  X.fillStyle=trackGrad;
+  X.beginPath();
+  X.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);
+  X.fill();
+  
+  // Lane markers (white dashes around oval)
+  X.strokeStyle='rgba(255,255,255,.3)';
+  X.lineWidth=2;
+  X.setLineDash([15,10]);
+  X.beginPath();
+  X.ellipse(cx,cy,rx-60,ry-60,0,0,Math.PI*2);
+  X.stroke();
+  X.setLineDash([]);
+  
+  // DUST particles
+  for(const d of dust){
+    X.globalAlpha=d.life*0.6;
+    X.fillStyle='rgba(180,160,140,'+d.life+')';
+    X.beginPath();X.ellipse(d.x,d.y,Math.max(2,10*d.life),Math.max(1,6*d.life),0,0,Math.PI*2);X.fill();
+  }
+  X.globalAlpha=1;
+  
+  const drawObstacle=(o)=>{
+    const ox=cx+Math.cos(o.angle)*(rx+o.lane*laneOffset);
+    const oy=cy+Math.sin(o.angle)*(ry);
+    const depth=Math.max(.58,.72+((oy-cy)/(ry*3)));
+    
+    if(o.type==='rock'){
+      X.fillStyle='#8b6f47';
+      X.beginPath();X.ellipse(ox,oy,25*depth,18*depth,o.angle,0,Math.PI*2);X.fill();
+      X.fillStyle='#a0825c';
+      X.beginPath();X.ellipse(ox-8*depth,oy-5*depth,15*depth,10*depth,o.angle,0,Math.PI*2);X.fill();
+    }else if(o.type==='log'){
+      X.save();X.translate(ox,oy);X.rotate(o.angle);
+      X.fillStyle='#3a2410';
+      X.fillRect(-30*depth,-8*depth,60*depth,16*depth);
+      X.fillStyle='#5a4420';
+      for(let k=0;k<4;k++)X.fillRect((-25+k*15)*depth,-6*depth,6*depth,12*depth);
+      X.restore();
+    }else if(o.type==='ramp'){
+      X.fillStyle='#ff6b35';
+      X.save();X.translate(ox,oy);
+      X.beginPath();X.moveTo(-25*depth,10*depth);X.lineTo(0,-20*depth);X.lineTo(25*depth,10*depth);X.closePath();X.fill();
+      X.fillStyle='#ff8c42';X.fillRect(-25*depth,10*depth,50*depth,6*depth);
+      X.restore();
+    }
+  };
+
+  const drawTruck=()=>{
+    const tx=cx+Math.cos(truck.angle)*(rx+truck.lane*laneOffset);
+    const ty=cy+Math.sin(truck.angle)*(ry);
+    const truckRot=truck.angle+truck.rot;
+    const depth=Math.max(.66,.76+((ty-cy)/(ry*3)));
+    
+    X.save();
+    X.translate(tx,ty);
+    X.rotate(truckRot);
+    
+    // Shadow
+    X.fillStyle='rgba(0,0,0,.5)';
+    X.beginPath();X.ellipse(0,12*depth,40*depth,10*depth,0,0,Math.PI*2);X.fill();
+    
+    // Chassis
+    X.fillStyle='#ff6b35';
+    X.fillRect(-32*depth,-12*depth,64*depth,32*depth);
+    
+    // Cabin/windows
+    X.fillStyle='#0a0a0a';
+    X.fillRect(-18*depth,-10*depth,36*depth,14*depth);
+    X.fillStyle='rgba(100,200,255,.5)';
+    X.fillRect(-14*depth,-8*depth,10*depth,8*depth);
+    X.fillRect(4*depth,-8*depth,10*depth,8*depth);
+    
+    // Side decals
+    X.fillStyle='#ffa500';
+    X.font=`bold ${Math.max(9,14*depth)}px Arial`;X.textAlign='center';X.fillText('JJ',0,4*depth);
+    
+    // MASSIVE TIRES
+    X.fillStyle='#1a1a1a';
+    X.beginPath();X.ellipse(-22*depth,12*depth,16*depth,20*depth,0,0,Math.PI*2);X.fill();
+    X.beginPath();X.ellipse(22*depth,12*depth,16*depth,20*depth,0,0,Math.PI*2);X.fill();
+    X.strokeStyle='#333';X.lineWidth=2;
+    X.beginPath();X.ellipse(-22*depth,12*depth,12*depth,16*depth,0,0,Math.PI*2);X.stroke();
+    X.beginPath();X.ellipse(22*depth,12*depth,12*depth,16*depth,0,0,Math.PI*2);X.stroke();
+    
+    // Air glow
+    if(truck.airT>0){
+      X.strokeStyle='rgba(255,150,50,.7)';
+      X.lineWidth=3;
+      X.beginPath();X.arc(0,0,50*depth,0,Math.PI*2);X.stroke();
+      X.fillStyle='rgba(255,150,50,.2)';
+      X.beginPath();X.arc(0,0,50*depth,0,Math.PI*2);X.fill();
+    }
+    
+    X.restore();
+  };
+
+  const drawOpponent=(op)=>{
+    const tx=cx+Math.cos(op.angle)*(rx+op.lane*laneOffset);
+    const ty=cy+Math.sin(op.angle)*(ry);
+    const truckRot=op.angle;
+    const depth=Math.max(.64,.74+((ty-cy)/(ry*3)));
+    X.save();
+    X.translate(tx,ty);
+    X.rotate(truckRot);
+    X.fillStyle='rgba(0,0,0,.4)';
+    X.beginPath();X.ellipse(0,10*depth,36*depth,9*depth,0,0,Math.PI*2);X.fill();
+    X.fillStyle=op.color;
+    X.fillRect(-28*depth,-11*depth,56*depth,28*depth);
+    X.fillStyle='#0a0a0a';
+    X.fillRect(-15*depth,-8*depth,30*depth,12*depth);
+    X.fillStyle='#1a1a1a';
+    X.beginPath();X.ellipse(-18*depth,10*depth,14*depth,17*depth,0,0,Math.PI*2);X.fill();
+    X.beginPath();X.ellipse(18*depth,10*depth,14*depth,17*depth,0,0,Math.PI*2);X.fill();
+    X.restore();
+  };
+
+  // Back half (far from crowd): draw first
+  for(const o of obstacles){
+    const oy=cy+Math.sin(o.angle)*ry;
+    if(oy<=cy)drawObstacle(o);
+  }
+  for(const op of opponents){
+    const oy=cy+Math.sin(op.angle)*ry;
+    if(oy<=cy)drawOpponent(op);
+  }
+
+  // Truck between far and near layers
+  if(truck.alive)drawTruck();
+
+  // Front half (near crowd): draw last
+  for(const o of obstacles){
+    const oy=cy+Math.sin(o.angle)*ry;
+    if(oy>cy)drawObstacle(o);
+  }
+  for(const op of opponents){
+    const oy=cy+Math.sin(op.angle)*ry;
+    if(oy>cy)drawOpponent(op);
+  }
+  
+  // HUD
+  X.fillStyle='rgba(0,0,0,.4)';X.fillRect(0,0,W,H*.15);
+  
+  // Lap counter (top center)
+  X.fillStyle='#ff6b35';X.font='bold 48px Arial';X.textAlign='center';
+  X.fillText(`LAP ${Math.floor(laps+1)}/2`,W/2,H*.08);
+  
+  // Health hearts
+  X.font='28px Arial';
+  for(let i=0;i<3;i++){
+    X.fillStyle=i<truck.health?'#ff6b35':'#333';
+    X.fillText('❤',W*.08+i*35,H*.09);
+  }
+
+  if(startCountdown>0){
+    X.fillStyle='rgba(0,0,0,.35)';
+    X.fillRect(0,0,W,H);
+    const num=Math.ceil(startCountdown/40);
+    X.fillStyle='#ffb15c';
+    X.textAlign='center';
+    X.font='bold 84px Segoe UI';
+    X.fillText(num>0?String(num):'GO!',W/2,H*.52);
+  }
+
+  X.restore();
+}
+
+function updateUI(){
+  document.getElementById('lev').textContent=lv;
+  document.getElementById('sco').textContent=sc;
+  document.getElementById('str').textContent=`${place}/4`;
+}
+
+let rid;
+function loop(){if(GS!=='playing')return;upd();drw();rid=requestAnimationFrame(loop);}
+
+function endLevel(){
+  GS='won';cancelAnimationFrame(rid);
+  document.getElementById('fs').textContent=sc;
+  document.getElementById('msg').textContent=`Level ${lv} crushed! Completed ${laps} laps.`;
+  document.getElementById('os').style.display='flex';
+}
+
+function fail(){
+  GS='lost';cancelAnimationFrame(rid);
+  document.getElementById('cs').textContent=sc;
+  document.getElementById('ls').style.display='flex';
+}
+
+function startGame(resetLevel=true){
+  GS='playing';if(resetLevel)lv=1;sc=0;fc=0;
+  ['ss','os','ls'].forEach(id=>document.getElementById(id).style.display='none');
+  init();loop();
+}
+
+function nextLevel(){
+  lv++;
+  startGame(false);
+}
+
+document.getElementById('sb').onclick=()=>startGame(true);
+document.getElementById('rb').onclick=nextLevel;
+document.getElementById('lb').onclick=()=>startGame(true);
+
+// Safe initial draw (before truck init)
+truck={alive:false,health:3};
+drw();
+</script>
+</body>
+</html>
