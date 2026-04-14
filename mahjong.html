@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mahjong Elite: Learn & Play</title>
+    <style>
+        :root {
+            --bg: #1a2f24;
+            --surface: #2c4a3b;
+            --accent: #d4af37;
+            --text: #f0f4f2;
+            --tile-bg: #fffcf2;
+            --tile-border: #cccab5;
+            --tile-shadow: rgba(0,0,0,0.3);
+            --bamboo: #2e7d32;
+            --dot: #1565c0;
+            --char: #c62828;
+            --wind: #37474f;
+            --dragon: #212121;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            margin: 0; font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg); color: var(--text);
+            overflow: hidden; height: 100vh;
+            display: flex; flex-direction: column;
+        }
+
+        /* --- UI Layers --- */
+        #game-container {
+            position: relative; flex: 1;
+            display: flex; flex-direction: column;
+            padding: 10px;
+        }
+
+        #board {
+            flex: 1; position: relative;
+            display: grid; grid-template-areas:
+                ". top ."
+                "left center right"
+                ". bottom .";
+            grid-template-rows: 100px 1fr 120px;
+            grid-template-columns: 80px 1fr 80px;
+            gap: 10px;
+        }
+
+        .hand { display: flex; align-items: center; justify-content: center; gap: 4px; position: relative; }
+        .hand-bottom { grid-area: bottom; flex-wrap: wrap; }
+        .hand-top { grid-area: top; transform: rotate(180deg); }
+        .hand-left { grid-area: left; flex-direction: column; transform: rotate(90deg); }
+        .hand-right { grid-area: right; flex-direction: column; transform: rotate(-90deg); }
+
+        #center-area {
+            grid-area: center;
+            background: rgba(0,0,0,0.2);
+            border-radius: 20px;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 20px; position: relative;
+        }
+
+        #discards {
+            display: flex; flex-wrap: wrap; gap: 4px;
+            justify-content: center; align-content: flex-start;
+            max-width: 80%; max-height: 80%; overflow-y: auto;
+        }
+
+        /* --- Tiles --- */
+        .tile {
+            width: 40px; height: 56px;
+            background: var(--tile-bg);
+            border: 1px solid var(--tile-border);
+            border-radius: 6px;
+            box-shadow: 2px 3px 0 var(--tile-border), 4px 5px 10px var(--tile-shadow);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            position: relative; cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            user-select: none;
+            overflow: hidden;
+        }
+        .tile:hover { transform: translateY(-5px); }
+        .tile.active { border: 2px solid var(--accent); transform: translateY(-10px); }
+        .tile.hidden { background: var(--surface); color: transparent; border-color: rgba(0,0,0,0.1); }
+        .tile.hidden::after { content: '🀫'; color: var(--accent); font-size: 24px; position: absolute; }
+        .tile-icon { font-size: 24px; line-height: 1; }
+        .tile-label { font-size: 10px; font-weight: 800; position: absolute; top: 2px; left: 4px; }
+        .tile-sub { font-size: 8px; position: absolute; bottom: 2px; right: 4px; opacity: 0.6; }
+
+        /* Suit Colors */
+        .tile[data-suit="bamboo"] .tile-icon { color: var(--bamboo); }
+        .tile[data-suit="dot"] .tile-icon { color: var(--dot); }
+        .tile[data-suit="char"] .tile-icon { color: var(--char); }
+        .tile[data-suit="wind"] .tile-icon { color: var(--wind); }
+        .tile[data-suit="dragon"] .tile-icon { color: var(--dragon); }
+        .tile[data-suit="joker"] { border-color: var(--accent); }
+        .tile[data-suit="joker"] .tile-icon { color: var(--accent); }
+
+        /* --- Overlays --- */
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000; padding: 20px; text-align: center;
+            backdrop-filter: blur(5px);
+        }
+        .modal {
+            background: var(--surface); border: 2px solid var(--accent);
+            border-radius: 24px; padding: 30px; max-width: 500px; width: 100%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+        .hidden { display: none !important; }
+
+        h2 { color: var(--accent); margin-top: 0; font-size: 2rem; }
+        p { line-height: 1.6; color: var(--text); opacity: 0.9; }
+
+        .btn {
+            background: var(--accent); color: var(--bg);
+            border: none; padding: 12px 24px; border-radius: 12px;
+            font-weight: 900; font-size: 1.1rem; cursor: pointer;
+            transition: 0.3s; margin: 10px; text-transform: uppercase;
+        }
+        .btn:hover { transform: scale(1.05); filter: brightness(1.1); }
+        .btn-outline { background: transparent; border: 2px solid var(--accent); color: var(--accent); }
+
+        /* --- Animations --- */
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        .claim-notif {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 3rem; font-weight: 900; color: var(--accent);
+            text-shadow: 0 0 20px rgba(0,0,0,0.5);
+            pointer-events: none; animation: pop 0.5s ease-out;
+            z-index: 500;
+        }
+
+        /* --- Responsive Tweaks --- */
+        @media (max-width: 600px) {
+            .hand-bottom { padding-bottom: 20px; }
+            .tile { width: 32px; height: 48px; }
+            .tile-icon { font-size: 20px; }
+            #board { grid-template-rows: 80px 1fr 120px; grid-template-columns: 40px 1fr 40px; }
+            .hand-left, .hand-right { display: none; } /* Simplified mobile view */
+        }
+
+        /* --- HUD --- */
+        #hud {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 20px; background: rgba(0,0,0,0.3); border-bottom: 1px solid var(--accent);
+        }
+        .hud-item { font-size: 0.9rem; font-weight: 600; }
+        .turn-indicator { color: var(--accent); }
+
+        /* Tutorial Highlight */
+        .tutorial-highlight {
+            outline: 4px solid var(--accent); outline-offset: 4px;
+            animation: pulse 1s infinite alternate;
+        }
+        @keyframes pulse { from { outline-alpha: 0.5; } to { outline-alpha: 1; } }
+
+    </style>
+</head>
+<body>
+
+<div id="hud">
+    <div class="hud-item" id="mode-display">Standard Mahjong</div>
+    <div class="hud-item turn-indicator" id="turn-display">Your Turn</div>
+    <div class="hud-item" id="wall-display">Wall: 144</div>
+</div>
+
+<div id="game-container">
+    <div id="board">
+        <div class="hand hand-top" id="hand-2"></div>
+        <div class="hand hand-left" id="hand-3"></div>
+        <div id="center-area">
+            <div id="discards"></div>
+            <div id="action-prompt" class="claim-notif hidden"></div>
+        </div>
+        <div class="hand hand-right" id="hand-1"></div>
+        <div class="hand hand-bottom" id="hand-0"></div>
+    </div>
+
+    <div id="controls" style="text-align: center; padding: 10px;">
+        <button class="btn btn-outline" id="btn-draw">Draw</button>
+        <button class="btn btn-outline" id="btn-hint">Hint</button>
+        <button class="btn btn-outline" id="btn-mahjong">Mahjong!</button>
+        <button class="btn btn-outline" id="btn-skip">Skip</button>
+    </div>
+</div>
+
+<!-- Hint Overlay -->
+<div id="hint-overlay" class="overlay hidden" onclick="closeHint()">
+    <div class="modal">
+        <h2>Strategic Hint</h2>
+        <p id="hint-text">Try to keep tiles that form pairs or sequences.</p>
+        <button class="btn btn-outline">Got it</button>
+    </div>
+</div>
+
+<!-- Overlays -->
+<div id="menu-overlay" class="overlay">
+    <div class="modal">
+        <h2>Mahjong Elite</h2>
+        <p>Choose your variant to begin learning and playing.</p>
+        <button class="btn" onclick="startGame('standard')">Standard Mahjong</button>
+        <button class="btn" onclick="startGame('american')">American Mahjong</button>
+        <br>
+        <button class="btn btn-outline" onclick="showTutorial()">How to Play</button>
+    </div>
+</div>
+
+<div id="tutorial-overlay" class="overlay hidden">
+    <div class="modal">
+        <h2 id="tut-title">Welcome to Mahjong</h2>
+        <p id="tut-text">Mahjong is a game of skill, strategy, and calculation. The goal is to build sets and a pair.</p>
+        <button class="btn" id="tut-next">Next</button>
+        <button class="btn btn-outline" onclick="closeTutorial()">Exit</button>
+    </div>
+</div>
+
+<div id="win-overlay" class="overlay hidden">
+    <div class="modal">
+        <h2 id="win-title">MAHJONG!</h2>
+        <p id="win-message">Player 1 wins with a Pure Suit hand!</p>
+        <button class="btn" onclick="location.reload()">Play Again</button>
+    </div>
+</div>
+
+<script>
+    // --- Tile Data & Definitions ---
+    const SUITS = ['bamboo', 'dot', 'char'];
+    const WINDS = ['East', 'South', 'West', 'North'];
+    const DRAGONS = ['Red', 'Green', 'White'];
+    const TILE_ICONS = {
+        'bamboo': ['🀐','🀑','🀒','🀓','🀔','🀕','🀖','🀗','🀘'],
+        'dot': ['🀙','🀚','🀛','🀜','🀝','🀞','🀟','🀠','🀡'],
+        'char': ['🀇','🀈','🀉','🀊','🀋','🀌','🀍','🀎','🀏'],
+        'wind': {'East':'🀀','South':'🀁','West':'🀂','North':'🀃'},
+        'dragon': {'Red':'🀄','Green':'🀅','White':'🀆'},
+        'joker': '🀫',
+        'flower': '🀢',
+        'season': '🀦'
+    };
+
+    // --- Game State ---
+    let gameState = {
+        mode: 'standard', // 'standard' or 'american'
+        wall: [],
+        players: [
+            { hand: [], revealed: [], isAI: false, score: 0 },
+            { hand: [], revealed: [], isAI: true, score: 0 },
+            { hand: [], revealed: [], isAI: true, score: 0 },
+            { hand: [], revealed: [], isAI: true, score: 0 }
+        ],
+        discards: [],
+        turn: 0,
+        currentDraw: null,
+        phase: 'menu', // 'menu', 'charleston', 'play', 'end'
+        tutStep: 0
+    };
+
+    // --- Core Logic ---
+    function initWall() {
+        let wall = [];
+        // 4 of each suit/rank
+        SUITS.forEach(suit => {
+            for(let r=1; r<=9; r++) {
+                for(let i=0; i<4; i++) wall.push({ suit, rank: r, icon: TILE_ICONS[suit][r-1] });
+            }
+        });
+        // Winds & Dragons
+        WINDS.forEach(w => { for(let i=0; i<4; i++) wall.push({ suit: 'wind', rank: w, icon: TILE_ICONS.wind[w] }); });
+        DRAGONS.forEach(d => { for(let i=0; i<4; i++) wall.push({ suit: 'dragon', rank: d, icon: TILE_ICONS.dragon[d] }); });
+        
+        if (gameState.mode === 'american') {
+            // American includes 8 Jokers
+            for(let i=0; i<8; i++) wall.push({ suit: 'joker', rank: 'J', icon: '🀫' });
+        } else {
+            // Standard has Flowers/Seasons (8 total)
+            for(let i=0; i<4; i++) wall.push({ suit: 'flower', rank: i+1, icon: TILE_ICONS.flower });
+            for(let i=0; i<4; i++) wall.push({ suit: 'season', rank: i+1, icon: TILE_ICONS.season });
+        }
+
+        gameState.wall = shuffle(wall);
+    }
+
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    function deal() {
+        gameState.players.forEach(p => p.hand = []);
+        for(let i=0; i<13; i++) {
+            gameState.players.forEach(p => p.hand.push(gameState.wall.pop()));
+        }
+        sortHand(0);
+        renderAll();
+    }
+
+    function sortHand(playerIdx) {
+        gameState.players[playerIdx].hand.sort((a, b) => {
+            if (a.suit !== b.suit) return a.suit.localeCompare(b.suit);
+            return (a.rank || 0).toString().localeCompare((b.rank || 0).toString());
+        });
+    }
+
+    // --- UI Rendering ---
+    function renderHand(playerIdx) {
+        const el = document.getElementById(`hand-${playerIdx}`);
+        el.innerHTML = '';
+        const player = gameState.players[playerIdx];
+        
+        player.hand.forEach((tile, i) => {
+            const tileEl = document.createElement('div');
+            tileEl.className = 'tile';
+            if (player.isAI && gameState.phase !== 'end') tileEl.classList.add('hidden');
+            
+            tileEl.innerHTML = `
+                <div class="tile-label">${tile.rank || ''}</div>
+                <div class="tile-icon">${tile.icon}</div>
+                <div class="tile-sub">${tile.suit[0].toUpperCase()}</div>
+            `;
+            tileEl.dataset.suit = tile.suit;
+            
+            if (playerIdx === 0 && !player.isAI) {
+                tileEl.onclick = () => handleTileClick(i);
+            }
+            
+            el.appendChild(tileEl);
+        });
+    }
+
+    function renderDiscards() {
+        const el = document.getElementById('discards');
+        el.innerHTML = '';
+        gameState.discards.forEach(tile => {
+            const tileEl = document.createElement('div');
+            tileEl.className = 'tile';
+            tileEl.style.transform = 'scale(0.7)';
+            tileEl.innerHTML = `<div class="tile-icon">${tile.icon}</div>`;
+            el.appendChild(tileEl);
+        });
+        el.scrollTop = el.scrollHeight;
+    }
+
+    function renderAll() {
+        for(let i=0; i<4; i++) renderHand(i);
+        renderDiscards();
+        document.getElementById('wall-display').innerText = `Wall: ${gameState.wall.length}`;
+        document.getElementById('turn-display').innerText = gameState.turn === 0 ? "Your Turn" : `Player ${gameState.turn + 1}'s Turn`;
+    }
+
+    // --- Gameplay Interaction ---
+    function startGame(mode) {
+        gameState.mode = mode;
+        gameState.phase = 'play';
+        document.getElementById('menu-overlay').classList.add('hidden');
+        document.getElementById('mode-display').innerText = mode === 'american' ? "American Mahjong" : "Standard Mahjong";
+        initWall();
+        deal();
+        nextTurn();
+    }
+
+    function nextTurn() {
+        if (gameState.wall.length === 0) {
+            endGame("Draw Game!");
+            return;
+        }
+
+        const player = gameState.players[gameState.turn];
+        if (player.isAI) {
+            setTimeout(aiTurn, 1000);
+        } else {
+            // Enable draw button
+            document.getElementById('btn-draw').disabled = false;
+        }
+    }
+
+    function drawTile() {
+        const player = gameState.players[gameState.turn];
+        const tile = gameState.wall.pop();
+        player.hand.push(tile);
+        gameState.currentDraw = tile;
+        renderAll();
+        
+        if (player.isAI) {
+            setTimeout(() => discardTile(player.hand.length - 1), 800);
+        } else {
+            document.getElementById('btn-draw').disabled = true;
+        }
+    }
+
+    function handleTileClick(index) {
+        if (gameState.turn !== 0 || gameState.players[0].hand.length < 14) return;
+        discardTile(index);
+    }
+
+    function discardTile(index) {
+        const player = gameState.players[gameState.turn];
+        const tile = player.hand.splice(index, 1)[0];
+        gameState.discards.push(tile);
+        
+        showClaimNotif(tile.icon);
+        sortHand(gameState.turn);
+        
+        gameState.turn = (gameState.turn + 1) % 4;
+        renderAll();
+        nextTurn();
+    }
+
+    function showClaimNotif(icon) {
+        const el = document.getElementById('action-prompt');
+        el.innerText = icon;
+        el.classList.remove('hidden');
+        setTimeout(() => el.classList.add('hidden'), 500);
+    }
+
+    // --- AI Logic (Basic) ---
+    function aiTurn() {
+        drawTile();
+    }
+
+    // --- Win Detection (Simplified) ---
+    function checkWin(hand) {
+        // Very basic win check: Need 14 tiles (4 sets of 3 + 1 pair)
+        // This is a complex problem, using a simplified proxy for this prototype
+        return false; 
+    }
+
+    function endGame(msg) {
+        gameState.phase = 'end';
+        document.getElementById('win-title').innerText = msg;
+        document.getElementById('win-overlay').classList.remove('hidden');
+        renderAll();
+    }
+
+    // --- Tutorial ---
+    const TUTORIAL_DATA = [
+        { title: "The Tiles", text: "There are 3 main suits: Bamboos, Dots, and Characters. Each goes from 1 to 9." },
+        { title: "Honors", text: "Winds (East, South, West, North) and Dragons (Red, Green, White) are special tiles." },
+        { title: "The Goal", text: "Form 4 sets (runs or triplets) and 1 pair to win. That's 14 tiles total!" },
+        { title: "Standard vs American", text: "Standard Mahjong uses basic sets. American Mahjong uses a special 'Card' and includes Jokers!" },
+        { title: "The Charleston", text: "In American Mahjong, you swap tiles with others before starting. It's called the Charleston!" }
+    ];
+
+    function showTutorial() {
+        gameState.tutStep = 0;
+        document.getElementById('tutorial-overlay').classList.remove('hidden');
+        updateTutorial();
+    }
+
+    function updateTutorial() {
+        const step = TUTORIAL_DATA[gameState.tutStep];
+        document.getElementById('tut-title').innerText = step.title;
+        document.getElementById('tut-text').innerText = step.text;
+    }
+
+    document.getElementById('tut-next').onclick = () => {
+        gameState.tutStep++;
+        if (gameState.tutStep >= TUTORIAL_DATA.length) {
+            closeTutorial();
+        } else {
+            updateTutorial();
+        }
+    };
+
+    function closeTutorial() {
+        document.getElementById('tutorial-overlay').classList.add('hidden');
+    }
+
+    // --- Hints ---
+    function getHint() {
+        const player = gameState.players[0];
+        let hint = "";
+
+        if (gameState.turn !== 0) {
+            hint = "It's not your turn! Watch what others discard to see if you can claim them later.";
+        } else if (player.hand.length === 13) {
+            hint = "Draw a tile from the wall to start your turn.";
+        } else {
+            // Suggest a discard
+            const lonelyTile = findLonelyTile(player.hand);
+            hint = `Try discarding the ${lonelyTile.rank || ''} of ${lonelyTile.suit.toUpperCase()}. It doesn't seem to match anything in your hand yet.`;
+            
+            if (gameState.mode === 'american' && player.hand.some(t => t.suit === 'joker')) {
+                hint += " Remember, Jokers are wild and can be used in any set!";
+            }
+        }
+
+        document.getElementById('hint-text').innerText = hint;
+        document.getElementById('hint-overlay').classList.remove('hidden');
+    }
+
+    function findLonelyTile(hand) {
+        // Simple logic: count occurrences of suit/rank and proximity
+        let scores = hand.map((tile, i) => {
+            let score = 0;
+            hand.forEach((other, j) => {
+                if (i === j) return;
+                if (tile.suit === other.suit) {
+                    if (tile.rank === other.rank) score += 10; // Pair/Set potential
+                    if (typeof tile.rank === 'number' && typeof other.rank === 'number') {
+                        if (Math.abs(tile.rank - other.rank) === 1) score += 5; // Sequence potential
+                    }
+                }
+            });
+            if (tile.suit === 'joker') score += 100; // Never discard jokers
+            return { tile, score };
+        });
+
+        // Return tile with the lowest score
+        scores.sort((a, b) => a.score - b.score);
+        return scores[0].tile;
+    }
+
+    function closeHint() {
+        document.getElementById('hint-overlay').classList.add('hidden');
+    }
+
+    // --- Event Listeners ---
+    document.getElementById('btn-draw').onclick = drawTile;
+    document.getElementById('btn-hint').onclick = getHint;
+    document.getElementById('btn-mahjong').onclick = () => {
+        if (checkWin(gameState.players[0].hand)) {
+            endGame("YOU WIN!");
+        } else {
+            alert("Not a winning hand yet!");
+        }
+    };
+
+    // Initialize UI
+    document.getElementById('btn-draw').disabled = true;
+
+</script>
+</body>
+</html>
