@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sinkhole Master - K2 games</title>
+    <style>
+        :root {
+            --accent: #ff3e3e;
+            --ui-bg: rgba(0, 0, 0, 0.6);
+            --text: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #1a1a1a;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: var(--text);
+            touch-action: none;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .score-box {
+            background: var(--ui-bg);
+            padding: 10px 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .label { font-size: 0.8rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 1px; }
+        .value { font-size: 1.8rem; font-weight: 800; color: var(--accent); }
+
+        #level-progress {
+            width: 200px;
+            height: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        #progress-bar {
+            width: 0%;
+            height: 100%;
+            background: var(--accent);
+            transition: width 0.3s ease;
+        }
+
+        .back-link {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: white;
+            text-decoration: none;
+            background: var(--ui-bg);
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-weight: bold;
+            backdrop-filter: blur(8px);
+            pointer-events: auto;
+        }
+
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--ui-bg);
+            padding: 40px;
+            border-radius: 24px;
+            text-align: center;
+            display: none;
+            pointer-events: auto;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255,255,255,0.2);
+            min-width: 300px;
+        }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 12px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+
+        button:active { transform: scale(0.95); }
+
+        #joystick-zone {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            display: none;
+            pointer-events: auto;
+            touch-action: none;
+        }
+
+        #joystick-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background: white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .info-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 44px;
+            height: 44px;
+            background: var(--ui-bg);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.1);
+            pointer-events: auto;
+            z-index: 100;
+        }
+
+        #controls-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            background: #222;
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 400px;
+            width: 80%;
+            text-align: center;
+            border: 1px solid var(--accent);
+        }
+
+        .control-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 15px 0;
+            font-size: 1.1rem;
+        }
+
+        .key {
+            background: #444;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            border-bottom: 2px solid #000;
+        }
+
+        #msg-popup {
+            position: fixed;
+            bottom: 200px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--accent);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: 800;
+            display: none;
+            animation: popUp 1s ease-out forwards;
+        }
+
+        @keyframes popUp {
+            0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
+            50% { transform: translate(-50%, -50px) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -80px) scale(1); opacity: 0; }
+        }
+
+        @media (max-width: 768px) {
+            #joystick-zone { display: block; }
+        }
+    </style>
+</head>
+<body>
+    <div class="info-btn" onclick="toggleControls()">i</div>
+    <a href="index.html" class="back-link">← HUB</a>
+    <div id="msg-popup">GROWTH!</div>
+
+    <div id="controls-modal" onclick="toggleControls()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <h2 style="color: var(--accent)">CONTROLS</h2>
+            <div class="control-item">
+                <span>Move</span>
+                <span><span class="key">WASD</span> or <span class="key">ARROWS</span></span>
+            </div>
+            <div class="control-item">
+                <span>Desktop</span>
+                <span>Mouse Move</span>
+            </div>
+            <div class="control-item">
+                <span>Mobile</span>
+                <span>Touch Joystick</span>
+            </div>
+            <div style="margin-top: 20px; font-size: 0.9rem; opacity: 0.8;">
+                🔵 Cyan Orbs: Grow Faster<br>
+                🔴 Red Orbs: Shrink Sinkhole<br>
+                🟡 Gold Orbs: +10s Time
+            </div>
+            <button onclick="toggleControls()" style="width: 100%">GOT IT!</button>
+        </div>
+    </div>
+
+    <div id="ui-layer">
+        <div class="stats">
+            <div style="width: 44px"></div>
+            <div class="score-box">
+                <div class="label">Score</div>
+                <div id="score" class="value">0</div>
+                <div class="label" style="margin-top:5px">Size Lvl</div>
+                <div id="level" class="value" style="font-size: 1.2rem;">1</div>
+                <div id="level-progress"><div id="progress-bar"></div></div>
+            </div>
+            <div class="score-box">
+                <div class="label">Time</div>
+                <div id="timer" class="value">60</div>
+            </div>
+        </div>
+
+        <div id="joystick-zone">
+            <div id="joystick-knob"></div>
+        </div>
+
+        <div id="game-over">
+            <h1 style="font-size: 3rem; margin: 0;">TIME'S UP!</h1>
+            <p id="final-score-msg" style="font-size: 1.2rem; opacity: 0.8; margin: 10px 0 20px;">You swallowed 0 items.</p>
+            <button onclick="restartGame()">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        let scene, camera, renderer, hole, ground;
+        let score = 0;
+        let timeLeft = 60;
+        let gameActive = false;
+        let items = [];
+        let holeRadius = 1.2;
+        let currentLevel = 1;
+        let progress = 0;
+        const itemsToNextLevel = 10;
+
+        let targetHolePos = new THREE.Vector3(0, 0, 0);
+        let currentHolePos = new THREE.Vector3(0, 0, 0);
+        const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+
+        let joystickActive = false;
+        let joystickData = { x: 0, y: 0 };
+        const joyZone = document.getElementById('joystick-zone');
+        const joyKnob = document.getElementById('joystick-knob');
+
+        const mouse = new THREE.Vector2();
+        const raycaster = new THREE.Raycaster();
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87ceeb);
+            scene.fog = new THREE.Fog(0x87ceeb, 25, 60);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 18, 12);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            sunLight.position.set(15, 25, 15);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.set(1024, 1024);
+            scene.add(sunLight);
+
+            const groundGeo = new THREE.PlaneGeometry(200, 200);
+            const groundMat = new THREE.MeshPhongMaterial({ color: 0x55aa55 });
+            ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            const holeGeo = new THREE.CircleGeometry(1, 48);
+            const holeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            hole = new THREE.Mesh(holeGeo, holeMat);
+            hole.rotation.x = -Math.PI / 2;
+            hole.position.y = 0.02;
+            scene.add(hole);
+
+            spawnInitialItems();
+            
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('touchmove', onTouchMove, { passive: false });
+            window.addEventListener('resize', onResize);
+            window.addEventListener('keydown', e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = true; });
+            window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+
+            joyZone.addEventListener('touchstart', e => { joystickActive = true; handleJoystickMove(e); }, { passive: false });
+            window.addEventListener('touchmove', handleJoystickMove, { passive: false });
+            window.addEventListener('touchend', () => { joystickActive = false; joystickData = { x: 0, y: 0 }; joyKnob.style.left = joyKnob.style.top = '50%'; });
+
+            startGame();
+        }
+
+        // --- Model Factories ---
+        function createPerson(color = 0x3366ff) {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.45, 0.2), new THREE.MeshPhongMaterial({color}));
+            body.position.y = 0.35;
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshPhongMaterial({color: 0xffdbac}));
+            head.position.y = 0.65;
+            const armGeo = new THREE.BoxGeometry(0.1, 0.3, 0.1);
+            const lArm = new THREE.Mesh(armGeo, new THREE.MeshPhongMaterial({color: 0xffdbac}));
+            lArm.position.set(-0.2, 0.4, 0);
+            const rArm = new THREE.Mesh(armGeo, new THREE.MeshPhongMaterial({color: 0xffdbac}));
+            rArm.position.set(0.2, 0.4, 0);
+            group.add(body, head, lArm, rArm);
+            return group;
+        }
+
+        function createAnimal() {
+            const group = new THREE.Group();
+            const color = [0x8b4513, 0xd2b48c, 0x333333][Math.floor(Math.random()*3)];
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.25), new THREE.MeshPhongMaterial({color}));
+            body.position.y = 0.25;
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshPhongMaterial({color}));
+            head.position.set(0.25, 0.35, 0);
+            group.add(body, head);
+            return group;
+        }
+
+        function createTree() {
+            const group = new THREE.Group();
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.8), new THREE.MeshPhongMaterial({color: 0x5d4037}));
+            trunk.position.y = 0.4;
+            const leaves = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.2, 8), new THREE.MeshPhongMaterial({color: 0x2e7d32}));
+            leaves.position.y = 1.2;
+            group.add(trunk, leaves);
+            return group;
+        }
+
+        function createCar() {
+            const group = new THREE.Group();
+            const carColor = Math.random() * 0xffffff;
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.4, 0.6), new THREE.MeshPhongMaterial({color: carColor}));
+            body.position.y = 0.25;
+            const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.4, 0.5), new THREE.MeshPhongMaterial({color: 0x333333}));
+            cabin.position.set(-0.1, 0.6, 0);
+            group.add(body, cabin);
+            return group;
+        }
+
+        function createStreetlight() {
+            const group = new THREE.Group();
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.5), new THREE.MeshPhongMaterial({color: 0x444444}));
+            pole.position.y = 1.25;
+            const light = new THREE.Mesh(new THREE.SphereGeometry(0.2), new THREE.MeshBasicMaterial({color: 0xffffaa}));
+            light.position.y = 2.5;
+            group.add(pole, light);
+            return group;
+        }
+
+        function createBuilding(w, h, d) {
+            const group = new THREE.Group();
+            const color = [0x999999, 0x777777, 0x555555][Math.floor(Math.random()*3)];
+            const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshPhongMaterial({color}));
+            body.position.y = h/2;
+            group.add(body);
+            const rows = Math.floor(h / 0.6);
+            for(let i=0; i < rows; i++) {
+                const win = new THREE.Mesh(new THREE.PlaneGeometry(w*0.8, 0.1), new THREE.MeshBasicMaterial({color:0xffffaa}));
+                win.position.set(0, (i+1)*0.6, d/2+0.01);
+                group.add(win);
+            }
+            return group;
+        }
+
+        function createPowerUp(type) {
+            const colors = { grow: 0x00ffff, shrink: 0xff0000, time: 0xffd700 };
+            const geo = new THREE.OctahedronGeometry(0.5, 0);
+            const mat = new THREE.MeshPhongMaterial({ color: colors[type], emissive: colors[type], emissiveIntensity: 0.5 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.userData.powerType = type;
+            return mesh;
+        }
+
+        // --- Spawning ---
+        function spawnInitialItems() {
+            for(let i=0; i<250; i++) spawnOneItem(true);
+        }
+
+        function spawnOneItem(initial = false) {
+            const roll = Math.random();
+            let entity;
+
+            if (roll < 0.06) {
+                const pRoll = Math.random();
+                const pType = pRoll < 0.4 ? 'grow' : (pRoll < 0.7 ? 'time' : 'shrink');
+                entity = { mesh: createPowerUp(pType), size: 0.5, value: 0, power: pType };
+            } else if (roll < 0.3) entity = { mesh: createPerson(), size: 0.5, value: 5 };
+            else if (roll < 0.45) entity = { mesh: createAnimal(), size: 0.4, value: 3 };
+            else if (roll < 0.6) entity = { mesh: createTree(), size: 0.8, value: 10 };
+            else if (roll < 0.7) entity = { mesh: createStreetlight(), size: 0.3, value: 15 };
+            else if (roll < 0.85) entity = { mesh: createCar(), size: 1.2, value: 25 };
+            else {
+                const w = 2 + Math.random()*2, h = 3 + Math.random()*5;
+                entity = { mesh: createBuilding(w, h, w), size: w*1.5, value: 100 };
+            }
+
+            const mesh = entity.mesh;
+            if (initial) {
+                mesh.position.x = (Math.random() - 0.5) * 120;
+                mesh.position.z = (Math.random() - 0.5) * 120;
+            } else {
+                const a = Math.random() * Math.PI * 2;
+                const r = 50 + Math.random() * 30;
+                mesh.position.x = currentHolePos.x + Math.cos(a) * r;
+                mesh.position.z = currentHolePos.z + Math.sin(a) * r;
+            }
+
+            const box = new THREE.Box3().setFromObject(mesh);
+            mesh.position.y = -box.min.y;
+            mesh.traverse(o => { if(o.isMesh) { o.castShadow = o.receiveShadow = true; }});
+            scene.add(mesh);
+            items.push({ mesh, size: entity.size, value: entity.value, power: entity.power, falling: false });
+        }
+
+        // --- Game Logic ---
+        function startGame() {
+            score = 0; timeLeft = 60; gameActive = true; currentLevel = 1; holeRadius = 1.2; progress = 0;
+            updateUI();
+            document.getElementById('game-over').style.display = 'none';
+            const timer = setInterval(() => {
+                if(!gameActive) { clearInterval(timer); return; }
+                timeLeft--;
+                document.getElementById('timer').innerText = timeLeft;
+                if(timeLeft <= 0) endGame();
+            }, 1000);
+        }
+
+        function endGame() {
+            gameActive = false;
+            document.getElementById('game-over').style.display = 'block';
+            document.getElementById('final-score-msg').innerText = `You reached Level ${currentLevel} with ${score} points!`;
+        }
+
+        function restartGame() {
+            items.forEach(i => scene.remove(i.mesh)); items = [];
+            spawnInitialItems(); startGame();
+        }
+
+        function toggleControls() {
+            const m = document.getElementById('controls-modal');
+            m.style.display = m.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        function showMsg(txt, color) {
+            const p = document.getElementById('msg-popup');
+            p.innerText = txt; p.style.background = color; p.style.display = 'block';
+            setTimeout(() => p.style.display = 'none', 1000);
+        }
+
+        function onMouseMove(e) { mouse.x = (e.clientX/window.innerWidth)*2-1; mouse.y = -(e.clientY/window.innerHeight)*2+1; updateTarget(); }
+        function onTouchMove(e) { if(e.touches.length){ mouse.x = (e.touches[0].clientX/window.innerWidth)*2-1; mouse.y = -(e.touches[0].clientY/window.innerHeight)*2+1; updateTarget(); } }
+        function updateTarget() { raycaster.setFromCamera(mouse, camera); const intersects = raycaster.intersectObject(ground); if(intersects.length) targetHolePos.copy(intersects[0].point); }
+        function onResize() { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+
+        function updateUI() {
+            document.getElementById('score').innerText = score;
+            document.getElementById('level').innerText = currentLevel;
+            document.getElementById('progress-bar').style.width = `${(progress/itemsToNextLevel)*100}%`;
+            hole.scale.set(holeRadius, holeRadius, 1);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if(gameActive) {
+                const mX = (keys.d || keys.ArrowRight ? 1 : 0) - (keys.a || keys.ArrowLeft ? 1 : 0);
+                const mZ = (keys.s || keys.ArrowDown ? 1 : 0) - (keys.w || keys.ArrowUp ? 1 : 0);
+                if(mX || mZ) { targetHolePos.x += mX*0.35; targetHolePos.z += mZ*0.35; }
+                if(joystickActive) { targetHolePos.x += joystickData.x*0.4; targetHolePos.z += joystickData.y*0.4; }
+                
+                targetHolePos.x = Math.max(-95, Math.min(95, targetHolePos.x));
+                targetHolePos.z = Math.max(-95, Math.min(95, targetHolePos.z));
+                currentHolePos.lerp(targetHolePos, 0.15);
+                hole.position.set(currentHolePos.x, 0.02, currentHolePos.z);
+                
+                camera.position.x = currentHolePos.x * 0.4;
+                camera.position.z = currentHolePos.z * 0.4 + 18;
+                camera.lookAt(currentHolePos.x, 0, currentHolePos.z);
+
+                items.forEach((item, idx) => {
+                    if(item.falling) {
+                        item.mesh.position.y -= 0.25; item.mesh.scale.multiplyScalar(0.85);
+                        if(item.mesh.scale.x < 0.05) { scene.remove(item.mesh); items.splice(idx, 1); if(items.length < 250) spawnOneItem(); }
+                        return;
+                    }
+                    const d = new THREE.Vector2(item.mesh.position.x - hole.position.x, item.mesh.position.z - hole.position.z).length();
+                    if(d < holeRadius) {
+                        if(item.power) {
+                            item.falling = true;
+                            if(item.power === 'grow') { progress += 5; showMsg("GROWTH!", "#00ffff"); }
+                            else if(item.power === 'shrink') { progress = Math.max(0, progress - 3); showMsg("SHRINK!", "#ff0000"); }
+                            else if(item.power === 'time') { timeLeft += 10; showMsg("+10 SECONDS", "#ffd700"); }
+                            if(progress >= itemsToNextLevel) { currentLevel++; progress = 0; holeRadius += 0.4; }
+                            updateUI();
+                        } else if(item.size < holeRadius * 1.6) {
+                            item.falling = true; score += item.value; progress++;
+                            if(progress >= itemsToNextLevel) { currentLevel++; progress = 0; holeRadius += 0.4; }
+                            updateUI();
+                        } else {
+                            item.mesh.position.y = (new THREE.Box3().setFromObject(item.mesh).getSize(new THREE.Vector3()).y / 2) + Math.sin(Date.now()*0.01)*0.1;
+                        }
+                    }
+                });
+            }
+            renderer.render(scene, camera);
+        }
+
+        function handleJoystickMove(e) {
+            if(!joystickActive) return;
+            const t = e.touches[0]; const r = joyZone.getBoundingClientRect();
+            const cX = r.left + r.width/2, cY = r.top + r.height/2;
+            let dx = t.clientX - cX, dy = t.clientY - cY;
+            const dist = Math.sqrt(dx*dx + dy*dy), max = r.width/2;
+            if(dist > max) { dx *= max/dist; dy *= max/dist; }
+            joystickData.x = dx/max; joystickData.y = dy/max;
+            joyKnob.style.left = `calc(50% + ${dx}px)`; joyKnob.style.top = `calc(50% + ${dy}px)`;
+        }
+    </script>
+</body>
+</html>
