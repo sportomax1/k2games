@@ -4,32 +4,394 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Cul-De-Sac Sluggers - K2 Games</title>
+    <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAnUB9WQ0N2IAAAAASUVORK5CYII=">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
-        body {
-            background: #0a0a1a;
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            height: 100vh; overflow: hidden;
-            font-family: 'Segoe UI', system-ui, sans-serif;
+        :root {
+            --ink: #fff9ec;
+            --muted: rgba(255, 249, 236, 0.76);
+            --panel: rgba(24, 31, 35, 0.78);
+            --line: rgba(255, 255, 255, 0.2);
+            --grass: #67ce72;
+            --chalk: #fff3c4;
+            --orange: #ffb547;
+            --blue: #57c7ff;
+            --red: #ff6978;
         }
-        #gameCanvas {
-            display: block;
-            max-width: 100vw; max-height: 100vh;
-            cursor: crosshair;
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
-        #ui {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            pointer-events: none; z-index: 10;
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #10181d;
+            color: var(--ink);
+            font-family: Inter, "Segoe UI", system-ui, sans-serif;
+            touch-action: none;
         }
+
+        #game {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+
         #home-btn {
-            position: fixed; top: 10px; left: 10px; z-index: 1000;
-            background: rgba(255,255,255,0.15); color: white; text-decoration: none;
-            padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 0.75rem;
-            border: 1px solid rgba(255,255,255,0.3);
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 20;
+            pointer-events: auto;
+            color: var(--ink);
+            text-decoration: none;
+            border: 1px solid var(--line);
+            background: rgba(18, 24, 29, 0.72);
+            backdrop-filter: blur(14px);
+            padding: 8px 11px;
+            font-size: 0.74rem;
+            font-weight: 900;
+        }
+
+        .hud {
+            position: fixed;
+            inset: 14px 14px auto;
+            z-index: 5;
+            display: grid;
+            grid-template-columns: minmax(230px, 1fr) auto minmax(250px, 0.9fr);
+            gap: 12px;
+            align-items: start;
+            pointer-events: none;
+        }
+
+        .brand, .stats, .swing-panel, .toast, .mobile-pad, .menu, .team-card {
+            border: 1px solid var(--line);
+            background: var(--panel);
+            backdrop-filter: blur(16px);
+            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.3);
+        }
+
+        .brand {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            padding: 12px;
+            min-width: 0;
+            margin-left: 74px;
+        }
+
+        .mark {
+            width: 44px;
+            height: 44px;
+            display: grid;
+            place-items: center;
+            color: #211505;
+            background: linear-gradient(145deg, #fff2b3, #ffb547);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            font-weight: 1000;
+        }
+
+        h1 {
+            font-size: clamp(1.2rem, 2.5vw, 2.35rem);
+            line-height: 0.92;
+            text-transform: uppercase;
+            letter-spacing: 0;
+        }
+
+        .kicker, .label, .hint {
+            color: var(--muted);
+            font-size: 0.67rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0;
+        }
+
+        .kicker {
+            margin-top: 6px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(64px, 1fr));
+            gap: 8px;
+            padding: 10px;
+        }
+
+        .stat {
+            min-width: 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.08);
+            padding: 8px;
+        }
+
+        .value {
+            display: block;
+            margin-top: 4px;
+            font-size: 1.08rem;
+            font-weight: 1000;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .swing-panel {
+            padding: 11px 12px;
+        }
+
+        .swing-readout {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            align-items: end;
+        }
+
+        .batter-name {
+            margin-top: 4px;
+            color: var(--orange);
+            font-size: 1.12rem;
+            font-weight: 1000;
+        }
+
+        .bar {
+            height: 10px;
+            margin-top: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            background: rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        .bar span {
+            display: block;
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--blue), var(--orange), var(--red));
+        }
+
+        .pitch-strip {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 8px;
+            margin-top: 9px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.14);
+        }
+
+        .pitch-name {
+            color: var(--blue);
+            font-weight: 1000;
+        }
+
+        .timing-name, .aim-name {
+            color: var(--orange);
+            font-weight: 1000;
+            text-align: right;
+        }
+
+        .aim-name {
+            color: var(--blue);
+            min-width: 78px;
+        }
+
+        .bases {
+            display: grid;
+            grid-template-columns: repeat(3, 18px);
+            gap: 5px;
+            justify-content: end;
+            margin-top: 6px;
+        }
+
+        .base-dot {
+            width: 18px;
+            height: 18px;
+            transform: rotate(45deg);
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .base-dot.on {
+            background: var(--orange);
+        }
+
+        .tip {
+            position: fixed;
+            left: 50%;
+            bottom: 18px;
+            z-index: 5;
+            transform: translateX(-50%);
+            width: min(860px, calc(100vw - 32px));
+            border: 1px solid var(--line);
+            background: rgba(24, 31, 35, 0.7);
+            backdrop-filter: blur(14px);
+            padding: 10px 14px;
+            color: var(--muted);
+            text-align: center;
+            font-size: 0.82rem;
+            font-weight: 800;
+            pointer-events: none;
+        }
+
+        button {
+            appearance: none;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            background: rgba(255, 255, 255, 0.12);
+            color: var(--ink);
+            min-height: 48px;
+            padding: 10px 13px;
+            font: inherit;
+            font-weight: 1000;
+            cursor: pointer;
+        }
+
+        button.primary {
+            background: var(--orange);
+            color: #241605;
+        }
+
+        button:focus-visible {
+            outline: 3px solid var(--blue);
+            outline-offset: 3px;
+        }
+
+        .mobile-pad {
+            display: none;
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            bottom: 12px;
+            z-index: 6;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+            padding: 10px;
+            pointer-events: auto;
+        }
+
+        .pad-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .swing-button {
+            width: 92px;
+            min-height: 76px;
+        }
+
+        .toast {
+            position: fixed;
+            top: 122px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 8;
+            width: min(460px, calc(100vw - 32px));
+            padding: 12px 14px;
+            text-align: center;
+            font-weight: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 160ms ease, transform 160ms ease;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translate(-50%, 7px);
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            display: grid;
+            place-items: center;
+            padding: 22px;
+            background:
+                linear-gradient(180deg, rgba(10, 18, 22, 0.04), rgba(10, 18, 22, 0.72)),
+                radial-gradient(circle at 50% 32%, rgba(255, 181, 71, 0.18), transparent 38%);
+        }
+
+        .menu {
+            width: min(780px, 100%);
+            padding: clamp(22px, 5vw, 36px);
+        }
+
+        .menu h2 {
+            margin-bottom: 12px;
+            font-size: clamp(2.2rem, 8vw, 5.1rem);
+            line-height: 0.86;
+            text-transform: uppercase;
+            letter-spacing: 0;
+        }
+
+        .menu p {
+            max-width: 680px;
+            margin-bottom: 18px;
+            color: var(--muted);
+            line-height: 1.55;
+            font-weight: 750;
+        }
+
+        .team-card {
+            margin: 0 0 18px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.07);
+            color: var(--muted);
+            line-height: 1.5;
+            font-weight: 750;
+        }
+
+        .menu-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        @media (max-width: 900px) {
+            .hud {
+                inset: 10px 10px auto;
+                grid-template-columns: 1fr;
+            }
+
+            .brand {
+                margin-left: 68px;
+            }
+
+            .stats {
+                grid-template-columns: repeat(5, 1fr);
+                order: 3;
+            }
+
+            .swing-panel {
+                order: 2;
+            }
+
+            .tip {
+                display: none;
+            }
+
+            .mobile-pad {
+                display: grid;
+            }
+
+            .stat {
+                padding: 7px 5px;
+            }
+
+            .value {
+                font-size: 0.95rem;
+            }
         }
     </style>
-    <!-- Google Analytics -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-CCZ9JJGEDP"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -39,1241 +401,1327 @@
     </script>
 </head>
 <body>
-<a href="index.html" id="home-btn">← HUB</a>
-<canvas id="gameCanvas"></canvas>
-<script>
-// ==============================
-//   CUL-DE-SAC SLUGGERS
-//   Backyard Baseball Arcade
-// ==============================
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const W = 1024, H = 600;
-canvas.width = W; canvas.height = H;
+    <a href="index.html" id="home-btn">HUB</a>
+    <canvas id="game"></canvas>
 
-// Scale canvas to fit screen
-function scaleCanvas() {
-    const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
-    canvas.style.width = (W * scale) + 'px';
-    canvas.style.height = (H * scale) + 'px';
-}
-scaleCanvas();
-window.addEventListener('resize', scaleCanvas);
+    <div class="hud">
+        <div class="brand">
+            <div class="mark">CS</div>
+            <div>
+                <h1>Cul-De-Sac Sluggers</h1>
+                <div class="kicker">Backyard baseball arcade</div>
+            </div>
+        </div>
 
-// ─── CONSTANTS ─────────────────────────────────
-const HOME_X = 185, HOME_Y = 430;
-const MOUND_X = 790, MOUND_Y = 355;
-const STRIKE_ZONE = { x: HOME_X - 35, y: HOME_Y - 100, w: 70, h: 90 };
+        <div class="stats">
+            <div class="stat"><span class="label">Runs</span><span class="value" id="runs">0</span></div>
+            <div class="stat"><span class="label">Inning</span><span class="value" id="inning">1</span></div>
+            <div class="stat"><span class="label">Outs</span><span class="value" id="outs">0</span></div>
+            <div class="stat"><span class="label">Count</span><span class="value" id="count">0-0</span></div>
+            <div class="stat"><span class="label">Pitches</span><span class="value" id="pitches">12</span></div>
+        </div>
 
-const PITCH_TYPES = {
-    fastball:  { label: 'FASTBALL',  color: '#ef4444', speed: 14, swerveX: 0,     swerveY: 0.5,  trailColor: '#fca5a5' },
-    curveball: { label: 'CURVEBALL', color: '#3b82f6', speed: 9,  swerveX: 0.6,   swerveY: 2.2,  trailColor: '#93c5fd' },
-    slider:    { label: 'SLIDER',    color: '#f59e0b', speed: 11, swerveX: 2.2,   swerveY: 0.5,  trailColor: '#fcd34d' },
-    changeup:  { label: 'CHANGE-UP', color: '#10b981', speed: 6,  swerveX: 0.3,   swerveY: 1.2,  trailColor: '#6ee7b7' },
-};
-const PITCH_ORDER = ['fastball', 'curveball', 'slider', 'changeup'];
+        <div class="swing-panel">
+            <div class="swing-readout">
+                <div>
+                    <span class="label">At Bat</span>
+                    <div class="batter-name" id="batterName">Maya Rocket</div>
+                </div>
+                <div class="bases">
+                    <span class="base-dot" id="base1"></span>
+                    <span class="base-dot" id="base2"></span>
+                    <span class="base-dot" id="base3"></span>
+                </div>
+            </div>
+            <div class="bar"><span id="power"></span></div>
+            <div class="pitch-strip">
+                <div><span class="label">Pitch</span><div class="pitch-name" id="pitchName">On deck</div></div>
+                <div><span class="label">Timing</span><div class="timing-name" id="timingName">Ready</div></div>
+                <div><span class="label">Aim</span><div class="aim-name" id="aimName">Center</div></div>
+            </div>
+        </div>
+    </div>
 
-const BATTERS = [
-    { name: 'ZAP',    color: '#ef4444', power: 10, eye: 6,  hat: '#dc2626', shirt: '#fca5a5', special: 'Home Run King',  emoji: '⚡' },
-    { name: 'MIA',    color: '#ec4899', power: 7,  eye: 9,  hat: '#db2777', shirt: '#f9a8d4', special: 'Perfect Eye',    emoji: '🎯' },
-    { name: 'TYLER',  color: '#3b82f6', power: 8,  eye: 8,  hat: '#2563eb', shirt: '#93c5fd', special: 'All-Rounder',   emoji: '⭐' },
-    { name: 'SUNNY',  color: '#f59e0b', power: 6,  eye: 9,  hat: '#d97706', shirt: '#fcd34d', special: 'Speed Demon',   emoji: '☀️' },
-    { name: 'REX',    color: '#8b5cf6', power: 9,  eye: 7,  hat: '#7c3aed', shirt: '#c4b5fd', special: 'Mega Slugger',  emoji: '💥' },
-    { name: 'CASEY',  color: '#10b981', power: 7,  eye: 8,  hat: '#059669', shirt: '#6ee7b7', special: 'Clutch Hitter', emoji: '🔥' },
-];
+    <div class="tip">Hold Space or mouse to load, release near the plate to swing. A/D or arrows aim. B or BUNT makes a contact swing. The team bats in automatic order.</div>
 
-// ─── GAME STATE ────────────────────────────────
-let state = 'menu'; // menu | select | game | inning_break | gameover
-let selectedBatter = 0;
-let batter = null;
-let inning = 1, outs = 0, strikes = 0, balls = 0;
-let score = 0, cpuScore = 0;
-let bases = [false, false, false]; // 1B, 2B, 3B
-let totalInnings = 6;
+    <div class="mobile-pad">
+        <div class="pad-row">
+            <button data-action="aim-left">LEFT</button>
+            <button data-action="bunt">BUNT</button>
+            <button data-action="aim-right">RIGHT</button>
+        </div>
+        <button class="primary swing-button" data-action="swing">SWING</button>
+    </div>
 
-let pitch = null; // active ball
-let pitchQueue = []; // upcoming pitches
-let pitchIdx = 0;
-let showPitchType = 0; // timer to show pitch label
-let currentPitchType = '';
-let swingResult = null; // {text, color, timer, big}
-let trajectoryPts = [];
-let awaitingSwing = false;
+    <div class="toast" id="toast"></div>
 
-let hitBall = null; // ball arcing after a hit
-let baseRunners = []; // animated runner dots
-let fieldEffect = null; // {type, timer, x, y}
+    <div class="overlay" id="overlay">
+        <div class="menu">
+            <h2>Cul-De-Sac Sluggers</h2>
+            <p>The whole neighborhood team is already set. Bat through the order, read the driveway pitcher, and send tennis balls over fences, mailboxes, sprinklers, and parked cars.</p>
+            <div class="team-card" id="teamCard">Lineup: Maya Rocket, Dizzy Mateo, Nina Wheels, Tank Dawson. Each kid brings a different power/contact mix, and everyone gets their turn.</div>
+            <div class="menu-row">
+                <button class="primary" id="startBtn">Play Ball</button>
+                <button id="practiceBtn">Batting Practice</button>
+            </div>
+        </div>
+    </div>
 
-let pitcherAnim = 0, pitcherThrown = false;
-let batterAnim = 0;
-let scoreFlash = 0;
-let cpuScoreFlash = 0;
-let crowdHype = 0; // 0-100 hype level
+    <script type="module">
+        import * as THREE from 'three';
 
-let particles = [];
-let screenShake = { x: 0, y: 0 };
-let shakeTimer = 0;
+        const canvas = document.getElementById('game');
+        const runsEl = document.getElementById('runs');
+        const inningEl = document.getElementById('inning');
+        const outsEl = document.getElementById('outs');
+        const countEl = document.getElementById('count');
+        const pitchesEl = document.getElementById('pitches');
+        const batterNameEl = document.getElementById('batterName');
+        const powerEl = document.getElementById('power');
+        const pitchNameEl = document.getElementById('pitchName');
+        const timingNameEl = document.getElementById('timingName');
+        const aimNameEl = document.getElementById('aimName');
+        const baseEls = [document.getElementById('base1'), document.getElementById('base2'), document.getElementById('base3')];
+        const overlay = document.getElementById('overlay');
+        const toast = document.getElementById('toast');
+        const startBtn = document.getElementById('startBtn');
+        const practiceBtn = document.getElementById('practiceBtn');
 
-// Menu / select state
-let menuPulse = 0;
-let hoveredBatter = -1;
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-// Between-inning
-let inningBreakTimer = 0;
-let inningBreakMsg = '';
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x82d7ff);
+        scene.fog = new THREE.Fog(0x82d7ff, 86, 190);
 
-// ─── INIT ───────────────────────────────────────
-function init() {
-    inning = 1; outs = 0; strikes = 0; balls = 0;
-    score = 0; cpuScore = 0; bases = [false,false,false];
-    particles = []; baseRunners = []; trajectoryPts = [];
-    pitch = null; hitBall = null; swingResult = null;
-    pitcherThrown = false; awaitingSwing = false;
-    pitchIdx = 0; crowdHype = 20;
-    generatePitchQueue();
-    schedulePitch();
-}
+        const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 260);
+        camera.position.set(0, 31, 55);
+        camera.lookAt(0, 4, -10);
 
-function generatePitchQueue() {
-    pitchQueue = [];
-    // CPU pitcher uses a smart mix
-    const pool = [];
-    for (let i = 0; i < 6; i++) pool.push('fastball');
-    for (let i = 0; i < 4; i++) pool.push('curveball');
-    for (let i = 0; i < 3; i++) pool.push('slider');
-    for (let i = 0; i < 3; i++) pool.push('changeup');
-    for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    pitchQueue = pool;
-}
+        const clock = new THREE.Clock();
+        const pointer = new THREE.Vector2();
+        const raycaster = new THREE.Raycaster();
 
-function schedulePitch() {
-    if (state !== 'game') return;
-    pitch = null; hitBall = null; swingResult = null;
-    trajectoryPts = []; awaitingSwing = false; pitcherThrown = false;
-    pitcherAnim = 0; batterAnim = 0;
+        const batters = [
+            { name: 'Maya Rocket', number: 7, color: 0xff6978, shirt: 0xffb3bd, power: 1.15, contact: 0.9 },
+            { name: 'Dizzy Mateo', number: 12, color: 0x57c7ff, shirt: 0x9ce3ff, power: 0.9, contact: 1.2 },
+            { name: 'Nina Wheels', number: 3, color: 0x67ce72, shirt: 0xb4f4b9, power: 0.82, contact: 1.3 },
+            { name: 'Tank Dawson', number: 44, color: 0xffb547, shirt: 0xffd99a, power: 1.35, contact: 0.72 }
+        ];
 
-    const type = pitchQueue[pitchIdx % pitchQueue.length];
-    pitchIdx++;
-    currentPitchType = type;
-    showPitchType = 90;
+        const fieldingTeam = [
+            { name: 'Rico', number: 5, color: 0x6f7b8a, shirt: 0xcfd8e3 },
+            { name: 'Penny', number: 18, color: 0x6f7b8a, shirt: 0xcfd8e3 },
+            { name: 'Jules', number: 21, color: 0x6f7b8a, shirt: 0xcfd8e3 },
+            { name: 'Bo', number: 9, color: 0x6f7b8a, shirt: 0xcfd8e3 },
+            { name: 'Sam', number: 16, color: 0x6f7b8a, shirt: 0xcfd8e3 },
+            { name: 'Ace', number: 22, color: 0x6f7b8a, shirt: 0xcfd8e3 },
+            { name: 'Kit', number: 2, color: 0x6f7b8a, shirt: 0xcfd8e3 },
+            { name: 'Coach Lee', number: 1, color: 0x57c7ff, shirt: 0xd8f4ff }
+        ];
 
-    // Windup delay then throw
-    setTimeout(() => {
-        if (state !== 'game') return;
-        pitcherThrown = true;
-        const p = PITCH_TYPES[type];
-        // Start at mound, aim for home plate with some variation
-        const aimY = HOME_Y - 50 + (Math.random() - 0.5) * 60;
-        const totalDx = HOME_X - MOUND_X;
-        const totalDy = aimY - MOUND_Y;
-        const totalDist = Math.hypot(totalDx, totalDy);
-        const spd = p.speed;
-        pitch = {
-            x: MOUND_X, y: MOUND_Y,
-            vx: (totalDx / totalDist) * spd,
-            vy: (totalDy / totalDist) * spd * 0.6,
-            type, swerveX: p.swerveX, swerveY: p.swerveY,
-            frame: 0, past: false, inZone: false,
-            startX: MOUND_X, startY: MOUND_Y,
-            aimY
+        const pitchTypes = [
+            { name: 'Driveway Heater', speed: 1.08, breakX: 0, dip: 0.3, color: 0xff6978, control: 0.82 },
+            { name: 'Mailbox Curve', speed: 0.85, breakX: -1.8, dip: 0.55, color: 0x57c7ff, control: 0.68 },
+            { name: 'Sprinkler Slider', speed: 0.95, breakX: 2.1, dip: 0.42, color: 0xffb547, control: 0.72 },
+            { name: 'Floaty Changeup', speed: 0.72, breakX: 0.8, dip: 0.72, color: 0x67ce72, control: 0.76 }
+        ];
+
+        const state = {
+            mode: 'menu',
+            practice: false,
+            lineupIndex: 0,
+            inning: 1,
+            runs: 0,
+            outs: 0,
+            balls: 0,
+            strikes: 0,
+            pitchCount: 12,
+            bases: [false, false, false],
+            aim: 0,
+            charging: false,
+            charge: 0,
+            pitchTimer: 0.85,
+            swingWindow: 0,
+            swingActive: false,
+            messageTimer: 0,
+            pitchRead: 'On deck',
+            timingRead: 'Ready',
+            aimRead: 'Center'
         };
-        awaitingSwing = true;
-    }, 1200);
-}
 
-// ─── SWING LOGIC ──────────────────────────────
-function swing() {
-    if (state !== 'game' || !awaitingSwing) return;
-    awaitingSwing = false;
-    batterAnim = 1;
+        const fielders = [];
+        const runners = [];
+        const particles = [];
+        let batterGroup;
+        let pitcherGroup;
+        let catcherGroup;
+        let umpireGroup;
+        let batGroup;
+        let ballMesh;
+        let activePitch = null;
+        let hitBall = null;
+        let fieldingPlay = null;
+        let strikeZone;
+        let aimArrow;
+        let aimGuide;
 
-    if (!pitch || pitch.past) {
-        // Swung after pitch passed = strike
-        recordStrike('SWING AND A MISS!', false);
-        return;
-    }
+        const mats = {
+            grass: new THREE.MeshStandardMaterial({ color: 0x63bd66, roughness: 0.86 }),
+            dirt: new THREE.MeshStandardMaterial({ color: 0xb88452, roughness: 0.88 }),
+            chalk: new THREE.MeshBasicMaterial({ color: 0xfff3c4 }),
+            asphalt: new THREE.MeshStandardMaterial({ color: 0x525961, roughness: 0.78 }),
+            fence: new THREE.MeshStandardMaterial({ color: 0xf1d28a, roughness: 0.66 }),
+            wall: new THREE.MeshStandardMaterial({ color: 0x185c45, roughness: 0.62 }),
+            pole: new THREE.MeshStandardMaterial({ color: 0xffd45f, roughness: 0.4, metalness: 0.18 }),
+            bleacher: new THREE.MeshStandardMaterial({ color: 0xb8c2cc, roughness: 0.52, metalness: 0.32 }),
+            houseA: new THREE.MeshStandardMaterial({ color: 0xf2ad71, roughness: 0.74 }),
+            houseB: new THREE.MeshStandardMaterial({ color: 0x8fc3ff, roughness: 0.74 }),
+            roof: new THREE.MeshStandardMaterial({ color: 0x6b3440, roughness: 0.72 }),
+            ball: new THREE.MeshStandardMaterial({ color: 0xfff7dd, roughness: 0.35 }),
+            redSeam: new THREE.MeshBasicMaterial({ color: 0xdb3946 }),
+            skin: new THREE.MeshStandardMaterial({ color: 0xf3b47a, roughness: 0.72 }),
+            hair: new THREE.MeshStandardMaterial({ color: 0x342117, roughness: 0.82 }),
+            shorts: new THREE.MeshStandardMaterial({ color: 0x243447, roughness: 0.7 }),
+            bat: new THREE.MeshStandardMaterial({ color: 0xd99a54, roughness: 0.58 }),
+            mailbox: new THREE.MeshStandardMaterial({ color: 0x2e6fba, roughness: 0.52 })
+        };
 
-    // Distance from sweet spot (center of strike zone)
-    const szCX = STRIKE_ZONE.x + STRIKE_ZONE.w / 2;
-    const szCY = STRIKE_ZONE.y + STRIKE_ZONE.h / 2;
-    const dx = pitch.x - szCX;
-    const dy = pitch.y - szCY;
-    const inZoneX = Math.abs(dx) < STRIKE_ZONE.w / 2 + 20;
-    const inZoneY = Math.abs(dy) < STRIKE_ZONE.h / 2 + 25;
+        function setupLights() {
+            scene.add(new THREE.HemisphereLight(0xf5ffef, 0x406b38, 1.8));
 
-    if (!inZoneX || !inZoneY) {
-        // Check if borderline ball
-        if (Math.abs(dx) > STRIKE_ZONE.w && Math.abs(dy) > STRIKE_ZONE.h) {
-            balls++;
-            showResult('BALL! ' + balls, '#60a5fa', false);
-            if (balls >= 4) {
-                balls = 0; strikes = 0;
-                walk();
-            } else {
-                pitch = null;
-                setTimeout(() => schedulePitch(), 1000);
+            const sun = new THREE.DirectionalLight(0xfff0c2, 2.7);
+            sun.position.set(-42, 60, 40);
+            sun.castShadow = true;
+            sun.shadow.mapSize.set(2048, 2048);
+            sun.shadow.camera.left = -95;
+            sun.shadow.camera.right = 95;
+            sun.shadow.camera.top = 95;
+            sun.shadow.camera.bottom = -95;
+            scene.add(sun);
+
+            const rim = new THREE.DirectionalLight(0x57c7ff, 0.7);
+            rim.position.set(45, 26, -55);
+            scene.add(rim);
+        }
+
+        function makeWorld() {
+            const grass = new THREE.Mesh(new THREE.PlaneGeometry(180, 150, 34, 28), mats.grass);
+            grass.rotation.x = -Math.PI / 2;
+            grass.receiveShadow = true;
+            scene.add(grass);
+
+            const street = new THREE.Mesh(new THREE.CircleGeometry(32, 64, 0, Math.PI), mats.asphalt);
+            street.rotation.x = -Math.PI / 2;
+            street.rotation.z = Math.PI;
+            street.position.set(0, 0.015, 34);
+            street.scale.set(1.5, 0.82, 1);
+            scene.add(street);
+
+            const infield = new THREE.Mesh(new THREE.CircleGeometry(23, 56, Math.PI * 0.08, Math.PI * 0.84), mats.dirt);
+            infield.rotation.x = -Math.PI / 2;
+            infield.position.set(0, 0.03, 4);
+            scene.add(infield);
+
+            makeChalkLine(new THREE.Vector3(0, 0.08, 18), new THREE.Vector3(-42, 0.08, -35), 0.18);
+            makeChalkLine(new THREE.Vector3(0, 0.08, 18), new THREE.Vector3(42, 0.08, -35), 0.18);
+            makeDiamond();
+            makeFence();
+            makeBleachers();
+            makeNeighborhood();
+            makeDugouts();
+            makeProps();
+        }
+
+        function makeDugouts() {
+            makeDugout(-31, 12, 0xffb547, 'Sluggers');
+            makeDugout(31, 12, 0x57c7ff, 'Street Cats');
+        }
+
+        function makeDugout(x, z, color, label) {
+            const dugout = new THREE.Group();
+            dugout.position.set(x, 0, z);
+            dugout.rotation.y = x < 0 ? -0.25 : 0.25;
+
+            const floor = new THREE.Mesh(new THREE.BoxGeometry(18, 0.35, 6), mats.dirt);
+            floor.position.y = 0.18;
+            floor.receiveShadow = true;
+            dugout.add(floor);
+
+            const back = new THREE.Mesh(new THREE.BoxGeometry(18, 4, 0.45), mats.fence);
+            back.position.set(0, 2.2, 3);
+            back.castShadow = true;
+            dugout.add(back);
+
+            const roof = new THREE.Mesh(new THREE.BoxGeometry(19, 0.45, 7), new THREE.MeshStandardMaterial({ color, roughness: 0.62 }));
+            roof.position.y = 4.5;
+            roof.castShadow = true;
+            dugout.add(roof);
+
+            const bench = new THREE.Mesh(new THREE.BoxGeometry(14, 0.42, 1.1), new THREE.MeshStandardMaterial({ color: 0x805331, roughness: 0.76 }));
+            bench.position.set(0, 1.05, 1.2);
+            bench.castShadow = true;
+            dugout.add(bench);
+
+            const signCanvas = document.createElement('canvas');
+            signCanvas.width = 512;
+            signCanvas.height = 128;
+            const ctx = signCanvas.getContext('2d');
+            ctx.fillStyle = '#161f24';
+            ctx.fillRect(0, 0, 512, 128);
+            ctx.strokeStyle = '#fff3c4';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(8, 8, 496, 112);
+            ctx.fillStyle = '#fff9ec';
+            ctx.font = '900 48px Segoe UI, Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, 256, 66, 440);
+            const texture = new THREE.CanvasTexture(signCanvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            const sign = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true }));
+            sign.position.set(0, 5.45, 2.75);
+            sign.scale.set(9, 2.25, 1);
+            dugout.add(sign);
+
+            for (let playerIndex = 0; playerIndex < 3; playerIndex++) {
+                const kid = makePlayer(x < 0 ? batters[(playerIndex + 1) % batters.length] : fieldingTeam[playerIndex]);
+                kid.scale.setScalar(0.5);
+                kid.position.set(-5 + playerIndex * 5, 1.15, 0.6);
+                kid.rotation.y = Math.PI;
+                dugout.add(kid);
             }
-            return;
+
+            scene.add(dugout);
         }
-        // Foul ball
-        recordFoul();
-        return;
-    }
 
-    // In zone — calculate timing quality
-    const centerDist = Math.hypot(dx, dy);
-    const maxDist = Math.hypot(STRIKE_ZONE.w / 2, STRIKE_ZONE.h / 2);
-    const quality = 1 - Math.min(1, centerDist / maxDist);
-    const powerMultiplier = batter.power / 10;
-    const finalQuality = quality * 0.6 + Math.random() * 0.4 * powerMultiplier;
-
-    resolveHit(finalQuality, dx, dy);
-}
-
-function resolveHit(quality, dx, dy) {
-    balls = 0; strikes = 0;
-    shakeTimer = 8;
-
-    if (quality > 0.82) {
-        // HOME RUN
-        triggerHomeRun();
-    } else if (quality > 0.62) {
-        // TRIPLE
-        showResult('TRIPLE!! 🚀', '#f59e0b', true);
-        advanceBases(3);
-        launchHitBall(dx, 'triple');
-        crowdHype = Math.min(100, crowdHype + 30);
-        spawnParticles(HOME_X, HOME_Y, '#f59e0b', 25);
-        setTimeout(() => schedulePitch(), 2200);
-    } else if (quality > 0.42) {
-        // DOUBLE
-        showResult('DOUBLE!! ⚡', '#10b981', true);
-        advanceBases(2);
-        launchHitBall(dx, 'double');
-        crowdHype = Math.min(100, crowdHype + 20);
-        spawnParticles(HOME_X, HOME_Y, '#10b981', 18);
-        setTimeout(() => schedulePitch(), 2200);
-    } else if (quality > 0.25) {
-        // SINGLE
-        showResult('SINGLE! 👊', '#e2e8f0', false);
-        advanceBases(1);
-        launchHitBall(dx, 'single');
-        crowdHype = Math.min(100, crowdHype + 10);
-        spawnParticles(HOME_X, HOME_Y, '#e2e8f0', 10);
-        setTimeout(() => schedulePitch(), 1800);
-    } else {
-        // Weak hit — grounder out
-        showResult('GROUNDER OUT 😬', '#94a3b8', false);
-        recordOut();
-        launchHitBall(dx, 'out');
-        crowdHype = Math.max(10, crowdHype - 5);
-    }
-    pitch = null;
-}
-
-function launchHitBall(dx, hitType) {
-    const angle = hitType === 'out' ? -0.6 : -(0.8 + Math.random() * 0.6);
-    const spd = hitType === 'out' ? 8 : (hitType === 'single' ? 14 : (hitType === 'double' ? 18 : 22));
-    const dir = dx < 0 ? 1 : -1; // pull vs push
-    hitBall = {
-        x: HOME_X, y: HOME_Y,
-        vx: (spd * 0.85) * dir,
-        vy: spd * angle,
-        gravity: 0.35,
-        bounces: 0, maxBounces: hitType === 'out' ? 2 : 0,
-        dead: false
-    };
-}
-
-function triggerHomeRun() {
-    showResult('HOME RUN!! 🎆', '#fbbf24', true);
-    crowdHype = 100;
-    shakeTimer = 20;
-    // Score all bases + batter
-    let runCount = 1;
-    bases.forEach(b => { if (b) runCount++; });
-    bases = [false, false, false];
-    score += runCount;
-    scoreFlash = 60;
-    for (let i = 0; i < runCount; i++) {
-        setTimeout(() => spawnRunnerAnim(HOME_X, HOME_Y, '#fbbf24'), i * 200);
-    }
-    spawnParticles(HOME_X, HOME_Y, '#fbbf24', 60);
-    spawnParticles(W / 2, H / 2, '#ef4444', 30);
-    spawnParticles(W / 2, H / 2, '#3b82f6', 30);
-    hitBall = {
-        x: HOME_X, y: HOME_Y,
-        vx: 22, vy: -20,
-        gravity: 0.25,
-        bounces: 0, maxBounces: 0, dead: false, isHR: true
-    };
-    balls = 0; strikes = 0;
-    pitch = null;
-    setTimeout(() => schedulePitch(), 3000);
-}
-
-function recordStrike(msg, isFoul) {
-    if (!isFoul) {
-        strikes++;
-        if (strikes >= 3) {
-            showResult('STRIKEOUT! ❌', '#ef4444', false);
-            recordOut();
-        } else {
-            showResult(msg || 'STRIKE ' + strikes, '#ef4444', false);
-            pitch = null;
-            setTimeout(() => schedulePitch(), 1200);
+        function makeChalkLine(start, end, width) {
+            const midpoint = start.clone().lerp(end, 0.5);
+            const length = start.distanceTo(end);
+            const line = new THREE.Mesh(new THREE.BoxGeometry(width, 0.04, length), mats.chalk);
+            line.position.copy(midpoint);
+            line.rotation.y = Math.atan2(end.x - start.x, end.z - start.z);
+            scene.add(line);
         }
-    }
-    crowdHype = Math.max(10, crowdHype - 3);
-}
 
-function recordFoul() {
-    if (strikes < 2) strikes++;
-    showResult('FOUL BALL! ⚾', '#f59e0b', false);
-    pitch = null;
-    spawnParticles(HOME_X, HOME_Y - 40, '#f59e0b', 8);
-    setTimeout(() => schedulePitch(), 1000);
-}
+        function makeDiamond() {
+            const bases = [
+                new THREE.Vector3(0, 0.16, 18),
+                new THREE.Vector3(16, 0.16, 4),
+                new THREE.Vector3(0, 0.16, -10),
+                new THREE.Vector3(-16, 0.16, 4)
+            ];
 
-function walk() {
-    showResult('WALK! 🚶', '#60a5fa', false);
-    advanceBases(1, true);
-    setTimeout(() => schedulePitch(), 1500);
-}
+            for (const basePosition of bases) {
+                const base = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.18, 2.5), mats.chalk);
+                base.position.copy(basePosition);
+                base.rotation.y = Math.PI / 4;
+                base.castShadow = true;
+                scene.add(base);
+            }
 
-function recordOut() {
-    outs++;
-    if (outs >= 3) {
-        pitch = null;
-        setTimeout(() => endHalfInning(), 1500);
-    } else {
-        pitch = null;
-        setTimeout(() => schedulePitch(), 1800);
-    }
-}
+            const mound = new THREE.Mesh(new THREE.CylinderGeometry(5.2, 6.5, 0.55, 36), mats.dirt);
+            mound.position.set(0, 0.28, -16);
+            mound.castShadow = true;
+            mound.receiveShadow = true;
+            scene.add(mound);
 
-function endHalfInning() {
-    inning++;
-    if (inning > totalInnings) {
-        state = 'gameover';
-        return;
-    }
-    outs = 0; strikes = 0; balls = 0;
-    bases = [false, false, false];
-    baseRunners = [];
-    // CPU scores some runs in alternate innings (simulation)
-    const cpuRuns = Math.floor(Math.random() * 3);
-    cpuScore += cpuRuns;
-    cpuScoreFlash = 60;
-    inningBreakMsg = cpuRuns > 0
-        ? `CPU scored ${cpuRuns} run${cpuRuns > 1 ? 's' : ''}!`
-        : 'CPU went down in order!';
-    state = 'inning_break';
-    inningBreakTimer = 240;
-}
+            strikeZone = new THREE.Mesh(new THREE.BoxGeometry(5.8, 7.4, 0.08), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.18 }));
+            strikeZone.position.set(0, 5.2, 14.4);
+            scene.add(strikeZone);
 
-function advanceBases(hits, isWalk) {
-    let runs = 0;
-    // Push runners around
-    for (let b = 2; b >= 0; b--) {
-        if (bases[b]) {
-            const dest = b + hits;
-            if (dest >= 3) { runs++; spawnRunnerAnim(HOME_X, HOME_Y, '#fbbf24'); }
-            else bases[dest] = true;
-            bases[b] = false;
+            aimArrow = new THREE.Mesh(new THREE.ConeGeometry(1.1, 4.8, 20), new THREE.MeshBasicMaterial({ color: 0xffb547, transparent: true, opacity: 0.72 }));
+            aimArrow.rotation.x = Math.PI / 2;
+            aimArrow.position.set(0, 0.62, 8);
+            scene.add(aimArrow);
+
+            aimGuide = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.06, 54), new THREE.MeshBasicMaterial({ color: 0x57c7ff, transparent: true, opacity: 0.32 }));
+            aimGuide.position.set(0, 0.09, -9);
+            scene.add(aimGuide);
         }
-    }
-    // Batter becomes runner on 1st
-    if (hits === 1) {
-        if (bases[0] && isWalk) {
-            if (bases[1]) {
-                if (bases[2]) { runs++; spawnRunnerAnim(HOME_X, HOME_Y, '#fbbf24'); }
-                else bases[2] = true;
-                bases[1] = true;
-            } else bases[1] = true;
-        } else bases[0] = true;
-    } else if (hits === 2) { bases[1] = true; }
-    else if (hits === 3) { bases[2] = true; }
 
-    if (runs > 0) {
-        score += runs;
-        scoreFlash = 60;
-        crowdHype = Math.min(100, crowdHype + runs * 20);
-    }
-    strikes = 0; balls = 0;
-}
+        function makeFence() {
+            for (let segment = 0; segment < 25; segment++) {
+                const angle = -0.82 + segment * (1.64 / 24);
+                const fence = new THREE.Mesh(new THREE.BoxGeometry(6.6, 5.8, 0.45), mats.wall);
+                fence.position.set(Math.sin(angle) * 70, 2.1, -54 - Math.cos(angle) * 18);
+                fence.rotation.y = angle;
+                fence.castShadow = true;
+                scene.add(fence);
 
-function spawnRunnerAnim(x, y, col) {
-    baseRunners.push({ x, y, targetIdx: 0, timer: 0, color: col, done: false });
-}
+                const rail = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.28, 0.62), mats.pole);
+                rail.position.set(Math.sin(angle) * 70, 5.1, -54 - Math.cos(angle) * 18);
+                rail.rotation.y = angle;
+                rail.castShadow = true;
+                scene.add(rail);
+            }
 
-function showResult(txt, color, big) {
-    swingResult = { text: txt, color, timer: big ? 120 : 80, big };
-}
+            const wallSign = makeTextSprite('HOME RUN WALL', 0xffb547, 1.15);
+            wallSign.position.set(0, 6.7, -72.4);
+            scene.add(wallSign);
 
-function recordBallResult() {
-    balls++;
-    showResult('BALL ' + balls, '#60a5fa', false);
-    if (balls >= 4) { balls = 0; strikes = 0; walk(); }
-    else { pitch = null; setTimeout(() => schedulePitch(), 900); }
-}
-
-// ─── PARTICLES ─────────────────────────────────
-function spawnParticles(x, y, color, count) {
-    for (let i = 0; i < count; i++) {
-        const ang = Math.random() * Math.PI * 2;
-        const spd = 2 + Math.random() * 12;
-        particles.push({
-            x, y, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 3,
-            life: 40 + Math.random() * 40, maxLife: 60, size: 3 + Math.random() * 5,
-            color, gravity: 0.3
-        });
-    }
-}
-
-// ─── UPDATE ───────────────────────────────────
-function update() {
-    menuPulse += 0.05;
-
-    if (state === 'inning_break') {
-        inningBreakTimer--;
-        if (inningBreakTimer <= 0) {
-            state = 'game';
-            generatePitchQueue();
-            schedulePitch();
+            makeFoulPole(-55, -58, -0.66);
+            makeFoulPole(55, -58, 0.66);
+            makeChalkLine(new THREE.Vector3(-42, 0.1, -35), new THREE.Vector3(-58, 0.1, -60), 0.14);
+            makeChalkLine(new THREE.Vector3(42, 0.1, -35), new THREE.Vector3(58, 0.1, -60), 0.14);
         }
-        return;
-    }
 
-    if (state !== 'game') return;
+        function makeFoulPole(x, z, lean) {
+            const pole = new THREE.Group();
+            pole.position.set(x, 0, z);
+            const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 18, 16), mats.pole);
+            mast.position.y = 9;
+            mast.castShadow = true;
+            pole.add(mast);
 
-    pitcherAnim += 0.1;
-    if (batterAnim > 0) batterAnim = Math.max(0, batterAnim - 0.08);
-    if (scoreFlash > 0) scoreFlash--;
-    if (cpuScoreFlash > 0) cpuScoreFlash--;
-    if (showPitchType > 0) showPitchType--;
-    if (shakeTimer > 0) {
-        shakeTimer--;
-        screenShake.x = (Math.random() - 0.5) * shakeTimer * 1.5;
-        screenShake.y = (Math.random() - 0.5) * shakeTimer * 1.5;
-    } else { screenShake.x = 0; screenShake.y = 0; }
+            const screen = new THREE.Mesh(new THREE.BoxGeometry(0.18, 5.8, 4.6), mats.pole);
+            screen.position.set(lean * 2.2, 12.4, 0);
+            screen.rotation.y = lean;
+            pole.add(screen);
 
-    // Update pitch
-    if (pitch && !pitch.past) {
-        pitch.frame++;
-        pitch.x += pitch.vx;
-        pitch.y += pitch.vy + pitch.swerveY * 0.15;
-        pitch.vx += pitch.swerveX * 0.008;
-        pitch.vy += pitch.swerveY * 0.04;
-        pitch.vy += 0.08; // gravity
-        trajectoryPts.push({ x: pitch.x, y: pitch.y });
-        if (trajectoryPts.length > 20) trajectoryPts.shift();
+            const label = makeTextSprite('FOUL', 0xffd45f, 0.62);
+            label.position.set(0, 19.3, 0);
+            pole.add(label);
+            scene.add(pole);
+        }
 
-        // Check if pitch is in strike zone
-        const inSZ = pitch.x > STRIKE_ZONE.x && pitch.x < STRIKE_ZONE.x + STRIKE_ZONE.w
-                  && pitch.y > STRIKE_ZONE.y && pitch.y < STRIKE_ZONE.y + STRIKE_ZONE.h;
-        pitch.inZone = inSZ;
+        function makeBleachers() {
+            makeBleacherBank(0, 31, 0, 6, 9, 'HOME CROWD');
+            makeBleacherBank(-35, -88, 0.22, 5, 8, 'LEFT FIELD');
+            makeBleacherBank(35, -88, -0.22, 5, 8, 'RIGHT FIELD');
+        }
 
-        if (pitch.x <= HOME_X - 10) {
-            pitch.past = true;
-            awaitingSwing = false;
-            if (!swingResult) {
-                // Pitch passed without swing
-                if (inSZ) {
-                    // Called strike
-                    strikes++;
-                    showResult('CALLED STRIKE ' + strikes + '!', '#ef4444', false);
-                    if (strikes >= 3) { recordOut(); }
-                    else setTimeout(() => schedulePitch(), 1200);
-                } else {
-                    // Ball
-                    recordBallResult();
+        function makeBleacherBank(x, z, rotation, rows, fansPerRow, labelText) {
+            const bank = new THREE.Group();
+            bank.position.set(x, 0, z);
+            bank.rotation.y = rotation;
+
+            for (let row = 0; row < rows; row++) {
+                const bench = new THREE.Mesh(new THREE.BoxGeometry(fansPerRow * 2.4, 0.36, 1.1), mats.bleacher);
+                bench.position.set(0, 0.65 + row * 0.9, row * 1.8);
+                bench.castShadow = true;
+                bank.add(bench);
+
+                for (let fanIndex = 0; fanIndex < fansPerRow; fanIndex++) {
+                    const fan = makeFan((fanIndex + row) % 5);
+                    fan.position.set((fanIndex - (fansPerRow - 1) / 2) * 2.1, 1.25 + row * 0.9, row * 1.8 - 0.15);
+                    fan.scale.setScalar(0.48);
+                    bank.add(fan);
+                }
+            }
+
+            const label = makeTextSprite(labelText, 0xffb547, 0.8);
+            label.position.set(0, rows * 0.95 + 2.1, rows * 1.8 + 0.5);
+            bank.add(label);
+            scene.add(bank);
+        }
+
+        function makeFan(index) {
+            const colors = [0xff6978, 0x57c7ff, 0xffd45f, 0x67ce72, 0xc084fc];
+            const fan = new THREE.Group();
+            const shirt = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.7, 6, 10), new THREE.MeshStandardMaterial({ color: colors[index], roughness: 0.72 }));
+            shirt.position.y = 0.85;
+            fan.add(shirt);
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 8), mats.skin);
+            head.position.y = 1.45;
+            fan.add(head);
+            return fan;
+        }
+
+        function makeNeighborhood() {
+            const housePositions = [
+                [-62, 0, 28, mats.houseA],
+                [-38, 0, 55, mats.houseB],
+                [38, 0, 55, mats.houseA],
+                [64, 0, 28, mats.houseB],
+                [-68, 0, -26, mats.houseB],
+                [68, 0, -26, mats.houseA]
+            ];
+
+            for (const [houseX, houseY, houseZ, houseMaterial] of housePositions) {
+                const house = new THREE.Group();
+                house.position.set(houseX, houseY, houseZ);
+                const body = new THREE.Mesh(new THREE.BoxGeometry(14, 8, 12), houseMaterial);
+                body.position.y = 4;
+                body.castShadow = true;
+                body.receiveShadow = true;
+                house.add(body);
+
+                const roof = new THREE.Mesh(new THREE.ConeGeometry(10.6, 5, 4), mats.roof);
+                roof.position.y = 10.4;
+                roof.rotation.y = Math.PI / 4;
+                roof.castShadow = true;
+                house.add(roof);
+
+                const garage = new THREE.Mesh(new THREE.BoxGeometry(7.5, 4.2, 0.18), new THREE.MeshStandardMaterial({ color: 0xf3eee1, roughness: 0.76 }));
+                garage.position.set(0, 2.2, 6.1);
+                house.add(garage);
+                scene.add(house);
+            }
+        }
+
+        function makeProps() {
+            for (let propIndex = 0; propIndex < 9; propIndex++) {
+                const tree = new THREE.Group();
+                tree.position.set(-76 + propIndex * 19, 0, -52 + Math.sin(propIndex) * 7);
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.75, 5.5, 9), new THREE.MeshStandardMaterial({ color: 0x6c3f20, roughness: 0.85 }));
+                trunk.position.y = 2.75;
+                tree.add(trunk);
+                const crown = new THREE.Mesh(new THREE.SphereGeometry(3.2, 16, 10), new THREE.MeshStandardMaterial({ color: 0x278944, roughness: 0.75 }));
+                crown.position.y = 6.6;
+                crown.scale.y = 0.8;
+                crown.castShadow = true;
+                tree.add(crown);
+                scene.add(tree);
+            }
+
+            for (let carIndex = 0; carIndex < 4; carIndex++) {
+                const car = new THREE.Group();
+                car.position.set(-38 + carIndex * 25, 0.35, 42 + Math.sin(carIndex) * 5);
+                car.rotation.y = Math.PI * (0.03 + carIndex * 0.08);
+                const body = new THREE.Mesh(new THREE.BoxGeometry(8, 2.3, 4), new THREE.MeshStandardMaterial({ color: [0xff6978, 0x57c7ff, 0xffd45f, 0x91a0ad][carIndex], roughness: 0.52, metalness: 0.12 }));
+                body.position.y = 1.4;
+                body.castShadow = true;
+                car.add(body);
+                const top = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.7, 3.3), new THREE.MeshStandardMaterial({ color: 0xd8f4ff, roughness: 0.34, transparent: true, opacity: 0.78 }));
+                top.position.y = 3;
+                car.add(top);
+                scene.add(car);
+            }
+
+            const mailbox = new THREE.Group();
+            mailbox.position.set(-20, 0, 28);
+            mailbox.add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.4, 10), mats.mailbox));
+            const box = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.85, 1), mats.mailbox);
+            box.position.y = 2.2;
+            mailbox.add(box);
+            scene.add(mailbox);
+        }
+
+        function makeTextSprite(text, color = 0xffffff, scale = 1) {
+            const labelCanvas = document.createElement('canvas');
+            labelCanvas.width = 768;
+            labelCanvas.height = 220;
+            const ctx = labelCanvas.getContext('2d');
+            ctx.clearRect(0, 0, labelCanvas.width, labelCanvas.height);
+            ctx.fillStyle = 'rgba(8, 12, 16, 0.88)';
+            ctx.fillRect(28, 38, 712, 130);
+            ctx.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+            ctx.lineWidth = 12;
+            ctx.strokeRect(28, 38, 712, 130);
+            ctx.fillStyle = '#fff9ec';
+            ctx.font = '900 72px Segoe UI, Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 384, 105, 650);
+            const texture = new THREE.CanvasTexture(labelCanvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false }));
+            sprite.renderOrder = 20;
+            sprite.scale.set(7.4 * scale, 2.12 * scale, 1);
+            return sprite;
+        }
+
+        function makeNumberPatch(number, color = 0xffffff) {
+            const patchCanvas = document.createElement('canvas');
+            patchCanvas.width = 256;
+            patchCanvas.height = 256;
+            const ctx = patchCanvas.getContext('2d');
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+            ctx.beginPath();
+            ctx.roundRect(38, 38, 180, 180, 24);
+            ctx.fill();
+            ctx.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+            ctx.lineWidth = 12;
+            ctx.stroke();
+            ctx.fillStyle = '#111827';
+            ctx.font = '900 110px Segoe UI, Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(String(number ?? 0), 128, 134, 150);
+            const texture = new THREE.CanvasTexture(patchCanvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            return new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+        }
+
+        function makePlayer(material) {
+            const player = new THREE.Group();
+            player.userData.playerName = material.name || 'Player';
+            player.userData.playerNumber = material.number ?? 0;
+            const shirt = new THREE.MeshStandardMaterial({ color: material.shirt, roughness: 0.7 });
+            const cap = new THREE.MeshStandardMaterial({ color: material.color, roughness: 0.7 });
+
+            const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.9, 1.5, 8, 14), shirt);
+            body.position.y = 2.15;
+            body.castShadow = true;
+            player.add(body);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 12), mats.skin);
+            head.position.y = 3.45;
+            head.castShadow = true;
+            player.add(head);
+
+            const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.68, 0.26, 18), cap);
+            hat.position.y = 4.02;
+            player.add(hat);
+
+            const brim = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.08, 0.46), cap);
+            brim.position.set(0, 3.94, 0.43);
+            brim.castShadow = true;
+            player.add(brim);
+
+            const belt = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.12, 0.18), mats.shorts);
+            belt.position.set(0, 1.45, 0.58);
+            player.add(belt);
+
+            const numberPatch = makeNumberPatch(material.number ?? 0, material.color);
+            numberPatch.position.set(0, 2.2, 0.76);
+            numberPatch.scale.set(1.04, 1.04, 1);
+            player.add(numberPatch);
+
+            const backPatch = makeNumberPatch(material.number ?? 0, material.color);
+            backPatch.position.set(0, 2.2, -0.76);
+            backPatch.scale.set(1.04, 1.04, 1);
+            player.add(backPatch);
+
+            const nameLabel = makeTextSprite(`${material.name || 'Player'} #${material.number ?? 0}`, material.color, 1.12);
+            nameLabel.position.set(0, 5.78, 0);
+            player.add(nameLabel);
+
+            for (const side of [-1, 1]) {
+                const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 1.2, 10), mats.skin);
+                arm.position.set(side * 0.9, 2.25, 0);
+                arm.rotation.z = side * 0.32;
+                arm.castShadow = true;
+                player.add(arm);
+
+                const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 1.2, 10), mats.shorts);
+                leg.position.set(side * 0.38, 0.85, 0);
+                leg.castShadow = true;
+                player.add(leg);
+
+                const sock = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.2, 0.34, 10), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.72 }));
+                sock.position.set(side * 0.38, 0.28, 0);
+                player.add(sock);
+
+                const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.66), new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.72 }));
+                shoe.position.set(side * 0.38, 0.08, 0.12);
+                shoe.castShadow = true;
+                player.add(shoe);
+            }
+
+            return player;
+        }
+
+        function makeBat() {
+            const bat = new THREE.Group();
+            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 4.6, 16), mats.bat);
+            barrel.position.y = 2.5;
+            barrel.rotation.z = -0.6;
+            barrel.castShadow = true;
+            bat.add(barrel);
+            return bat;
+        }
+
+        function makeBall() {
+            const ball = new THREE.Group();
+            const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.42, 18, 12), mats.ball);
+            sphere.castShadow = true;
+            ball.add(sphere);
+
+            for (const rotation of [0, Math.PI / 2]) {
+                const seam = new THREE.Mesh(new THREE.TorusGeometry(0.43, 0.018, 8, 24), mats.redSeam);
+                seam.rotation.set(Math.PI / 2, rotation, 0);
+                ball.add(seam);
+            }
+
+            ball.visible = false;
+            scene.add(ball);
+            return ball;
+        }
+
+        function makeCharacters() {
+            batterGroup = makePlayer(currentBatter());
+            batterGroup.position.set(-1.8, 0, 16.5);
+            batterGroup.rotation.y = -0.38;
+            scene.add(batterGroup);
+
+            batGroup = makeBat();
+            batGroup.position.set(-0.95, 0.6, 16.3);
+            batGroup.rotation.set(0.3, 0.2, -0.42);
+            scene.add(batGroup);
+
+            catcherGroup = makePlayer({ name: 'Mitts', number: 8, color: 0x57c7ff, shirt: 0x20334a });
+            catcherGroup.position.set(1.75, 0, 20.6);
+            catcherGroup.rotation.y = Math.PI;
+            catcherGroup.scale.set(0.72, 0.58, 0.72);
+            const mask = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.84, 0.12), new THREE.MeshBasicMaterial({ color: 0x111827, transparent: true, opacity: 0.72 }));
+            mask.position.set(0, 3.55, 0.54);
+            catcherGroup.add(mask);
+            scene.add(catcherGroup);
+
+            umpireGroup = makePlayer({ name: 'Blue', number: 10, color: 0x111827, shirt: 0x1e293b });
+            umpireGroup.position.set(0.25, 0, 23.0);
+            umpireGroup.rotation.y = Math.PI;
+            umpireGroup.scale.setScalar(0.84);
+            scene.add(umpireGroup);
+
+            pitcherGroup = makePlayer(fieldingTeam[7]);
+            pitcherGroup.position.set(0, 0, -16);
+            pitcherGroup.rotation.y = Math.PI;
+            pitcherGroup.scale.setScalar(0.92);
+            scene.add(pitcherGroup);
+
+            const fielderPositions = [
+                [-28, 0, -22],
+                [29, 0, -23],
+                [-45, 0, -42],
+                [0, 0, -52],
+                [45, 0, -42],
+                [-18, 0, 1],
+                [18, 0, 1]
+            ];
+
+            for (const [index, position] of fielderPositions.entries()) {
+                const fielder = makePlayer(fieldingTeam[index]);
+                fielder.position.set(position[0], position[1], position[2]);
+                fielder.scale.setScalar(0.78);
+                fielder.rotation.y = Math.PI;
+                fielder.userData.home = fielder.position.clone();
+                fielder.userData.target = fielder.position.clone();
+                fielder.userData.role = 'home';
+                fielder.userData.arrival = 999;
+                scene.add(fielder);
+                fielders.push(fielder);
+            }
+
+            ballMesh = makeBall();
+        }
+
+        function currentBatter() {
+            return batters[state.lineupIndex % batters.length];
+        }
+
+        function nextBatter() {
+            state.lineupIndex = (state.lineupIndex + 1) % batters.length;
+            rebuildBatter();
+        }
+
+        function rebuildBatter() {
+            if (!batterGroup || !batGroup) return;
+            const oldPosition = batterGroup.position.clone();
+            const oldRotation = batterGroup.rotation.y;
+            scene.remove(batterGroup);
+            batterGroup = makePlayer(currentBatter());
+            batterGroup.position.copy(oldPosition);
+            batterGroup.rotation.y = oldRotation;
+            scene.add(batterGroup);
+        }
+
+        function resetGame(practice = false) {
+            state.mode = 'playing';
+            state.practice = practice;
+            state.inning = practice ? 0 : 1;
+            state.runs = 0;
+            state.lineupIndex = 0;
+            state.outs = 0;
+            state.balls = 0;
+            state.strikes = 0;
+            state.pitchCount = practice ? 99 : 12;
+            state.bases = [false, false, false];
+            state.aim = 0;
+            state.charging = false;
+            state.charge = 0;
+            state.pitchTimer = 0.65;
+            state.pitchRead = 'On deck';
+            state.timingRead = 'Ready';
+            state.aimRead = 'Center';
+            state.swingActive = false;
+            activePitch = null;
+            hitBall = null;
+            fieldingPlay = null;
+            ballMesh.visible = false;
+            for (const fielder of fielders) {
+                fielder.userData.role = 'home';
+                fielder.userData.target.copy(fielder.userData.home);
+                fielder.userData.arrival = 999;
+            }
+            overlay.style.display = 'none';
+            startBtn.textContent = 'Play Ball';
+            for (const runner of [...runners]) scene.remove(runner);
+            runners.length = 0;
+            showToast(practice ? 'Batting practice' : 'Play ball');
+        }
+
+        function nextPitch(delay = 1.05) {
+            activePitch = null;
+            hitBall = null;
+            fieldingPlay = null;
+            ballMesh.visible = false;
+            state.charging = false;
+            state.charge = 0;
+            state.swingActive = false;
+            state.pitchTimer = delay;
+        }
+
+        function createPitch() {
+            if (state.pitchCount <= 0 && !state.practice) {
+                endGame('Last pitch');
+                return;
+            }
+            state.pitchCount--;
+            const type = choosePitchType();
+            const missFactor = (1 - type.control) * (1 + state.inning * 0.08);
+            const countPressure = state.balls >= 3 ? 0.65 : state.strikes >= 2 ? 1.2 : 1;
+            activePitch = {
+                type,
+                age: 0,
+                duration: (1.18 / type.speed) * Math.max(0.66, 1 - state.inning * 0.045),
+                start: new THREE.Vector3(0, 4.5, -16),
+                end: new THREE.Vector3((Math.random() - 0.5) * 6.2 * missFactor * countPressure, 3.9 + (Math.random() - 0.5) * 3.1 * missFactor, 14.5),
+                swung: false,
+                crossed: false
+            };
+            state.pitchRead = type.name;
+            state.timingRead = 'Track it';
+            ballMesh.visible = true;
+            ballMesh.position.copy(activePitch.start);
+            showToast(type.name);
+        }
+
+        function choosePitchType() {
+            const weighted = [];
+            const heaterWeight = state.balls >= 3 ? 7 : 4;
+            const trickWeight = state.strikes >= 2 ? 5 : 2;
+            for (let index = 0; index < heaterWeight; index++) weighted.push(pitchTypes[0]);
+            for (let index = 0; index < trickWeight; index++) weighted.push(pitchTypes[1], pitchTypes[2]);
+            weighted.push(pitchTypes[3], pitchTypes[Math.floor(Math.random() * pitchTypes.length)]);
+            return weighted[Math.floor(Math.random() * weighted.length)];
+        }
+
+        function startCharge() {
+            if (state.mode !== 'playing' || state.swingActive || hitBall) return;
+            if (!activePitch && state.pitchTimer > 0) {
+                state.timingRead = 'Wait pitch';
+                return;
+            }
+            state.charging = true;
+            state.timingRead = 'Load';
+        }
+
+        function releaseSwing(bunt = false) {
+            if (state.mode !== 'playing' || state.swingActive || hitBall) return;
+            state.swingActive = true;
+            state.charging = false;
+            const rawCharge = state.charge;
+            const chargeQuality = rawCharge > 92 ? Math.max(0.45, 1 - (rawCharge - 92) * 0.012) : THREE.MathUtils.clamp(rawCharge / 92, 0.15, 1);
+            const power = bunt ? 0.28 : chargeQuality;
+            state.charge = 0;
+
+            if (!activePitch || activePitch.crossed || activePitch.age < activePitch.duration * 0.36) {
+                state.timingRead = activePitch && activePitch.age < activePitch.duration * 0.36 ? 'Too early' : 'Late';
+                recordStrike('Swing and a miss');
+                return;
+            }
+
+            activePitch.swung = true;
+            const progress = activePitch.age / activePitch.duration;
+            const timing = THREE.MathUtils.clamp(1 - Math.abs(progress - 0.84) / 0.24, 0, 1.18);
+            const zoneX = 1 - Math.min(1, Math.abs(ballMesh.position.x) / 4.8);
+            const batter = currentBatter();
+            const contact = THREE.MathUtils.clamp((timing * 0.68 + zoneX * 0.24 + chargeQuality * 0.08) * batter.contact, 0, 1.25);
+            state.timingRead = timing > 0.9 ? 'Perfect' : progress < 0.82 ? 'Early' : 'Late';
+
+            batGroup.userData.swingTimer = 0.45;
+            if (contact < 0.36) {
+                recordStrike('Whiff');
+                return;
+            }
+
+            const hitPower = THREE.MathUtils.clamp((power * 0.72 + contact * 0.44) * batter.power, 0.25, 1.45);
+            launchHit(hitPower, contact, bunt);
+        }
+
+        function recordStrike(label) {
+            state.strikes++;
+            showToast(label, true);
+            if (state.strikes >= 3) {
+                addOut('Strikeout');
+            } else {
+                nextPitch(0.85);
+            }
+        }
+
+        function recordBall() {
+            state.balls++;
+            showToast(`Ball ${state.balls}`);
+            if (state.balls >= 4) {
+                walkRunner();
+                resetCount();
+            }
+            nextPitch(0.75);
+        }
+
+        function resetCount() {
+            state.balls = 0;
+            state.strikes = 0;
+            state.pitchRead = 'On deck';
+            state.timingRead = 'Ready';
+        }
+
+        function addOut(label) {
+            state.outs++;
+            resetCount();
+            nextBatter();
+            showToast(`${label} - out ${state.outs}`, true);
+            if (state.outs >= 3) {
+                state.inning++;
+                state.outs = 0;
+                state.bases = [false, false, false];
+                for (const runner of [...runners]) scene.remove(runner);
+                runners.length = 0;
+                if (!state.practice && state.inning > 3) {
+                    endGame('Three innings complete');
+                    return;
+                }
+                showToast(`Inning ${state.inning}`);
+            }
+            nextPitch(1.1);
+        }
+
+        function walkRunner() {
+            if (state.bases[0] && state.bases[1] && state.bases[2]) state.runs++;
+            state.bases[2] = state.bases[1] || state.bases[2];
+            state.bases[1] = state.bases[0] || state.bases[1];
+            state.bases[0] = true;
+            updateRunnerModels();
+            nextBatter();
+            showToast('Walk');
+        }
+
+        function launchHit(hitPower, contact, bunt) {
+            const aimRadians = state.aim * 0.62;
+            const distance = bunt ? 16 + contact * 11 : 28 + hitPower * 44 + Math.random() * 10;
+            const direction = new THREE.Vector3(Math.sin(aimRadians), 0, -Math.cos(aimRadians)).normalize();
+            const landing = new THREE.Vector3(direction.x * distance, 0.32, 12 + direction.z * distance);
+            const height = bunt ? 4 + contact * 2 : 12 + hitPower * 15;
+            const foul = isFoulBall(landing);
+            hitBall = {
+                age: 0,
+                duration: bunt ? 0.78 : THREE.MathUtils.clamp(1.25 + distance / 70, 1.2, 2.15),
+                start: ballMesh.position.clone(),
+                landing,
+                height,
+                contact,
+                distance,
+                foul,
+                caught: false
+            };
+            assignFieldingPlay(hitBall);
+            activePitch = null;
+            spark(ballMesh.position, 16, 0xfff3c4);
+        }
+
+        function isFoulBall(point) {
+            if (point.z > 16) return false;
+            const fairWidth = Math.max(8, (18 - point.z) * 0.75);
+            return Math.abs(point.x) > fairWidth;
+        }
+
+        function assignFieldingPlay(play) {
+            if (play.foul) {
+                for (const fielder of fielders) {
+                    fielder.userData.role = 'watch';
+                    fielder.userData.target.copy(fielder.userData.home);
+                    fielder.userData.arrival = 999;
+                }
+                fieldingPlay = null;
+                return;
+            }
+
+            const ranked = fielders
+                .map((fielder) => ({ fielder, distance: fielder.position.distanceTo(play.landing) }))
+                .sort((left, right) => left.distance - right.distance);
+            const homeTargets = [
+                new THREE.Vector3(16, 0, 4),
+                new THREE.Vector3(0, 0, -10),
+                new THREE.Vector3(-16, 0, 4),
+                new THREE.Vector3(0, 0, 18)
+            ];
+
+            fielders.forEach((fielder, index) => {
+                fielder.userData.role = 'cover';
+                fielder.userData.target.copy(index < homeTargets.length ? homeTargets[index] : fielder.userData.home);
+                fielder.userData.arrival = 999;
+            });
+
+            const primary = ranked[0]?.fielder;
+            const backup = ranked[1]?.fielder;
+            const cutoff = ranked[2]?.fielder;
+            if (primary) {
+                primary.userData.role = 'primary';
+                primary.userData.target.copy(play.landing);
+                primary.userData.arrival = ranked[0].distance / (20 + state.inning * 1.6);
+            }
+            if (backup) {
+                backup.userData.role = 'backup';
+                backup.userData.target.copy(play.landing).lerp(new THREE.Vector3(0, 0, 18), 0.18);
+                backup.userData.arrival = ranked[1].distance / (17 + state.inning * 1.2);
+            }
+            if (cutoff) {
+                cutoff.userData.role = 'cutoff';
+                cutoff.userData.target.copy(play.landing).lerp(new THREE.Vector3(0, 0, 18), 0.48);
+            }
+            fieldingPlay = { primary, backup, cutoff };
+        }
+
+        function resolveHit() {
+            if (hitBall.foul) {
+                if (state.strikes < 2) state.strikes++;
+                showToast('Foul ball', true);
+                nextPitch(0.9);
+                return;
+            }
+
+            const primary = fieldingPlay?.primary;
+            const finalGap = primary ? primary.position.distanceTo(hitBall.landing) : 99;
+            const catchWindow = primary ? primary.userData.arrival <= hitBall.duration + 0.22 || finalGap < 5.2 : false;
+            const catchChance = catchWindow && hitBall.height < 26 && hitBall.distance < 72;
+            const groundOutChance = primary && hitBall.height < 9 && hitBall.distance < 35 && finalGap < 4.8 && Math.random() < 0.34 + state.inning * 0.04;
+            const homeRun = hitBall.distance > 72 && hitBall.landing.z < -48 && Math.abs(hitBall.landing.x) < 58;
+
+            if (catchChance && Math.random() < 0.7) {
+                addOut(`${primary.userData.playerName || 'Fielder'} made the catch`);
+                return;
+            }
+
+            if (groundOutChance) {
+                addOut(`${primary.userData.playerName || 'Fielder'} threw to first`);
+                return;
+            }
+
+            if (homeRun) {
+                advanceBases(4);
+                showToast('Cul-de-sac homer');
+                spark(hitBall.landing, 28, 0xffb547);
+            } else if (hitBall.distance > 58) {
+                advanceBases(3);
+                showToast('Triple past the fence');
+            } else if (hitBall.distance > 42) {
+                advanceBases(2);
+                showToast('Double into the gap');
+            } else {
+                advanceBases(1);
+                showToast('Base hit');
+            }
+
+            resetCount();
+            fieldingPlay = null;
+            nextPitch(1.2);
+        }
+
+        function advanceBases(amount) {
+            let runsScored = 0;
+            const newBases = [false, false, false];
+            for (let baseIndex = 2; baseIndex >= 0; baseIndex--) {
+                if (!state.bases[baseIndex]) continue;
+                const destination = baseIndex + amount;
+                if (destination >= 3) runsScored++;
+                else newBases[destination] = true;
+            }
+
+            if (amount >= 4) runsScored++;
+            else newBases[amount - 1] = true;
+            state.runs += runsScored;
+            state.bases = newBases;
+            updateRunnerModels();
+            nextBatter();
+        }
+
+        function updateRunnerModels() {
+            for (const runner of [...runners]) scene.remove(runner);
+            runners.length = 0;
+            const basePositions = [
+                new THREE.Vector3(16, 0.2, 4),
+                new THREE.Vector3(0, 0.2, -10),
+                new THREE.Vector3(-16, 0.2, 4)
+            ];
+
+            state.bases.forEach((occupied, baseIndex) => {
+                if (!occupied) return;
+                const runner = makePlayer({ name: `Runner ${baseIndex + 1}`, number: baseIndex + 1, color: 0xffb547, shirt: 0xffe0a5 });
+                runner.scale.setScalar(0.55);
+                runner.position.copy(basePositions[baseIndex]);
+                runner.rotation.y = Math.PI;
+                scene.add(runner);
+                runners.push(runner);
+            });
+        }
+
+        function endGame(reason) {
+            state.mode = 'gameover';
+            overlay.style.display = 'grid';
+            startBtn.textContent = 'Run It Back';
+            showToast(`${reason}: ${state.runs} runs`);
+        }
+
+        function updatePitch(dt) {
+            if (state.pitchTimer > 0) {
+                state.pitchTimer -= dt;
+                if (state.pitchTimer <= 0 && state.mode === 'playing') createPitch();
+            }
+
+            if (!activePitch) return;
+            activePitch.age += dt;
+            const progress = THREE.MathUtils.clamp(activePitch.age / activePitch.duration, 0, 1);
+            const eased = progress * progress * (3 - 2 * progress);
+            ballMesh.position.lerpVectors(activePitch.start, activePitch.end, eased);
+            ballMesh.position.x += Math.sin(progress * Math.PI) * activePitch.type.breakX;
+            ballMesh.position.y -= Math.sin(progress * Math.PI) * activePitch.type.dip;
+            ballMesh.rotation.x += dt * 16;
+            ballMesh.rotation.z += dt * 11;
+
+            if (progress > 0.86 && !activePitch.crossed) {
+                activePitch.crossed = true;
+                if (!activePitch.swung) {
+                    const inZone = Math.abs(ballMesh.position.x) < 3.25 && ballMesh.position.y > 2.2 && ballMesh.position.y < 6.9;
+                    state.timingRead = inZone ? 'Take strike' : 'Good take';
+                    if (inZone) recordStrike('Called strike');
+                    else recordBall();
                 }
             }
         }
-    }
 
-    // Hit ball physics
-    if (hitBall && !hitBall.dead) {
-        hitBall.x += hitBall.vx;
-        hitBall.y += hitBall.vy;
-        hitBall.vy += hitBall.gravity;
-        if (hitBall.isHR && hitBall.x > W + 50) { hitBall.dead = true; }
-        if (!hitBall.isHR && hitBall.y > H - 80) {
-            hitBall.bounces++;
-            hitBall.y = H - 80;
-            hitBall.vy *= -0.4;
-            hitBall.vx *= 0.6;
-            if (hitBall.bounces >= hitBall.maxBounces || Math.abs(hitBall.vy) < 1) hitBall.dead = true;
+        function updateHitBall(dt) {
+            if (!hitBall) return;
+            hitBall.age += dt;
+            const progress = THREE.MathUtils.clamp(hitBall.age / hitBall.duration, 0, 1);
+            ballMesh.position.lerpVectors(hitBall.start, hitBall.landing, progress);
+            ballMesh.position.y = THREE.MathUtils.lerp(hitBall.start.y, hitBall.landing.y, progress) + Math.sin(progress * Math.PI) * hitBall.height;
+            ballMesh.rotation.x += dt * 20;
+            ballMesh.rotation.z += dt * 18;
+
+            if (fieldingPlay?.primary && progress < 0.72) {
+                const primaryTarget = hitBall.landing.clone().lerp(new THREE.Vector3(ballMesh.position.x, 0, ballMesh.position.z), 0.18);
+                fieldingPlay.primary.userData.target.lerp(primaryTarget, dt * 1.6);
+            }
+
+            if (fieldingPlay?.backup && progress < 0.78) {
+                const backupTarget = hitBall.landing.clone().lerp(new THREE.Vector3(0, 0, 18), 0.2);
+                fieldingPlay.backup.userData.target.lerp(backupTarget, dt * 1.1);
+            }
+
+            if (progress >= 1) {
+                resolveHit();
+                hitBall = null;
+            }
         }
-        if (hitBall.x > W + 50 || hitBall.x < -50) hitBall.dead = true;
-    }
 
-    // Particles
-    particles = particles.filter(p => p.life > 0);
-    particles.forEach(p => {
-        p.x += p.vx; p.y += p.vy;
-        p.vy += p.gravity; p.vx *= 0.97;
-        p.life--;
-    });
-
-    // Base runners animation
-    const basePts = [
-        {x: HOME_X + 100, y: HOME_Y - 50},   // 1st
-        {x: HOME_X + 50, y: HOME_Y - 120},   // 2nd
-        {x: HOME_X - 50, y: HOME_Y - 60},    // 3rd
-        {x: HOME_X, y: HOME_Y},              // home
-    ];
-    baseRunners = baseRunners.filter(r => !r.done);
-    baseRunners.forEach(r => {
-        r.timer++;
-        if (r.timer % 8 === 0 && r.targetIdx < basePts.length - 1) {
-            r.targetIdx++;
+        function updateFielders(dt) {
+            for (const fielder of fielders) {
+                const destination = hitBall ? fielder.userData.target : fielder.userData.home;
+                const speedByRole = {
+                    primary: 2.55,
+                    backup: 2.05,
+                    cutoff: 1.75,
+                    cover: 1.25,
+                    watch: 0.65,
+                    home: 0.8
+                };
+                const role = hitBall ? fielder.userData.role : 'home';
+                const lerpAmount = 1 - Math.pow(0.88, dt * 60 * (speedByRole[role] ?? 1));
+                fielder.position.lerp(destination, lerpAmount);
+                const deltaX = destination.x - fielder.position.x;
+                const deltaZ = destination.z - fielder.position.z;
+                if (Math.hypot(deltaX, deltaZ) > 0.08) {
+                    fielder.rotation.y = Math.atan2(deltaX, deltaZ);
+                }
+            }
         }
-        const tgt = basePts[r.targetIdx];
-        r.x += (tgt.x - r.x) * 0.2;
-        r.y += (tgt.y - r.y) * 0.2;
-        if (r.targetIdx >= basePts.length - 1 && Math.hypot(r.x - HOME_X, r.y - HOME_Y) < 10) r.done = true;
-    });
 
-    if (swingResult) {
-        swingResult.timer--;
-        if (swingResult.timer <= 0) swingResult = null;
-    }
-    crowdHype = Math.max(10, crowdHype - 0.05);
-}
+        function updateBatter(dt) {
+            if (state.charging) {
+                state.charge = Math.min(115, state.charge + dt * 82);
+                if (state.charge > 96) state.timingRead = 'Overload';
+            }
+            if (batGroup.userData.swingTimer > 0) {
+                batGroup.userData.swingTimer -= dt;
+                const swing = Math.sin((0.45 - batGroup.userData.swingTimer) / 0.45 * Math.PI);
+                batGroup.rotation.set(0.28, 0.2 + swing * 1.6, -0.45 - swing * 1.25);
+            } else {
+                batGroup.rotation.set(0.25 + Math.sin(performance.now() * 0.004) * 0.03, 0.2, -0.42);
+            }
 
-// ─── DRAW HELPERS ─────────────────────────────
-function drawNeighborhoodBG() {
-    // Sky gradient
-    const sky = ctx.createLinearGradient(0, 0, 0, H * 0.55);
-    sky.addColorStop(0, '#87ceeb');
-    sky.addColorStop(1, '#c8e6fa');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, W, H * 0.55);
-
-    // Sun
-    ctx.fillStyle = '#fff176';
-    ctx.shadowBlur = 40; ctx.shadowColor = '#fff176';
-    ctx.beginPath(); ctx.arc(W * 0.88, 70, 38, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0;
-
-    // Clouds
-    function cloud(cx, cy, s) {
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.beginPath(); ctx.arc(cx, cy, s * 1.1, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx + s * 1.3, cy + s * 0.2, s * 0.9, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx - s * 1.0, cy + s * 0.3, s * 0.8, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx + s * 0.5, cy - s * 0.5, s * 0.7, 0, Math.PI * 2); ctx.fill();
-    }
-    cloud(120, 80, 22);
-    cloud(350, 55, 18);
-    cloud(600, 95, 15);
-
-    // Houses in background
-    function house(x, y, w, h, roofColor, wallColor, winColor) {
-        ctx.fillStyle = wallColor;
-        ctx.fillRect(x, y, w, h);
-        ctx.fillStyle = roofColor;
-        ctx.beginPath();
-        ctx.moveTo(x - 8, y); ctx.lineTo(x + w / 2, y - h * 0.55); ctx.lineTo(x + w + 8, y);
-        ctx.fill();
-        ctx.fillStyle = winColor;
-        ctx.fillRect(x + w * 0.12, y + h * 0.2, w * 0.25, h * 0.25);
-        ctx.fillRect(x + w * 0.58, y + h * 0.2, w * 0.25, h * 0.25);
-        ctx.fillStyle = '#4a2c0a';
-        ctx.fillRect(x + w * 0.36, y + h * 0.55, w * 0.28, h * 0.45);
-    }
-    house(20, 170, 100, 90, '#8b2233', '#f5e6d3', '#dbeafe');
-    house(135, 185, 85, 80, '#2563eb', '#fef3c7', '#bbf7d0');
-    house(240, 180, 95, 85, '#166534', '#fde8d8', '#e0e7ff');
-    house(780, 165, 110, 95, '#7c2d12', '#fef9ee', '#bfdbfe');
-    house(900, 178, 90, 88, '#1e3a5f', '#f0f4f8', '#fef9c3');
-
-    // Trees
-    function tree(x, y, h) {
-        ctx.fillStyle = '#4a2c0a';
-        ctx.fillRect(x - 5, y, 10, h * 0.45);
-        ctx.fillStyle = '#16a34a';
-        ctx.beginPath(); ctx.arc(x, y - h * 0.1, h * 0.38, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#15803d';
-        ctx.beginPath(); ctx.arc(x - h * 0.15, y, h * 0.25, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(x + h * 0.15, y, h * 0.25, 0, Math.PI * 2); ctx.fill();
-    }
-    tree(350, 195, 70);
-    tree(480, 210, 60);
-    tree(700, 188, 75);
-
-    // Wooden fence
-    ctx.fillStyle = '#d4a76a';
-    for (let fx = 0; fx < W; fx += 28) {
-        ctx.fillRect(fx, H * 0.52 - 5, 14, 70);
-    }
-    ctx.fillStyle = '#c49158';
-    ctx.fillRect(0, H * 0.52 + 5, W, 8);
-    ctx.fillRect(0, H * 0.52 + 30, W, 8);
-
-    // Grass field
-    const grassGrad = ctx.createLinearGradient(0, H * 0.56, 0, H);
-    grassGrad.addColorStop(0, '#22c55e');
-    grassGrad.addColorStop(0.4, '#16a34a');
-    grassGrad.addColorStop(1, '#15803d');
-    ctx.fillStyle = grassGrad;
-    ctx.fillRect(0, H * 0.55, W, H);
-
-    // Grass stripes
-    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
-    ctx.lineWidth = 30;
-    for (let sx = -50; sx < W + 50; sx += 60) {
-        ctx.beginPath();
-        ctx.moveTo(sx, H * 0.55); ctx.lineTo(sx + 40, H);
-        ctx.stroke();
-    }
-
-    // Dirt infield
-    const dirt = ctx.createRadialGradient(380, H - 20, 20, 380, H, 300);
-    dirt.addColorStop(0, '#c2874a');
-    dirt.addColorStop(1, '#a0622a');
-    ctx.fillStyle = dirt;
-    ctx.beginPath();
-    ctx.ellipse(390, H - 10, 320, 140, -0.15, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Base paths
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.lineWidth = 4;
-    const bp = [
-        {x: HOME_X, y: HOME_Y},
-        {x: HOME_X + 110, y: HOME_Y - 60},
-        {x: HOME_X + 55, y: HOME_Y - 140},
-        {x: HOME_X - 60, y: HOME_Y - 80},
-    ];
-    ctx.beginPath();
-    bp.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
-    ctx.closePath(); ctx.stroke();
-
-    // Bases
-    function base(x, y) {
-        ctx.fillStyle = 'white';
-        ctx.shadowBlur = 5; ctx.shadowColor = '#fff';
-        ctx.fillRect(x - 9, y - 9, 18, 18);
-        ctx.shadowBlur = 0;
-    }
-    base(HOME_X + 110, HOME_Y - 60);
-    base(HOME_X + 55, HOME_Y - 140);
-    base(HOME_X - 60, HOME_Y - 80);
-
-    // Home plate
-    ctx.fillStyle = 'white';
-    ctx.beginPath();
-    ctx.moveTo(HOME_X, HOME_Y - 12);
-    ctx.lineTo(HOME_X + 12, HOME_Y - 5);
-    ctx.lineTo(HOME_X + 12, HOME_Y + 5);
-    ctx.lineTo(HOME_X - 12, HOME_Y + 5);
-    ctx.lineTo(HOME_X - 12, HOME_Y - 5);
-    ctx.closePath(); ctx.fill();
-
-    // Pitcher's mound
-    ctx.fillStyle = '#b07840';
-    ctx.beginPath(); ctx.ellipse(MOUND_X, MOUND_Y + 10, 28, 14, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'white';
-    ctx.fillRect(MOUND_X - 14, MOUND_Y + 5, 28, 6);
-}
-
-function drawStrikeZone() {
-    if (!awaitingSwing && !pitch) return;
-    const alpha = pitch ? 0.5 : 0.3;
-    ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 4]);
-    ctx.strokeRect(STRIKE_ZONE.x, STRIKE_ZONE.y, STRIKE_ZONE.w, STRIKE_ZONE.h);
-    ctx.setLineDash([]);
-    ctx.fillStyle = `rgba(255,255,255,${alpha * 0.15})`;
-    ctx.fillRect(STRIKE_ZONE.x, STRIKE_ZONE.y, STRIKE_ZONE.w, STRIKE_ZONE.h);
-}
-
-function drawPitcher() {
-    const px = MOUND_X, py = MOUND_Y - 10;
-    const bob = pitcherThrown ? 0 : Math.sin(pitcherAnim) * 4;
-    ctx.save(); ctx.translate(px, py + bob);
-
-    const windupAngle = pitcherThrown ? -0.5 : Math.sin(pitcherAnim * 0.7) * 0.3;
-
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    ctx.beginPath(); ctx.ellipse(0, 45, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
-
-    // Legs
-    ctx.fillStyle = '#1e3a5f';
-    ctx.fillRect(-12, 22, 11, 28);
-    ctx.fillRect(2, 22, 11, 28);
-    // Cleats
-    ctx.fillStyle = '#111';
-    ctx.fillRect(-14, 46, 13, 6); ctx.fillRect(1, 46, 13, 6);
-
-    // Body
-    ctx.fillStyle = '#1d4ed8';
-    ctx.beginPath(); ctx.roundRect(-14, 0, 28, 26, 5); ctx.fill();
-    // Jersey number
-    ctx.fillStyle = 'white'; ctx.font = 'bold 11px Arial';
-    ctx.textAlign = 'center'; ctx.fillText('7', 0, 18);
-
-    // Throwing arm
-    ctx.save(); ctx.rotate(windupAngle - 0.3);
-    ctx.fillStyle = '#fbbf24';
-    ctx.fillRect(10, -2, 18, 8);
-    // Ball in hand
-    if (!pitcherThrown) {
-        ctx.fillStyle = 'white';
-        ctx.beginPath(); ctx.arc(28, 2, 7, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(28, 2, 7, -0.5, 0.5); ctx.stroke();
-    }
-    ctx.restore();
-
-    // Glove arm
-    ctx.fillStyle = '#8b4513';
-    ctx.fillRect(-28, 4, 16, 10);
-    ctx.beginPath(); ctx.arc(-28, 9, 9, 0, Math.PI * 2); ctx.fill();
-
-    // Head
-    ctx.fillStyle = '#fbbf24';
-    ctx.beginPath(); ctx.arc(0, -16, 16, 0, Math.PI * 2); ctx.fill();
-    // Cap
-    ctx.fillStyle = '#1d4ed8';
-    ctx.beginPath();
-    ctx.ellipse(0, -22, 16, 7, 0, Math.PI, 0);
-    ctx.fill();
-    ctx.fillRect(-16, -22, 32, 7);
-    ctx.fillStyle = '#1d4ed8';
-    ctx.beginPath(); ctx.ellipse(-18, -19, 8, 4, -0.2, 0, Math.PI * 2); ctx.fill();
-    // Eyes
-    ctx.fillStyle = '#333';
-    ctx.beginPath(); ctx.arc(-5, -15, 2.5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(5, -15, 2.5, 0, Math.PI * 2); ctx.fill();
-
-    ctx.restore();
-}
-
-function drawBatter() {
-    if (!batter) return;
-    const bx = HOME_X - 35, by = HOME_Y - 5;
-    const swingOff = batterAnim > 0 ? Math.sin(batterAnim * Math.PI) * -40 : 0;
-    ctx.save(); ctx.translate(bx, by);
-
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    ctx.beginPath(); ctx.ellipse(0, 45, 20, 7, 0, 0, Math.PI * 2); ctx.fill();
-
-    // Legs
-    ctx.fillStyle = '#1e293b';
-    ctx.fillRect(-11, 22, 10, 28); ctx.fillRect(2, 22, 10, 28);
-    ctx.fillStyle = '#111';
-    ctx.fillRect(-13, 46, 12, 6); ctx.fillRect(1, 46, 12, 6);
-
-    // Body
-    ctx.fillStyle = batter.shirt;
-    ctx.beginPath(); ctx.roundRect(-13, 0, 26, 24, 5); ctx.fill();
-    // Number on shirt
-    ctx.fillStyle = batter.hat; ctx.font = 'bold 10px Arial';
-    ctx.textAlign = 'center'; ctx.fillText(BATTERS.indexOf(batter) + 1, 0, 16);
-
-    // Arms + bat
-    const batAngle = batterAnim > 0 ? (Math.PI * 0.9 - batterAnim * Math.PI * 0.7) : -0.6;
-    ctx.save();
-    ctx.translate(0, 8);
-    ctx.rotate(batAngle);
-    // Bat
-    ctx.fillStyle = '#8b4513';
-    ctx.save(); ctx.rotate(-0.2);
-    ctx.fillRect(-3, -35, 6, 35);
-    ctx.fillStyle = '#a0522d';
-    ctx.fillRect(-4, -35, 8, -6);
-    ctx.restore();
-    // Arms
-    ctx.fillStyle = '#fbbf24';
-    ctx.fillRect(-5, -12, 18, 8);
-    ctx.fillRect(-16, -10, 14, 8);
-    ctx.restore();
-
-    // Head
-    ctx.fillStyle = '#fbbf24';
-    ctx.beginPath(); ctx.arc(0, -16, 15, 0, Math.PI * 2); ctx.fill();
-    // Helmet
-    ctx.fillStyle = batter.hat;
-    ctx.beginPath(); ctx.arc(0, -22, 16, Math.PI, 0); ctx.fill();
-    ctx.fillRect(-16, -22, 32, 5);
-    ctx.beginPath(); ctx.ellipse(-18, -20, 9, 5, 0.1, 0, Math.PI * 2); ctx.fill();
-    // Eyes + focus line
-    ctx.fillStyle = '#333';
-    ctx.beginPath(); ctx.arc(-4, -15, 2, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(5, -15, 2, 0, Math.PI * 2); ctx.fill();
-
-    ctx.restore();
-}
-
-function drawBall() {
-    // Trajectory trail
-    if (trajectoryPts.length > 1) {
-        const pt = PITCH_TYPES[pitch ? pitch.type : currentPitchType];
-        for (let i = 0; i < trajectoryPts.length; i++) {
-            const t = i / trajectoryPts.length;
-            ctx.globalAlpha = t * 0.5;
-            ctx.fillStyle = pt ? pt.trailColor : '#fff';
-            ctx.beginPath(); ctx.arc(trajectoryPts[i].x, trajectoryPts[i].y, 4 * t, 0, Math.PI * 2); ctx.fill();
+            const aimRadians = state.aim * 0.62;
+            aimArrow.position.x = Math.sin(aimRadians) * 7.2;
+            aimArrow.rotation.z = -aimRadians;
+            aimGuide.position.set(Math.sin(aimRadians) * 18, 0.09, -11 - Math.abs(state.aim) * 4);
+            aimGuide.rotation.y = aimRadians;
+            aimGuide.material.opacity = 0.22 + Math.abs(state.aim) * 0.2;
         }
-        ctx.globalAlpha = 1;
-    }
 
-    if (pitch && !pitch.past) {
-        const pt = PITCH_TYPES[pitch.type];
-        // Glow
-        ctx.shadowBlur = 15; ctx.shadowColor = pt.color;
-        ctx.fillStyle = 'white';
-        ctx.beginPath(); ctx.arc(pitch.x, pitch.y, 9, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = pt.color; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(pitch.x, pitch.y, 9, -0.5, 0.5); ctx.stroke();
-        ctx.beginPath(); ctx.arc(pitch.x, pitch.y, 9, Math.PI - 0.5, Math.PI + 0.5); ctx.stroke();
-        ctx.shadowBlur = 0;
-
-        // In-zone glow
-        if (pitch.inZone) {
-            ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 3;
-            ctx.shadowBlur = 20; ctx.shadowColor = '#fbbf24';
-            ctx.beginPath(); ctx.arc(pitch.x, pitch.y, 13, 0, Math.PI * 2); ctx.stroke();
-            ctx.shadowBlur = 0;
+        function updateParticles(dt) {
+            for (const particle of [...particles]) {
+                particle.position.addScaledVector(particle.userData.velocity, dt);
+                particle.userData.velocity.y -= dt * 8;
+                particle.userData.life -= dt;
+                particle.material.opacity = Math.max(0, particle.userData.life / particle.userData.maxLife);
+                if (particle.userData.life <= 0) {
+                    scene.remove(particle);
+                    particles.splice(particles.indexOf(particle), 1);
+                }
+            }
         }
-    }
 
-    // Hit ball
-    if (hitBall && !hitBall.dead) {
-        ctx.fillStyle = 'white';
-        ctx.shadowBlur = 10; ctx.shadowColor = hitBall.isHR ? '#fbbf24' : '#fff';
-        ctx.beginPath(); ctx.arc(hitBall.x, hitBall.y, 8, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(hitBall.x, hitBall.y, 8, -0.5, 0.5); ctx.stroke();
-        ctx.shadowBlur = 0;
-    }
-}
-
-function drawParticles() {
-    particles.forEach(p => {
-        ctx.globalAlpha = p.life / p.maxLife;
-        ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
-    });
-    ctx.globalAlpha = 1;
-}
-
-function drawHUD() {
-    // Top scoreboard
-    ctx.fillStyle = 'rgba(0,0,0,0.75)';
-    ctx.beginPath(); ctx.roundRect(W / 2 - 230, 8, 460, 58, 12); ctx.fill();
-
-    // Inning
-    ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 10px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('INNING', W / 2, 22);
-    ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 20px Arial';
-    ctx.fillText(`${inning} / ${totalInnings}`, W / 2, 55);
-
-    // Player score
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 10px Arial';
-    ctx.fillText('YOU', W / 2 - 220, 22);
-    ctx.fillStyle = scoreFlash > 0 ? '#fbbf24' : '#f8fafc';
-    ctx.font = `bold ${scoreFlash > 0 ? 28 : 22}px Arial`;
-    ctx.fillText(score, W / 2 - 220, 55);
-
-    // CPU score
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 10px Arial';
-    ctx.fillText('CPU', W / 2 + 220, 22);
-    ctx.fillStyle = cpuScoreFlash > 0 ? '#ef4444' : '#f8fafc';
-    ctx.font = `bold ${cpuScoreFlash > 0 ? 28 : 22}px Arial`;
-    ctx.fillText(cpuScore, W / 2 + 220, 55);
-
-    // Count display (balls, strikes, outs)
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.beginPath(); ctx.roundRect(W - 145, 8, 135, 78, 10); ctx.fill();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 9px Arial';
-    ctx.fillText('BALLS  STRIKES  OUTS', W - 78, 22);
-    // Dots
-    for (let i = 0; i < 3; i++) {
-        const dotX = W - 138 + i * 40 + (i === 0 ? 0 : 6);
-        const maxDot = i === 0 ? 4 : 3;
-        const val = i === 0 ? balls : (i === 1 ? strikes : outs);
-        for (let d = 0; d < maxDot; d++) {
-            const filled = d < val;
-            ctx.fillStyle = filled ? (i === 2 ? '#ef4444' : i === 1 ? '#f59e0b' : '#60a5fa') : 'rgba(255,255,255,0.15)';
-            ctx.beginPath(); ctx.arc(dotX + d * 11, 45, 5, 0, Math.PI * 2); ctx.fill();
+        function spark(position, count, color) {
+            for (let particleIndex = 0; particleIndex < count; particleIndex++) {
+                const particle = new THREE.Mesh(new THREE.SphereGeometry(0.09 + Math.random() * 0.08, 8, 6), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.96 }));
+                particle.position.copy(position);
+                particle.userData = {
+                    velocity: new THREE.Vector3((Math.random() - 0.5) * 12, Math.random() * 8, (Math.random() - 0.5) * 12),
+                    life: 0.45 + Math.random() * 0.55,
+                    maxLife: 1
+                };
+                scene.add(particle);
+                particles.push(particle);
+            }
         }
-    }
-    // Labels
-    const bsLabels = ['B', 'S', 'O'];
-    bsLabels.forEach((l, i) => {
-        ctx.fillStyle = '#64748b'; ctx.font = 'bold 9px Arial';
-        ctx.fillText(l, W - 138 + i * 46 + 11, 68);
-    });
 
-    // Bases (small diamond indicator)
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.beginPath(); ctx.roundRect(10, 8, 90, 78, 10); ctx.fill();
-    ctx.fillStyle = '#64748b'; ctx.font = 'bold 9px Arial';
-    ctx.textAlign = 'center'; ctx.fillText('BASES', 55, 21);
-    const bPos = [{x: 55, y: 56}, {x: 75, y: 40}, {x: 55, y: 25}, {x: 35, y: 40}];
-    bases.forEach((occupied, i) => {
-        ctx.fillStyle = occupied ? '#fbbf24' : 'rgba(255,255,255,0.15)';
-        ctx.save(); ctx.translate(bPos[i + 1].x, bPos[i + 1].y);
-        ctx.rotate(Math.PI / 4);
-        ctx.fillRect(-6, -6, 12, 12);
-        ctx.restore();
-    });
-    // Home plate dot
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.save(); ctx.translate(bPos[0].x, bPos[0].y);
-    ctx.rotate(Math.PI / 4); ctx.fillRect(-5, -5, 10, 10); ctx.restore();
-
-    // Pitch type display
-    if (showPitchType > 0) {
-        const pt = PITCH_TYPES[currentPitchType];
-        const alpha = Math.min(1, showPitchType / 30);
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = 'rgba(0,0,0,0.85)';
-        ctx.beginPath(); ctx.roundRect(W / 2 - 80, 80, 160, 40, 20); ctx.fill();
-        ctx.fillStyle = pt.color;
-        ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center';
-        ctx.fillText(pt.label, W / 2, 106);
-        ctx.globalAlpha = 1;
-    }
-
-    // Swing result popup
-    if (swingResult) {
-        const alpha = Math.min(1, swingResult.timer / 30);
-        const scale = swingResult.big ? (1 + (1 - alpha) * 0.5) : 1;
-        ctx.save();
-        ctx.translate(W / 2, H / 2 - 60);
-        ctx.scale(scale, scale);
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = swingResult.big ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.5)';
-        const tw = ctx.measureText(swingResult.text).width + 40;
-        ctx.beginPath(); ctx.roundRect(-tw / 2, -22, tw, 40, 20); ctx.fill();
-        ctx.fillStyle = swingResult.color;
-        ctx.font = `bold ${swingResult.big ? 28 : 20}px Arial`;
-        ctx.textAlign = 'center'; ctx.fillText(swingResult.text, 0, 12);
-        if (swingResult.big) {
-            ctx.shadowBlur = 20; ctx.shadowColor = swingResult.color;
-            ctx.fillText(swingResult.text, 0, 12);
-            ctx.shadowBlur = 0;
+        function updateCamera(dt) {
+            const ballTarget = hitBall ? ballMesh.position : new THREE.Vector3(0, 4, 0);
+            const desired = new THREE.Vector3(ballTarget.x * 0.18, 30 + Math.max(0, -ballTarget.z) * 0.12, 55 + Math.max(0, ballTarget.z) * 0.08);
+            camera.position.lerp(desired, dt * 1.8);
+            camera.lookAt(ballTarget.x * 0.16, 4.2, Math.min(0, ballTarget.z * 0.25));
         }
-        ctx.restore();
-        ctx.globalAlpha = 1;
-    }
 
-    // Swing prompt
-    if (awaitingSwing && pitch && !pitch.past) {
-        const pct = (HOME_X - pitch.x) / (HOME_X - MOUND_X);
-        if (pct < 0.35) {
-            const pulse = 0.7 + Math.sin(Date.now() * 0.015) * 0.3;
-            ctx.globalAlpha = pulse;
-            ctx.fillStyle = '#fbbf24';
-            ctx.font = 'bold 22px Arial'; ctx.textAlign = 'center';
-            ctx.fillText('⚾ SWING!', W / 2, H - 35);
-            ctx.globalAlpha = 1;
+        function updateHud() {
+            runsEl.textContent = state.runs;
+            inningEl.textContent = state.practice ? 'BP' : state.inning;
+            outsEl.textContent = state.outs;
+            countEl.textContent = `${state.balls}-${state.strikes}`;
+            pitchesEl.textContent = state.practice ? '∞' : state.pitchCount;
+            batterNameEl.textContent = `${currentBatter().name} (${state.lineupIndex + 1}/${batters.length})`;
+            pitchNameEl.textContent = state.pitchRead;
+            timingNameEl.textContent = state.timingRead;
+            aimNameEl.textContent = state.aimRead;
+            powerEl.style.width = `${Math.round(state.charge)}%`;
+            baseEls.forEach((baseEl, baseIndex) => baseEl.classList.toggle('on', state.bases[baseIndex]));
         }
-    }
 
-    // Batter name tag
-    if (batter) {
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.beginPath(); ctx.roundRect(HOME_X - 80, HOME_Y + 40, 95, 26, 8); ctx.fill();
-        ctx.fillStyle = batter.color; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
-        ctx.fillText(`${batter.emoji} ${batter.name}`, HOME_X - 33, HOME_Y + 57);
-    }
-
-    // Crowd hype bar
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.beginPath(); ctx.roundRect(10, H - 35, 160, 22, 8); ctx.fill();
-    const hypeColor = crowdHype > 70 ? '#ef4444' : crowdHype > 40 ? '#f59e0b' : '#60a5fa';
-    ctx.fillStyle = hypeColor;
-    ctx.beginPath(); ctx.roundRect(12, H - 33, (crowdHype / 100) * 156, 18, 6); ctx.fill();
-    ctx.fillStyle = 'white'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'left';
-    ctx.fillText('🎉 CROWD HYPE', 15, H - 20);
-
-    // Base runners
-    baseRunners.forEach(r => {
-        if (!r.done) {
-            ctx.fillStyle = r.color;
-            ctx.beginPath(); ctx.arc(r.x, r.y, 7, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-            ctx.stroke();
+        function showToast(message, warning = false) {
+            toast.textContent = message;
+            toast.style.borderColor = warning ? 'rgba(255, 105, 120, 0.76)' : 'rgba(255, 181, 71, 0.78)';
+            toast.classList.add('show');
+            clearTimeout(showToast.timer);
+            showToast.timer = setTimeout(() => toast.classList.remove('show'), 1300);
         }
-    });
-}
 
-// ─── MENU DRAW ─────────────────────────────────
-function drawMenu() {
-    // Background
-    const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#0f172a');
-    bg.addColorStop(1, '#1e3a5f');
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+        function resize() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height, false);
+        }
 
-    // Stars
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    const stars = [[50,40],[200,80],[450,30],[600,60],[800,25],[950,90],[100,120],[300,150],[700,110],[900,140]];
-    stars.forEach(([sx, sy]) => {
-        ctx.beginPath(); ctx.arc(sx, sy, 1.5, 0, Math.PI * 2); ctx.fill();
-    });
+        function loop() {
+            const dt = Math.min(clock.getDelta(), 0.033);
+            if (state.mode === 'playing') {
+                updatePitch(dt);
+                updateHitBall(dt);
+                updateBatter(dt);
+                updateFielders(dt);
+            }
+            updateParticles(dt);
+            updateCamera(dt);
+            updateHud();
+            renderer.render(scene, camera);
+            requestAnimationFrame(loop);
+        }
 
-    // Grass
-    ctx.fillStyle = '#16a34a';
-    ctx.fillRect(0, H * 0.65, W, H);
-    ctx.fillStyle = '#15803d';
-    ctx.fillRect(0, H * 0.65, W, 12);
+        function setAim(direction) {
+            state.aim = THREE.MathUtils.clamp(state.aim + direction * 0.24, -1.15, 1.15);
+            if (state.aim < -0.68) state.aimRead = 'Pull LF';
+            else if (state.aim < -0.24) state.aimRead = 'Left gap';
+            else if (state.aim > 0.68) state.aimRead = 'Pull RF';
+            else if (state.aim > 0.24) state.aimRead = 'Right gap';
+            else state.aimRead = 'Center';
+        }
 
-    // Title with glow
-    ctx.textAlign = 'center';
-    ctx.shadowBlur = 30; ctx.shadowColor = '#fbbf24';
-    ctx.fillStyle = '#fbbf24';
-    ctx.font = 'bold 62px Arial';
-    ctx.fillText('CUL-DE-SAC', W / 2, 130);
-    ctx.fillText('SLUGGERS', W / 2, 200);
-    ctx.shadowBlur = 0;
+        function setAimFromClientX(clientX) {
+            const normalized = THREE.MathUtils.clamp((clientX / window.innerWidth) * 2 - 1, -1, 1);
+            state.aim = THREE.MathUtils.clamp(normalized * 1.15, -1.15, 1.15);
+            if (state.aim < -0.68) state.aimRead = 'Pull LF';
+            else if (state.aim < -0.24) state.aimRead = 'Left gap';
+            else if (state.aim > 0.68) state.aimRead = 'Pull RF';
+            else if (state.aim > 0.24) state.aimRead = 'Right gap';
+            else state.aimRead = 'Center';
+        }
 
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = 'bold 16px Arial';
-    ctx.fillText('PICK YOUR BATTER TO START', W / 2, 235);
+        function setPointer(event) {
+            pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+            pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
 
-    // Baseball decoration
-    ctx.fillStyle = 'white';
-    ctx.beginPath(); ctx.arc(85, 165, 35, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(85, 165, 35, -0.6, 0.6); ctx.stroke();
-    ctx.beginPath(); ctx.arc(85, 165, 35, Math.PI - 0.6, Math.PI + 0.6); ctx.stroke();
-    ctx.fillStyle = 'white';
-    ctx.beginPath(); ctx.arc(W - 85, 165, 35, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(W - 85, 165, 35, -0.6, 0.6); ctx.stroke();
-    ctx.beginPath(); ctx.arc(W - 85, 165, 35, Math.PI - 0.6, Math.PI + 0.6); ctx.stroke();
+        window.addEventListener('resize', resize);
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a') setAim(-1);
+            if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'd') setAim(1);
+            if (event.key === ' ' || event.key === 'Enter') {
+                event.preventDefault();
+                if (state.mode !== 'playing') resetGame(false);
+                else startCharge();
+            }
+            if (event.key.toLowerCase() === 'b') releaseSwing(true);
+        });
+        window.addEventListener('keyup', (event) => {
+            if (event.key === ' ' || event.key === 'Enter') releaseSwing(false);
+        });
+        window.addEventListener('pointerdown', (event) => {
+            if (event.target.closest('button, a')) return;
+            setPointer(event);
+            raycaster.setFromCamera(pointer, camera);
+            setAimFromClientX(event.clientX);
+            startCharge();
+        });
+        window.addEventListener('pointerup', (event) => {
+            if (event.target.closest('button, a')) return;
+            releaseSwing(false);
+        });
 
-    // Batter cards
-    const cols = 3, cardW = 160, cardH = 130;
-    const startX = W / 2 - (cols * cardW + (cols - 1) * 12) / 2;
-    const startY = 270;
-
-    BATTERS.forEach((b, i) => {
-        const col = i % cols, row = Math.floor(i / cols);
-        const cx = startX + col * (cardW + 12), cy = startY + row * (cardH + 10);
-        const hover = hoveredBatter === i || selectedBatter === i;
-        const selected = selectedBatter === i;
-
-        ctx.fillStyle = selected ? `rgba(${hexToRgb(b.color)}, 0.25)` : hover ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)';
-        ctx.strokeStyle = selected ? b.color : hover ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)';
-        ctx.lineWidth = selected ? 3 : 1.5;
-        ctx.beginPath(); ctx.roundRect(cx, cy, cardW, cardH, 12); ctx.fill(); ctx.stroke();
-
-        // Emoji
-        ctx.font = '32px Arial'; ctx.textAlign = 'center';
-        ctx.fillText(b.emoji, cx + cardW / 2, cy + 40);
-        // Name
-        ctx.fillStyle = selected ? b.color : '#f8fafc';
-        ctx.font = `bold 15px Arial`;
-        ctx.fillText(b.name, cx + cardW / 2, cy + 65);
-        // Special
-        ctx.fillStyle = '#94a3b8'; ctx.font = '10px Arial';
-        ctx.fillText(b.special, cx + cardW / 2, cy + 82);
-        // Power bar
-        ctx.fillStyle = 'rgba(255,255,255,0.1)';
-        ctx.beginPath(); ctx.roundRect(cx + 15, cy + 90, cardW - 30, 7, 3); ctx.fill();
-        ctx.fillStyle = b.color;
-        ctx.beginPath(); ctx.roundRect(cx + 15, cy + 90, (cardW - 30) * (b.power / 10), 7, 3); ctx.fill();
-        ctx.fillStyle = '#64748b'; ctx.font = '8px Arial';
-        ctx.fillText('PWR', cx + 20, cy + 112);
-        // Eye bar
-        ctx.fillStyle = 'rgba(255,255,255,0.1)';
-        ctx.beginPath(); ctx.roundRect(cx + 15, cy + 106, cardW - 30, 7, 3); ctx.fill();
-        ctx.fillStyle = '#60a5fa';
-        ctx.beginPath(); ctx.roundRect(cx + 15, cy + 106, (cardW - 30) * (b.eye / 10), 7, 3); ctx.fill();
-        ctx.fillStyle = '#64748b'; ctx.font = '8px Arial';
-        ctx.fillText('EYE', cx + 20, cy + 128);
-    });
-
-    // Play button
-    const pulse = 1 + Math.sin(menuPulse) * 0.05;
-    ctx.save(); ctx.translate(W / 2, H - 50); ctx.scale(pulse, pulse);
-    ctx.fillStyle = '#fbbf24';
-    ctx.shadowBlur = 20; ctx.shadowColor = '#fbbf24';
-    ctx.beginPath(); ctx.roundRect(-100, -22, 200, 44, 22); ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#000'; ctx.font = 'bold 20px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(`▶  PLAY AS ${BATTERS[selectedBatter].name}`, 0, 8);
-    ctx.restore();
-}
-
-function hexToRgb(hex) {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '255,255,255';
-}
-
-function drawInningBreak() {
-    const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#0f172a'); bg.addColorStop(1, '#1e3a5f');
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#fbbf24';
-    ctx.font = 'bold 48px Arial';
-    ctx.fillText(`INNING ${inning}`, W / 2, H / 2 - 40);
-    ctx.fillStyle = '#f8fafc'; ctx.font = '24px Arial';
-    ctx.fillText(inningBreakMsg, W / 2, H / 2 + 10);
-
-    // Score summary
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    ctx.beginPath(); ctx.roundRect(W / 2 - 120, H / 2 + 35, 240, 60, 12); ctx.fill();
-    ctx.fillStyle = '#60a5fa'; ctx.font = 'bold 36px Arial';
-    ctx.fillText(`${score}  -  ${cpuScore}`, W / 2, H / 2 + 78);
-    ctx.fillStyle = '#64748b'; ctx.font = '13px Arial';
-    ctx.fillText('YOU     CPU', W / 2, H / 2 + 100);
-
-    const prog = inningBreakTimer / 240;
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    ctx.beginPath(); ctx.roundRect(W / 2 - 100, H - 50, 200, 8, 4); ctx.fill();
-    ctx.fillStyle = '#fbbf24';
-    ctx.beginPath(); ctx.roundRect(W / 2 - 100, H - 50, 200 * (1 - prog), 8, 4); ctx.fill();
-    ctx.fillStyle = '#94a3b8'; ctx.font = '12px Arial';
-    ctx.fillText('Next inning starting soon...', W / 2, H - 22);
-}
-
-function drawGameOver() {
-    const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#0f172a'); bg.addColorStop(1, '#1e3a5f');
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-
-    ctx.textAlign = 'center';
-    const won = score > cpuScore;
-    const tied = score === cpuScore;
-    ctx.fillStyle = won ? '#fbbf24' : tied ? '#60a5fa' : '#ef4444';
-    ctx.font = 'bold 64px Arial';
-    ctx.shadowBlur = 30; ctx.shadowColor = won ? '#fbbf24' : '#ef4444';
-    ctx.fillText(won ? 'YOU WIN! 🏆' : tied ? "TIE GAME! 🤝" : 'GAME OVER 😤', W / 2, H / 2 - 80);
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 50px Arial';
-    ctx.fillText(`${score}  -  ${cpuScore}`, W / 2, H / 2 + 10);
-    ctx.fillStyle = '#94a3b8'; ctx.font = '18px Arial';
-    ctx.fillText('FINAL SCORE', W / 2, H / 2 + 45);
-
-    // Play again button
-    ctx.fillStyle = '#fbbf24';
-    ctx.beginPath(); ctx.roundRect(W / 2 - 110, H / 2 + 80, 220, 50, 25); ctx.fill();
-    ctx.fillStyle = '#000'; ctx.font = 'bold 20px Arial';
-    ctx.fillText('▶  PLAY AGAIN', W / 2, H / 2 + 112);
-}
-
-// ─── MAIN DRAW ─────────────────────────────────
-function draw() {
-    ctx.clearRect(0, 0, W, H);
-    ctx.save();
-    if (shakeTimer > 0) ctx.translate(screenShake.x, screenShake.y);
-
-    if (state === 'menu') {
-        drawMenu();
-    } else if (state === 'inning_break') {
-        drawInningBreak();
-    } else if (state === 'gameover') {
-        drawGameOver();
-    } else if (state === 'game') {
-        drawNeighborhoodBG();
-        drawStrikeZone();
-        drawPitcher();
-        drawBatter();
-        drawBall();
-        drawParticles();
-        drawHUD();
-    }
-
-    ctx.restore();
-}
-
-// ─── LOOP ──────────────────────────────────────
-function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
-
-// ─── INPUT ─────────────────────────────────────
-function getScaledPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = W / rect.width, scaleY = H / rect.height;
-    const src = e.touches ? e.touches[0] : e;
-    return { x: (src.clientX - rect.left) * scaleX, y: (src.clientY - rect.top) * scaleY };
-}
-
-canvas.addEventListener('mousemove', (e) => {
-    if (state !== 'menu') return;
-    const {x, y} = getScaledPos(e);
-    const cols = 3, cardW = 160, cardH = 130;
-    const startX = W / 2 - (cols * cardW + (cols - 1) * 12) / 2;
-    const startY = 270;
-    hoveredBatter = -1;
-    BATTERS.forEach((b, i) => {
-        const col = i % cols, row = Math.floor(i / cols);
-        const cx = startX + col * (cardW + 12), cy = startY + row * (cardH + 10);
-        if (x >= cx && x <= cx + cardW && y >= cy && y <= cy + cardH) hoveredBatter = i;
-    });
-});
-
-function handleClick(e) {
-    e.preventDefault();
-    const {x, y} = getScaledPos(e);
-
-    if (state === 'menu') {
-        const cols = 3, cardW = 160, cardH = 130;
-        const startX = W / 2 - (cols * cardW + (cols - 1) * 12) / 2;
-        const startY = 270;
-        let clicked = false;
-        BATTERS.forEach((b, i) => {
-            const col = i % cols, row = Math.floor(i / cols);
-            const cx = startX + col * (cardW + 12), cy = startY + row * (cardH + 10);
-            if (x >= cx && x <= cx + cardW && y >= cy && y <= cy + cardH) {
-                selectedBatter = i; clicked = true;
+        document.querySelectorAll('[data-action]').forEach((button) => {
+            const action = button.dataset.action;
+            if (action === 'swing') {
+                button.addEventListener('pointerdown', (event) => {
+                    event.preventDefault();
+                    startCharge();
+                });
+                button.addEventListener('pointerup', (event) => {
+                    event.preventDefault();
+                    releaseSwing(false);
+                });
+                button.addEventListener('pointercancel', () => releaseSwing(false));
+                button.addEventListener('pointerleave', () => releaseSwing(false));
+            } else {
+                button.addEventListener('click', () => {
+                    if (action === 'aim-left') setAim(-1);
+                    if (action === 'aim-right') setAim(1);
+                    if (action === 'bunt') releaseSwing(true);
+                });
             }
         });
-        if (!clicked || y > H - 80) {
-            // Play button area
-            batter = BATTERS[selectedBatter];
-            state = 'game';
-            init();
-        }
-        return;
-    }
 
-    if (state === 'gameover') {
-        if (y > H / 2 + 80) {
-            state = 'menu'; selectedBatter = 0;
-        }
-        return;
-    }
+        startBtn.addEventListener('click', () => resetGame(false));
+        practiceBtn.addEventListener('click', () => resetGame(true));
 
-    if (state === 'game') {
-        swing();
-    }
-}
-
-canvas.addEventListener('click', handleClick);
-canvas.addEventListener('touchstart', handleClick, { passive: false });
-window.addEventListener('keydown', (e) => {
-    if (e.code === 'Space') { e.preventDefault(); if (state === 'game') swing(); }
-});
-
-loop();
-</script>
+        setupLights();
+        makeWorld();
+        makeCharacters();
+        resize();
+        loop();
+    </script>
 </body>
 </html>

@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Metro Free Ride 3D - K2 Games</title>
+    <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAnUB9WQ0N2IAAAAASUVORK5CYII=">
+    <style>
+        :root {
+            --ink: #fbf7ef;
+            --muted: rgba(251, 247, 239, 0.72);
+            --glass: rgba(16, 22, 26, 0.72);
+            --line: rgba(255, 255, 255, 0.18);
+            --asphalt: #20262a;
+            --amber: #ffbd4a;
+            --cyan: #45c7dd;
+            --green: #61c97a;
+            --red: #ff6f61;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #8fb9cf;
+            color: var(--ink);
+            font-family: Inter, "Segoe UI", system-ui, sans-serif;
+            touch-action: none;
+        }
+
+        #game {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        #home {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 20;
+            min-height: 40px;
+            display: grid;
+            place-items: center;
+            padding: 0 14px;
+            border: 1px solid var(--line);
+            background: var(--glass);
+            color: var(--ink);
+            text-decoration: none;
+            font-weight: 900;
+            font-size: 0.72rem;
+            backdrop-filter: blur(14px);
+        }
+
+        .hud {
+            position: fixed;
+            inset: 12px 12px auto 92px;
+            z-index: 10;
+            display: grid;
+            grid-template-columns: minmax(210px, 1.1fr) repeat(4, minmax(82px, auto));
+            gap: 10px;
+            align-items: stretch;
+            pointer-events: none;
+        }
+
+        .panel,
+        .stat,
+        .toast,
+        .mobile {
+            border: 1px solid var(--line);
+            background: var(--glass);
+            backdrop-filter: blur(14px);
+            box-shadow: 0 20px 48px rgba(5, 12, 16, 0.24);
+        }
+
+        .panel {
+            min-width: 0;
+            display: grid;
+            grid-template-columns: 46px minmax(0, 1fr);
+            gap: 12px;
+            padding: 11px 12px;
+            align-items: center;
+        }
+
+        .mark {
+            width: 46px;
+            height: 46px;
+            display: grid;
+            place-items: center;
+            color: #171c1f;
+            background: linear-gradient(145deg, var(--amber), #fff2bf);
+            font-size: 1rem;
+            font-weight: 1000;
+        }
+
+        h1 {
+            font-size: clamp(1.15rem, 2vw, 2rem);
+            line-height: 0.98;
+            letter-spacing: 0;
+            text-transform: uppercase;
+        }
+
+        .objective {
+            margin-top: 6px;
+            color: var(--amber);
+            font-size: 0.8rem;
+            font-weight: 900;
+            line-height: 1.25;
+        }
+
+        .stat {
+            min-width: 82px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .label {
+            color: var(--muted);
+            font-size: 0.62rem;
+            font-weight: 900;
+            letter-spacing: 0;
+            text-transform: uppercase;
+        }
+
+        .value {
+            margin-top: 4px;
+            font-size: 1.08rem;
+            font-weight: 1000;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .value.cyan { color: var(--cyan); }
+        .value.green { color: var(--green); }
+        .value.amber { color: var(--amber); }
+
+        #prompt {
+            position: fixed;
+            left: 50%;
+            bottom: 24px;
+            z-index: 12;
+            transform: translateX(-50%);
+            max-width: min(520px, calc(100vw - 28px));
+            padding: 11px 16px;
+            border: 1px solid var(--line);
+            background: rgba(15, 20, 24, 0.78);
+            color: var(--ink);
+            font-size: 0.86rem;
+            font-weight: 900;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 160ms ease, transform 160ms ease;
+            pointer-events: none;
+            backdrop-filter: blur(14px);
+        }
+
+        #prompt.show {
+            opacity: 1;
+            transform: translate(-50%, -5px);
+        }
+
+        #minimap {
+            position: fixed;
+            left: 12px;
+            bottom: 12px;
+            z-index: 9;
+            width: 154px;
+            height: 154px;
+            border: 1px solid var(--line);
+            background: rgba(15, 20, 24, 0.78);
+            backdrop-filter: blur(14px);
+        }
+
+        .toast {
+            position: fixed;
+            top: 96px;
+            left: 50%;
+            z-index: 12;
+            width: min(460px, calc(100vw - 32px));
+            padding: 12px 14px;
+            transform: translateX(-50%);
+            color: var(--ink);
+            text-align: center;
+            font-weight: 1000;
+            opacity: 0;
+            transition: opacity 180ms ease, transform 180ms ease;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translate(-50%, 8px);
+        }
+
+        .mobile {
+            display: none;
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            bottom: 12px;
+            z-index: 15;
+            grid-template-columns: 132px 1fr 132px;
+            gap: 10px;
+            padding: 10px;
+            pointer-events: auto;
+        }
+
+        .pad {
+            display: grid;
+            grid-template-columns: repeat(3, 40px);
+            grid-template-rows: repeat(3, 40px);
+            gap: 6px;
+            justify-content: center;
+            align-content: center;
+        }
+
+        .actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(54px, 1fr));
+            gap: 8px;
+            align-content: center;
+        }
+
+        button {
+            appearance: none;
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            background: rgba(255, 255, 255, 0.12);
+            color: var(--ink);
+            font: inherit;
+            font-weight: 1000;
+            min-height: 40px;
+            cursor: pointer;
+        }
+
+        button:active,
+        button.active {
+            background: var(--amber);
+            color: #16191b;
+        }
+
+        .empty {
+            visibility: hidden;
+        }
+
+        @media (max-width: 920px) {
+            .hud {
+                inset: 10px 10px auto 76px;
+                grid-template-columns: minmax(180px, 1fr) repeat(2, minmax(74px, auto));
+            }
+
+            .stat:nth-of-type(4),
+            .stat:nth-of-type(5) {
+                display: none;
+            }
+
+            #minimap {
+                display: none;
+            }
+
+            .mobile {
+                display: grid;
+            }
+
+            #prompt {
+                bottom: 160px;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .hud {
+                inset: 8px 8px auto 68px;
+                grid-template-columns: 1fr 78px;
+            }
+
+            .panel {
+                grid-column: 1 / -1;
+            }
+
+            .stat:nth-of-type(3) {
+                display: none;
+            }
+
+            .mobile {
+                grid-template-columns: 118px 1fr 118px;
+                gap: 6px;
+                padding: 8px;
+            }
+
+            .pad {
+                grid-template-columns: repeat(3, 34px);
+                grid-template-rows: repeat(3, 34px);
+                gap: 5px;
+            }
+
+            button {
+                min-height: 34px;
+                font-size: 0.75rem;
+            }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CCZ9JJGEDP"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-CCZ9JJGEDP');
+    </script>
+</head>
+<body>
+    <a href="index.html" id="home">HUB</a>
+    <canvas id="game"></canvas>
+
+    <div class="hud">
+        <div class="panel">
+            <div class="mark">M3D</div>
+            <div>
+                <h1>Metro Free Ride 3D</h1>
+                <div class="objective" id="objective">Loading city...</div>
+            </div>
+        </div>
+        <div class="stat"><span class="label">Mode</span><span class="value cyan" id="mode">On Foot</span></div>
+        <div class="stat"><span class="label">Speed</span><span class="value" id="speed">0</span></div>
+        <div class="stat"><span class="label">Jobs</span><span class="value green" id="jobs">0/5</span></div>
+        <div class="stat"><span class="label">Cash</span><span class="value amber" id="cash">$0</span></div>
+    </div>
+
+    <canvas id="minimap" width="154" height="154"></canvas>
+    <div id="prompt"></div>
+    <div class="toast" id="toast"></div>
+
+    <div class="mobile">
+        <div class="pad" aria-label="movement">
+            <button class="empty"></button><button data-key="w">W</button><button class="empty"></button>
+            <button data-key="a">A</button><button data-key="s">S</button><button data-key="d">D</button>
+            <button class="empty"></button><button data-key="shift">RUN</button><button class="empty"></button>
+        </div>
+        <div></div>
+        <div class="actions">
+            <button data-key="e">USE</button>
+            <button data-key=" ">STOP</button>
+            <button data-key="q">Q</button>
+            <button data-key="r">NEXT</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game');
+        const minimap = document.getElementById('minimap');
+        const mini = minimap.getContext('2d');
+        const ui = {
+            objective: document.getElementById('objective'),
+            mode: document.getElementById('mode'),
+            speed: document.getElementById('speed'),
+            jobs: document.getElementById('jobs'),
+            cash: document.getElementById('cash'),
+            prompt: document.getElementById('prompt'),
+            toast: document.getElementById('toast')
+        };
+
+        const WORLD = 1120;
+        const ROAD = 46;
+        const BLOCK = 180;
+        const keys = new Map();
+        const clock = new THREE.Clock();
+        const ray = new THREE.Raycaster();
+        const down = new THREE.Vector3(0, -1, 0);
+        const temp = new THREE.Vector3();
+        const input = {
+            forward: new THREE.Vector3(),
+            cameraYaw: -Math.PI * 0.25,
+            pointerDown: false,
+            pointerX: 0,
+            pointerY: 0,
+            touchActionPressed: false
+        };
+
+        let player;
+        let activeVehicle = null;
+        let nearestVehicle = null;
+        let nearestNpc = null;
+        let lastUse = 0;
+        let jobIndex = 0;
+        let cash = 0;
+        let completed = 0;
+        let toastTimer = 0;
+        let routeGhost = null;
+
+        const vehicles = [];
+        const npcs = [];
+        const markers = [];
+        const blockers = [];
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x9bc6d7);
+        scene.fog = new THREE.Fog(0x9bc6d7, 360, 1180);
+
+        const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 2200);
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        const sun = new THREE.DirectionalLight(0xfff0cd, 2.2);
+        sun.position.set(-260, 520, 230);
+        sun.castShadow = true;
+        sun.shadow.mapSize.set(2048, 2048);
+        sun.shadow.camera.left = -620;
+        sun.shadow.camera.right = 620;
+        sun.shadow.camera.top = 620;
+        sun.shadow.camera.bottom = -620;
+        scene.add(sun);
+        scene.add(new THREE.HemisphereLight(0xd8f2ff, 0x515a42, 1.4));
+
+        const mats = {
+            grass: new THREE.MeshStandardMaterial({ color: 0x5fa66a, roughness: 0.92 }),
+            asphalt: new THREE.MeshStandardMaterial({ color: 0x252b2f, roughness: 0.86 }),
+            sidewalk: new THREE.MeshStandardMaterial({ color: 0xaab3ae, roughness: 0.88 }),
+            lane: new THREE.MeshStandardMaterial({ color: 0xf4d06f, roughness: 0.7 }),
+            player: new THREE.MeshStandardMaterial({ color: 0xf6c25b, roughness: 0.6 }),
+            shirt: new THREE.MeshStandardMaterial({ color: 0x2d87c9, roughness: 0.72 }),
+            dark: new THREE.MeshStandardMaterial({ color: 0x111518, roughness: 0.6 }),
+            glass: new THREE.MeshStandardMaterial({ color: 0x87c8e6, roughness: 0.18, metalness: 0.05 }),
+            tire: new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.8 }),
+            marker: new THREE.MeshStandardMaterial({ color: 0x45c7dd, emissive: 0x188da0, emissiveIntensity: 0.7, transparent: true, opacity: 0.78 }),
+            package: new THREE.MeshStandardMaterial({ color: 0xffbd4a, roughness: 0.62 })
+        };
+
+        const vehicleDefs = {
+            car: { name: 'Car', max: 180, accel: 82, brake: 120, turn: 1.85, drag: 0.965, color: 0xe85d51, scale: [4.3, 1.2, 2.25], seatY: 1.35 },
+            street: { name: 'Street Bike', max: 235, accel: 112, brake: 142, turn: 2.45, drag: 0.975, color: 0x45c7dd, scale: [2.35, 1.1, 0.9], seatY: 1.12 },
+            motorcycle: { name: 'Motorcycle', max: 205, accel: 98, brake: 132, turn: 2.2, drag: 0.972, color: 0xffbd4a, scale: [2.7, 1.15, 1.05], seatY: 1.14 },
+            suv: { name: 'SUV', max: 155, accel: 70, brake: 116, turn: 1.6, drag: 0.96, color: 0x62b47d, scale: [4.9, 1.55, 2.55], seatY: 1.55 }
+        };
+
+        const jobs = [
+            { title: 'Meet the courier at East Plaza', pos: new THREE.Vector3(270, 0, -250), reward: 300, type: 'reach' },
+            { title: 'Take any vehicle to the depot', pos: new THREE.Vector3(-375, 0, -315), reward: 450, type: 'vehicle' },
+            { title: 'Check on the mechanic', pos: new THREE.Vector3(-430, 0, 260), reward: 350, type: 'talk' },
+            { title: 'Run the river road checkpoint', pos: new THREE.Vector3(415, 0, 380), reward: 650, type: 'vehicle' },
+            { title: 'Return downtown for the final handoff', pos: new THREE.Vector3(20, 0, 20), reward: 900, type: 'reach' }
+        ];
+
+        function box(w, h, d, mat) {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            return mesh;
+        }
+
+        function cyl(radiusTop, radiusBottom, height, segments, mat) {
+            const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radiusTop, radiusBottom, height, segments), mat);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            return mesh;
+        }
+
+        function addGround() {
+            const ground = box(WORLD, 2, WORLD, mats.grass);
+            ground.position.y = -1;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            const roadCoords = [-360, -180, 0, 180, 360];
+            roadCoords.forEach((x) => {
+                const road = box(ROAD, 0.18, WORLD, mats.asphalt);
+                road.position.set(x, 0.02, 0);
+                road.receiveShadow = true;
+                scene.add(road);
+
+                const lane = box(2, 0.22, WORLD, mats.lane);
+                lane.position.set(x, 0.15, 0);
+                scene.add(lane);
+
+                [-ROAD * 0.68, ROAD * 0.68].forEach((off) => {
+                    const walk = box(8, 0.22, WORLD, mats.sidewalk);
+                    walk.position.set(x + off, 0.18, 0);
+                    scene.add(walk);
+                });
+            });
+
+            roadCoords.forEach((z) => {
+                const road = box(WORLD, 0.2, ROAD, mats.asphalt);
+                road.position.set(0, 0.04, z);
+                road.receiveShadow = true;
+                scene.add(road);
+
+                const lane = box(WORLD, 0.24, 2, mats.lane);
+                lane.position.set(0, 0.16, z);
+                scene.add(lane);
+
+                [-ROAD * 0.68, ROAD * 0.68].forEach((off) => {
+                    const walk = box(WORLD, 0.22, 8, mats.sidewalk);
+                    walk.position.set(0, 0.19, z + off);
+                    scene.add(walk);
+                });
+            });
+
+            const river = box(88, 0.26, WORLD, new THREE.MeshStandardMaterial({ color: 0x3a93b8, roughness: 0.45, metalness: 0.05 }));
+            river.position.set(515, 0.05, 0);
+            scene.add(river);
+        }
+
+        function isRoadLike(x, z) {
+            const coords = [-360, -180, 0, 180, 360];
+            return coords.some((c) => Math.abs(x - c) < ROAD * 0.86 || Math.abs(z - c) < ROAD * 0.86);
+        }
+
+        function addBuildings() {
+            const colors = [0xd76555, 0xe7c462, 0x5bb7c5, 0x7fb06f, 0xb377c8, 0xd48a4b, 0x7c96ad];
+            for (let x = -450; x <= 450; x += 90) {
+                for (let z = -450; z <= 450; z += 90) {
+                    if (isRoadLike(x, z) || Math.abs(x - 515) < 80) continue;
+                    if ((Math.abs(x) < 70 && Math.abs(z) < 70) || Math.random() < 0.2) continue;
+
+                    const w = 34 + Math.random() * 32;
+                    const d = 34 + Math.random() * 32;
+                    const h = 18 + Math.random() * 78;
+                    const mat = new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random() * colors.length)], roughness: 0.72 });
+                    const building = box(w, h, d, mat);
+                    building.position.set(x + (Math.random() - 0.5) * 16, h / 2, z + (Math.random() - 0.5) * 16);
+                    scene.add(building);
+                    blockers.push({ x: building.position.x, z: building.position.z, r: Math.max(w, d) * 0.62, mesh: building });
+
+                    for (let row = 8; row < h - 5; row += 14) {
+                        for (let col = -w * 0.3; col <= w * 0.3; col += 12) {
+                            const win = box(5, 5, 0.4, mats.glass);
+                            win.position.set(building.position.x + col, row, building.position.z + d / 2 + 0.24);
+                            scene.add(win);
+                        }
+                    }
+                }
+            }
+        }
+
+        function makePerson(color, shirtColor) {
+            const group = new THREE.Group();
+            const skin = new THREE.MeshStandardMaterial({ color, roughness: 0.65 });
+            const shirt = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.75 });
+            const pants = new THREE.MeshStandardMaterial({ color: 0x26313c, roughness: 0.8 });
+            const head = cyl(0.42, 0.38, 0.58, 18, skin);
+            head.position.y = 2.45;
+            const body = box(0.82, 1.18, 0.52, shirt);
+            body.position.y = 1.58;
+            const hips = box(0.72, 0.42, 0.48, pants);
+            hips.position.y = 0.86;
+            const armL = box(0.22, 1.02, 0.22, skin);
+            armL.position.set(-0.58, 1.48, 0);
+            const armR = armL.clone();
+            armR.position.x = 0.58;
+            const legL = box(0.25, 0.9, 0.25, pants);
+            legL.position.set(-0.23, 0.35, 0);
+            const legR = legL.clone();
+            legR.position.x = 0.23;
+            group.add(head, body, hips, armL, armR, legL, legR);
+            group.userData.parts = { armL, armR, legL, legR };
+            return group;
+        }
+
+        function makeVehicle(type) {
+            const def = vehicleDefs[type];
+            const group = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: def.color, roughness: 0.55, metalness: 0.05 });
+            const [l, h, w] = def.scale;
+
+            if (type === 'car' || type === 'suv') {
+                const base = box(l, h, w, bodyMat);
+                base.position.y = 0.92;
+                const cabin = box(l * 0.48, h * 0.82, w * 0.72, mats.glass);
+                cabin.position.set(-l * 0.05, 1.65, 0);
+                group.add(base, cabin);
+                [[-l * 0.32, -w * 0.55], [l * 0.32, -w * 0.55], [-l * 0.32, w * 0.55], [l * 0.32, w * 0.55]].forEach(([x, z]) => {
+                    const wheel = cyl(0.38, 0.38, 0.34, 18, mats.tire);
+                    wheel.rotation.z = Math.PI / 2;
+                    wheel.position.set(x, 0.42, z);
+                    group.add(wheel);
+                });
+            } else {
+                const frame = box(l, 0.35, w * 0.38, bodyMat);
+                frame.position.y = 0.95;
+                const tank = cyl(w * 0.42, w * 0.48, 0.8, 20, bodyMat);
+                tank.rotation.z = Math.PI / 2;
+                tank.position.set(0.1, 1.22, 0);
+                const seat = box(l * 0.45, 0.2, w * 0.55, mats.dark);
+                seat.position.set(-0.2, 1.42, 0);
+                const handle = box(0.15, 0.15, w * 1.35, mats.dark);
+                handle.position.set(l * 0.38, 1.58, 0);
+                group.add(frame, tank, seat, handle);
+                [-l * 0.43, l * 0.43].forEach((x) => {
+                    const wheel = cyl(w * 0.48, w * 0.48, 0.24, 24, mats.tire);
+                    wheel.rotation.z = Math.PI / 2;
+                    wheel.position.set(x, 0.54, 0);
+                    group.add(wheel);
+                });
+            }
+
+            group.userData = { type, def, speed: 0, driver: false, radius: type === 'suv' ? 3.4 : type === 'car' ? 3 : 2.1, parked: true };
+            return group;
+        }
+
+        function spawnVehicles() {
+            const spots = [
+                [-360, -82, 'car'], [-360, 118, 'street'], [-180, -300, 'suv'], [-180, 280, 'motorcycle'],
+                [0, -218, 'car'], [0, 244, 'street'], [180, -110, 'motorcycle'], [180, 322, 'suv'],
+                [360, -250, 'street'], [360, 96, 'car'], [-38, -30, 'motorcycle'], [280, 0, 'car']
+            ];
+            spots.forEach(([x, z, type], index) => {
+                const vehicle = makeVehicle(type);
+                vehicle.position.set(x, 0, z);
+                vehicle.rotation.y = index % 2 ? Math.PI * 0.5 : 0;
+                scene.add(vehicle);
+                vehicles.push(vehicle);
+            });
+        }
+
+        function spawnNpcs() {
+            const colors = [0x2d87c9, 0xd76555, 0xffbd4a, 0x62b47d, 0xb377c8, 0x5bb7c5];
+            const starts = [
+                [62, -330], [240, -360], [-270, -180], [-405, 80], [-210, 330], [155, 370],
+                [392, 205], [325, -35], [-35, 155], [45, -50], [-330, 390], [390, -375]
+            ];
+            starts.forEach(([x, z], i) => {
+                const npc = makePerson(0xf0b884, colors[i % colors.length]);
+                npc.position.set(x, 0, z);
+                npc.rotation.y = Math.random() * Math.PI * 2;
+                npc.userData = {
+                    speed: 10 + Math.random() * 9,
+                    turnTimer: Math.random() * 3,
+                    phrase: i === 3 ? 'Mechanic job signed off.' : 'City contact reached.',
+                    mission: i === 3
+                };
+                scene.add(npc);
+                npcs.push(npc);
+            });
+        }
+
+        function createPlayer() {
+            player = makePerson(0xf0b884, 0x2d87c9);
+            player.position.set(-32, 0, -34);
+            player.userData.speed = 0;
+            player.userData.radius = 1.05;
+            scene.add(player);
+        }
+
+        function createMarkers() {
+            jobs.forEach((job) => {
+                const group = new THREE.Group();
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(7.8, 0.55, 12, 36), mats.marker);
+                ring.rotation.x = Math.PI / 2;
+                ring.position.y = 0.8;
+                const beam = cyl(0.8, 3.8, 26, 24, mats.marker);
+                beam.position.y = 13;
+                group.add(ring, beam);
+                group.position.copy(job.pos);
+                group.visible = false;
+                scene.add(group);
+                markers.push(group);
+            });
+            updateMarkerVisibility();
+        }
+
+        function addProps() {
+            for (let i = 0; i < 90; i++) {
+                const x = -520 + Math.random() * 1040;
+                const z = -520 + Math.random() * 1040;
+                if (isRoadLike(x, z) || Math.abs(x - 515) < 88) continue;
+                const trunk = cyl(0.4, 0.55, 4.2, 8, new THREE.MeshStandardMaterial({ color: 0x7b5138, roughness: 0.8 }));
+                trunk.position.set(x, 2.1, z);
+                const leaf = cyl(2.3, 3.1, 5.4, 9, new THREE.MeshStandardMaterial({ color: 0x3f8d4f, roughness: 0.9 }));
+                leaf.position.set(x, 6.8, z);
+                scene.add(trunk, leaf);
+            }
+
+            jobs.forEach((job) => {
+                const crate = box(6, 5, 6, mats.package);
+                crate.position.set(job.pos.x + 8, 2.5, job.pos.z - 6);
+                scene.add(crate);
+            });
+        }
+
+        function updateMarkerVisibility() {
+            markers.forEach((marker, i) => {
+                marker.visible = i === jobIndex;
+            });
+        }
+
+        function toast(text) {
+            ui.toast.textContent = text;
+            ui.toast.classList.add('show');
+            toastTimer = 2.4;
+        }
+
+        function getActor() {
+            return activeVehicle || player;
+        }
+
+        function getActorPosition() {
+            return getActor().position;
+        }
+
+        function clampWorld(obj) {
+            obj.position.x = THREE.MathUtils.clamp(obj.position.x, -WORLD / 2 + 8, WORLD / 2 - 8);
+            obj.position.z = THREE.MathUtils.clamp(obj.position.z, -WORLD / 2 + 8, WORLD / 2 - 8);
+        }
+
+        function resolveBlockers(obj, radius) {
+            blockers.forEach((b) => {
+                const dx = obj.position.x - b.x;
+                const dz = obj.position.z - b.z;
+                const dist = Math.hypot(dx, dz);
+                const min = radius + b.r;
+                if (dist < min && dist > 0.001) {
+                    const push = (min - dist) / dist;
+                    obj.position.x += dx * push;
+                    obj.position.z += dz * push;
+                    if (obj.userData && obj.userData.speed) obj.userData.speed *= -0.22;
+                }
+            });
+        }
+
+        function setKey(code, value) {
+            keys.set(code.toLowerCase(), value);
+        }
+
+        function key(code) {
+            return keys.get(code.toLowerCase()) || false;
+        }
+
+        function justUse() {
+            const now = performance.now();
+            if (now - lastUse < 260) return false;
+            lastUse = now;
+            return true;
+        }
+
+        function enterVehicle(vehicle) {
+            activeVehicle = vehicle;
+            vehicle.userData.driver = true;
+            vehicle.userData.parked = false;
+            player.visible = false;
+            player.position.copy(vehicle.position);
+            toast(vehicle.userData.def.name + ' ready');
+        }
+
+        function exitVehicle() {
+            if (!activeVehicle) return;
+            const forward = new THREE.Vector3(Math.sin(activeVehicle.rotation.y), 0, Math.cos(activeVehicle.rotation.y));
+            player.position.copy(activeVehicle.position).addScaledVector(forward, -4.2);
+            player.visible = true;
+            activeVehicle.userData.driver = false;
+            activeVehicle.userData.speed *= 0.25;
+            activeVehicle = null;
+            toast('Back on foot');
+        }
+
+        function findNearby() {
+            const pos = getActorPosition();
+            nearestVehicle = null;
+            nearestNpc = null;
+            let bestVehicle = 7.5;
+            let bestNpc = 6;
+
+            if (!activeVehicle) {
+                vehicles.forEach((vehicle) => {
+                    const d = vehicle.position.distanceTo(pos);
+                    if (d < bestVehicle) {
+                        bestVehicle = d;
+                        nearestVehicle = vehicle;
+                    }
+                });
+            }
+
+            npcs.forEach((npc) => {
+                const d = npc.position.distanceTo(pos);
+                if (d < bestNpc) {
+                    bestNpc = d;
+                    nearestNpc = npc;
+                }
+            });
+        }
+
+        function updatePrompt() {
+            let text = '';
+            if (activeVehicle) text = 'Use available near stopped vehicle';
+            if (nearestVehicle && !activeVehicle) text = nearestVehicle.userData.def.name + ' available';
+            if (nearestNpc && jobs[jobIndex] && jobs[jobIndex].type === 'talk') text = 'Contact ready';
+            if (text) {
+                ui.prompt.textContent = text;
+                ui.prompt.classList.add('show');
+            } else {
+                ui.prompt.classList.remove('show');
+            }
+        }
+
+        function completeJob() {
+            const job = jobs[jobIndex];
+            cash += job.reward;
+            completed++;
+            toast('Objective complete: $' + job.reward);
+            jobIndex++;
+            if (jobIndex >= jobs.length) {
+                jobIndex = 0;
+                jobs.forEach((j) => j.done = false);
+                toast('Route cleared. City objectives reset.');
+            }
+            updateMarkerVisibility();
+        }
+
+        function checkJobs() {
+            const job = jobs[jobIndex];
+            if (!job) return;
+            const pos = getActorPosition();
+            const dist = pos.distanceTo(job.pos);
+            if (dist < 18) {
+                if (job.type === 'vehicle' && !activeVehicle) return;
+                if (job.type === 'talk' && !nearestNpc) return;
+                completeJob();
+            }
+        }
+
+        function updateUi() {
+            const job = jobs[jobIndex];
+            ui.objective.textContent = job ? job.title : 'Free ride';
+            ui.mode.textContent = activeVehicle ? activeVehicle.userData.def.name : 'On Foot';
+            const speed = activeVehicle ? Math.abs(activeVehicle.userData.speed) : player.userData.speed;
+            ui.speed.textContent = Math.round(speed);
+            ui.jobs.textContent = (completed % jobs.length) + '/' + jobs.length;
+            ui.cash.textContent = '$' + cash;
+        }
+
+        function animatePerson(group, dt, moving) {
+            const p = group.userData.parts;
+            if (!p) return;
+            const t = performance.now() * 0.008;
+            const swing = moving ? Math.sin(t) * 0.46 : 0;
+            p.armL.rotation.x = swing;
+            p.armR.rotation.x = -swing;
+            p.legL.rotation.x = -swing;
+            p.legR.rotation.x = swing;
+            group.position.y = Math.abs(Math.sin(t * 0.5)) * (moving ? 0.08 : 0.02);
+        }
+
+        function moveOnFoot(dt) {
+            const move = new THREE.Vector3();
+            const yaw = input.cameraYaw;
+            const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+            const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+            if (key('w') || key('arrowup')) move.add(forward);
+            if (key('s') || key('arrowdown')) move.addScaledVector(forward, -1);
+            if (key('d') || key('arrowright')) move.add(right);
+            if (key('a') || key('arrowleft')) move.addScaledVector(right, -1);
+
+            const moving = move.lengthSq() > 0.001;
+            const targetSpeed = moving ? (key('shift') ? 35 : 19) : 0;
+            player.userData.speed = THREE.MathUtils.lerp(player.userData.speed, targetSpeed, 1 - Math.pow(0.001, dt));
+            if (moving) {
+                move.normalize();
+                player.position.addScaledVector(move, player.userData.speed * dt);
+                player.rotation.y = Math.atan2(move.x, move.z);
+            }
+
+            resolveBlockers(player, player.userData.radius);
+            clampWorld(player);
+            animatePerson(player, dt, moving);
+        }
+
+        function moveVehicle(dt) {
+            const vehicle = activeVehicle;
+            const def = vehicle.userData.def;
+            let speed = vehicle.userData.speed;
+            if (key('w') || key('arrowup')) speed += def.accel * dt;
+            if (key('s') || key('arrowdown')) speed -= def.brake * dt;
+            if (key(' ') || key('space')) speed *= Math.pow(0.14, dt);
+            if (!key('w') && !key('arrowup') && !key('s') && !key('arrowdown')) speed *= Math.pow(def.drag, dt * 60);
+            speed = THREE.MathUtils.clamp(speed, -def.max * 0.36, def.max);
+
+            const turnInput = (key('a') || key('arrowleft') ? 1 : 0) - (key('d') || key('arrowright') ? 1 : 0);
+            const steerPower = THREE.MathUtils.clamp(Math.abs(speed) / 75, 0.25, 1);
+            vehicle.rotation.y += turnInput * def.turn * steerPower * dt * Math.sign(speed || 1);
+
+            const forward = new THREE.Vector3(Math.sin(vehicle.rotation.y), 0, Math.cos(vehicle.rotation.y));
+            vehicle.position.addScaledVector(forward, speed * dt);
+            vehicle.userData.speed = speed;
+
+            resolveBlockers(vehicle, vehicle.userData.radius);
+            clampWorld(vehicle);
+            player.position.copy(vehicle.position);
+        }
+
+        function updateNpcs(dt) {
+            npcs.forEach((npc, index) => {
+                npc.userData.turnTimer -= dt;
+                if (npc.userData.turnTimer <= 0) {
+                    npc.userData.turnTimer = 1 + Math.random() * 3;
+                    npc.rotation.y += (Math.random() - 0.5) * Math.PI * 0.8;
+                }
+
+                if (index === 3) {
+                    const home = new THREE.Vector3(-430, 0, 260);
+                    temp.copy(home).sub(npc.position);
+                    if (temp.length() > 26) {
+                        npc.rotation.y = Math.atan2(temp.x, temp.z);
+                    }
+                }
+
+                const fwd = new THREE.Vector3(Math.sin(npc.rotation.y), 0, Math.cos(npc.rotation.y));
+                npc.position.addScaledVector(fwd, npc.userData.speed * dt);
+                if (!isRoadLike(npc.position.x, npc.position.z)) npc.rotation.y += Math.PI * 0.5;
+                clampWorld(npc);
+                animatePerson(npc, dt, true);
+            });
+        }
+
+        function updateCamera(dt) {
+            if (key('q')) input.cameraYaw += 1.6 * dt;
+            if (key('r')) input.cameraYaw -= 1.6 * dt;
+            const target = getActorPosition();
+            const speed = activeVehicle ? Math.abs(activeVehicle.userData.speed) : 0;
+            const height = activeVehicle ? 15 + Math.min(speed * 0.035, 7) : 10;
+            const distance = activeVehicle ? 24 + Math.min(speed * 0.05, 11) : 16;
+            const followYaw = activeVehicle ? activeVehicle.rotation.y : input.cameraYaw;
+            if (activeVehicle) input.cameraYaw = THREE.MathUtils.lerp(input.cameraYaw, followYaw, 1 - Math.pow(0.02, dt));
+
+            const desired = new THREE.Vector3(
+                target.x - Math.sin(input.cameraYaw) * distance,
+                target.y + height,
+                target.z - Math.cos(input.cameraYaw) * distance
+            );
+            camera.position.lerp(desired, 1 - Math.pow(0.0007, dt));
+            camera.lookAt(target.x, target.y + (activeVehicle ? 2.2 : 2.0), target.z);
+        }
+
+        function updateMarkers(dt) {
+            markers.forEach((marker, i) => {
+                if (!marker.visible) return;
+                marker.rotation.y += dt * 1.2;
+                marker.children[0].scale.setScalar(1 + Math.sin(performance.now() * 0.004) * 0.08);
+                marker.children[1].material.opacity = 0.45 + Math.sin(performance.now() * 0.003) * 0.12;
+            });
+        }
+
+        function drawMinimap() {
+            const w = minimap.width;
+            const h = minimap.height;
+            mini.clearRect(0, 0, w, h);
+            mini.fillStyle = '#1b2427';
+            mini.fillRect(0, 0, w, h);
+            const scale = w / WORLD;
+            const center = w / 2;
+
+            mini.fillStyle = '#30383c';
+            [-360, -180, 0, 180, 360].forEach((c) => {
+                mini.fillRect(center + c * scale - ROAD * scale / 2, 0, ROAD * scale, h);
+                mini.fillRect(0, center + c * scale - ROAD * scale / 2, w, ROAD * scale);
+            });
+
+            const pos = getActorPosition();
+            const px = center + pos.x * scale;
+            const py = center + pos.z * scale;
+            mini.fillStyle = activeVehicle ? '#ffbd4a' : '#45c7dd';
+            mini.beginPath();
+            mini.arc(px, py, 4.4, 0, Math.PI * 2);
+            mini.fill();
+
+            const job = jobs[jobIndex];
+            if (job) {
+                mini.fillStyle = '#61c97a';
+                mini.beginPath();
+                mini.arc(center + job.pos.x * scale, center + job.pos.z * scale, 4.2, 0, Math.PI * 2);
+                mini.fill();
+            }
+
+            mini.fillStyle = '#fbf7ef';
+            vehicles.forEach((vehicle) => {
+                mini.fillRect(center + vehicle.position.x * scale - 1.5, center + vehicle.position.z * scale - 1.5, 3, 3);
+            });
+        }
+
+        function useAction() {
+            if (justUse()) {
+                if (activeVehicle) {
+                    exitVehicle();
+                } else if (nearestVehicle) {
+                    enterVehicle(nearestVehicle);
+                } else if (nearestNpc) {
+                    toast(nearestNpc.userData.phrase);
+                    if (jobs[jobIndex] && jobs[jobIndex].type === 'talk') completeJob();
+                }
+            }
+        }
+
+        function handleActions() {
+            if (key('e') || key('enter')) useAction();
+        }
+
+        function buildWorld() {
+            addGround();
+            addBuildings();
+            addProps();
+            createPlayer();
+            spawnVehicles();
+            spawnNpcs();
+            createMarkers();
+            routeGhost = box(12, 1, 12, new THREE.MeshStandardMaterial({ color: 0xff6f61, emissive: 0x7a1c13, emissiveIntensity: 0.35 }));
+            routeGhost.position.set(0, -20, 0);
+            scene.add(routeGhost);
+        }
+
+        function resize() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            renderer.setSize(w, h, false);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+        }
+
+        function tick() {
+            const dt = Math.min(clock.getDelta(), 0.04);
+            if (toastTimer > 0) {
+                toastTimer -= dt;
+                if (toastTimer <= 0) ui.toast.classList.remove('show');
+            }
+
+            findNearby();
+            handleActions();
+            if (activeVehicle) moveVehicle(dt);
+            else moveOnFoot(dt);
+            updateNpcs(dt);
+            updateCamera(dt);
+            updateMarkers(dt);
+            checkJobs();
+            updatePrompt();
+            updateUi();
+            drawMinimap();
+            renderer.render(scene, camera);
+            requestAnimationFrame(tick);
+        }
+
+        window.addEventListener('resize', resize);
+        window.addEventListener('keydown', (event) => {
+            setKey(event.key, true);
+            setKey(event.code, true);
+            if (event.key.toLowerCase() === 'e' || event.key === 'Enter') useAction();
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) event.preventDefault();
+        });
+        window.addEventListener('keyup', (event) => {
+            setKey(event.key, false);
+            setKey(event.code, false);
+        });
+
+        window.addEventListener('pointerdown', (event) => {
+            input.pointerDown = true;
+            input.pointerX = event.clientX;
+            input.pointerY = event.clientY;
+        });
+        window.addEventListener('pointerup', () => { input.pointerDown = false; });
+        window.addEventListener('pointermove', (event) => {
+            if (!input.pointerDown) return;
+            const dx = event.clientX - input.pointerX;
+            input.cameraYaw -= dx * 0.006;
+            input.pointerX = event.clientX;
+            input.pointerY = event.clientY;
+        });
+
+        document.querySelectorAll('[data-key]').forEach((button) => {
+            const value = button.dataset.key;
+            const press = (state) => {
+                setKey(value, state);
+                button.classList.toggle('active', state);
+            };
+            button.addEventListener('pointerdown', (event) => {
+                event.preventDefault();
+                press(true);
+            });
+            button.addEventListener('pointerup', () => press(false));
+            button.addEventListener('pointercancel', () => press(false));
+            button.addEventListener('pointerleave', () => press(false));
+        });
+
+        resize();
+        buildWorld();
+        toast('City loaded');
+        tick();
+    </script>
+</body>
+</html>

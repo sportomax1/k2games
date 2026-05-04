@@ -19,7 +19,7 @@
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
-        
+
         body {
             background-color: var(--bg);
             color: var(--text);
@@ -60,7 +60,7 @@
             padding: 20px; display: flex; flex-direction: column; justify-content: space-between;
         }
 
-        .top-hud { display: flex; justify-content: space-between; align-items: flex-start; }
+        .top-hud { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
         .stat-box {
             background: rgba(0, 0, 0, 0.8); padding: 8px 15px; border-radius: 15px;
             border: 1px solid var(--border); backdrop-filter: blur(10px); text-align: center;
@@ -74,7 +74,8 @@
             width: 180px; height: 14px; background: rgba(255,255,255,0.1);
             border-radius: 7px; overflow: hidden; margin-top: 8px; border: 1px solid rgba(255,255,255,0.2);
         }
-        #happiness-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ef4444, #fbbf24, #22c55e); transition: width 0.3s; }
+
+        #happiness-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ef4444, #fbbf24, #22c55e); transition: width 0.2s; }
 
         #combo-display {
             position: absolute; top: 130px; left: 50%; transform: translateX(-50%);
@@ -82,6 +83,7 @@
             text-shadow: 0 0 20px rgba(244, 114, 182, 0.8), 0 0 40px rgba(244, 114, 182, 0.4);
             opacity: 0; transition: 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
+
         #combo-display.active { opacity: 1; transform: translateX(-50%) scale(1.2); }
 
         #flavor-selector {
@@ -96,6 +98,7 @@
             box-shadow: 0 10px 20px rgba(0,0,0,0.5); background: var(--surface);
             position: relative;
         }
+
         .flavor-btn.active { border-color: white; transform: scale(1.2) translateY(-15px); box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
         .flavor-btn.v { background: #fef3c7; }
         .flavor-btn.c { background: #78350f; }
@@ -114,6 +117,7 @@
             padding: 30px 20px; border-radius: 25px; cursor: pointer; transition: 0.3s;
             width: 260px; display: flex; flex-direction: column; align-items: center; gap: 15px;
         }
+
         .mode-card:hover { background: rgba(255,255,255,0.1); border-color: var(--accent); transform: translateY(-10px); }
         .mode-icon { font-size: 4rem; filter: drop-shadow(0 0 10px rgba(255,255,255,0.2)); }
         .mode-title { font-weight: 900; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; }
@@ -127,8 +131,21 @@
         }
 
         .hidden { display: none !important; }
+
+        @media (max-width: 820px) {
+            #ui-layer { padding: 12px; }
+            .top-hud { gap: 8px; }
+            .stat-box { padding: 7px 10px; }
+            .value { font-size: 1rem; }
+            #happiness-meter { width: 120px; }
+            #combo-display { top: 100px; font-size: 2.3rem; }
+            #flavor-selector { gap: 12px; bottom: 18px; }
+            .flavor-btn { width: 64px; height: 64px; border-radius: 18px; }
+            .mode-container { gap: 14px; }
+            .mode-card { width: min(280px, 88vw); padding: 22px 18px; }
+            .btn-play { padding: 15px 42px; font-size: 1.05rem; }
+        }
     </style>
-    <!-- Google Analytics -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-CCZ9JJGEDP"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -177,12 +194,12 @@
                 <div class="mode-card" onclick="game.start('parked')">
                     <div class="mode-icon">🏪</div>
                     <div class="mode-title">The Corner</div>
-                    <p class="mode-desc">Classic defense. The van is parked in the center. Zombies attack from all directions!</p>
+                    <p class="mode-desc">Classic defense. The van is parked in the center. Zombies attack from all directions.</p>
                 </div>
                 <div class="mode-card" onclick="game.start('chase')">
                     <div class="mode-icon">🏁</div>
                     <div class="mode-title">Highway Chase</div>
-                    <p class="mode-desc">On the run! Speed down the road while being pursued by a massive horde from behind.</p>
+                    <p class="mode-desc">On the run. The truck races down a desert road while the horde pours over the horizon behind it.</p>
                 </div>
             </div>
         </div>
@@ -204,477 +221,751 @@
 
         class BrainFreeze {
             constructor() {
-                this.width = 0; this.height = 0;
+                this.width = 0;
+                this.height = 0;
+                this.dpr = Math.min(window.devicePixelRatio || 1, 2);
                 this.active = false;
-                this.score = 0;
-                this.highScore = parseInt(localStorage.getItem('brainFreezeHighScore') || '0');
-                this.happiness = 100;
                 this.mode = 'parked';
+                this.lastFrame = performance.now();
+                this.worldTime = 0;
+
+                this.score = 0;
+                this.highScore = parseInt(localStorage.getItem('brainFreezeHighScore') || '0', 10);
+                this.happiness = 100;
+                this.difficulty = 1;
+                this.spawnCooldown = 0;
+                this.combo = 0;
+                this.comboTimer = 0;
+                this.shake = 0;
                 this.scrollOffset = 0;
-                
-                this.truck = { x: 0, y: 0, w: 110, h: 80, angle: 0, bob: 0, tilt: 0 };
+                this.powerTimers = { freeze: 0, rapid: 0 };
+
                 this.currentFlavor = 'vanilla';
+                this.truck = { x: 0, y: 0, w: 126, h: 86, aimAngle: -Math.PI / 2, bob: 0, tilt: 0 };
                 this.zombies = [];
                 this.scoops = [];
                 this.powerups = [];
                 this.particles = [];
                 this.props = [];
-                this.spawnTimer = 0;
-                this.difficulty = 1;
-                
-                this.combo = 0;
-                this.comboTimer = 0;
-                this.shake = 0;
-                this.powers = { freeze: 0, rapid: 0 };
 
                 this.flavors = {
-                    vanilla: { color: '#fef3c7', aura: 'rgba(254, 243, 199, 0.2)' },
-                    chocolate: { color: '#78350f', aura: 'rgba(120, 53, 15, 0.2)' },
-                    strawberry: { color: '#f472b6', aura: 'rgba(244, 114, 182, 0.2)' }
+                    vanilla: { color: '#fef3c7', aura: 'rgba(254, 243, 199, 0.2)', drip: '#fde68a' },
+                    chocolate: { color: '#78350f', aura: 'rgba(120, 53, 15, 0.22)', drip: '#92400e' },
+                    strawberry: { color: '#f472b6', aura: 'rgba(244, 114, 182, 0.22)', drip: '#fb7185' }
                 };
 
-                this.init();
+                this.bind();
+                this.resize();
+                this.updateHUD();
+                requestAnimationFrame((time) => this.tick(time));
             }
 
-            init() {
-                this.resize();
+            bind() {
                 window.addEventListener('resize', () => this.resize());
-                window.addEventListener('keydown', (e) => {
-                    if(e.key === '1') this.setFlavor('vanilla');
-                    if(e.key === '2') this.setFlavor('chocolate');
-                    if(e.key === '3') this.setFlavor('strawberry');
+                window.addEventListener('keydown', (event) => {
+                    if (event.key === '1') this.setFlavor('vanilla');
+                    if (event.key === '2') this.setFlavor('chocolate');
+                    if (event.key === '3') this.setFlavor('strawberry');
                 });
-                canvas.addEventListener('mousedown', (e) => this.shoot(e));
-                canvas.addEventListener('touchstart', (e) => { e.preventDefault(); this.shoot(e.touches[0]); });
+                canvas.addEventListener('mousedown', (event) => this.shootAt(event.clientX, event.clientY));
+                canvas.addEventListener('touchstart', (event) => {
+                    event.preventDefault();
+                    if (event.touches[0]) this.shootAt(event.touches[0].clientX, event.touches[0].clientY);
+                }, { passive: false });
                 document.getElementById('high-val').textContent = this.highScore;
-                this.renderLoop();
             }
 
             resize() {
                 this.width = canvas.parentElement.clientWidth;
                 this.height = canvas.parentElement.clientHeight;
-                canvas.width = this.width;
-                canvas.height = this.height;
-                this.truck.x = this.width / 2;
-                this.truck.y = this.mode === 'chase' ? 180 : this.height / 2;
+                this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+                canvas.width = Math.floor(this.width * this.dpr);
+                canvas.height = Math.floor(this.height * this.dpr);
+                canvas.style.width = this.width + 'px';
+                canvas.style.height = this.height + 'px';
+                ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+                this.placeTruck();
             }
 
-            setFlavor(f) {
-                this.currentFlavor = f;
-                document.querySelectorAll('.flavor-btn').forEach(btn => btn.classList.remove('active'));
-                document.getElementById('btn-' + f[0]).classList.add('active');
+            placeTruck() {
+                this.truck.x = this.width / 2;
+                this.truck.y = this.mode === 'chase' ? this.height * 0.78 : this.height * 0.56;
+            }
+
+            setFlavor(flavor) {
+                this.currentFlavor = flavor;
+                document.querySelectorAll('.flavor-btn').forEach((button) => button.classList.remove('active'));
+                document.getElementById('btn-' + flavor[0]).classList.add('active');
             }
 
             start(mode) {
                 this.mode = mode;
-                this.resize();
                 this.active = true;
+                this.worldTime = 0;
                 this.score = 0;
                 this.happiness = 100;
+                this.difficulty = 1;
+                this.spawnCooldown = 0;
+                this.combo = 0;
+                this.comboTimer = 0;
+                this.shake = 0;
+                this.scrollOffset = 0;
+                this.powerTimers.freeze = 0;
+                this.powerTimers.rapid = 0;
                 this.zombies = [];
                 this.scoops = [];
                 this.powerups = [];
                 this.particles = [];
                 this.props = [];
-                this.difficulty = 1;
-                this.spawnTimer = 0;
-                this.combo = 0;
-                this.comboTimer = 0;
-                this.powers.freeze = 0;
-                this.powers.rapid = 0;
-                
+                this.placeTruck();
                 document.getElementById('menu-overlay').classList.add('hidden');
                 document.getElementById('over-overlay').classList.add('hidden');
                 this.updateHUD();
-                this.gameLoop();
             }
 
-            shoot(e) {
-                if(!this.active) return;
+            shootAt(clientX, clientY) {
+                if (!this.active) return;
                 const rect = canvas.getBoundingClientRect();
-                const tx = e.clientX - rect.left;
-                const ty = e.clientY - rect.top;
-                
-                const angle = Math.atan2(ty - this.truck.y, tx - this.truck.x);
-                this.truck.angle = angle;
-                this.truck.tilt = (tx - this.truck.x) * 0.001;
-                
-                const count = this.powers.rapid > 0 ? 3 : 1;
-                for(let i=0; i<count; i++) {
-                    const spread = (i - (count-1)/2) * 0.25;
+                const targetX = clientX - rect.left;
+                const targetY = clientY - rect.top;
+                const angle = Math.atan2(targetY - this.truck.y, targetX - this.truck.x);
+                this.truck.aimAngle = angle;
+                this.truck.tilt = Math.max(-0.16, Math.min(0.16, (targetX - this.truck.x) * 0.0014));
+
+                const rapid = this.powerTimers.rapid > 0;
+                const count = rapid ? 3 : 1;
+                const speed = rapid ? 760 : 690;
+                for (let index = 0; index < count; index++) {
+                    const spread = (index - (count - 1) / 2) * 0.18;
+                    const shotAngle = angle + spread;
                     this.scoops.push({
-                        x: this.truck.x, y: this.truck.y,
-                        vx: Math.cos(angle + spread) * 11,
-                        vy: Math.sin(angle + spread) * 11,
+                        x: this.truck.x + Math.cos(shotAngle) * 28,
+                        y: this.truck.y + Math.sin(shotAngle) * 12 - 12,
+                        vx: Math.cos(shotAngle) * speed,
+                        vy: Math.sin(shotAngle) * speed,
+                        life: 1.3,
                         flavor: this.currentFlavor,
-                        color: this.flavors[this.currentFlavor].color
+                        color: this.flavors[this.currentFlavor].color,
+                        drip: this.flavors[this.currentFlavor].drip
                     });
                 }
-                this.shake = 4;
+
+                this.createParticles(this.truck.x, this.truck.y - 8, this.flavors[this.currentFlavor].color, 8, 80);
+                this.shake = Math.max(this.shake, 4);
             }
 
-            update() {
-                if(!this.active) return;
+            tick(now) {
+                const dt = Math.min(0.033, (now - this.lastFrame) / 1000);
+                this.lastFrame = now;
+                this.worldTime += dt;
+                if (this.active) this.update(dt);
+                this.draw();
+                requestAnimationFrame((time) => this.tick(time));
+            }
 
-                if(this.mode === 'chase') {
-                    const speed = 6 + this.difficulty * 1.5;
-                    this.scrollOffset = (this.scrollOffset + speed) % 150;
-                    
-                    // Spawn props (cactus, cones)
-                    if(Math.random() < 0.03) {
-                        this.props.push({
-                            x: Math.random() < 0.5 ? 20 : this.width - 20,
-                            y: this.height + 100,
-                            type: Math.random() < 0.7 ? 'cactus' : 'cone',
-                            vy: -speed
-                        });
-                    }
-                    this.props.forEach(p => p.y += p.vy);
-                    this.props = this.props.filter(p => p.y > -100);
-
-                    // Exhaust smoke
-                    if(Math.random() < 0.3) {
-                        this.createParticles(this.truck.x - 30, this.truck.y - 30, '#64748b', 1, 1);
-                    }
-                }
-
-                if(this.powers.freeze > 0) this.powers.freeze--;
-                if(this.powers.rapid > 0) this.powers.rapid--;
-
-                this.spawnTimer++;
-                if(this.spawnTimer > Math.max(10, 100 - this.difficulty * 10)) {
+            update(dt) {
+                this.updateModeWorld(dt);
+                this.updateTimers(dt);
+                this.spawnCooldown -= dt;
+                if (this.spawnCooldown <= 0) {
                     this.spawnZombie();
-                    this.spawnTimer = 0;
-                    this.difficulty += 0.04;
+                    this.spawnCooldown = Math.max(0.24, 1.25 - this.difficulty * 0.08);
+                    this.difficulty += 0.05;
                 }
 
-                if(this.comboTimer > 0) {
-                    this.comboTimer--;
-                    if(this.comboTimer === 0) this.combo = 0;
-                }
-
-                if(this.shake > 0) this.shake *= 0.9;
-                this.truck.bob = Math.sin(Date.now() * 0.006) * 3;
-                this.truck.tilt *= 0.9;
-
-                // Power-ups
-                this.powerups.forEach(p => {
-                    p.y += this.mode === 'chase' ? -3 : 1.2;
-                    if(Math.hypot(p.x - this.truck.x, p.y - this.truck.y) < 70) {
-                        p.dead = true;
-                        if(p.type === 'freeze') this.powers.freeze = 450;
-                        else this.powers.rapid = 450;
-                        this.createParticles(p.x, p.y, '#fff', 30, 6);
-                    }
-                });
-                this.powerups = this.powerups.filter(p => !p.dead && p.y > -50 && p.y < this.height + 100);
-
-                // Scoops
-                this.scoops.forEach(s => { s.x += s.vx; s.y += s.vy; });
-                this.scoops = this.scoops.filter(s => s.x > 0 && s.x < this.width && s.y > 0 && s.y < this.height);
-
-                // Zombies
-                this.zombies.forEach(z => {
-                    let moveSpeed = z.sugarRush ? z.speed * 3.8 : z.speed;
-                    if(this.powers.freeze > 0 && !z.sugarRush) moveSpeed *= 0.15;
-
-                    const angle = Math.atan2(this.truck.y - z.y, this.truck.x - z.x);
-                    z.x += Math.cos(angle) * moveSpeed;
-                    z.y += Math.sin(angle) * moveSpeed;
-
-                    // Collision
-                    this.scoops.forEach(s => {
-                        const dist = Math.hypot(z.x - s.x, z.y - s.y);
-                        if(dist < 45 && !s.dead) {
-                            s.dead = true;
-                            if(s.flavor === z.flavor) {
-                                z.satisfaction += 45;
-                                this.createParticles(z.x, z.y, s.color, 15, 5);
-                            } else {
-                                z.sugar += 25;
-                                this.createParticles(z.x, z.y, '#fff', 8, 3);
-                            }
-                        }
-                    });
-
-                    if(z.sugar >= 100 && !z.sugarRush) { z.sugarRush = true; this.shake = 15; }
-
-                    if(z.satisfaction >= 100) {
-                        z.dead = true;
-                        this.combo++; this.comboTimer = 150;
-                        this.score += 1 * this.combo;
-                        this.happiness = Math.min(100, this.happiness + 5);
-                        this.createParticles(z.x, z.y, z.color, 25, 8);
-                        if(Math.random() < 0.15) this.spawnPowerup(z.x, z.y);
-                    }
-
-                    const tDist = Math.hypot(z.x - this.truck.x, z.y - this.truck.y);
-                    if(tDist < 75) {
-                        z.dead = true;
-                        this.happiness -= z.sugarRush ? 25 : 12;
-                        this.shake = 20;
-                        if(this.happiness <= 0) this.gameOver();
-                    }
-                });
-
-                this.zombies = this.zombies.filter(z => !z.dead);
-                this.scoops = this.scoops.filter(s => !s.dead);
-                this.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
-                this.particles = this.particles.filter(p => p.life > 0);
-
+                this.truck.bob = Math.sin(this.worldTime * 7) * 3;
+                this.truck.tilt *= 0.88;
+                this.updatePowerups(dt);
+                this.updateScoops(dt);
+                this.updateZombies(dt);
+                this.updateParticles(dt);
                 this.updateHUD();
             }
 
+            updateModeWorld(dt) {
+                if (this.mode !== 'chase') return;
+                const roadSpeed = 300 + this.difficulty * 20;
+                this.scrollOffset = (this.scrollOffset + roadSpeed * dt) % 130;
+
+                if (Math.random() < 0.05 + this.difficulty * 0.003) {
+                    const left = Math.random() < 0.5;
+                    const depth = Math.random();
+                    this.props.push({
+                        side: left ? 'left' : 'right',
+                        laneOffset: Math.random() * 28,
+                        y: this.horizonY() + depth * this.height * 0.2,
+                        type: Math.random() < 0.68 ? 'cactus' : 'cone',
+                        sway: Math.random() * Math.PI * 2
+                    });
+                }
+
+                for (let index = this.props.length - 1; index >= 0; index--) {
+                    const prop = this.props[index];
+                    prop.y += (70 + (prop.y - this.horizonY()) * 1.8 + this.difficulty * 8) * dt;
+                    prop.sway += dt * 3;
+                    if (prop.y > this.height + 140) this.props.splice(index, 1);
+                }
+
+                if (Math.random() < 0.35) {
+                    this.createParticles(this.truck.x - 34, this.truck.y + 22, '#64748b', 1, 18);
+                }
+            }
+
+            updateTimers(dt) {
+                this.powerTimers.freeze = Math.max(0, this.powerTimers.freeze - dt);
+                this.powerTimers.rapid = Math.max(0, this.powerTimers.rapid - dt);
+                this.comboTimer = Math.max(0, this.comboTimer - dt);
+                if (this.comboTimer === 0) this.combo = 0;
+                this.shake *= 0.9;
+            }
+
+            updatePowerups(dt) {
+                for (let index = this.powerups.length - 1; index >= 0; index--) {
+                    const powerup = this.powerups[index];
+                    powerup.float += dt * 4;
+                    powerup.y += powerup.vy * dt;
+                    if (this.mode === 'chase') powerup.y += 32 * dt;
+
+                    if (Math.hypot(powerup.x - this.truck.x, powerup.y - this.truck.y) < 74) {
+                        if (powerup.type === 'freeze') this.powerTimers.freeze = 7.5;
+                        else this.powerTimers.rapid = 7.5;
+                        this.createParticles(powerup.x, powerup.y, '#fff', 30, 180);
+                        this.powerups.splice(index, 1);
+                        continue;
+                    }
+
+                    if (powerup.y < -80 || powerup.y > this.height + 120) this.powerups.splice(index, 1);
+                }
+            }
+
+            updateScoops(dt) {
+                for (let index = this.scoops.length - 1; index >= 0; index--) {
+                    const scoop = this.scoops[index];
+                    scoop.x += scoop.vx * dt;
+                    scoop.y += scoop.vy * dt;
+                    scoop.life -= dt;
+                    if (scoop.life <= 0 || scoop.x < -30 || scoop.x > this.width + 30 || scoop.y < -30 || scoop.y > this.height + 30) {
+                        this.scoops.splice(index, 1);
+                    }
+                }
+            }
+
+            updateZombies(dt) {
+                for (let zombieIndex = this.zombies.length - 1; zombieIndex >= 0; zombieIndex--) {
+                    const zombie = this.zombies[zombieIndex];
+                    const speedBoost = zombie.sugarRush ? 3.6 : 1;
+                    const freezeFactor = this.powerTimers.freeze > 0 && !zombie.sugarRush ? 0.18 : 1;
+                    const moveSpeed = zombie.speed * speedBoost * freezeFactor;
+                    const angle = Math.atan2(this.truck.y - zombie.y, this.truck.x - zombie.x);
+                    zombie.x += Math.cos(angle) * moveSpeed * dt;
+                    zombie.y += Math.sin(angle) * moveSpeed * dt;
+                    zombie.step += dt * (zombie.sugarRush ? 17 : 8);
+
+                    for (let scoopIndex = this.scoops.length - 1; scoopIndex >= 0; scoopIndex--) {
+                        const scoop = this.scoops[scoopIndex];
+                        if (Math.hypot(zombie.x - scoop.x, zombie.y - scoop.y) >= zombie.hitRadius) continue;
+                        this.scoops.splice(scoopIndex, 1);
+                        if (scoop.flavor === zombie.flavor) {
+                            zombie.satisfaction += zombie.type === 'tank' ? 34 : 46;
+                            this.createParticles(zombie.x, zombie.y, scoop.color, 15, 110);
+                        } else {
+                            zombie.sugar += 28;
+                            this.createParticles(zombie.x, zombie.y, '#fff', 8, 70);
+                        }
+                    }
+
+                    if (zombie.sugar >= 100 && !zombie.sugarRush) {
+                        zombie.sugarRush = true;
+                        this.shake = Math.max(this.shake, 14);
+                    }
+
+                    if (zombie.satisfaction >= 100) {
+                        this.combo += 1;
+                        this.comboTimer = 2.4;
+                        this.score += Math.max(1, this.combo);
+                        this.happiness = Math.min(100, this.happiness + 5);
+                        this.createParticles(zombie.x, zombie.y, zombie.color, 26, 170);
+                        if (Math.random() < 0.16) this.spawnPowerup(zombie.x, zombie.y);
+                        this.zombies.splice(zombieIndex, 1);
+                        continue;
+                    }
+
+                    if (Math.hypot(zombie.x - this.truck.x, zombie.y - this.truck.y) < 78) {
+                        this.happiness -= zombie.sugarRush ? 25 : 12;
+                        this.shake = Math.max(this.shake, 18);
+                        this.zombies.splice(zombieIndex, 1);
+                        if (this.happiness <= 0) {
+                            this.gameOver();
+                            return;
+                        }
+                    }
+                }
+            }
+
+            updateParticles(dt) {
+                for (let index = this.particles.length - 1; index >= 0; index--) {
+                    const particle = this.particles[index];
+                    particle.x += particle.vx * dt;
+                    particle.y += particle.vy * dt;
+                    particle.vy += particle.gravity * dt;
+                    particle.life -= dt;
+                    if (particle.life <= 0) this.particles.splice(index, 1);
+                }
+            }
+
             spawnZombie() {
-                let x, y;
-                if(this.mode === 'chase') {
-                    const side = Math.random();
-                    if(side < 0.7) { x = Math.random() * this.width; y = this.height + 60; }
-                    else if(side < 0.85) { x = -60; y = this.height * 0.6 + Math.random() * this.height * 0.4; }
-                    else { x = this.width + 60; y = this.height * 0.6 + Math.random() * this.height * 0.4; }
+                let x;
+                let y;
+                if (this.mode === 'chase') {
+                    const horizon = this.horizonY();
+                    const roadSpan = this.roadEdgesAt(horizon + 20);
+                    x = roadSpan.left + 30 + Math.random() * (roadSpan.right - roadSpan.left - 60);
+                    y = horizon - 28 - Math.random() * 50;
                 } else {
                     const side = Math.floor(Math.random() * 4);
-                    if(side === 0) { x = Math.random() * this.width; y = -60; }
-                    else if(side === 1) { x = this.width + 60; y = Math.random() * this.height; }
-                    else if(side === 2) { x = Math.random() * this.width; y = this.height + 60; }
+                    if (side === 0) { x = Math.random() * this.width; y = -60; }
+                    else if (side === 1) { x = this.width + 60; y = Math.random() * this.height; }
+                    else if (side === 2) { x = Math.random() * this.width; y = this.height + 60; }
                     else { x = -60; y = Math.random() * this.height; }
                 }
 
                 const flavorNames = Object.keys(this.flavors);
-                const flavor = flavorNames[Math.floor(Math.random() * 3)];
-                const type = Math.random() < 0.2 ? 'tank' : 'normal';
+                const flavor = flavorNames[Math.floor(Math.random() * flavorNames.length)];
+                const type = Math.random() < 0.22 ? 'tank' : 'normal';
 
                 this.zombies.push({
-                    x, y, flavor, type,
+                    x,
+                    y,
+                    flavor,
+                    type,
                     color: this.flavors[flavor].color,
-                    clothing: `hsl(${Math.random()*360}, 30%, 40%)`,
-                    speed: (type === 'tank' ? 0.7 : 1.4) * (1 + this.difficulty * 0.06),
-                    satisfaction: 0, sugar: 0, sugarRush: false, dead: false
+                    clothing: `hsl(${Math.random() * 360}, 28%, ${28 + Math.random() * 18}%)`,
+                    speed: (type === 'tank' ? 62 : 104) * (1 + this.difficulty * 0.07),
+                    satisfaction: 0,
+                    sugar: 0,
+                    sugarRush: false,
+                    step: Math.random() * 10,
+                    hitRadius: type === 'tank' ? 56 : 42
                 });
             }
 
             spawnPowerup(x, y) {
-                this.powerups.push({ x, y, type: Math.random() > 0.5 ? 'freeze' : 'rapid', dead: false });
+                this.powerups.push({
+                    x,
+                    y,
+                    vy: this.mode === 'chase' ? 16 : 72,
+                    float: Math.random() * Math.PI * 2,
+                    type: Math.random() > 0.5 ? 'freeze' : 'rapid'
+                });
             }
 
             createParticles(x, y, color, count, speed) {
-                for(let i=0; i<count; i++) {
+                for (let index = 0; index < count; index++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const velocity = speed * (0.3 + Math.random() * 0.7);
                     this.particles.push({
-                        x, y, vx: (Math.random()-0.5)*speed*2, vy: (Math.random()-0.5)*speed*2,
-                        life: 25 + Math.random()*20, color, size: 3 + Math.random()*6
+                        x,
+                        y,
+                        vx: Math.cos(angle) * velocity,
+                        vy: Math.sin(angle) * velocity,
+                        gravity: 120,
+                        life: 0.35 + Math.random() * 0.45,
+                        color,
+                        size: 2 + Math.random() * 5
                     });
                 }
             }
 
             updateHUD() {
                 document.getElementById('score-val').textContent = this.score;
+                document.getElementById('high-val').textContent = this.highScore;
                 document.getElementById('happiness-fill').style.width = this.happiness + '%';
-                const c = document.getElementById('combo-display');
-                if(this.combo > 1) { c.textContent = `X${this.combo} COMBO`; c.classList.add('active'); }
-                else { c.classList.remove('active'); }
+                const comboDisplay = document.getElementById('combo-display');
+                if (this.combo > 1) {
+                    comboDisplay.textContent = `X${this.combo} COMBO`;
+                    comboDisplay.classList.add('active');
+                } else {
+                    comboDisplay.classList.remove('active');
+                }
             }
 
             gameOver() {
                 this.active = false;
-                if(this.score > this.highScore) {
+                if (this.score > this.highScore) {
                     this.highScore = this.score;
                     localStorage.setItem('brainFreezeHighScore', this.highScore);
                 }
                 document.getElementById('over-overlay').classList.remove('hidden');
                 document.getElementById('final-score-val').textContent = this.score;
-                document.getElementById('over-reason').textContent = this.mode === 'chase' ? "The van was forced off the road!" : "The neighborhood horde won.";
+                document.getElementById('over-reason').textContent = this.mode === 'chase' ? 'The highway horde finally boxed the truck in.' : 'The neighborhood horde won.';
+                this.updateHUD();
+            }
+
+            horizonY() {
+                return this.height * 0.17;
+            }
+
+            roadEdgesAt(y) {
+                const horizon = this.horizonY();
+                const depth = Math.max(0, Math.min(1, (y - horizon) / (this.height - horizon)));
+                const center = this.width / 2;
+                const halfWidth = this.width * (0.12 + depth * 0.42);
+                return { left: center - halfWidth, right: center + halfWidth, depth };
+            }
+
+            chaseScale(y) {
+                const horizon = this.horizonY();
+                return 0.38 + Math.max(0, (y - horizon) / (this.height - horizon)) * 1.18;
             }
 
             draw() {
                 ctx.clearRect(0, 0, this.width, this.height);
                 ctx.save();
-                if(this.shake > 0.1) ctx.translate((Math.random()-0.5)*this.shake, (Math.random()-0.5)*this.shake);
-
-                // Ground
-                ctx.fillStyle = this.mode === 'chase' ? '#334155' : '#1e293b';
-                ctx.fillRect(0, 0, this.width, this.height);
-                
-                // Environment Props & Details
-                if(this.mode === 'chase') {
-                    // Road markers
-                    ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 6;
-                    ctx.setLineDash([60, 90]);
-                    ctx.beginPath(); ctx.moveTo(this.width/2, -150 + this.scrollOffset);
-                    ctx.lineTo(this.width/2, this.height + 150); ctx.stroke();
-                    ctx.setLineDash([]);
-
-                    // Road edges (Grass)
-                    ctx.fillStyle = '#065f46';
-                    ctx.fillRect(0, 0, 50, this.height); ctx.fillRect(this.width-50, 0, 50, this.height);
-                    
-                    this.props.forEach(p => {
-                        ctx.save(); ctx.translate(p.x, p.y);
-                        if(p.type === 'cactus') {
-                            ctx.fillStyle = '#166534';
-                            ctx.fillRect(-10, -20, 20, 40); ctx.fillRect(-25, -10, 15, 8); ctx.fillRect(10, 0, 15, 8);
-                        } else {
-                            ctx.fillStyle = '#ea580c';
-                            ctx.beginPath(); ctx.moveTo(-15, 15); ctx.lineTo(0, -15); ctx.lineTo(15, 15); ctx.fill();
-                        }
-                        ctx.restore();
-                    });
-                } else {
-                    // Neighborhood tiles
-                    ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.lineWidth = 2;
-                    for(let i=0; i<this.width; i+=100) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, this.height); ctx.stroke(); }
-                    for(let i=0; i<this.height; i+=100) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(this.width, i); ctx.stroke(); }
-                }
-
-                // Powerups
-                this.powerups.forEach(p => {
-                    ctx.save(); ctx.translate(p.x, p.y);
-                    ctx.shadowBlur = 20; ctx.shadowColor = p.type === 'freeze' ? '#60a5fa' : '#fbbf24';
-                    ctx.font = '40px Arial'; ctx.fillText(p.type === 'freeze' ? '❄️' : '⚡', -20, 15);
-                    ctx.restore();
-                });
-
-                // Zombies
-                this.zombies.forEach(z => {
-                    ctx.save(); ctx.translate(z.x, z.y);
-                    
-                    const angle = Math.atan2(this.truck.y - z.y, this.truck.x - z.x);
-                    ctx.rotate(angle + Math.PI/2);
-
-                    if(z.sugarRush) { ctx.shadowBlur = 20; ctx.shadowColor = '#ef4444'; }
-                    
-                    ctx.fillStyle = this.flavors[z.flavor].aura;
-                    ctx.beginPath(); ctx.arc(0, 0, 45, 0, Math.PI*2); ctx.fill();
-
-                    const size = z.type === 'tank' ? 1.5 : 1.0;
-                    const step = Math.sin(Date.now() * 0.01) * 10;
-                    
-                    // Shuffling Arms
-                    ctx.fillStyle = z.sugarRush ? '#991b1b' : '#3f6212';
-                    ctx.fillRect(-18 * size, -28 * size + step, 7 * size, 22 * size);
-                    ctx.fillRect(11 * size, -28 * size - step, 7 * size, 22 * size);
-
-                    // Tattered Torso
-                    ctx.fillStyle = z.clothing;
-                    ctx.beginPath(); ctx.roundRect(-20 * size, -12 * size, 40 * size, 28 * size, 8); ctx.fill();
-
-                    // Head (Undead Green)
-                    ctx.fillStyle = z.sugarRush ? '#ef4444' : '#4ade80';
-                    ctx.beginPath(); ctx.arc(0, -18 * size, 16 * size, 0, Math.PI*2); ctx.fill();
-                    
-                    // PULSING Exposed Brain (The Goal)
-                    const pulse = 1 + Math.sin(Date.now() * 0.01) * 0.1;
-                    ctx.fillStyle = z.color;
-                    ctx.beginPath(); ctx.ellipse(0, -22 * size, 12 * size * pulse, 8 * size * pulse, 0, 0, Math.PI*2); ctx.fill();
-                    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1; ctx.stroke();
-
-                    // Glowing Eyes
-                    ctx.fillStyle = z.sugarRush ? 'white' : '#fef08a';
-                    ctx.beginPath(); ctx.arc(-6 * size, -20 * size, 3 * size, 0, Math.PI*2); 
-                    ctx.arc(6 * size, -20 * size, 3 * size, 0, Math.PI*2); ctx.fill();
-
-                    // Un-rotate for UI elements
-                    ctx.rotate(-(angle + Math.PI/2));
-                    const bw = 45 * size;
-                    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(-bw/2, 35 * size, bw, 6);
-                    ctx.fillStyle = '#22c55e'; ctx.fillRect(-bw/2, 35 * size, (z.satisfaction/100)*bw, 6);
-                    
-                    ctx.restore();
-                });
-
-                // The Van
+                if (this.shake > 0.1) ctx.translate((Math.random() - 0.5) * this.shake, (Math.random() - 0.5) * this.shake);
+                if (this.mode === 'chase') this.drawChaseWorld();
+                else this.drawParkedWorld();
+                this.drawPowerups();
+                this.drawZombies();
                 this.drawTruck();
-
-                // Scoops
-                this.scoops.forEach(s => {
-                    ctx.fillStyle = s.color;
-                    ctx.beginPath(); ctx.arc(s.x, s.y, 12, 0, Math.PI*2); ctx.fill();
-                    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2; ctx.stroke();
-                    ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.beginPath(); ctx.arc(s.x-4, s.y-4, 4, 0, Math.PI*2); ctx.fill();
-                });
-
-                // Final Effects
-                if(this.powers.freeze > 0) {
-                    ctx.fillStyle = 'rgba(186, 230, 253, 0.25)'; ctx.fillRect(0, 0, this.width, this.height);
-                    ctx.strokeStyle = '#7dd3fc'; ctx.lineWidth = 15; ctx.strokeRect(0, 0, this.width, this.height);
-                }
-
-                this.particles.forEach(p => {
-                    ctx.globalAlpha = p.life / 40; ctx.fillStyle = p.color;
-                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
-                });
-                ctx.globalAlpha = 1; ctx.restore();
-            }
-
-            drawTruck() {
-                const {x, y, w, h, angle, bob, tilt} = this.truck;
-                ctx.save(); ctx.translate(x, y + bob);
-                ctx.rotate(tilt);
-                
-                // Drop Shadow
-                ctx.fillStyle = 'rgba(0,0,0,0.4)';
-                ctx.beginPath(); ctx.ellipse(0, h/2 + 8, w*0.65, 18, 0, 0, Math.PI*2); ctx.fill();
-
-                // Wheels
-                ctx.fillStyle = '#111';
-                ctx.fillRect(-w/2 - 6, -h/2 + 15, 12, 25); ctx.fillRect(w/2 - 6, -h/2 + 15, 12, 25);
-                ctx.fillRect(-w/2 - 6, h/2 - 40, 12, 25); ctx.fillRect(w/2 - 6, h/2 - 40, 12, 25);
-
-                // Main Body (Vibrant White)
-                ctx.fillStyle = '#f8fafc'; ctx.beginPath(); ctx.roundRect(-w/2, -h/2, w, h, 15); ctx.fill();
-                ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 3; ctx.stroke();
-
-                // Pink Delivery Stripe
-                ctx.fillStyle = '#f472b6'; ctx.fillRect(-w/2, 0, w, 25);
-                
-                // Front Cab Section
-                ctx.fillStyle = '#e2e8f0'; ctx.beginPath(); ctx.roundRect(-w/2 + 8, -h/2 + 8, w - 16, 30, 8); ctx.fill();
-                
-                // Windshield (Reflective Blue-Gray)
-                ctx.fillStyle = '#334155'; ctx.fillRect(-w/2 + 15, -h/2 + 12, w - 30, 18);
-                
-                // Side Mirrors
-                ctx.fillStyle = '#f8fafc'; ctx.fillRect(-w/2 - 12, -h/2 + 25, 12, 8); ctx.fillRect(w/2, -h/2 + 25, 12, 8);
-
-                // Rear Tail Lights
-                ctx.fillStyle = '#ef4444';
-                ctx.beginPath(); ctx.roundRect(-w/2 + 10, h/2 - 8, 20, 5, 2); ctx.fill();
-                ctx.beginPath(); ctx.roundRect(w/2 - 30, h/2 - 8, 20, 5, 2); ctx.fill();
-
-                // Headlight Beams
-                ctx.fillStyle = 'rgba(254, 243, 199, 0.4)';
-                ctx.shadowBlur = 20; ctx.shadowColor = '#fbbf24';
-                ctx.beginPath(); ctx.moveTo(-w/2 + 15, -h/2 + 5); ctx.lineTo(-w/2 - 40, -h/2 - 80); ctx.lineTo(-w/2 + 70, -h/2 - 80); ctx.fill();
-                ctx.beginPath(); ctx.moveTo(w/2 - 15, -h/2 + 5); ctx.lineTo(w/2 - 70, -h/2 - 80); ctx.lineTo(w/2 + 40, -h/2 - 80); ctx.fill();
-                ctx.shadowBlur = 0;
-
-                // Serving Counter Opening
-                ctx.fillStyle = '#1e293b'; ctx.fillRect(-w/2 + 20, 25, w - 40, 15);
-                ctx.fillStyle = '#94a3b8'; ctx.fillRect(-w/2 + 15, 40, w - 30, 6); // Counter ledge
-
-                // Massive Roof Cone
-                ctx.font = '55px Arial';
-                ctx.fillText('🍦', -28, 12);
-
-                if(this.powers.rapid > 0) {
-                    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 6; ctx.setLineDash([15, 10]);
-                    ctx.beginPath(); ctx.arc(0, 0, 85 + Math.sin(Date.now()*0.01)*8, 0, Math.PI*2); ctx.stroke();
-                }
-
+                this.drawScoops();
+                this.drawParticles();
+                this.drawScreenEffects();
                 ctx.restore();
             }
 
-            gameLoop() {
-                if(this.active) {
-                    this.update();
-                    this.draw();
-                    requestAnimationFrame(() => this.gameLoop());
+            drawChaseWorld() {
+                const sky = ctx.createLinearGradient(0, 0, 0, this.height);
+                sky.addColorStop(0, '#0f172a');
+                sky.addColorStop(0.3, '#1d4ed8');
+                sky.addColorStop(0.62, '#fdba74');
+                sky.addColorStop(1, '#1e293b');
+                ctx.fillStyle = sky;
+                ctx.fillRect(0, 0, this.width, this.height);
+
+                const horizon = this.horizonY();
+                ctx.fillStyle = '#78350f';
+                ctx.fillRect(0, horizon - 12, this.width, 18);
+
+                const roadTop = this.roadEdgesAt(horizon + 1);
+                const roadBottom = this.roadEdgesAt(this.height + 40);
+                ctx.beginPath();
+                ctx.moveTo(roadTop.left, horizon);
+                ctx.lineTo(roadTop.right, horizon);
+                ctx.lineTo(roadBottom.right, this.height + 60);
+                ctx.lineTo(roadBottom.left, this.height + 60);
+                ctx.closePath();
+                const asphalt = ctx.createLinearGradient(0, horizon, 0, this.height);
+                asphalt.addColorStop(0, '#334155');
+                asphalt.addColorStop(1, '#0f172a');
+                ctx.fillStyle = asphalt;
+                ctx.fill();
+
+                ctx.fillStyle = '#14532d';
+                ctx.fillRect(0, horizon, roadTop.left + 18, this.height);
+                ctx.fillRect(roadTop.right - 18, horizon, this.width - roadTop.right + 18, this.height);
+
+                for (let index = 0; index < 8; index++) {
+                    const markerY = horizon + ((index * 150 + this.scrollOffset) % (this.height + 170));
+                    const edges = this.roadEdgesAt(markerY);
+                    const markerWidth = 6 + edges.depth * 18;
+                    const markerHeight = 18 + edges.depth * 60;
+                    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+                    ctx.fillRect(this.width / 2 - markerWidth / 2, markerY, markerWidth, markerHeight);
                 }
+
+                for (let lane = 0; lane < 16; lane++) {
+                    const y = horizon + ((lane * 110 + this.scrollOffset * 0.65) % (this.height + 120));
+                    const edges = this.roadEdgesAt(y);
+                    ctx.strokeStyle = `rgba(255,255,255,${0.06 + edges.depth * 0.06})`;
+                    ctx.beginPath();
+                    ctx.moveTo(edges.left, y);
+                    ctx.lineTo(edges.right, y);
+                    ctx.stroke();
+                }
+
+                this.props.forEach((prop) => this.drawChaseProp(prop));
             }
 
-            renderLoop() {
-                if(!this.active) {
-                    this.draw();
-                    requestAnimationFrame(() => this.renderLoop());
+            drawChaseProp(prop) {
+                const edges = this.roadEdgesAt(prop.y);
+                const sideX = prop.side === 'left' ? edges.left - 24 - prop.laneOffset : edges.right + 24 + prop.laneOffset;
+                const scale = this.chaseScale(prop.y);
+                ctx.save();
+                ctx.translate(sideX, prop.y);
+                ctx.scale(scale, scale);
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                ctx.beginPath();
+                ctx.ellipse(0, 18, 18, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                if (prop.type === 'cactus') {
+                    ctx.fillStyle = '#14532d';
+                    ctx.fillRect(-10, -34, 20, 52);
+                    ctx.fillRect(-24, -16, 14, 12);
+                    ctx.fillRect(10, -2, 14, 12);
+                } else {
+                    ctx.fillStyle = '#c2410c';
+                    ctx.beginPath();
+                    ctx.moveTo(-16, 14);
+                    ctx.lineTo(0, -20);
+                    ctx.lineTo(16, 14);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = '#fb923c';
+                    ctx.fillRect(-3, -4, 6, 12);
+                }
+                ctx.restore();
+            }
+
+            drawParkedWorld() {
+                const bg = ctx.createRadialGradient(this.width * 0.5, this.height * 0.42, 80, this.width * 0.5, this.height * 0.55, this.width * 0.7);
+                bg.addColorStop(0, '#334155');
+                bg.addColorStop(0.55, '#1e293b');
+                bg.addColorStop(1, '#0f172a');
+                ctx.fillStyle = bg;
+                ctx.fillRect(0, 0, this.width, this.height);
+
+                ctx.save();
+                ctx.translate(this.width / 2, this.height / 2 + 40);
+                ctx.rotate(-0.12);
+                const plaza = ctx.createLinearGradient(-this.width / 2, -this.height / 2, this.width / 2, this.height / 2);
+                plaza.addColorStop(0, '#111827');
+                plaza.addColorStop(1, '#1f2937');
+                ctx.fillStyle = plaza;
+                ctx.beginPath();
+                ctx.roundRect(-this.width * 0.42, -this.height * 0.34, this.width * 0.84, this.height * 0.68, 44);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                for (let x = -this.width * 0.4; x <= this.width * 0.4; x += 90) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, -this.height * 0.32);
+                    ctx.lineTo(x + 30, this.height * 0.32);
+                    ctx.stroke();
+                }
+                for (let y = -this.height * 0.28; y <= this.height * 0.28; y += 82) {
+                    ctx.beginPath();
+                    ctx.moveTo(-this.width * 0.41, y);
+                    ctx.lineTo(this.width * 0.41, y - 20);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            drawPowerups() {
+                this.powerups.forEach((powerup) => {
+                    const scale = this.mode === 'chase' ? this.chaseScale(powerup.y) * 0.9 : 1;
+                    const bob = Math.sin(powerup.float) * 8;
+                    ctx.save();
+                    ctx.translate(powerup.x, powerup.y + bob);
+                    ctx.scale(scale, scale);
+                    ctx.shadowBlur = 18;
+                    ctx.shadowColor = powerup.type === 'freeze' ? '#60a5fa' : '#fbbf24';
+                    const gradient = ctx.createRadialGradient(0, -8, 4, 0, 0, 24);
+                    gradient.addColorStop(0, '#fff');
+                    gradient.addColorStop(1, powerup.type === 'freeze' ? '#38bdf8' : '#f59e0b');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -28);
+                    ctx.lineTo(18, -6);
+                    ctx.lineTo(0, 26);
+                    ctx.lineTo(-18, -6);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = '#0f172a';
+                    ctx.font = '900 18px Trebuchet MS';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(powerup.type === 'freeze' ? 'F' : 'R', 0, 6);
+                    ctx.restore();
+                });
+            }
+
+            drawZombies() {
+                const ordered = [...this.zombies].sort((a, b) => a.y - b.y);
+                ordered.forEach((zombie) => {
+                    const angle = Math.atan2(this.truck.y - zombie.y, this.truck.x - zombie.x);
+                    const scale = this.mode === 'chase' ? this.chaseScale(zombie.y) : 0.9 + (zombie.y / this.height) * 0.3;
+                    const size = (zombie.type === 'tank' ? 1.28 : 1) * scale;
+                    const stride = Math.sin(zombie.step) * 10;
+                    ctx.save();
+                    ctx.translate(zombie.x, zombie.y);
+                    ctx.rotate(angle + Math.PI / 2);
+
+                    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 28 * size, 22 * size, 8 * size, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    if (zombie.sugarRush) {
+                        ctx.shadowBlur = 22;
+                        ctx.shadowColor = '#ef4444';
+                    }
+
+                    ctx.fillStyle = this.flavors[zombie.flavor].aura;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 36 * size, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = zombie.sugarRush ? '#7f1d1d' : '#365314';
+                    ctx.fillRect(-18 * size, -24 * size + stride, 7 * size, 20 * size);
+                    ctx.fillRect(11 * size, -24 * size - stride, 7 * size, 20 * size);
+
+                    const torsoGrad = ctx.createLinearGradient(0, -16 * size, 0, 22 * size);
+                    torsoGrad.addColorStop(0, zombie.clothing);
+                    torsoGrad.addColorStop(1, '#111827');
+                    ctx.fillStyle = torsoGrad;
+                    ctx.beginPath();
+                    ctx.roundRect(-20 * size, -8 * size, 40 * size, 30 * size, 8 * size);
+                    ctx.fill();
+
+                    ctx.fillStyle = zombie.sugarRush ? '#ef4444' : '#4ade80';
+                    ctx.beginPath();
+                    ctx.arc(0, -18 * size, 16 * size, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    const brainPulse = 1 + Math.sin(this.worldTime * 10 + zombie.step) * 0.08;
+                    ctx.fillStyle = zombie.color;
+                    ctx.beginPath();
+                    ctx.ellipse(0, -22 * size, 12 * size * brainPulse, 8 * size * brainPulse, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+                    ctx.lineWidth = 1.5 * size;
+                    ctx.stroke();
+
+                    ctx.fillStyle = zombie.sugarRush ? '#fff' : '#fef08a';
+                    ctx.beginPath();
+                    ctx.arc(-6 * size, -20 * size, 2.8 * size, 0, Math.PI * 2);
+                    ctx.arc(6 * size, -20 * size, 2.8 * size, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.rotate(-(angle + Math.PI / 2));
+                    const barWidth = 42 * size;
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.fillRect(-barWidth / 2, 34 * size, barWidth, 6 * size);
+                    ctx.fillStyle = '#22c55e';
+                    ctx.fillRect(-barWidth / 2, 34 * size, (zombie.satisfaction / 100) * barWidth, 6 * size);
+                    ctx.restore();
+                });
+            }
+
+            drawTruck() {
+                const { x, y, w, h, bob, tilt } = this.truck;
+                const truckY = y + bob;
+                ctx.save();
+                ctx.translate(x, truckY);
+                ctx.rotate(tilt);
+
+                ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                ctx.beginPath();
+                ctx.ellipse(0, h / 2 + 12, w * 0.68, 18, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#111827';
+                ctx.fillRect(-w / 2 - 6, -h / 2 + 14, 12, 26);
+                ctx.fillRect(w / 2 - 6, -h / 2 + 14, 12, 26);
+                ctx.fillRect(-w / 2 - 6, h / 2 - 38, 12, 26);
+                ctx.fillRect(w / 2 - 6, h / 2 - 38, 12, 26);
+
+                const body = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+                body.addColorStop(0, '#ffffff');
+                body.addColorStop(1, '#dbe4f2');
+                ctx.fillStyle = body;
+                ctx.beginPath();
+                ctx.roundRect(-w / 2, -h / 2, w, h, 18);
+                ctx.fill();
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                ctx.fillStyle = '#fb7185';
+                ctx.fillRect(-w / 2, 2, w, 24);
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(-w / 2 + 12, -h / 2 + 10, w - 24, 32);
+                ctx.fillStyle = '#334155';
+                ctx.beginPath();
+                ctx.roundRect(-w / 2 + 18, -h / 2 + 14, w - 36, 22, 8);
+                ctx.fill();
+
+                ctx.fillStyle = '#fde68a';
+                ctx.globalAlpha = 0.34;
+                ctx.beginPath();
+                ctx.moveTo(-w / 2 + 18, -h / 2 + 8);
+                ctx.lineTo(-w / 2 - 50, -h / 2 - 84);
+                ctx.lineTo(-w / 2 + 74, -h / 2 - 82);
+                ctx.closePath();
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(w / 2 - 18, -h / 2 + 8);
+                ctx.lineTo(w / 2 + 50, -h / 2 - 84);
+                ctx.lineTo(w / 2 - 74, -h / 2 - 82);
+                ctx.closePath();
+                ctx.fill();
+                ctx.globalAlpha = 1;
+
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(-w / 2 + 20, 28, w - 40, 14);
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillRect(-w / 2 + 16, 42, w - 32, 6);
+
+                ctx.save();
+                ctx.translate(0, -8);
+                ctx.font = '58px Trebuchet MS';
+                ctx.fillText('🍦', -26, 14);
+                ctx.restore();
+
+                if (this.powerTimers.rapid > 0) {
+                    ctx.strokeStyle = '#fbbf24';
+                    ctx.lineWidth = 6;
+                    ctx.setLineDash([14, 10]);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 88 + Math.sin(this.worldTime * 10) * 8, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+                ctx.restore();
+            }
+
+            drawScoops() {
+                this.scoops.forEach((scoop) => {
+                    ctx.save();
+                    ctx.translate(scoop.x, scoop.y);
+                    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 10, 12, 4, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    const grad = ctx.createRadialGradient(-4, -5, 2, 0, 0, 14);
+                    grad.addColorStop(0, '#fff');
+                    grad.addColorStop(1, scoop.color);
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 12, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.fillStyle = scoop.drip;
+                    ctx.fillRect(-2, 8, 4, 6);
+                    ctx.restore();
+                });
+            }
+
+            drawParticles() {
+                this.particles.forEach((particle) => {
+                    ctx.globalAlpha = Math.max(0, particle.life / 0.75);
+                    ctx.fillStyle = particle.color;
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            drawScreenEffects() {
+                if (this.powerTimers.freeze > 0) {
+                    ctx.fillStyle = 'rgba(186,230,253,0.18)';
+                    ctx.fillRect(0, 0, this.width, this.height);
+                    ctx.strokeStyle = '#7dd3fc';
+                    ctx.lineWidth = 14;
+                    ctx.strokeRect(0, 0, this.width, this.height);
                 }
             }
         }
