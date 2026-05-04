@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Dungeon Ironfang - K2 Games</title>
+    <style>
+        :root {
+            --steel: #b9c2d0;
+            --ember: #ff9b45;
+            --blood: #ef4444;
+            --arcane: #7dd3fc;
+            --panel: rgba(12, 17, 29, 0.78);
+            --stroke: rgba(255,255,255,0.22);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            touch-action: none;
+            color: white;
+            font-family: "Trebuchet MS", "Avenir Next", "Gill Sans", sans-serif;
+            background: #090d16;
+        }
+
+        #game { position: fixed; inset: 0; width: 100vw; height: 100dvh; }
+
+        #hud {
+            position: fixed;
+            top: env(safe-area-inset-top, 0);
+            left: 0;
+            right: 0;
+            z-index: 4;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 14px clamp(12px, 2.4vw, 28px);
+            pointer-events: none;
+        }
+
+        .pill, .brief {
+            border: 1px solid var(--stroke);
+            border-radius: 24px;
+            background: var(--panel);
+            backdrop-filter: blur(14px);
+            box-shadow: 0 16px 42px rgba(0,0,0,0.34);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            color: var(--steel);
+            font-weight: 1000;
+        }
+
+        .brand span:first-child {
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #f5f7fb, #778398);
+            color: #111827;
+            box-shadow: inset -5px -7px 0 rgba(0,0,0,0.14);
+        }
+
+        #stats {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .stat {
+            min-width: 108px;
+            padding: 9px 13px;
+        }
+
+        .stat small {
+            display: block;
+            color: rgba(255,255,255,0.62);
+            font-size: 0.6rem;
+            font-weight: 1000;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .stat strong { color: var(--ember); font-size: 1.22rem; }
+
+        .brief {
+            position: fixed;
+            left: 50%;
+            bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+            z-index: 4;
+            width: min(640px, calc(100vw - 24px));
+            transform: translateX(-50%);
+            padding: 12px 16px;
+            color: rgba(255,255,255,0.82);
+            font-size: 0.85rem;
+            font-weight: 900;
+            line-height: 1.42;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        #mobileControls {
+            position: fixed;
+            inset: auto 0 env(safe-area-inset-bottom, 0px) 0;
+            z-index: 8;
+            height: 190px;
+            display: none;
+            pointer-events: none;
+        }
+
+        #stick {
+            position: absolute;
+            left: 22px;
+            bottom: 24px;
+            width: 132px;
+            height: 132px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.22);
+            background: rgba(255,255,255,0.12);
+            backdrop-filter: blur(12px);
+            pointer-events: auto;
+            box-shadow: inset 0 0 24px rgba(255,255,255,0.1), 0 16px 32px rgba(0,0,0,0.28);
+        }
+
+        #nub {
+            position: absolute;
+            left: 39px;
+            top: 39px;
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #f5f7fb, #8ea0ba);
+            box-shadow: inset -6px -8px 0 rgba(0,0,0,0.12), 0 8px 18px rgba(0,0,0,0.3);
+        }
+
+        .touchBtn {
+            position: absolute;
+            border: 0;
+            border-radius: 28px;
+            color: #111827;
+            font: 1000 0.78rem/1 "Trebuchet MS", sans-serif;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            pointer-events: auto;
+            box-shadow: inset -7px -9px 0 rgba(0,0,0,0.12), 0 14px 28px rgba(0,0,0,0.32);
+        }
+
+        #attackBtn {
+            right: 24px;
+            bottom: 42px;
+            width: 122px;
+            height: 84px;
+            background: linear-gradient(145deg, #ffe2c2, var(--ember));
+        }
+
+        #leftBtn, #rightBtn {
+            bottom: 28px;
+            width: 82px;
+            height: 58px;
+            background: linear-gradient(145deg, #dce7f7, #93a4bd);
+            font-size: 1.2rem;
+        }
+
+        #leftBtn { right: 154px; }
+        #rightBtn { right: 244px; }
+
+        #overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            display: grid;
+            place-items: center;
+            padding: 22px;
+            background:
+                radial-gradient(circle at 25% 20%, rgba(255,155,69,0.22), transparent 30%),
+                radial-gradient(circle at 76% 78%, rgba(125,211,252,0.18), transparent 32%),
+                rgba(6, 9, 16, 0.82);
+            backdrop-filter: blur(10px);
+        }
+
+        .modal {
+            width: min(730px, 94vw);
+            border: 1px solid rgba(255,255,255,0.28);
+            border-radius: 34px;
+            padding: clamp(22px, 4vw, 40px);
+            text-align: center;
+            background: linear-gradient(145deg, rgba(255,255,255,0.16), rgba(255,255,255,0.07));
+            box-shadow: 0 28px 90px rgba(0,0,0,0.46);
+        }
+
+        .modal h1 {
+            color: var(--steel);
+            font-size: clamp(2.7rem, 7vw, 5.8rem);
+            line-height: 0.88;
+            letter-spacing: -0.075em;
+            text-transform: uppercase;
+            text-shadow: 0 8px 0 rgba(0,0,0,0.22);
+        }
+
+        .modal h1 span { color: var(--ember); }
+        .modal p { margin: 18px auto 0; max-width: 600px; color: rgba(255,255,255,0.82); font-weight: 800; line-height: 1.5; }
+        .tips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 22px 0; text-align: left; }
+        .tip { padding: 13px; border-radius: 18px; background: rgba(0,0,0,0.2); font-size: 0.82rem; font-weight: 900; line-height: 1.35; }
+        .primary {
+            border: 0;
+            border-radius: 999px;
+            padding: 15px 26px;
+            background: linear-gradient(145deg, #ffe2c2, var(--ember));
+            color: #111827;
+            font: 1000 1rem/1 "Trebuchet MS", sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            box-shadow: inset -7px -9px 0 rgba(0,0,0,0.12), 0 18px 34px rgba(0,0,0,0.32);
+            cursor: pointer;
+        }
+
+        @media (hover: none), (max-width: 820px) {
+            #mobileControls { display: block; }
+            .brand { display: none; }
+            #hud { justify-content: flex-end; padding: 9px; }
+            .brief { bottom: 172px; font-size: 0.72rem; padding: 9px 12px; }
+            .stat { min-width: 88px; padding: 7px 10px; }
+            .stat strong { font-size: 1rem; }
+            .tips { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game"></canvas>
+    <header id="hud">
+        <div class="pill brand"><span>⚔</span><b>Dungeon Ironfang</b></div>
+        <div id="stats">
+            <div class="pill stat"><small>Health</small><strong id="hp">100</strong></div>
+            <div class="pill stat"><small>Gems</small><strong id="gems">0</strong></div>
+            <div class="pill stat"><small>Key</small><strong id="key">No</strong></div>
+        </div>
+    </header>
+    <div class="brief" id="brief">Defeat the dungeon guards, grab the iron key, and escape through the blue gate.</div>
+    <div id="mobileControls">
+        <div id="stick"><div id="nub"></div></div>
+        <button class="touchBtn" id="attackBtn">Attack</button>
+        <button class="touchBtn" id="leftBtn">⟲</button>
+        <button class="touchBtn" id="rightBtn">⟳</button>
+    </div>
+    <section id="overlay">
+        <div class="modal">
+            <h1>Dungeon <span>Ironfang</span></h1>
+            <p>A first-person dungeon crawl in the old stone vault. Fight goblin guards, collect gems, find the iron key, and survive long enough to open the blue exit gate.</p>
+            <div class="tips">
+                <div class="tip">Desktop: W/S move, A/D strafe, arrow keys turn. Space or E swings your sword.</div>
+                <div class="tip">iPhone: left stick moves, turn buttons look around, and Attack swings when a monster is close.</div>
+                <div class="tip">Backpedal after you strike. Enemies hurt you when they crowd in, but gems and potions keep you alive.</div>
+            </div>
+            <button class="primary" id="startBtn">Enter Dungeon</button>
+        </div>
+    </section>
+
+    <script>
+    (() => {
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+        const hpEl = document.getElementById("hp");
+        const gemsEl = document.getElementById("gems");
+        const keyEl = document.getElementById("key");
+        const brief = document.getElementById("brief");
+        const overlay = document.getElementById("overlay");
+        const startBtn = document.getElementById("startBtn");
+        const stick = document.getElementById("stick");
+        const nub = document.getElementById("nub");
+
+        const MAP = [
+            "111111111111111",
+            "1000001000000E1",
+            "101110101111101",
+            "101000100000101",
+            "101011111010101",
+            "100010000010001",
+            "111010111110111",
+            "100010100000001",
+            "101110101111101",
+            "100000001000101",
+            "101111111010101",
+            "101000000010001",
+            "101011111111101",
+            "1S1000000000001",
+            "111111111111111"
+        ];
+
+        const W = MAP[0].length;
+        const H = MAP.length;
+        const FOV = Math.PI / 3;
+        const keys = new Set();
+        const touch = { x: 0, y: 0, id: null };
+        const turn = { left: false, right: false };
+        const baseEnemies = [
+            { x: 6.5, y: 3.5, hp: 2, kind: "goblin" },
+            { x: 11.5, y: 5.5, hp: 3, kind: "brute" },
+            { x: 3.5, y: 9.5, hp: 2, kind: "goblin" },
+            { x: 11.5, y: 11.5, hp: 3, kind: "brute" }
+        ];
+        const baseLoot = [
+            { x: 4.5, y: 1.5, type: "gem", taken: false },
+            { x: 8.5, y: 7.5, type: "potion", taken: false },
+            { x: 13.5, y: 9.5, type: "key", taken: false },
+            { x: 2.5, y: 11.5, type: "gem", taken: false },
+            { x: 10.5, y: 13.5, type: "gem", taken: false }
+        ];
+
+        let player = { x: 1.5, y: 13.5, a: 0, hp: 100 };
+        let enemies = [];
+        let loot = [];
+        let width = 1;
+        let height = 1;
+        let started = false;
+        let over = false;
+        let attack = 0;
+        let hurtFlash = 0;
+        let gems = 0;
+        let hasKey = false;
+        let message = "";
+        let messageTimer = 0;
+
+        function resize() {
+            const dpr = Math.min(devicePixelRatio || 1, 2);
+            width = innerWidth;
+            height = innerHeight;
+            canvas.width = Math.floor(width * dpr);
+            canvas.height = Math.floor(height * dpr);
+            canvas.style.width = width + "px";
+            canvas.style.height = height + "px";
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        function reset() {
+            player = { x: 1.5, y: 13.5, a: 0, hp: 100 };
+            enemies = baseEnemies.map(e => ({ ...e, alive: true, hit: 0, bite: 0 }));
+            loot = baseLoot.map(l => ({ ...l, taken: false }));
+            attack = 0;
+            hurtFlash = 0;
+            gems = 0;
+            hasKey = false;
+            over = false;
+            started = true;
+            overlay.style.display = "none";
+            showMessage("The gate seals behind you. Steel up.");
+        }
+
+        function update(dt) {
+            if (!started || over) return;
+            let turnInput = 0;
+            if (keys.has("arrowleft")) turnInput--;
+            if (keys.has("arrowright")) turnInput++;
+            if (turn.left) turnInput--;
+            if (turn.right) turnInput++;
+            player.a += turnInput * dt * 2.6;
+
+            let forward = 0;
+            let strafe = 0;
+            if (keys.has("w") || keys.has("arrowup")) forward++;
+            if (keys.has("s") || keys.has("arrowdown")) forward--;
+            if (keys.has("a")) strafe--;
+            if (keys.has("d")) strafe++;
+            forward += -touch.y;
+            strafe += touch.x;
+            const len = Math.hypot(forward, strafe) || 1;
+            const speed = 1.9 * dt;
+            const dx = (Math.cos(player.a) * forward / len + Math.cos(player.a + Math.PI / 2) * strafe / len) * speed;
+            const dy = (Math.sin(player.a) * forward / len + Math.sin(player.a + Math.PI / 2) * strafe / len) * speed;
+            move(dx, dy);
+
+            enemies.forEach(e => updateEnemy(e, dt));
+            collectLoot();
+            if (cell(player.x, player.y) === "E") {
+                if (hasKey) win();
+                else showMessage("The blue gate is locked. Find the iron key.");
+            }
+            attack = Math.max(0, attack - dt * 3.8);
+            hurtFlash = Math.max(0, hurtFlash - dt * 2.2);
+            messageTimer = Math.max(0, messageTimer - dt);
+            if (player.hp <= 0) lose();
+        }
+
+        function updateEnemy(e, dt) {
+            if (!e.alive) return;
+            const d = Math.hypot(player.x - e.x, player.y - e.y);
+            const seen = d < 5.8 && lineOpen(e.x, e.y, player.x, player.y);
+            if (seen && d > 0.72) {
+                const a = Math.atan2(player.y - e.y, player.x - e.x);
+                const speed = (e.kind === "brute" ? 0.62 : 0.82) * dt;
+                const nx = e.x + Math.cos(a) * speed;
+                const ny = e.y + Math.sin(a) * speed;
+                if (!solid(nx, e.y)) e.x = nx;
+                if (!solid(e.x, ny)) e.y = ny;
+            }
+            e.bite = Math.max(0, e.bite - dt);
+            e.hit = Math.max(0, e.hit - dt);
+            if (d < 0.82 && e.bite <= 0) {
+                player.hp -= e.kind === "brute" ? 14 : 9;
+                hurtFlash = 1;
+                e.bite = 1.05;
+                showMessage(`${e.kind === "brute" ? "Iron brute" : "Goblin"} strikes!`);
+            }
+        }
+
+        function swing() {
+            if (!started || over || attack > 0.35) return;
+            attack = 1;
+            let hit = false;
+            enemies.forEach(e => {
+                if (!e.alive) return;
+                const dx = e.x - player.x;
+                const dy = e.y - player.y;
+                const d = Math.hypot(dx, dy);
+                const ang = Math.atan2(dy, dx) - player.a;
+                const wrapped = Math.atan2(Math.sin(ang), Math.cos(ang));
+                if (d < 1.7 && Math.abs(wrapped) < 0.48 && lineOpen(player.x, player.y, e.x, e.y)) {
+                    e.hp--;
+                    e.hit = 0.35;
+                    hit = true;
+                    if (e.hp <= 0) {
+                        e.alive = false;
+                        gems++;
+                        showMessage("Monster dropped a gem.");
+                    } else {
+                        showMessage("Steel bites monster hide.");
+                    }
+                }
+            });
+            if (!hit) showMessage("Your sword cuts only dungeon air.");
+        }
+
+        function collectLoot() {
+            loot.forEach(l => {
+                if (l.taken || Math.hypot(player.x - l.x, player.y - l.y) > 0.48) return;
+                l.taken = true;
+                if (l.type === "gem") {
+                    gems++;
+                    showMessage("Gem claimed.");
+                }
+                if (l.type === "potion") {
+                    player.hp = Math.min(100, player.hp + 35);
+                    showMessage("Potion restored your health.");
+                }
+                if (l.type === "key") {
+                    hasKey = true;
+                    showMessage("Iron key found. Reach the blue gate.");
+                }
+            });
+        }
+
+        function move(dx, dy) {
+            const nx = player.x + dx;
+            const ny = player.y + dy;
+            if (!solid(nx, player.y)) player.x = nx;
+            if (!solid(player.x, ny)) player.y = ny;
+        }
+
+        function solid(x, y) {
+            return cell(x, y) === "1";
+        }
+
+        function cell(x, y) {
+            const mx = Math.floor(x);
+            const my = Math.floor(y);
+            if (my < 0 || my >= H || mx < 0 || mx >= W) return "1";
+            return MAP[my][mx];
+        }
+
+        function lineOpen(x1, y1, x2, y2) {
+            const d = Math.hypot(x2 - x1, y2 - y1);
+            const steps = Math.ceil(d / 0.12);
+            for (let i = 1; i < steps; i++) {
+                const t = i / steps;
+                if (solid(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t)) return false;
+            }
+            return true;
+        }
+
+        function cast(angle) {
+            let dist = 0;
+            const step = 0.025;
+            const sin = Math.sin(angle);
+            const cos = Math.cos(angle);
+            while (dist < 18) {
+                dist += step;
+                const x = player.x + cos * dist;
+                const y = player.y + sin * dist;
+                if (solid(x, y)) return { dist, x, y, shade: ((Math.floor(x) + Math.floor(y)) % 2) };
+            }
+            return { dist: 18, x: player.x + cos * 18, y: player.y + sin * 18, shade: 0 };
+        }
+
+        function render() {
+            drawRoom();
+            const cols = Math.ceil(width / 3);
+            for (let i = 0; i < cols; i++) {
+                const pct = i / cols;
+                const angle = player.a - FOV / 2 + pct * FOV;
+                const hit = cast(angle);
+                const corrected = hit.dist * Math.cos(angle - player.a);
+                const wallH = Math.min(height * 1.6, height / Math.max(0.08, corrected));
+                const x = i * 3;
+                const y = height / 2 - wallH / 2;
+                const fog = Math.min(1, corrected / 12);
+                const light = 38 - fog * 25 + (hit.shade ? 6 : 0);
+                ctx.fillStyle = `hsl(220 12% ${light}%)`;
+                ctx.fillRect(x, y, 4, wallH);
+                ctx.fillStyle = `rgba(255,155,69,${0.13 * (1 - fog)})`;
+                ctx.fillRect(x, y, 1, wallH);
+                if (i % 5 === 0) {
+                    ctx.fillStyle = `rgba(0,0,0,${0.1 + fog * 0.16})`;
+                    ctx.fillRect(x, y + wallH * 0.5, 4, 2);
+                }
+            }
+            drawSprites();
+            drawSword();
+            drawMap();
+            drawOverlay();
+            drawUi();
+        }
+
+        function drawRoom() {
+            const ceiling = ctx.createLinearGradient(0, 0, 0, height / 2);
+            ceiling.addColorStop(0, "#060a12");
+            ceiling.addColorStop(1, "#1a2231");
+            ctx.fillStyle = ceiling;
+            ctx.fillRect(0, 0, width, height / 2);
+            const floor = ctx.createLinearGradient(0, height / 2, 0, height);
+            floor.addColorStop(0, "#24202b");
+            floor.addColorStop(1, "#090a0d");
+            ctx.fillStyle = floor;
+            ctx.fillRect(0, height / 2, width, height / 2);
+            ctx.fillStyle = "rgba(255,155,69,0.18)";
+            ctx.beginPath();
+            ctx.arc(width * 0.18, height * 0.2, 28, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawSprites() {
+            const sprites = [
+                ...loot.filter(l => !l.taken).map(l => ({ ...l, sprite: "loot" })),
+                ...enemies.filter(e => e.alive).map(e => ({ ...e, sprite: "enemy" })),
+                { x: 13.5, y: 1.5, sprite: "gate" }
+            ].sort((a, b) => distance(b) - distance(a));
+            sprites.forEach(s => {
+                const dx = s.x - player.x;
+                const dy = s.y - player.y;
+                const dist = Math.hypot(dx, dy);
+                const angle = Math.atan2(dy, dx) - player.a;
+                const wrapped = Math.atan2(Math.sin(angle), Math.cos(angle));
+                if (Math.abs(wrapped) > FOV * 0.62 || dist < 0.18 || !lineOpen(player.x, player.y, s.x, s.y)) return;
+                const x = width / 2 + Math.tan(wrapped) * width;
+                const size = height / dist * (s.sprite === "enemy" ? 0.65 : 0.38);
+                if (s.sprite === "enemy") drawEnemy(x, height / 2 + size * 0.12, size, s);
+                if (s.sprite === "loot") drawLoot(x, height / 2 + size * 0.1, size, s.type);
+                if (s.sprite === "gate") drawGate(x, height / 2, size * 1.2);
+            });
+        }
+
+        function distance(s) { return Math.hypot(s.x - player.x, s.y - player.y); }
+
+        function drawEnemy(x, y, size, e) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.globalAlpha = e.hit > 0 ? 0.72 : 1;
+            ctx.fillStyle = "rgba(0,0,0,0.34)";
+            ctx.beginPath();
+            ctx.ellipse(0, size * 0.35, size * 0.3, size * 0.08, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = e.kind === "brute" ? "#7f1d1d" : "#315f3a";
+            roundRect(-size * 0.24, -size * 0.34, size * 0.48, size * 0.66, size * 0.12);
+            ctx.fillStyle = e.kind === "brute" ? "#fca5a5" : "#bbf7d0";
+            ctx.beginPath();
+            ctx.arc(0, -size * 0.18, size * 0.18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#111827";
+            ctx.beginPath();
+            ctx.arc(-size * 0.06, -size * 0.2, size * 0.018, 0, Math.PI * 2);
+            ctx.arc(size * 0.07, -size * 0.2, size * 0.018, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#f8fafc";
+            ctx.fillRect(-size * 0.1, -size * 0.11, size * 0.2, size * 0.025);
+            ctx.restore();
+        }
+
+        function drawLoot(x, y, size, type) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.fillStyle = "rgba(0,0,0,0.28)";
+            ctx.beginPath();
+            ctx.ellipse(0, size * 0.18, size * 0.22, size * 0.06, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = type === "key" ? "#facc15" : type === "potion" ? "#ef4444" : "#7dd3fc";
+            ctx.beginPath();
+            ctx.arc(0, -size * 0.05, size * 0.14, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.font = `900 ${Math.max(10, size * 0.12)}px Trebuchet MS`;
+            ctx.textAlign = "center";
+            ctx.fillStyle = "#111827";
+            ctx.fillText(type === "key" ? "KEY" : type === "potion" ? "+" : "G", 0, 0);
+            ctx.restore();
+        }
+
+        function drawGate(x, y, size) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.fillStyle = "rgba(125,211,252,0.2)";
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.48, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#1e3a8a";
+            roundRect(-size * 0.24, -size * 0.42, size * 0.48, size * 0.74, size * 0.06);
+            ctx.fillStyle = "#7dd3fc";
+            roundRect(-size * 0.16, -size * 0.3, size * 0.32, size * 0.5, size * 0.04);
+            ctx.restore();
+        }
+
+        function drawSword() {
+            if (attack <= 0) return;
+            const swing = Math.sin((1 - attack) * Math.PI);
+            ctx.save();
+            ctx.translate(width * (0.63 + swing * 0.09), height * (0.74 - swing * 0.18));
+            ctx.rotate(-0.72 + swing * 1.25);
+            ctx.fillStyle = "#6b3f24";
+            roundRect(-12, 42, 24, 110, 10);
+            ctx.fillStyle = "#facc15";
+            roundRect(-46, 32, 92, 18, 8);
+            const blade = ctx.createLinearGradient(0, -190, 0, 34);
+            blade.addColorStop(0, "#ffffff");
+            blade.addColorStop(0.55, "#cbd5e1");
+            blade.addColorStop(1, "#64748b");
+            ctx.fillStyle = blade;
+            ctx.beginPath();
+            ctx.moveTo(0, -210);
+            ctx.lineTo(26, 34);
+            ctx.lineTo(-26, 34);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawMap() {
+            const s = 7;
+            const pad = 18;
+            const y0 = height - H * s - pad;
+            ctx.save();
+            ctx.globalAlpha = 0.86;
+            ctx.fillStyle = "rgba(4,8,14,0.76)";
+            roundRect(pad, y0, W * s + 12, H * s + 12, 12);
+            for (let y = 0; y < H; y++) {
+                for (let x = 0; x < W; x++) {
+                    const c = MAP[y][x];
+                    ctx.fillStyle = c === "1" ? "#475569" : c === "E" ? "#7dd3fc" : "rgba(255,255,255,0.08)";
+                    ctx.fillRect(pad + 6 + x * s, y0 + 6 + y * s, s - 1, s - 1);
+                }
+            }
+            enemies.filter(e => e.alive).forEach(e => {
+                ctx.fillStyle = "#ef4444";
+                ctx.fillRect(pad + 6 + e.x * s - 2, y0 + 6 + e.y * s - 2, 4, 4);
+            });
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(pad + 6 + player.x * s, y0 + 6 + player.y * s, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawOverlay() {
+            const g = ctx.createRadialGradient(width / 2, height / 2, height * 0.1, width / 2, height / 2, width * 0.72);
+            g.addColorStop(0, "rgba(0,0,0,0)");
+            g.addColorStop(1, "rgba(0,0,0,0.56)");
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, width, height);
+            if (hurtFlash > 0) {
+                ctx.fillStyle = `rgba(239,68,68,${hurtFlash * 0.28})`;
+                ctx.fillRect(0, 0, width, height);
+            }
+        }
+
+        function drawUi() {
+            hpEl.textContent = Math.max(0, Math.ceil(player.hp));
+            hpEl.style.color = player.hp < 35 ? "#ef4444" : "#ff9b45";
+            gemsEl.textContent = gems;
+            keyEl.textContent = hasKey ? "Yes" : "No";
+            brief.textContent = messageTimer > 0 ? message : enemies.some(e => e.alive) ? "Defeat guards, collect loot, and find the iron key." : hasKey ? "The blue gate can open now. Escape." : "The dungeon is quiet. Find the iron key.";
+        }
+
+        function showMessage(text) {
+            message = text;
+            messageTimer = 2.7;
+        }
+
+        function win() {
+            over = true;
+            started = false;
+            overlay.querySelector("h1").innerHTML = "Dungeon <span>Cleared!</span>";
+            overlay.querySelector("p").textContent = `You escaped with ${gems} gem${gems === 1 ? "" : "s"} and ${Math.max(0, Math.ceil(player.hp))} health. The Ironfang vault will remember this.`;
+            overlay.style.display = "grid";
+        }
+
+        function lose() {
+            over = true;
+            started = false;
+            overlay.querySelector("h1").innerHTML = "You <span>Fell</span>";
+            overlay.querySelector("p").textContent = "The dungeon guards overwhelmed you. Try again, strike first, then backpedal.";
+            overlay.style.display = "grid";
+        }
+
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.roundRect(x, y, w, h, r);
+            ctx.fill();
+        }
+
+        function loop(now) {
+            const dt = Math.min(0.033, (now - (loop.last || now)) / 1000);
+            loop.last = now;
+            update(dt);
+            render();
+            requestAnimationFrame(loop);
+        }
+
+        addEventListener("resize", resize);
+        addEventListener("keydown", e => {
+            const k = e.key.toLowerCase();
+            if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
+            keys.add(k);
+            if (k === " " || k === "e") swing();
+        }, { passive: false });
+        addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
+        startBtn.addEventListener("click", reset);
+        document.getElementById("attackBtn").addEventListener("pointerdown", e => { e.preventDefault(); swing(); });
+        document.getElementById("leftBtn").addEventListener("pointerdown", e => { e.preventDefault(); turn.left = true; });
+        document.getElementById("leftBtn").addEventListener("pointerup", () => turn.left = false);
+        document.getElementById("leftBtn").addEventListener("pointercancel", () => turn.left = false);
+        document.getElementById("rightBtn").addEventListener("pointerdown", e => { e.preventDefault(); turn.right = true; });
+        document.getElementById("rightBtn").addEventListener("pointerup", () => turn.right = false);
+        document.getElementById("rightBtn").addEventListener("pointercancel", () => turn.right = false);
+
+        stick.addEventListener("pointerdown", e => {
+            touch.id = e.pointerId;
+            stick.setPointerCapture(e.pointerId);
+            updateStick(e);
+        });
+        stick.addEventListener("pointermove", e => { if (touch.id === e.pointerId) updateStick(e); });
+        stick.addEventListener("pointerup", releaseStick);
+        stick.addEventListener("pointercancel", releaseStick);
+
+        function updateStick(e) {
+            const r = stick.getBoundingClientRect();
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height / 2;
+            const dx = e.clientX - cx;
+            const dy = e.clientY - cy;
+            const len = Math.hypot(dx, dy);
+            const max = 44;
+            const nx = len > max ? dx / len * max : dx;
+            const ny = len > max ? dy / len * max : dy;
+            nub.style.transform = `translate(${nx}px, ${ny}px)`;
+            touch.x = nx / max;
+            touch.y = ny / max;
+        }
+
+        function releaseStick() {
+            touch.id = null;
+            touch.x = 0;
+            touch.y = 0;
+            nub.style.transform = "translate(0, 0)";
+        }
+
+        resize();
+        render();
+        requestAnimationFrame(loop);
+    })();
+    </script>
+</body>
+</html>
