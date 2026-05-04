@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Switchyard Sentinel</title>
+    <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAnUB9WQ0N2IAAAAASUVORK5CYII=">
+    <style>
+        :root {
+            --ink: #f7fafc;
+            --muted: #a9b8c8;
+            --panel: rgba(9, 14, 22, 0.76);
+            --panel-strong: rgba(9, 14, 22, 0.94);
+            --line: rgba(255, 255, 255, 0.15);
+            --green: #52d273;
+            --gold: #f5c451;
+            --red: #ff6b6b;
+            --blue: #70b7ff;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            color: var(--ink);
+            background: #0b1119;
+            font-family: Inter, "Segoe UI", system-ui, sans-serif;
+            user-select: none;
+        }
+
+        body { touch-action: none; }
+
+        #game {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .hud {
+            position: fixed;
+            inset: 16px 16px auto;
+            z-index: 5;
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) auto minmax(300px, 0.9fr);
+            align-items: start;
+            gap: 12px;
+            pointer-events: none;
+        }
+
+        .brand, .panel, .controls, .guide, .build-panel {
+            border: 1px solid var(--line);
+            background: var(--panel);
+            backdrop-filter: blur(16px);
+            box-shadow: 0 18px 42px rgba(0, 0, 0, 0.3);
+        }
+
+        .brand {
+            padding: 14px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .mark {
+            width: 44px;
+            height: 44px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(180deg, rgba(82, 210, 115, 0.24), rgba(245, 196, 81, 0.2));
+            color: var(--green);
+            font-weight: 1000;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(1.3rem, 2.7vw, 2.5rem);
+            line-height: 0.92;
+            text-transform: uppercase;
+            letter-spacing: 0;
+        }
+
+        .kicker {
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            font-weight: 900;
+            letter-spacing: 0;
+        }
+
+        .panel {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(68px, 1fr));
+            gap: 8px;
+            padding: 10px;
+        }
+
+        .stat {
+            padding: 8px 9px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .label {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--muted);
+            font-size: 0.64rem;
+            text-transform: uppercase;
+            font-weight: 900;
+            letter-spacing: 0;
+        }
+
+        .value {
+            display: block;
+            font-size: 1.08rem;
+            font-weight: 1000;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .controls {
+            padding: 12px;
+            pointer-events: auto;
+        }
+
+        .guide {
+            position: fixed;
+            right: 16px;
+            top: 168px;
+            z-index: 5;
+            width: min(430px, calc(100vw - 32px));
+            padding: 12px;
+            pointer-events: none;
+        }
+
+        .route-list {
+            display: grid;
+            gap: 7px;
+            margin-top: 8px;
+        }
+
+        .route-row {
+            display: grid;
+            grid-template-columns: 18px 1fr;
+            gap: 8px;
+            align-items: start;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--muted);
+            font-size: 0.82rem;
+            line-height: 1.35;
+            font-weight: 750;
+        }
+
+        .route-row strong {
+            color: var(--ink);
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .switch-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            appearance: none;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--ink);
+            min-height: 46px;
+            padding: 9px 10px;
+            font: inherit;
+            font-weight: 900;
+            cursor: pointer;
+        }
+
+        button.active {
+            background: var(--gold);
+            color: #151006;
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        button.good { background: rgba(82, 210, 115, 0.86); color: #06140a; }
+        button.warn { background: rgba(255, 107, 107, 0.86); color: #180607; }
+
+        button:focus-visible, input:focus-visible {
+            outline: 3px solid var(--blue);
+            outline-offset: 3px;
+        }
+
+        .speed-row {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--green);
+        }
+
+        .dispatch {
+            position: fixed;
+            left: 16px;
+            bottom: 16px;
+            z-index: 5;
+            min-width: min(420px, calc(100vw - 32px));
+            max-width: min(520px, calc(100vw - 32px));
+            border: 1px solid var(--line);
+            background: var(--panel);
+            backdrop-filter: blur(16px);
+            padding: 10px;
+            pointer-events: none;
+            box-shadow: 0 18px 42px rgba(0, 0, 0, 0.3);
+        }
+
+        .build-panel {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            z-index: 5;
+            width: min(430px, calc(100vw - 32px));
+            padding: 12px;
+            pointer-events: auto;
+        }
+
+        .tool-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin: 8px 0 10px;
+        }
+
+        .build-note {
+            color: var(--muted);
+            font-size: 0.78rem;
+            line-height: 1.38;
+            font-weight: 750;
+        }
+
+        .train-list {
+            display: grid;
+            gap: 6px;
+        }
+
+        .train-chip {
+            display: grid;
+            grid-template-columns: 18px 1fr auto;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 0.82rem;
+            font-weight: 800;
+        }
+
+        .dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--green);
+        }
+
+        .toast {
+            position: fixed;
+            left: 50%;
+            top: 120px;
+            transform: translateX(-50%);
+            z-index: 7;
+            min-width: min(420px, calc(100vw - 32px));
+            text-align: center;
+            border: 1px solid var(--line);
+            background: var(--panel-strong);
+            padding: 12px 14px;
+            font-weight: 900;
+            opacity: 0;
+            transition: opacity 180ms ease, transform 180ms ease;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translate(-50%, 6px);
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            display: grid;
+            place-items: center;
+            padding: 22px;
+            background:
+                linear-gradient(180deg, rgba(4, 8, 14, 0.08), rgba(4, 8, 14, 0.76)),
+                radial-gradient(circle at 50% 30%, rgba(82, 210, 115, 0.18), transparent 34%);
+        }
+
+        .menu {
+            width: min(570px, 100%);
+            border: 1px solid var(--line);
+            background: var(--panel-strong);
+            padding: clamp(20px, 5vw, 34px);
+            box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5);
+        }
+
+        .menu h2 {
+            margin: 0 0 12px;
+            font-size: clamp(2.2rem, 8vw, 5rem);
+            line-height: 0.86;
+            text-transform: uppercase;
+            letter-spacing: 0;
+        }
+
+        .menu p {
+            margin: 0 0 20px;
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        .menu-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 940px) {
+            .hud {
+                inset: 10px 10px auto;
+                grid-template-columns: 1fr;
+            }
+
+            .panel {
+                grid-template-columns: repeat(4, 1fr);
+                order: 3;
+            }
+
+            .controls {
+                order: 2;
+            }
+
+            .dispatch {
+                left: 10px;
+                right: 10px;
+                bottom: 188px;
+                min-width: 0;
+            }
+
+            .guide {
+                display: none;
+            }
+
+            .build-panel {
+                left: 10px;
+                right: 10px;
+                bottom: 10px;
+                width: auto;
+            }
+
+            .switch-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tool-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            button {
+                min-height: 54px;
+            }
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+</head>
+<body>
+    <canvas id="game"></canvas>
+
+    <div class="hud">
+        <div class="brand">
+            <div class="mark">SS</div>
+            <div>
+                <h1>Switchyard Sentinel</h1>
+                <div class="kicker">3D train switch control simulation</div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="stat"><span class="label">Score</span><span class="value" id="score">0</span></div>
+            <div class="stat"><span class="label">Routed</span><span class="value" id="routed">0</span></div>
+            <div class="stat"><span class="label">Misses</span><span class="value" id="misses">0</span></div>
+            <div class="stat"><span class="label">Trains</span><span class="value" id="active">0</span></div>
+        </div>
+
+        <div class="controls">
+            <div class="switch-grid">
+                <button id="switchA" data-switch="A">A Upper</button>
+                <button id="switchB" data-switch="B">B North</button>
+                <button id="switchC" data-switch="C">C South</button>
+            </div>
+            <div class="speed-row">
+                <button id="pauseBtn">Pause</button>
+                <input id="speed" type="range" min="0.35" max="1.8" step="0.05" value="1" aria-label="Train speed">
+                <span class="value" id="speedValue">1.00x</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="guide">
+        <span class="label">Route Rules</span>
+        <div class="route-list">
+            <div class="route-row"><span class="dot" style="background:#70b7ff"></span><div><strong>North Terminal</strong>Set A Upper, then B North.</div></div>
+            <div class="route-row"><span class="dot" style="background:#f5c451"></span><div><strong>Central Depot</strong>Set A Upper + B Center, or A Lower + C Center.</div></div>
+            <div class="route-row"><span class="dot" style="background:#ff7f6e"></span><div><strong>South Freight</strong>Set A Lower, then C South.</div></div>
+        </div>
+    </div>
+
+    <div class="dispatch">
+        <span class="label">Dispatch Board</span>
+        <div class="build-note" id="routeHint">Next train route recipe appears here.</div>
+        <div class="train-list" id="trainList"></div>
+    </div>
+
+    <div class="build-panel">
+        <span class="label">Build Mode</span>
+        <div class="tool-grid">
+            <button id="buildToggle">Build Off</button>
+            <button data-build-tool="straight" class="active">Straight</button>
+            <button data-build-tool="curve">Curve</button>
+            <button data-build-tool="switch">Switch</button>
+        </div>
+        <div class="tool-grid">
+            <button id="rotateBuild">Rotate</button>
+            <button data-build-tool="erase">Erase</button>
+            <button id="clearBuild" class="warn">Clear</button>
+            <button id="saveBuild" class="good">Save</button>
+        </div>
+        <div class="build-note">Turn Build Mode on, then click empty ground to place track pieces. Built tracks create a sandbox side yard for designing your own layout.</div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="overlay" id="overlay">
+        <div class="menu">
+            <h2>Switchyard Sentinel</h2>
+            <p>Incoming trains ask for one of three stations: North Terminal, Central Depot, or South Freight. Use the Route Rules card while they approach: Switch A chooses the upper or lower branch; Switch B routes the upper branch to North or Center; Switch C routes the lower branch to South or Center.</p>
+            <div class="menu-row">
+                <button class="good" id="startBtn">Start Simulation</button>
+                <button id="tourBtn">Camera Tour</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        const canvas = document.getElementById('game');
+        const scoreEl = document.getElementById('score');
+        const routedEl = document.getElementById('routed');
+        const missesEl = document.getElementById('misses');
+        const activeEl = document.getElementById('active');
+        const trainList = document.getElementById('trainList');
+        const routeHint = document.getElementById('routeHint');
+        const speedInput = document.getElementById('speed');
+        const speedValue = document.getElementById('speedValue');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const startBtn = document.getElementById('startBtn');
+        const tourBtn = document.getElementById('tourBtn');
+        const buildToggle = document.getElementById('buildToggle');
+        const rotateBuild = document.getElementById('rotateBuild');
+        const clearBuild = document.getElementById('clearBuild');
+        const saveBuild = document.getElementById('saveBuild');
+        const overlay = document.getElementById('overlay');
+        const toast = document.getElementById('toast');
+
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x9cc7e8);
+        scene.fog = new THREE.Fog(0x9cc7e8, 95, 230);
+
+        const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 320);
+        camera.position.set(0, 70, 96);
+        camera.lookAt(2, 0, 0);
+
+        const clock = new THREE.Clock();
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+
+        const destinations = {
+            NORTH: { label: 'North Terminal', color: 0x70b7ff, node: 'N', recipe: 'A Upper + B North' },
+            CENTER: { label: 'Central Depot', color: 0xf5c451, node: 'C', recipe: 'A Upper + B Center OR A Lower + C Center' },
+            SOUTH: { label: 'South Freight', color: 0xff7f6e, node: 'SOUTH', recipe: 'A Lower + C South' }
+        };
+
+        const nodes = {
+            START: new THREE.Vector3(-58, 0.3, 0),
+            J1: new THREE.Vector3(-28, 0.3, 0),
+            U: new THREE.Vector3(-12, 0.3, -14),
+            B: new THREE.Vector3(12, 0.3, -14),
+            N: new THREE.Vector3(49, 0.3, -30),
+            L: new THREE.Vector3(-12, 0.3, 14),
+            CPOINT: new THREE.Vector3(33, 0.3, 0),
+            D: new THREE.Vector3(12, 0.3, 14),
+            C: new THREE.Vector3(55, 0.3, 0),
+            SOUTH: new THREE.Vector3(49, 0.3, 30)
+        };
+
+        const segmentPoints = {
+            START_J1: [nodes.START, nodes.J1],
+            J1_U: [nodes.J1, new THREE.Vector3(-24, 0.3, -5), new THREE.Vector3(-18, 0.3, -12), nodes.U],
+            U_B: [nodes.U, nodes.B],
+            B_N: [nodes.B, new THREE.Vector3(24, 0.3, -16), new THREE.Vector3(35, 0.3, -26), nodes.N],
+            B_C: [nodes.B, new THREE.Vector3(24, 0.3, -10), new THREE.Vector3(29, 0.3, -3), nodes.CPOINT, nodes.C],
+            J1_L: [nodes.J1, new THREE.Vector3(-24, 0.3, 5), new THREE.Vector3(-18, 0.3, 12), nodes.L],
+            L_D: [nodes.L, nodes.D],
+            D_SOUTH: [nodes.D, new THREE.Vector3(24, 0.3, 16), new THREE.Vector3(35, 0.3, 26), nodes.SOUTH],
+            D_C: [nodes.D, new THREE.Vector3(24, 0.3, 10), new THREE.Vector3(29, 0.3, 3), nodes.CPOINT, nodes.C]
+        };
+
+        const segments = {};
+        for (const [name, points] of Object.entries(segmentPoints)) {
+            segments[name] = new THREE.CatmullRomCurve3(points, false, 'centripetal', 0.35);
+        }
+
+        const state = {
+            running: false,
+            paused: false,
+            speed: 1,
+            score: 0,
+            routed: 0,
+            misses: 0,
+            spawnTimer: 1.2,
+            trainNumber: 1,
+            cameraTour: false,
+            switches: { A: 'UPPER', B: 'NORTH', C: 'SOUTH' },
+            buildMode: false,
+            buildTool: 'straight',
+            buildRotation: 0
+        };
+
+        const trains = [];
+        const switchMeshes = [];
+        const signalLights = {};
+        const buildPieces = [];
+        const buildCells = new Map();
+        const buildPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+        const mats = {
+            grass: new THREE.MeshStandardMaterial({ color: 0x4f8a51, roughness: 0.9 }),
+            grid: new THREE.MeshStandardMaterial({ color: 0x385f46, roughness: 0.88, transparent: true, opacity: 0.48 }),
+            ballast: new THREE.MeshStandardMaterial({ color: 0x586271, roughness: 0.76 }),
+            rail: new THREE.MeshStandardMaterial({ color: 0xb6bec9, roughness: 0.28, metalness: 0.85 }),
+            tie: new THREE.MeshStandardMaterial({ color: 0x3e2f24, roughness: 0.84 }),
+            platform: new THREE.MeshStandardMaterial({ color: 0x627083, roughness: 0.68 }),
+            building: new THREE.MeshStandardMaterial({ color: 0x253142, roughness: 0.62 }),
+            window: new THREE.MeshBasicMaterial({ color: 0xf5c451 }),
+            trainBody: new THREE.MeshStandardMaterial({ color: 0x31546c, roughness: 0.42, metalness: 0.2 }),
+            trainDark: new THREE.MeshStandardMaterial({ color: 0x151c25, roughness: 0.54, metalness: 0.24 })
+        };
+
+        function setupLights() {
+            scene.add(new THREE.HemisphereLight(0xdcefff, 0x315029, 1.7));
+            const sun = new THREE.DirectionalLight(0xfff0d4, 2.6);
+            sun.position.set(-34, 60, 44);
+            sun.castShadow = true;
+            sun.shadow.mapSize.set(2048, 2048);
+            sun.shadow.camera.left = -82;
+            sun.shadow.camera.right = 82;
+            sun.shadow.camera.top = 82;
+            sun.shadow.camera.bottom = -82;
+            scene.add(sun);
+
+            const fill = new THREE.DirectionalLight(0x70b7ff, 0.65);
+            fill.position.set(40, 25, -42);
+            scene.add(fill);
+        }
+
+        function makeWorld() {
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(250, 170, 46, 34), mats.grass);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            const buildYard = new THREE.Mesh(new THREE.PlaneGeometry(86, 58, 1, 1), mats.grid);
+            buildYard.rotation.x = -Math.PI / 2;
+            buildYard.position.set(-62, 0.012, -56);
+            buildYard.receiveShadow = true;
+            scene.add(buildYard);
+
+            const grid = new THREE.GridHelper(84, 14, 0xd9f99d, 0x83a878);
+            grid.position.set(-62, 0.035, -56);
+            scene.add(grid);
+            makeLabel('BUILD YARD', new THREE.Vector3(-62, 4, -88), 0xd9f99d, 5.2);
+
+            for (let i = 0; i < 34; i++) {
+                const tree = new THREE.Group();
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.42, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x5a3a24, roughness: 0.9 }));
+                trunk.position.y = 1.1;
+                const crown = new THREE.Mesh(new THREE.ConeGeometry(1.6, 4.2, 10), new THREE.MeshStandardMaterial({ color: 0x245c37, roughness: 0.8 }));
+                crown.position.y = 4.0;
+                tree.add(trunk, crown);
+                tree.position.set(-112 + Math.random() * 224, 0, (Math.random() < 0.5 ? -1 : 1) * (48 + Math.random() * 28));
+                tree.castShadow = true;
+                scene.add(tree);
+            }
+
+            makeStation('NORTH', nodes.N, -30, 0x70b7ff);
+            makeStation('CENTER', nodes.C, 0, 0xf5c451);
+            makeStation('SOUTH', nodes.SOUTH, 30, 0xff7f6e);
+        }
+
+        function makeStation(key, point, z, color) {
+            const station = destinations[key];
+            const platform = new THREE.Mesh(new THREE.BoxGeometry(18, 0.55, 5.2), mats.platform);
+            platform.position.set(point.x + 2, 0.25, z + (z === 0 ? 4 : z > 0 ? 4 : -4));
+            platform.castShadow = true;
+            platform.receiveShadow = true;
+            scene.add(platform);
+
+            const building = new THREE.Mesh(new THREE.BoxGeometry(7, 5, 5), mats.building);
+            building.position.set(point.x + 10, 2.5, platform.position.z);
+            building.castShadow = true;
+            building.receiveShadow = true;
+            scene.add(building);
+
+            const windowStrip = new THREE.Mesh(new THREE.BoxGeometry(7.08, 1.1, 0.08), new THREE.MeshBasicMaterial({ color }));
+            windowStrip.position.set(building.position.x, 3.3, building.position.z - 2.55);
+            scene.add(windowStrip);
+
+            const beacon = new THREE.PointLight(color, 1.8, 18);
+            beacon.position.set(point.x + 3, 5, z);
+            scene.add(beacon);
+
+            makeLabel(station.label.toUpperCase(), new THREE.Vector3(point.x + 3, 8.6, z), color, 4.9);
+            makeLabel(station.recipe, new THREE.Vector3(point.x + 3, 6.4, z), 0xffffff, 3.0);
+        }
+
+        function makeLabel(text, position, color = 0xffffff, size = 4) {
+            const canvasLabel = document.createElement('canvas');
+            canvasLabel.width = 1024;
+            canvasLabel.height = 220;
+            const ctx = canvasLabel.getContext('2d');
+            ctx.clearRect(0, 0, canvasLabel.width, canvasLabel.height);
+            ctx.fillStyle = 'rgba(5, 9, 14, 0.78)';
+            ctx.fillRect(18, 34, 988, 142);
+            ctx.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+            ctx.lineWidth = 10;
+            ctx.strokeRect(18, 34, 988, 142);
+            ctx.fillStyle = '#f8fafc';
+            ctx.font = '900 58px Segoe UI, Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 512, 105, 900);
+
+            const texture = new THREE.CanvasTexture(canvasLabel);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+            sprite.position.copy(position);
+            sprite.scale.set(size * 5.4, size * 1.16, 1);
+            scene.add(sprite);
+            return sprite;
+        }
+
+        function makeTrack() {
+            for (const [name, curve] of Object.entries(segments)) {
+                makeRailCurve(curve, name.includes('START') ? 0.08 : 0.05);
+            }
+        }
+
+        function makeRailCurve(curve, yOffset = 0.05) {
+            const samples = 44;
+            const bedGeo = new THREE.TubeGeometry(curve, samples, 1.2, 8, false);
+            const bed = new THREE.Mesh(bedGeo, mats.ballast);
+            bed.position.y = -0.12 + yOffset;
+            bed.receiveShadow = true;
+            scene.add(bed);
+
+            for (const side of [-1, 1]) {
+                const railPoints = [];
+                for (let i = 0; i <= samples; i++) {
+                    const t = i / samples;
+                    const point = curve.getPoint(t);
+                    const tangent = curve.getTangent(t);
+                    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize().multiplyScalar(side * 0.58);
+                    railPoints.push(point.clone().add(normal).add(new THREE.Vector3(0, 0.16, 0)));
+                }
+                const railCurve = new THREE.CatmullRomCurve3(railPoints, false, 'centripetal', 0.2);
+                const rail = new THREE.Mesh(new THREE.TubeGeometry(railCurve, samples, 0.08, 8, false), mats.rail);
+                rail.castShadow = true;
+                scene.add(rail);
+            }
+
+            for (let i = 0; i <= 16; i++) {
+                const t = i / 16;
+                const point = curve.getPoint(t);
+                const tangent = curve.getTangent(t);
+                const sleeper = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.16, 0.34), mats.tie);
+                sleeper.position.copy(point).add(new THREE.Vector3(0, 0.12, 0));
+                sleeper.rotation.y = Math.atan2(tangent.x, tangent.z) + Math.PI / 2;
+                sleeper.castShadow = true;
+                sleeper.receiveShadow = true;
+                scene.add(sleeper);
+            }
+        }
+
+        function makeBuildPiece(type, x, z, rotation) {
+            const group = new THREE.Group();
+            group.position.set(x, 0.18, z);
+            group.rotation.y = rotation;
+            group.userData = { type, x, z, rotation, buildPiece: true };
+
+            const ballast = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.18, 2.25), mats.ballast);
+            ballast.position.y = -0.08;
+            ballast.receiveShadow = true;
+            group.add(ballast);
+
+            if (type === 'straight') {
+                addStraightBuildTrack(group, 0, 0, 0, 6.2);
+            } else if (type === 'curve') {
+                addCurveBuildTrack(group, 0, 0, false);
+            } else {
+                addStraightBuildTrack(group, 0, 0, 0, 6.2);
+                addCurveBuildTrack(group, 0, 0, true);
+                const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.32, 14, 10), new THREE.MeshBasicMaterial({ color: 0xf5c451 }));
+                lamp.position.set(0, 1.1, 0);
+                group.add(lamp);
+            }
+
+            scene.add(group);
+            buildPieces.push(group);
+            buildCells.set(`${x},${z}`, group);
+            return group;
+        }
+
+        function addStraightBuildTrack(group, x, z, rotation, length) {
+            const railGeo = new THREE.BoxGeometry(length, 0.18, 0.12);
+            for (const side of [-1, 1]) {
+                const rail = new THREE.Mesh(railGeo, mats.rail);
+                rail.position.set(x, 0.18, z + side * 0.56);
+                rail.rotation.y = rotation;
+                rail.castShadow = true;
+                group.add(rail);
+            }
+            for (let i = -2; i <= 2; i++) {
+                const tie = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 1.72), mats.tie);
+                tie.position.set(x + i * 1.25, 0.09, z);
+                tie.rotation.y = rotation;
+                tie.castShadow = true;
+                tie.receiveShadow = true;
+                group.add(tie);
+            }
+        }
+
+        function addCurveBuildTrack(group, x, z, forked) {
+            const center = forked ? new THREE.Vector3(-2.7, 0.16, 0.55) : new THREE.Vector3(-2.8, 0.16, -2.8);
+            for (const side of [-1, 1]) {
+                const points = [];
+                for (let i = 0; i <= 16; i++) {
+                    const t = i / 16;
+                    const angle = (forked ? -0.05 : 0) + t * Math.PI / 2;
+                    const radius = 3.2 + side * 0.32;
+                    points.push(new THREE.Vector3(
+                        center.x + Math.cos(angle) * radius + x,
+                        0.18,
+                        center.z + Math.sin(angle) * radius + z
+                    ));
+                }
+                const curve = new THREE.CatmullRomCurve3(points);
+                const rail = new THREE.Mesh(new THREE.TubeGeometry(curve, 18, 0.07, 8, false), mats.rail);
+                rail.castShadow = true;
+                group.add(rail);
+            }
+            for (let i = 0; i <= 4; i++) {
+                const t = i / 4;
+                const angle = t * Math.PI / 2;
+                const tie = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.12, 1.6), mats.tie);
+                tie.position.set(center.x + Math.cos(angle) * 3.2 + x, 0.09, center.z + Math.sin(angle) * 3.2 + z);
+                tie.rotation.y = -angle;
+                tie.castShadow = true;
+                tie.receiveShadow = true;
+                group.add(tie);
+            }
+        }
+
+        function placeBuildPiece(point) {
+            const x = Math.round(point.x / 6) * 6;
+            const z = Math.round(point.z / 6) * 6;
+            if (x < -102 || x > -24 || z < -84 || z > -30) {
+                showToast('Build inside the marked Build Yard', true);
+                return;
+            }
+            const key = `${x},${z}`;
+            const existing = buildCells.get(key);
+            if (existing) {
+                scene.remove(existing);
+                buildPieces.splice(buildPieces.indexOf(existing), 1);
+                buildCells.delete(key);
+            }
+            if (state.buildTool !== 'erase') {
+                makeBuildPiece(state.buildTool, x, z, state.buildRotation);
+            }
+        }
+
+        function clearBuildPieces() {
+            for (const piece of [...buildPieces]) scene.remove(piece);
+            buildPieces.length = 0;
+            buildCells.clear();
+        }
+
+        function saveBuildPieces() {
+            localStorage.setItem('switchyard-sentinel-build', JSON.stringify(buildPieces.map((piece) => piece.userData)));
+            showToast('Build yard saved');
+        }
+
+        function loadBuildPieces() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('switchyard-sentinel-build') || '[]');
+                for (const item of saved) makeBuildPiece(item.type, item.x, item.z, item.rotation || 0);
+            } catch {
+                localStorage.removeItem('switchyard-sentinel-build');
+            }
+        }
+
+        function makeSwitches() {
+            addSwitch('A', nodes.J1, 0x52d273);
+            addSwitch('B', nodes.B, 0x70b7ff);
+            addSwitch('C', nodes.D, 0xff7f6e);
+        }
+
+        function addSwitch(name, point, color) {
+            const group = new THREE.Group();
+            group.position.set(point.x, 0.8, point.z);
+            const base = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.3, 2.2), mats.trainDark);
+            base.castShadow = true;
+            group.add(base);
+
+            const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.4, 10), mats.rail);
+            mast.position.y = 1.25;
+            mast.castShadow = true;
+            group.add(mast);
+
+            const lever = new THREE.Mesh(new THREE.BoxGeometry(0.28, 1.8, 0.28), new THREE.MeshStandardMaterial({ color, roughness: 0.36, metalness: 0.35 }));
+            lever.position.y = 2.4;
+            lever.userData.switchName = name;
+            group.add(lever);
+
+            const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.34, 16, 10), new THREE.MeshBasicMaterial({ color }));
+            lamp.position.y = 3.3;
+            group.add(lamp);
+
+            const light = new THREE.PointLight(color, 1.6, 10);
+            light.position.y = 3.2;
+            group.add(light);
+
+            group.userData = { name, lever, lamp, light };
+            switchMeshes.push(group);
+            scene.add(group);
+            const labelText = name === 'A' ? 'SWITCH A: UPPER / LOWER' : name === 'B' ? 'SWITCH B: NORTH / CENTER' : 'SWITCH C: SOUTH / CENTER';
+            makeLabel(labelText, new THREE.Vector3(point.x, 5.7, point.z + 3.2), color, 2.7);
+        }
+
+        function makeSignals() {
+            for (const [key, point] of Object.entries({ N: nodes.N, C: nodes.C, SOUTH: nodes.SOUTH })) {
+                const group = new THREE.Group();
+                group.position.set(point.x - 7, 0.4, point.z + (key === 'N' ? 4 : key === 'SOUTH' ? -4 : -5));
+                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 4, 10), mats.rail);
+                pole.position.y = 2;
+                group.add(pole);
+                const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.34, 16, 10), new THREE.MeshBasicMaterial({ color: 0x52d273 }));
+                lamp.position.y = 4.1;
+                group.add(lamp);
+                signalLights[key] = lamp;
+                scene.add(group);
+            }
+        }
+
+        function makeTrain(destinationKey) {
+            const dest = destinations[destinationKey];
+            const train = new THREE.Group();
+            const colorMat = new THREE.MeshStandardMaterial({ color: dest.color, roughness: 0.36, metalness: 0.28 });
+
+            const loco = new THREE.Group();
+            const base = new THREE.Mesh(new THREE.BoxGeometry(4.8, 1.4, 2.2), mats.trainDark);
+            base.position.y = 0.9;
+            const body = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.1, 2), colorMat);
+            body.position.set(0.3, 2.1, 0);
+            const cab = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.9, 2.1), mats.trainBody);
+            cab.position.set(-1.45, 2.75, 0);
+            const nose = new THREE.Mesh(new THREE.ConeGeometry(1.05, 1.7, 16), colorMat);
+            nose.rotation.z = -Math.PI / 2;
+            nose.position.set(2.75, 2.05, 0);
+            const lamp = new THREE.PointLight(0xfff2ad, 2.2, 18);
+            lamp.position.set(3.4, 2.2, 0);
+            loco.add(base, body, cab, nose, lamp);
+
+            for (let i = 0; i < 6; i++) {
+                const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.32, 18), mats.trainDark);
+                wheel.rotation.x = Math.PI / 2;
+                wheel.position.set(-1.9 + i * 0.78, 0.36, i % 2 ? 1.12 : -1.12);
+                loco.add(wheel);
+            }
+            train.add(loco);
+
+            for (let i = 0; i < 2; i++) {
+                const car = new THREE.Mesh(new THREE.BoxGeometry(3.8, 1.85, 2.05), i === 0 ? colorMat : mats.trainBody);
+                car.position.set(-5.0 - i * 4.4, 1.55, 0);
+                car.castShadow = true;
+                train.add(car);
+            }
+
+            train.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            train.position.copy(nodes.START);
+            train.userData = {
+                id: state.trainNumber++,
+                destinationKey,
+                destination: dest,
+                segment: 'START_J1',
+                progress: 0,
+                speed: 12 + Math.random() * 2.8,
+                status: 'Inbound'
+            };
+            scene.add(train);
+            trains.push(train);
+            showToast(`Train ${train.userData.id} inbound for ${dest.label}`);
+        }
+
+        function chooseDestination() {
+            const keys = Object.keys(destinations);
+            return keys[Math.floor(Math.random() * keys.length)];
+        }
+
+        function nextSegment(train, nodeName) {
+            if (nodeName === 'J1') return state.switches.A === 'UPPER' ? 'J1_U' : 'J1_L';
+            if (nodeName === 'U') return 'U_B';
+            if (nodeName === 'L') return 'L_D';
+            if (nodeName === 'B') return state.switches.B === 'NORTH' ? 'B_N' : 'B_C';
+            if (nodeName === 'D') return state.switches.C === 'SOUTH' ? 'D_SOUTH' : 'D_C';
+            return null;
+        }
+
+        function segmentEndNode(segmentName) {
+            return {
+                START_J1: 'J1',
+                J1_U: 'U',
+                U_B: 'B',
+                B_N: 'N',
+                B_C: 'C',
+                J1_L: 'L',
+                L_D: 'D',
+                D_SOUTH: 'SOUTH',
+                D_C: 'C'
+            }[segmentName];
+        }
+
+        function finishTrain(train, nodeName) {
+            const wanted = train.userData.destination.node;
+            const success = nodeName === wanted;
+            if (success) {
+                state.routed++;
+                state.score += 400 + Math.round(80 * state.speed);
+                showToast(`Train ${train.userData.id} routed to ${train.userData.destination.label}`);
+            } else {
+                state.misses++;
+                state.score = Math.max(0, state.score - 250);
+                showToast(`Wrong terminal for Train ${train.userData.id}`, true);
+            }
+            scene.remove(train);
+            trains.splice(trains.indexOf(train), 1);
+        }
+
+        function toggleSwitch(name) {
+            if (name === 'A') state.switches.A = state.switches.A === 'UPPER' ? 'LOWER' : 'UPPER';
+            if (name === 'B') state.switches.B = state.switches.B === 'NORTH' ? 'CENTER' : 'NORTH';
+            if (name === 'C') state.switches.C = state.switches.C === 'SOUTH' ? 'CENTER' : 'SOUTH';
+            updateSwitchVisuals();
+        }
+
+        function updateSwitchVisuals() {
+            document.getElementById('switchA').textContent = `A ${state.switches.A === 'UPPER' ? 'Upper to B' : 'Lower to C'}`;
+            document.getElementById('switchB').textContent = `B ${state.switches.B === 'NORTH' ? 'North Terminal' : 'Central Depot'}`;
+            document.getElementById('switchC').textContent = `C ${state.switches.C === 'SOUTH' ? 'South Freight' : 'Central Depot'}`;
+
+            document.getElementById('switchA').classList.toggle('active', state.switches.A === 'UPPER');
+            document.getElementById('switchB').classList.toggle('active', state.switches.B === 'NORTH');
+            document.getElementById('switchC').classList.toggle('active', state.switches.C === 'SOUTH');
+
+            for (const item of switchMeshes) {
+                const name = item.userData.name;
+                const isPrimary = (name === 'A' && state.switches.A === 'UPPER') || (name === 'B' && state.switches.B === 'NORTH') || (name === 'C' && state.switches.C === 'SOUTH');
+                item.userData.lever.rotation.z = isPrimary ? -0.55 : 0.55;
+                item.userData.lamp.scale.setScalar(isPrimary ? 1.25 : 0.85);
+            }
+        }
+
+        function updateSignals() {
+            const colors = { N: 0x52d273, C: 0xf5c451, SOUTH: 0xff7f6e };
+            for (const [key, lamp] of Object.entries(signalLights)) {
+                lamp.material.color.setHex(colors[key]);
+            }
+        }
+
+        function updateTrains(dt) {
+            if (!state.running || state.paused) return;
+            state.spawnTimer -= dt * state.speed;
+            if (state.spawnTimer <= 0 && trains.length < 5) {
+                makeTrain(chooseDestination());
+                state.spawnTimer = Math.max(2.5, 7.2 - state.routed * 0.18) / state.speed;
+            }
+
+            for (const train of [...trains]) {
+                const curve = segments[train.userData.segment];
+                const distance = curve.getLength();
+                train.userData.progress += (train.userData.speed * state.speed * dt) / distance;
+
+                if (train.userData.progress >= 1) {
+                    const nodeName = segmentEndNode(train.userData.segment);
+                    const next = nextSegment(train, nodeName);
+                    if (!next) {
+                        finishTrain(train, nodeName);
+                        continue;
+                    }
+                    train.userData.segment = next;
+                    train.userData.progress = 0;
+                    train.userData.status = `Past ${nodeName}`;
+                }
+
+                const point = curve.getPoint(Math.min(train.userData.progress, 1));
+                const tangent = curve.getTangent(Math.min(train.userData.progress + 0.01, 1));
+                train.position.copy(point).add(new THREE.Vector3(0, 0.18, 0));
+                train.rotation.y = Math.atan2(tangent.x, tangent.z) + Math.PI / 2;
+            }
+
+            for (let i = 0; i < trains.length; i++) {
+                for (let j = i + 1; j < trains.length; j++) {
+                    if (trains[i].position.distanceTo(trains[j].position) < 4.3) {
+                        state.misses++;
+                        state.score = Math.max(0, state.score - 400);
+                        showToast('Close call in the yard', true);
+                        trains[j].userData.progress = Math.max(0, trains[j].userData.progress - 0.08);
+                    }
+                }
+            }
+        }
+
+        function updateCamera(dt) {
+            if (state.cameraTour) {
+                const t = performance.now() * 0.00012;
+                camera.position.x = Math.cos(t) * 92;
+                camera.position.z = Math.sin(t) * 108;
+                camera.position.y = 58 + Math.sin(t * 2) * 10;
+            }
+            camera.lookAt(2, 0, 0);
+        }
+
+        function updateHud() {
+            scoreEl.textContent = state.score;
+            routedEl.textContent = state.routed;
+            missesEl.textContent = state.misses;
+            activeEl.textContent = trains.length;
+            speedValue.textContent = `${state.speed.toFixed(2)}x`;
+            pauseBtn.textContent = state.paused ? 'Resume' : 'Pause';
+            const nextTrain = trains[0];
+            routeHint.textContent = nextTrain ? `Train ${nextTrain.userData.id}: ${nextTrain.userData.destination.label} needs ${nextTrain.userData.destination.recipe}.` : 'North: A Upper + B North. Center: B Center or C Center. South: A Lower + C South.';
+            trainList.innerHTML = trains.slice(0, 5).map((train) => {
+                const data = train.userData;
+                const color = `#${data.destination.color.toString(16).padStart(6, '0')}`;
+                return `<div class="train-chip"><span class="dot" style="background:${color}"></span><span>Train ${data.id} to ${data.destination.label}<br>${data.destination.recipe}</span><span>${data.status}</span></div>`;
+            }).join('') || '<div class="train-chip"><span class="dot"></span><span>Awaiting dispatch</span><span>Ready</span></div>';
+        }
+
+        function showToast(message, warning = false) {
+            toast.textContent = message;
+            toast.style.borderColor = warning ? 'rgba(255, 107, 107, 0.7)' : 'rgba(82, 210, 115, 0.7)';
+            toast.classList.add('show');
+            clearTimeout(showToast.timer);
+            showToast.timer = setTimeout(() => toast.classList.remove('show'), 1400);
+        }
+
+        function resize() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height, false);
+        }
+
+        function loop() {
+            const dt = Math.min(clock.getDelta(), 0.033);
+            updateTrains(dt);
+            updateCamera(dt);
+            updateSignals();
+            updateHud();
+            renderer.render(scene, camera);
+            requestAnimationFrame(loop);
+        }
+
+        function startSimulation() {
+            for (const train of [...trains]) scene.remove(train);
+            trains.length = 0;
+            state.running = true;
+            state.paused = false;
+            state.score = 0;
+            state.routed = 0;
+            state.misses = 0;
+            state.trainNumber = 1;
+            state.spawnTimer = 0.6;
+            overlay.style.display = 'none';
+            showToast('Simulation live');
+        }
+
+        function updateBuildButtons() {
+            buildToggle.textContent = state.buildMode ? 'Build On' : 'Build Off';
+            buildToggle.classList.toggle('active', state.buildMode);
+            document.querySelectorAll('[data-build-tool]').forEach((button) => {
+                button.classList.toggle('active', button.dataset.buildTool === state.buildTool);
+            });
+        }
+
+        function setPointer(event) {
+            pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+            pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
+
+        document.querySelectorAll('[data-switch]').forEach((button) => {
+            button.addEventListener('click', () => toggleSwitch(button.dataset.switch));
+        });
+
+        document.querySelectorAll('[data-build-tool]').forEach((button) => {
+            button.addEventListener('click', () => {
+                state.buildTool = button.dataset.buildTool;
+                state.buildMode = true;
+                updateBuildButtons();
+            });
+        });
+
+        buildToggle.addEventListener('click', () => {
+            state.buildMode = !state.buildMode;
+            updateBuildButtons();
+            showToast(state.buildMode ? 'Build Mode on' : 'Build Mode off');
+        });
+
+        rotateBuild.addEventListener('click', () => {
+            state.buildRotation = (state.buildRotation + Math.PI / 2) % (Math.PI * 2);
+            showToast(`Build rotation ${Math.round(THREE.MathUtils.radToDeg(state.buildRotation))} degrees`);
+        });
+
+        clearBuild.addEventListener('click', () => {
+            clearBuildPieces();
+            localStorage.removeItem('switchyard-sentinel-build');
+            showToast('Build yard cleared');
+        });
+
+        saveBuild.addEventListener('click', saveBuildPieces);
+
+        pauseBtn.addEventListener('click', () => {
+            state.paused = !state.paused;
+            updateHud();
+        });
+
+        speedInput.addEventListener('input', () => {
+            state.speed = Number(speedInput.value);
+            updateHud();
+        });
+
+        startBtn.addEventListener('click', startSimulation);
+        tourBtn.addEventListener('click', () => {
+            state.cameraTour = !state.cameraTour;
+            tourBtn.classList.toggle('active', state.cameraTour);
+        });
+
+        window.addEventListener('keydown', (event) => {
+            if (event.key === '1') toggleSwitch('A');
+            if (event.key === '2') toggleSwitch('B');
+            if (event.key === '3') toggleSwitch('C');
+            if (event.key.toLowerCase() === 'b') {
+                state.buildMode = !state.buildMode;
+                updateBuildButtons();
+            }
+            if (event.key.toLowerCase() === 'r') {
+                state.buildRotation = (state.buildRotation + Math.PI / 2) % (Math.PI * 2);
+                showToast(`Build rotation ${Math.round(THREE.MathUtils.radToDeg(state.buildRotation))} degrees`);
+            }
+            if (event.key === ' ') {
+                event.preventDefault();
+                state.paused = !state.paused;
+            }
+            if (event.key === '+' || event.key === '=') {
+                speedInput.value = Math.min(1.8, Number(speedInput.value) + 0.05);
+                speedInput.dispatchEvent(new Event('input'));
+            }
+            if (event.key === '-' || event.key === '_') {
+                speedInput.value = Math.max(0.35, Number(speedInput.value) - 0.05);
+                speedInput.dispatchEvent(new Event('input'));
+            }
+        });
+
+        window.addEventListener('pointerdown', (event) => {
+            if (event.target.closest('button, input')) return;
+            setPointer(event);
+            raycaster.setFromCamera(pointer, camera);
+            if (state.buildMode) {
+                const point = new THREE.Vector3();
+                if (raycaster.ray.intersectPlane(buildPlane, point)) placeBuildPiece(point);
+                return;
+            }
+            const hits = raycaster.intersectObjects(switchMeshes, true);
+            const hit = hits.find((item) => {
+                let object = item.object;
+                while (object) {
+                    if (object.userData.switchName || object.userData.name) return true;
+                    object = object.parent;
+                }
+                return false;
+            });
+            if (hit) {
+                let object = hit.object;
+                while (object && !object.userData.switchName && !object.userData.name) object = object.parent;
+                toggleSwitch(object.userData.switchName || object.userData.name);
+            }
+        });
+
+        window.addEventListener('resize', resize);
+
+        setupLights();
+        makeWorld();
+        makeTrack();
+        makeSignals();
+        makeSwitches();
+        loadBuildPieces();
+        updateSwitchVisuals();
+        updateBuildButtons();
+        resize();
+        loop();
+    </script>
+</body>
+</html>

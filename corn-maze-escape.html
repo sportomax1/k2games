@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Corn Maze Escape - K2 Games</title>
+    <style>
+        :root {
+            --ink: #17210e;
+            --gold: #ffd86b;
+            --corn: #9acb3d;
+            --leaf: #335f27;
+            --panel: rgba(21, 29, 18, 0.76);
+            --stroke: rgba(255, 255, 255, 0.24);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            touch-action: none;
+            color: white;
+            font-family: "Trebuchet MS", "Avenir Next", "Gill Sans", sans-serif;
+            background: #0d190c;
+        }
+
+        #game { position: fixed; inset: 0; width: 100vw; height: 100dvh; }
+
+        #hud {
+            position: fixed;
+            top: env(safe-area-inset-top, 0);
+            left: 0;
+            right: 0;
+            z-index: 4;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 14px clamp(12px, 2.4vw, 28px);
+            pointer-events: none;
+        }
+
+        .pill, .brief {
+            border: 1px solid var(--stroke);
+            border-radius: 24px;
+            background: var(--panel);
+            backdrop-filter: blur(14px);
+            box-shadow: 0 16px 42px rgba(0,0,0,0.3);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            font-weight: 1000;
+            color: var(--gold);
+        }
+
+        .brand span:first-child {
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #fff4a8, #78b83b);
+            color: var(--ink);
+            box-shadow: inset -5px -7px 0 rgba(0,0,0,0.14);
+        }
+
+        #stats {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .stat {
+            min-width: 112px;
+            padding: 9px 13px;
+        }
+
+        .stat small {
+            display: block;
+            color: rgba(255,255,255,0.62);
+            font-size: 0.6rem;
+            font-weight: 1000;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .stat strong { color: var(--gold); font-size: 1.24rem; }
+
+        .brief {
+            position: fixed;
+            left: 50%;
+            bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+            z-index: 4;
+            width: min(620px, calc(100vw - 24px));
+            transform: translateX(-50%);
+            padding: 12px 16px;
+            color: rgba(255,255,255,0.82);
+            font-size: 0.85rem;
+            font-weight: 900;
+            line-height: 1.42;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        #mobileControls {
+            position: fixed;
+            inset: auto 0 env(safe-area-inset-bottom, 0px) 0;
+            z-index: 8;
+            height: 190px;
+            display: none;
+            pointer-events: none;
+        }
+
+        #stick {
+            position: absolute;
+            left: 22px;
+            bottom: 24px;
+            width: 132px;
+            height: 132px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.22);
+            background: rgba(255,255,255,0.12);
+            backdrop-filter: blur(12px);
+            pointer-events: auto;
+            box-shadow: inset 0 0 24px rgba(255,255,255,0.1), 0 16px 32px rgba(0,0,0,0.28);
+        }
+
+        #nub {
+            position: absolute;
+            left: 39px;
+            top: 39px;
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #fff4a8, var(--corn));
+            box-shadow: inset -6px -8px 0 rgba(0,0,0,0.12), 0 8px 18px rgba(0,0,0,0.3);
+        }
+
+        .turn {
+            position: absolute;
+            bottom: 42px;
+            width: 92px;
+            height: 74px;
+            border: 0;
+            border-radius: 28px;
+            background: linear-gradient(145deg, #fff4a8, #f2b950);
+            color: var(--ink);
+            font: 1000 1.4rem/1 "Trebuchet MS", sans-serif;
+            pointer-events: auto;
+            box-shadow: inset -7px -9px 0 rgba(0,0,0,0.12), 0 14px 28px rgba(0,0,0,0.32);
+        }
+
+        #leftBtn { right: 128px; }
+        #rightBtn { right: 24px; }
+
+        #overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            display: grid;
+            place-items: center;
+            padding: 22px;
+            background:
+                radial-gradient(circle at 28% 20%, rgba(255,216,107,0.28), transparent 30%),
+                radial-gradient(circle at 76% 78%, rgba(84,138,45,0.3), transparent 32%),
+                rgba(7, 14, 8, 0.78);
+            backdrop-filter: blur(10px);
+        }
+
+        .modal {
+            width: min(720px, 94vw);
+            border: 1px solid rgba(255,255,255,0.28);
+            border-radius: 34px;
+            padding: clamp(22px, 4vw, 40px);
+            text-align: center;
+            background: linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.08));
+            box-shadow: 0 28px 90px rgba(0,0,0,0.42);
+        }
+
+        .modal h1 {
+            color: var(--gold);
+            font-size: clamp(2.7rem, 7vw, 5.8rem);
+            line-height: 0.88;
+            letter-spacing: -0.075em;
+            text-transform: uppercase;
+            text-shadow: 0 8px 0 rgba(0,0,0,0.2);
+        }
+
+        .modal h1 span { color: #b7f06b; }
+        .modal p { margin: 18px auto 0; max-width: 590px; color: rgba(255,255,255,0.82); font-weight: 800; line-height: 1.5; }
+        .tips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 22px 0; text-align: left; }
+        .tip { padding: 13px; border-radius: 18px; background: rgba(0,0,0,0.18); font-size: 0.82rem; font-weight: 900; line-height: 1.35; }
+        .primary {
+            border: 0;
+            border-radius: 999px;
+            padding: 15px 26px;
+            background: linear-gradient(145deg, #fff4a8, #9bd34f);
+            color: var(--ink);
+            font: 1000 1rem/1 "Trebuchet MS", sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            box-shadow: inset -7px -9px 0 rgba(0,0,0,0.12), 0 18px 34px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+
+        @media (hover: none), (max-width: 820px) {
+            #mobileControls { display: block; }
+            .brand { display: none; }
+            #hud { justify-content: flex-end; padding: 9px; }
+            .brief { bottom: 172px; font-size: 0.72rem; padding: 9px 12px; }
+            .stat { min-width: 92px; padding: 7px 10px; }
+            .stat strong { font-size: 1rem; }
+            .tips { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game"></canvas>
+    <header id="hud">
+        <div class="pill brand"><span>🌽</span><b>Corn Maze Escape</b></div>
+        <div id="stats">
+            <div class="pill stat"><small>Time</small><strong id="time">0:00</strong></div>
+            <div class="pill stat"><small>Ribbons</small><strong id="ribbons">0/3</strong></div>
+            <div class="pill stat"><small>Compass</small><strong id="compass">N</strong></div>
+        </div>
+    </header>
+    <div class="brief" id="brief">Find 3 red ribbons, follow the scarecrow signs, and reach the glowing barn gate.</div>
+    <div id="mobileControls">
+        <div id="stick"><div id="nub"></div></div>
+        <button class="turn" id="leftBtn">⟲</button>
+        <button class="turn" id="rightBtn">⟳</button>
+    </div>
+    <section id="overlay">
+        <div class="modal">
+            <h1>Corn Maze <span>Escape</span></h1>
+            <p>You woke up inside a moonlit corn maze. The stalks are taller than houses, the rows all look alike, and the barn gate only opens after you collect three trail ribbons.</p>
+            <div class="tips">
+                <div class="tip">Desktop: W/S move, A/D strafe, arrow keys turn. Hold Shift to jog through long rows.</div>
+                <div class="tip">iPhone: left stick moves forward/back and strafes. Use the two turn buttons to look around.</div>
+                <div class="tip">Watch the compass, follow scarecrow arrows, and look for red ribbon posts glowing in the rows.</div>
+            </div>
+            <button class="primary" id="startBtn">Enter Maze</button>
+        </div>
+    </section>
+
+    <script>
+    (() => {
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+        const timeEl = document.getElementById("time");
+        const ribbonEl = document.getElementById("ribbons");
+        const compassEl = document.getElementById("compass");
+        const brief = document.getElementById("brief");
+        const overlay = document.getElementById("overlay");
+        const startBtn = document.getElementById("startBtn");
+        const stick = document.getElementById("stick");
+        const nub = document.getElementById("nub");
+
+        const MAP = [
+            "1111111111111111111",
+            "1000000100000000001",
+            "1011110101111111101",
+            "1010000101000000101",
+            "1010111101011110101",
+            "1000100001010010101",
+            "1110101111011010101",
+            "1000101000000010001",
+            "1011101011111110111",
+            "1000001010001000001",
+            "1011111010101011101",
+            "1010000010101000101",
+            "1010111110101110101",
+            "1010000000100000101",
+            "1011111111111110101",
+            "1000000000000000E01",
+            "1111111111111111111"
+        ];
+
+        const W = MAP[0].length;
+        const H = MAP.length;
+        const keys = new Set();
+        const touch = { x: 0, y: 0, id: null };
+        const turn = { left: false, right: false };
+        const ribbons = [
+            { x: 6.5, y: 1.5, found: false },
+            { x: 15.5, y: 7.5, found: false },
+            { x: 3.5, y: 13.5, found: false }
+        ];
+        const signs = [
+            { x: 5.5, y: 5.5, text: "BARN ->" },
+            { x: 9.5, y: 9.5, text: "RIBBON" },
+            { x: 14.5, y: 13.5, text: "ALMOST" }
+        ];
+
+        let player = { x: 1.5, y: 1.5, a: 0 };
+        let width = 1;
+        let height = 1;
+        let started = false;
+        let won = false;
+        let startTime = 0;
+        let elapsed = 0;
+        let bob = 0;
+        let messageTimer = 0;
+        let message = "";
+        const FOV = Math.PI / 3;
+
+        function resize() {
+            const dpr = Math.min(devicePixelRatio || 1, 2);
+            width = innerWidth;
+            height = innerHeight;
+            canvas.width = Math.floor(width * dpr);
+            canvas.height = Math.floor(height * dpr);
+            canvas.style.width = width + "px";
+            canvas.style.height = height + "px";
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        function reset() {
+            player = { x: 1.5, y: 1.5, a: 0 };
+            ribbons.forEach(r => r.found = false);
+            startTime = performance.now();
+            elapsed = 0;
+            bob = 0;
+            won = false;
+            started = true;
+            overlay.style.display = "none";
+            showMessage("The rows swallow the moonlight. Find the ribbons.");
+        }
+
+        function update(dt) {
+            if (!started || won) return;
+            elapsed = (performance.now() - startTime) / 1000;
+            let turnInput = 0;
+            if (keys.has("arrowleft")) turnInput--;
+            if (keys.has("arrowright")) turnInput++;
+            if (turn.left) turnInput--;
+            if (turn.right) turnInput++;
+            player.a += turnInput * dt * 2.45;
+
+            let forward = 0;
+            let strafe = 0;
+            if (keys.has("w") || keys.has("arrowup")) forward++;
+            if (keys.has("s") || keys.has("arrowdown")) forward--;
+            if (keys.has("a")) strafe--;
+            if (keys.has("d")) strafe++;
+            forward += -touch.y;
+            strafe += touch.x;
+            const len = Math.hypot(forward, strafe) || 1;
+            const speed = (keys.has("shift") ? 2.85 : 1.8) * dt;
+            const dx = (Math.cos(player.a) * forward / len + Math.cos(player.a + Math.PI / 2) * strafe / len) * speed;
+            const dy = (Math.sin(player.a) * forward / len + Math.sin(player.a + Math.PI / 2) * strafe / len) * speed;
+            if (forward || strafe) bob += dt * 8;
+            move(dx, dy);
+
+            ribbons.forEach((r, i) => {
+                if (!r.found && Math.hypot(player.x - r.x, player.y - r.y) < 0.45) {
+                    r.found = true;
+                    showMessage(`Ribbon ${i + 1} found. The barn gate hums louder.`);
+                }
+            });
+
+            if (cell(player.x, player.y) === "E") {
+                if (ribbons.every(r => r.found)) {
+                    won = true;
+                    started = false;
+                    overlay.querySelector("h1").innerHTML = "You <span>Escaped!</span>";
+                    overlay.querySelector("p").textContent = `You reached the barn gate in ${formatTime(elapsed)}. The corn reluctantly lets you keep your shoes.`;
+                    overlay.style.display = "grid";
+                } else {
+                    showMessage("The barn gate needs all 3 ribbons before it opens.");
+                }
+            }
+
+            messageTimer = Math.max(0, messageTimer - dt);
+        }
+
+        function move(dx, dy) {
+            const nx = player.x + dx;
+            const ny = player.y + dy;
+            if (!solid(nx, player.y)) player.x = nx;
+            if (!solid(player.x, ny)) player.y = ny;
+        }
+
+        function solid(x, y) {
+            return cell(x, y) === "1";
+        }
+
+        function cell(x, y) {
+            const mx = Math.floor(x);
+            const my = Math.floor(y);
+            if (my < 0 || my >= H || mx < 0 || mx >= W) return "1";
+            return MAP[my][mx];
+        }
+
+        function cast(angle) {
+            let dist = 0;
+            const step = 0.025;
+            const sin = Math.sin(angle);
+            const cos = Math.cos(angle);
+            while (dist < 18) {
+                dist += step;
+                const x = player.x + cos * dist;
+                const y = player.y + sin * dist;
+                if (solid(x, y)) {
+                    return { dist, x, y, shade: ((Math.floor(x * 2) + Math.floor(y * 2)) % 2) };
+                }
+            }
+            return { dist: 18, x: player.x + cos * 18, y: player.y + sin * 18, shade: 0 };
+        }
+
+        function render() {
+            drawSkyGround();
+            const cols = Math.ceil(width / 3);
+            for (let i = 0; i < cols; i++) {
+                const pct = i / cols;
+                const angle = player.a - FOV / 2 + pct * FOV;
+                const hit = cast(angle);
+                const corrected = hit.dist * Math.cos(angle - player.a);
+                const wallH = Math.min(height * 1.5, height / Math.max(0.08, corrected));
+                const x = i * 3;
+                const y = height / 2 - wallH / 2 + Math.sin(bob) * 5;
+                const fog = Math.min(1, corrected / 13);
+                const hue = hit.shade ? 78 : 88;
+                ctx.fillStyle = `hsl(${hue} ${52 - fog * 18}% ${31 - fog * 16}%)`;
+                ctx.fillRect(x, y, 4, wallH);
+                ctx.fillStyle = `rgba(255, 224, 104, ${0.16 * (1 - fog)})`;
+                ctx.fillRect(x, y, 1, wallH);
+                for (let leaf = 0; leaf < 3; leaf++) {
+                    const ly = y + wallH * (0.18 + leaf * 0.23);
+                    ctx.fillStyle = `rgba(182, 214, 72, ${0.18 * (1 - fog)})`;
+                    ctx.fillRect(x, ly + Math.sin(hit.x * 7 + leaf) * 5, 4, 2);
+                }
+            }
+            drawSprites();
+            drawVignette();
+            drawMiniMap();
+            drawUi();
+        }
+
+        function drawSkyGround() {
+            const sky = ctx.createLinearGradient(0, 0, 0, height / 2);
+            sky.addColorStop(0, "#15233d");
+            sky.addColorStop(0.55, "#5c7b76");
+            sky.addColorStop(1, "#efc878");
+            ctx.fillStyle = sky;
+            ctx.fillRect(0, 0, width, height / 2);
+            ctx.fillStyle = "rgba(255, 241, 171, 0.72)";
+            ctx.beginPath();
+            ctx.arc(width * 0.78, height * 0.15, 38, 0, Math.PI * 2);
+            ctx.fill();
+
+            const ground = ctx.createLinearGradient(0, height / 2, 0, height);
+            ground.addColorStop(0, "#4a391f");
+            ground.addColorStop(1, "#1d150d");
+            ctx.fillStyle = ground;
+            ctx.fillRect(0, height / 2, width, height / 2);
+            ctx.strokeStyle = "rgba(255,216,107,0.09)";
+            for (let i = 0; i < 24; i++) {
+                const y = height / 2 + i * i * 1.7;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y + Math.sin(i) * 12);
+                ctx.stroke();
+            }
+        }
+
+        function drawSprites() {
+            const sprites = [
+                ...ribbons.filter(r => !r.found).map(r => ({ ...r, kind: "ribbon" })),
+                ...signs.map(s => ({ ...s, kind: "sign" })),
+                { x: 16.5, y: 15.5, kind: "exit" }
+            ].sort((a, b) => distance(b) - distance(a));
+            sprites.forEach(s => {
+                const dx = s.x - player.x;
+                const dy = s.y - player.y;
+                const dist = Math.hypot(dx, dy);
+                const angle = Math.atan2(dy, dx) - player.a;
+                const wrapped = Math.atan2(Math.sin(angle), Math.cos(angle));
+                if (Math.abs(wrapped) > FOV * 0.62 || dist < 0.2) return;
+                const x = width / 2 + Math.tan(wrapped) * width;
+                const size = height / dist * (s.kind === "exit" ? 0.7 : 0.35);
+                if (s.kind === "ribbon") drawRibbon(x, height / 2 + size * 0.1, size);
+                if (s.kind === "sign") drawSign(x, height / 2 + size * 0.12, size, s.text);
+                if (s.kind === "exit") drawExit(x, height / 2, size);
+            });
+        }
+
+        function distance(s) { return Math.hypot(s.x - player.x, s.y - player.y); }
+
+        function drawRibbon(x, y, size) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.fillStyle = "rgba(0,0,0,0.28)";
+            ctx.fillRect(-size * 0.04, -size * 0.4, size * 0.08, size * 0.75);
+            ctx.fillStyle = "#ff4d5d";
+            ctx.beginPath();
+            ctx.moveTo(0, -size * 0.42);
+            ctx.lineTo(size * 0.26, -size * 0.25);
+            ctx.lineTo(0, -size * 0.08);
+            ctx.lineTo(-size * 0.22, -size * 0.24);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawSign(x, y, size, text) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.fillStyle = "#6b3f20";
+            ctx.fillRect(-size * 0.03, -size * 0.16, size * 0.06, size * 0.5);
+            ctx.fillStyle = "#d7a052";
+            ctx.fillRect(-size * 0.34, -size * 0.42, size * 0.68, size * 0.22);
+            ctx.font = `900 ${Math.max(8, size * 0.08)}px Trebuchet MS`;
+            ctx.textAlign = "center";
+            ctx.fillStyle = "#2b1a0d";
+            ctx.fillText(text, 0, -size * 0.28);
+            ctx.restore();
+        }
+
+        function drawExit(x, y, size) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.globalAlpha = 0.95;
+            ctx.fillStyle = "rgba(255,216,107,0.22)";
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.55, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#7b3f24";
+            ctx.fillRect(-size * 0.28, -size * 0.42, size * 0.56, size * 0.62);
+            ctx.fillStyle = "#ffd86b";
+            ctx.fillRect(-size * 0.18, -size * 0.26, size * 0.36, size * 0.46);
+            ctx.restore();
+        }
+
+        function drawVignette() {
+            const g = ctx.createRadialGradient(width / 2, height / 2, height * 0.1, width / 2, height / 2, width * 0.72);
+            g.addColorStop(0, "rgba(0,0,0,0)");
+            g.addColorStop(1, "rgba(0,0,0,0.5)");
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, width, height);
+        }
+
+        function drawMiniMap() {
+            const s = 6;
+            const pad = 18;
+            ctx.save();
+            ctx.globalAlpha = 0.86;
+            ctx.fillStyle = "rgba(11,20,10,0.75)";
+            roundRect(pad, height - H * s - pad, W * s + 12, H * s + 12, 12);
+            for (let y = 0; y < H; y++) {
+                for (let x = 0; x < W; x++) {
+                    const c = MAP[y][x];
+                    if (c === "1") ctx.fillStyle = "#446f22";
+                    else if (c === "E") ctx.fillStyle = "#ffd86b";
+                    else ctx.fillStyle = "rgba(255,255,255,0.08)";
+                    ctx.fillRect(pad + 6 + x * s, height - H * s - pad + 6 + y * s, s - 1, s - 1);
+                }
+            }
+            ribbons.filter(r => !r.found).forEach(r => {
+                ctx.fillStyle = "#ff4d5d";
+                ctx.fillRect(pad + 6 + r.x * s - 2, height - H * s - pad + 6 + r.y * s - 2, 4, 4);
+            });
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(pad + 6 + player.x * s, height - H * s - pad + 6 + player.y * s, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawUi() {
+            const found = ribbons.filter(r => r.found).length;
+            timeEl.textContent = formatTime(elapsed);
+            ribbonEl.textContent = `${found}/3`;
+            const dirs = ["E", "SE", "S", "SW", "W", "NW", "N", "NE"];
+            compassEl.textContent = dirs[Math.round((((player.a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4)) % 8];
+            brief.textContent = messageTimer > 0 ? message : found < 3 ? "Find 3 red ribbons, follow the scarecrow signs, and reach the glowing barn gate." : "All ribbons found. Reach the glowing barn gate.";
+        }
+
+        function showMessage(text) {
+            message = text;
+            messageTimer = 3;
+        }
+
+        function formatTime(seconds) {
+            const t = Math.floor(seconds);
+            return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+        }
+
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.roundRect(x, y, w, h, r);
+            ctx.fill();
+        }
+
+        function loop(now) {
+            const dt = Math.min(0.033, (now - (loop.last || now)) / 1000);
+            loop.last = now;
+            update(dt);
+            render();
+            requestAnimationFrame(loop);
+        }
+
+        addEventListener("resize", resize);
+        addEventListener("keydown", e => {
+            const k = e.key.toLowerCase();
+            if (["arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) e.preventDefault();
+            keys.add(k);
+        }, { passive: false });
+        addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
+        startBtn.addEventListener("click", reset);
+
+        document.getElementById("leftBtn").addEventListener("pointerdown", e => { e.preventDefault(); turn.left = true; });
+        document.getElementById("leftBtn").addEventListener("pointerup", () => turn.left = false);
+        document.getElementById("leftBtn").addEventListener("pointercancel", () => turn.left = false);
+        document.getElementById("rightBtn").addEventListener("pointerdown", e => { e.preventDefault(); turn.right = true; });
+        document.getElementById("rightBtn").addEventListener("pointerup", () => turn.right = false);
+        document.getElementById("rightBtn").addEventListener("pointercancel", () => turn.right = false);
+
+        stick.addEventListener("pointerdown", e => {
+            touch.id = e.pointerId;
+            stick.setPointerCapture(e.pointerId);
+            updateStick(e);
+        });
+        stick.addEventListener("pointermove", e => { if (touch.id === e.pointerId) updateStick(e); });
+        stick.addEventListener("pointerup", releaseStick);
+        stick.addEventListener("pointercancel", releaseStick);
+
+        function updateStick(e) {
+            const r = stick.getBoundingClientRect();
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height / 2;
+            const dx = e.clientX - cx;
+            const dy = e.clientY - cy;
+            const len = Math.hypot(dx, dy);
+            const max = 44;
+            const nx = len > max ? dx / len * max : dx;
+            const ny = len > max ? dy / len * max : dy;
+            nub.style.transform = `translate(${nx}px, ${ny}px)`;
+            touch.x = nx / max;
+            touch.y = ny / max;
+        }
+
+        function releaseStick() {
+            touch.id = null;
+            touch.x = 0;
+            touch.y = 0;
+            nub.style.transform = "translate(0, 0)";
+        }
+
+        resize();
+        render();
+        requestAnimationFrame(loop);
+    })();
+    </script>
+</body>
+</html>
