@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Mallard Mayhem 3D - K2 games</title>
+    <style>
+        :root {
+            --bg: #10233a;
+            --grass: #4f8f39;
+            --path: #c2a87f;
+            --water: #4cc9f0;
+            --panel: rgba(8, 14, 24, 0.76);
+            --stroke: rgba(255,255,255,0.18);
+            --gold: #ffd166;
+            --danger: #ff5d73;
+            --mint: #7df9a6;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg);
+            color: white;
+            font-family: "Trebuchet MS", "Avenir Next", "Gill Sans", sans-serif;
+            touch-action: none;
+        }
+
+        #game {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100dvh;
+        }
+
+        #hud {
+            position: fixed;
+            top: env(safe-area-inset-top, 0);
+            left: 0;
+            right: 0;
+            z-index: 6;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 12px;
+            align-items: start;
+            padding: 14px clamp(10px, 2.4vw, 26px);
+            pointer-events: none;
+        }
+
+        .brand, .panel, .brief {
+            border: 1px solid var(--stroke);
+            border-radius: 24px;
+            background: var(--panel);
+            backdrop-filter: blur(14px);
+            box-shadow: 0 18px 42px rgba(0,0,0,0.3);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            color: var(--gold);
+            font-weight: 1000;
+            letter-spacing: 0.02em;
+        }
+
+        .brand-mark {
+            width: 36px;
+            height: 36px;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #fff1b8, #ffb703);
+            color: #11253c;
+            box-shadow: inset -5px -7px 0 rgba(0,0,0,0.14);
+        }
+
+        #tasks {
+            padding: 12px 14px;
+            min-width: min(420px, 56vw);
+        }
+
+        #tasks h2 {
+            font-size: 0.74rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.72);
+            margin-bottom: 8px;
+        }
+
+        .task {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.82rem;
+            font-weight: 900;
+            color: rgba(255,255,255,0.88);
+            padding: 3px 0;
+        }
+
+        .task.done {
+            color: rgba(125,249,166,0.86);
+            text-decoration: line-through;
+        }
+
+        .task-bullet {
+            width: 16px;
+            flex: 0 0 16px;
+            text-align: center;
+        }
+
+        #stats {
+            display: grid;
+            gap: 8px;
+        }
+
+        .stat {
+            min-width: 132px;
+            padding: 9px 13px;
+            text-align: right;
+        }
+
+        .stat small {
+            display: block;
+            color: rgba(255,255,255,0.62);
+            font-size: 0.6rem;
+            font-weight: 1000;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .stat strong {
+            font-size: 1.2rem;
+            color: var(--gold);
+        }
+
+        #calmBar {
+            width: 136px;
+            height: 10px;
+            margin-top: 6px;
+            margin-left: auto;
+            background: rgba(255,255,255,0.1);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        #calmFill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--danger), var(--gold), var(--mint));
+        }
+
+        .brief {
+            position: fixed;
+            left: 50%;
+            bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+            transform: translateX(-50%);
+            z-index: 6;
+            width: min(700px, calc(100vw - 24px));
+            padding: 12px 16px;
+            text-align: center;
+            color: rgba(255,255,255,0.84);
+            font-size: 0.86rem;
+            font-weight: 900;
+            line-height: 1.42;
+            pointer-events: none;
+        }
+
+        #mobileControls {
+            position: fixed;
+            inset: auto 0 env(safe-area-inset-bottom, 0px) 0;
+            z-index: 10;
+            height: 190px;
+            display: none;
+            pointer-events: none;
+        }
+
+        #stick {
+            position: absolute;
+            left: 22px;
+            bottom: 24px;
+            width: 132px;
+            height: 132px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.22);
+            background: rgba(255,255,255,0.12);
+            backdrop-filter: blur(12px);
+            pointer-events: auto;
+            box-shadow: inset 0 0 24px rgba(255,255,255,0.12), 0 16px 32px rgba(0,0,0,0.26);
+        }
+
+        #nub {
+            position: absolute;
+            left: 39px;
+            top: 39px;
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #fff6c8, #7df9a6);
+            box-shadow: inset -6px -8px 0 rgba(0,0,0,0.12), 0 8px 18px rgba(0,0,0,0.3);
+        }
+
+        .touchBtn {
+            position: absolute;
+            border: 0;
+            border-radius: 28px;
+            color: #11253c;
+            font: 1000 0.78rem/1 "Trebuchet MS", sans-serif;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            pointer-events: auto;
+            box-shadow: inset -7px -9px 0 rgba(0,0,0,0.12), 0 14px 28px rgba(0,0,0,0.3);
+        }
+
+        #actionBtn {
+            right: 24px;
+            bottom: 40px;
+            width: 118px;
+            height: 84px;
+            background: linear-gradient(145deg, #fff2b4, var(--gold));
+        }
+
+        #honkBtn {
+            right: 154px;
+            bottom: 94px;
+            width: 94px;
+            height: 56px;
+            background: linear-gradient(145deg, #ffe1ea, #ff8fab);
+        }
+
+        #sprintBtn {
+            right: 154px;
+            bottom: 24px;
+            width: 94px;
+            height: 56px;
+            background: linear-gradient(145deg, #d7ffed, #7df9a6);
+        }
+
+        #overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            display: grid;
+            place-items: center;
+            padding: 22px;
+            background:
+                radial-gradient(circle at 22% 18%, rgba(255,209,102,0.24), transparent 30%),
+                radial-gradient(circle at 76% 80%, rgba(76,201,240,0.2), transparent 34%),
+                rgba(7, 12, 20, 0.8);
+            backdrop-filter: blur(10px);
+        }
+
+        .modal {
+            width: min(760px, 94vw);
+            border: 1px solid rgba(255,255,255,0.28);
+            border-radius: 34px;
+            padding: clamp(22px, 4vw, 40px);
+            text-align: center;
+            background: linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.08));
+            box-shadow: 0 28px 90px rgba(0,0,0,0.42);
+        }
+
+        .modal h1 {
+            color: var(--gold);
+            font-size: clamp(2.7rem, 7vw, 5.8rem);
+            line-height: 0.88;
+            letter-spacing: -0.08em;
+            text-transform: uppercase;
+            text-shadow: 0 8px 0 rgba(0,0,0,0.18);
+        }
+
+        .modal h1 span { color: #7df9a6; }
+        .modal p {
+            margin: 18px auto 0;
+            max-width: 620px;
+            color: rgba(255,255,255,0.84);
+            font-weight: 800;
+            line-height: 1.5;
+        }
+
+        .tips {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 22px 0;
+            text-align: left;
+        }
+
+        .tip {
+            padding: 13px;
+            border-radius: 18px;
+            background: rgba(0,0,0,0.18);
+            font-size: 0.82rem;
+            font-weight: 900;
+            line-height: 1.35;
+        }
+
+        .primary {
+            border: 0;
+            border-radius: 999px;
+            padding: 15px 28px;
+            background: linear-gradient(145deg, #fff5ba, var(--gold));
+            color: #11253c;
+            font: 1000 1rem/1 "Trebuchet MS", sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            box-shadow: inset -7px -9px 0 rgba(0,0,0,0.12), 0 18px 34px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+
+        @media (hover: none), (max-width: 860px) {
+            #mobileControls { display: block; }
+            #hud { grid-template-columns: 1fr auto; padding: 9px; gap: 8px; }
+            .brand { display: none; }
+            #tasks { grid-column: 1 / -1; min-width: auto; order: 2; padding: 9px 11px; }
+            #stats { display: flex; gap: 6px; }
+            .stat { min-width: 92px; padding: 7px 10px; }
+            .stat strong { font-size: 1rem; }
+            #calmBar { width: 92px; }
+            .brief { bottom: 174px; font-size: 0.74rem; padding: 10px 12px; }
+            .tips { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game"></canvas>
+
+    <header id="hud">
+        <div class="brand"><span class="brand-mark">MM</span><span>Mallard Mayhem 3D</span></div>
+        <div class="panel" id="tasks"></div>
+        <div id="stats">
+            <div class="panel stat">
+                <small>Holding</small>
+                <strong id="holding">Nothing</strong>
+            </div>
+            <div class="panel stat">
+                <small>Calm</small>
+                <div id="calmBar"><div id="calmFill"></div></div>
+            </div>
+        </div>
+    </header>
+
+    <div class="brief" id="brief">Sneak, honk, grab, and cause very specific problems around the park.</div>
+
+    <div id="mobileControls">
+        <div id="stick"><div id="nub"></div></div>
+        <button class="touchBtn" id="actionBtn">Action</button>
+        <button class="touchBtn" id="honkBtn">Honk</button>
+        <button class="touchBtn" id="sprintBtn">Sprint</button>
+    </div>
+
+    <section id="overlay">
+        <div class="modal">
+            <h1>Mallard <span>Mayhem</span></h1>
+            <p>An original 3D-style prank-bird sandbox. Slip through a fancy park, annoy the humans, steal their stuff, and complete your whole list before they shoo you out for good.</p>
+            <div class="tips">
+                <div class="tip">Desktop: WASD or arrows to move, Shift to sprint, E to grab or interact, Space to honk.</div>
+                <div class="tip">Mobile: use the left stick to move, then Action, Honk, and Sprint on the right.</div>
+                <div class="tip">Steal the sandwich, dunk it in the fountain, ring the bell, snatch the groundskeeper hat, then escape through the gate.</div>
+            </div>
+            <button class="primary" id="startBtn">Start Trouble</button>
+        </div>
+    </section>
+
+    <script>
+    (() => {
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+        const tasksEl = document.getElementById("tasks");
+        const holdingEl = document.getElementById("holding");
+        const calmFill = document.getElementById("calmFill");
+        const briefEl = document.getElementById("brief");
+        const overlay = document.getElementById("overlay");
+        const startBtn = document.getElementById("startBtn");
+        const stick = document.getElementById("stick");
+        const nub = document.getElementById("nub");
+
+        const world = { w: 1600, h: 1120, tile: 80 };
+        const isoX = 0.74;
+        const isoY = 0.38;
+        const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+        const rand = (min, max) => min + Math.random() * (max - min);
+        const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+        const keys = new Set();
+        const touchMove = { x: 0, y: 0, id: null, active: false };
+        const touchSprint = { active: false };
+
+        const ui = {
+            holdingLabel: "Nothing",
+            calm: 100,
+            brief: "Sneak, honk, grab, and cause very specific problems around the park."
+        };
+
+        class AudioRack {
+            constructor() {
+                this.ctx = null;
+            }
+
+            ensure() {
+                if (!this.ctx) {
+                    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioContextClass) return null;
+                    this.ctx = new AudioContextClass();
+                }
+                if (this.ctx.state === "suspended") this.ctx.resume();
+                return this.ctx;
+            }
+
+            tone(type, frequency, duration, volume, when = 0) {
+                const audio = this.ensure();
+                if (!audio) return;
+                const osc = audio.createOscillator();
+                const gain = audio.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(frequency, audio.currentTime + when);
+                gain.gain.setValueAtTime(volume, audio.currentTime + when);
+                gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + when + duration);
+                osc.connect(gain);
+                gain.connect(audio.destination);
+                osc.start(audio.currentTime + when);
+                osc.stop(audio.currentTime + when + duration);
+            }
+
+            honk() {
+                this.tone("square", 520, 0.12, 0.06);
+                this.tone("square", 660, 0.14, 0.05, 0.05);
+            }
+
+            pickup() {
+                this.tone("triangle", 480, 0.09, 0.05);
+                this.tone("triangle", 720, 0.12, 0.04, 0.05);
+            }
+
+            bell() {
+                this.tone("sine", 880, 0.25, 0.05);
+                this.tone("sine", 1320, 0.28, 0.04, 0.02);
+            }
+
+            splash() {
+                this.tone("triangle", 220, 0.15, 0.06);
+                this.tone("sine", 180, 0.18, 0.03, 0.04);
+            }
+
+            alert() {
+                this.tone("sawtooth", 340, 0.11, 0.04);
+                this.tone("sawtooth", 270, 0.11, 0.04, 0.09);
+            }
+
+            win() {
+                this.tone("triangle", 523, 0.15, 0.05);
+                this.tone("triangle", 659, 0.15, 0.05, 0.14);
+                this.tone("triangle", 784, 0.24, 0.05, 0.28);
+            }
+        }
+
+        const audio = new AudioRack();
+
+        class Game {
+            constructor() {
+                this.width = 0;
+                this.height = 0;
+                this.dpr = Math.min(devicePixelRatio || 1, 2);
+                this.started = false;
+                this.won = false;
+                this.lost = false;
+                this.last = performance.now();
+                this.time = 0;
+                this.messageTimer = 0;
+                this.messageText = "";
+                this.gateOpen = false;
+                this.gateSwing = 0;
+                this.particles = [];
+                this.hedges = [];
+                this.decor = [];
+                this.obstacles = [];
+                this.items = [];
+                this.npcs = [];
+                this.tasks = [];
+                this.duck = null;
+                this.bind();
+                this.resize();
+                this.reset();
+                requestAnimationFrame((now) => this.loop(now));
+            }
+
+            bind() {
+                addEventListener("resize", () => this.resize());
+                addEventListener("keydown", (event) => {
+                    const key = event.key.toLowerCase();
+                    keys.add(key);
+                    if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(key)) event.preventDefault();
+                    if (key === "e") this.action();
+                    if (key === " ") this.honk();
+                }, { passive: false });
+                addEventListener("keyup", (event) => keys.delete(event.key.toLowerCase()));
+
+                const actionBtn = document.getElementById("actionBtn");
+                const honkBtn = document.getElementById("honkBtn");
+                const sprintBtn = document.getElementById("sprintBtn");
+                actionBtn.addEventListener("pointerdown", (event) => { event.preventDefault(); this.action(); }, { passive: false });
+                honkBtn.addEventListener("pointerdown", (event) => { event.preventDefault(); this.honk(); }, { passive: false });
+                sprintBtn.addEventListener("pointerdown", (event) => {
+                    event.preventDefault();
+                    touchSprint.active = true;
+                    sprintBtn.setPointerCapture?.(event.pointerId);
+                }, { passive: false });
+                const releaseSprint = () => touchSprint.active = false;
+                sprintBtn.addEventListener("pointerup", releaseSprint);
+                sprintBtn.addEventListener("pointercancel", releaseSprint);
+                sprintBtn.addEventListener("lostpointercapture", releaseSprint);
+
+                stick.addEventListener("pointerdown", (event) => {
+                    event.preventDefault();
+                    touchMove.active = true;
+                    touchMove.id = event.pointerId;
+                    stick.setPointerCapture?.(event.pointerId);
+                    this.updateStick(event);
+                }, { passive: false });
+                stick.addEventListener("pointermove", (event) => {
+                    event.preventDefault();
+                    if (touchMove.active && event.pointerId === touchMove.id) this.updateStick(event);
+                }, { passive: false });
+                stick.addEventListener("pointerup", () => this.releaseStick());
+                stick.addEventListener("pointercancel", () => this.releaseStick());
+                stick.addEventListener("lostpointercapture", () => this.releaseStick());
+                addEventListener("blur", () => {
+                    keys.clear();
+                    touchSprint.active = false;
+                    this.releaseStick();
+                });
+                addEventListener("contextmenu", (event) => event.preventDefault());
+
+                startBtn.addEventListener("click", () => {
+                    audio.ensure();
+                    this.reset();
+                    this.started = true;
+                    overlay.style.display = "none";
+                });
+            }
+
+            resize() {
+                this.width = innerWidth;
+                this.height = innerHeight;
+                this.dpr = Math.min(devicePixelRatio || 1, 2);
+                canvas.width = Math.floor(this.width * this.dpr);
+                canvas.height = Math.floor(this.height * this.dpr);
+                canvas.style.width = this.width + "px";
+                canvas.style.height = this.height + "px";
+                ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+            }
+
+            reset() {
+                this.time = 0;
+                this.started = false;
+                this.won = false;
+                this.lost = false;
+                this.messageTimer = 0;
+                this.messageText = "";
+                this.gateOpen = false;
+                this.gateSwing = 0;
+                this.particles = [];
+                ui.calm = 100;
+                overlay.querySelector("h1").innerHTML = "Mallard <span>Mayhem</span>";
+                overlay.querySelector("p").textContent = "An original 3D-style prank-bird sandbox. Slip through a fancy park, annoy the humans, steal their stuff, and complete your whole list before they shoo you out for good.";
+                this.duck = { x: 300, y: 880, z: 0, r: 22, holding: null, bob: 0, flap: 0, face: 0, sprint: false };
+
+                this.tasks = [
+                    { id: "sandwich", text: "Steal the picnic sandwich.", done: false },
+                    { id: "fountain", text: "Dunk the sandwich in the fountain.", done: false },
+                    { id: "bell", text: "Ring the brass bell.", done: false },
+                    { id: "hat", text: "Snatch the groundskeeper hat.", done: false },
+                    { id: "escape", text: "Slip through the gate.", done: false }
+                ];
+
+                this.hedges = [
+                    { x: 580, y: 160, w: 400, h: 60 },
+                    { x: 1100, y: 180, w: 220, h: 60 },
+                    { x: 1040, y: 420, w: 60, h: 260 },
+                    { x: 220, y: 520, w: 280, h: 60 },
+                    { x: 180, y: 220, w: 60, h: 220 },
+                    { x: 1360, y: 640, w: 60, h: 220 }
+                ];
+
+                this.decor = [
+                    { type: "tree", x: 160, y: 940 },
+                    { type: "tree", x: 1520, y: 960 },
+                    { type: "tree", x: 1410, y: 340 },
+                    { type: "tree", x: 250, y: 180 },
+                    { type: "bench", x: 980, y: 780, rot: 0 },
+                    { type: "bench", x: 1160, y: 280, rot: 1 },
+                    { type: "blanket", x: 430, y: 760 },
+                    { type: "pond", x: 250, y: 250 },
+                    { type: "bell", x: 1180, y: 360 },
+                    { type: "fountain", x: 820, y: 560 },
+                    { type: "gate", x: 1400, y: 170 }
+                ];
+
+                this.obstacles = [
+                    ...this.hedges.map((h) => ({ kind: "rect", x: h.x, y: h.y, w: h.w, h: h.h })),
+                    { kind: "circle", x: 820, y: 560, r: 86 },
+                    { kind: "rect", x: 1368, y: 106, w: 18, h: 92 },
+                    { kind: "rect", x: 1414, y: 106, w: 18, h: 92 }
+                ];
+
+                this.items = [
+                    { id: "sandwich", name: "Sandwich", type: "sandwich", x: 430, y: 760, z: 8, held: false, visible: true },
+                    { id: "hat", name: "Hat", type: "hat", x: 0, y: 0, z: 8, held: false, visible: false }
+                ];
+
+                this.npcs = [
+                    {
+                        id: "groundskeeper",
+                        name: "Groundskeeper",
+                        x: 1110,
+                        y: 430,
+                        r: 24,
+                        speed: 82,
+                        color: "#6a994e",
+                        skin: "#ffd29d",
+                        patrol: [{ x: 1080, y: 450 }, { x: 1180, y: 340 }, { x: 980, y: 470 }, { x: 1080, y: 620 }],
+                        patrolIndex: 0,
+                        state: "patrol",
+                        stateTimer: 0,
+                        alert: 0,
+                        hatAttached: true,
+                        bob: rand(0, 6)
+                    },
+                    {
+                        id: "picnicker",
+                        name: "Picnicker",
+                        x: 470,
+                        y: 720,
+                        r: 24,
+                        speed: 74,
+                        color: "#8d5a97",
+                        skin: "#ffe0bd",
+                        patrol: [{ x: 430, y: 720 }, { x: 540, y: 760 }, { x: 380, y: 820 }],
+                        patrolIndex: 0,
+                        state: "patrol",
+                        stateTimer: 0,
+                        alert: 0,
+                        bob: rand(0, 6)
+                    },
+                    {
+                        id: "jogger",
+                        name: "Jogger",
+                        x: 680,
+                        y: 260,
+                        r: 22,
+                        speed: 88,
+                        color: "#577590",
+                        skin: "#f4c7a1",
+                        patrol: [{ x: 660, y: 250 }, { x: 900, y: 240 }, { x: 940, y: 390 }, { x: 690, y: 400 }],
+                        patrolIndex: 0,
+                        state: "patrol",
+                        stateTimer: 0,
+                        alert: 0,
+                        bob: rand(0, 6)
+                    }
+                ];
+
+                this.showMessage("Sneak, steal, honk, and get out.");
+                this.updateTaskUI();
+                this.syncUI();
+            }
+
+            updateStick(event) {
+                const rect = stick.getBoundingClientRect();
+                const cx = rect.left + rect.width / 2;
+                const cy = rect.top + rect.height / 2;
+                const dx = event.clientX - cx;
+                const dy = event.clientY - cy;
+                const len = Math.hypot(dx, dy);
+                const max = 44;
+                const nx = len > max ? dx / len * max : dx;
+                const ny = len > max ? dy / len * max : dy;
+                nub.style.transform = `translate(${nx}px, ${ny}px)`;
+                touchMove.x = nx / max;
+                touchMove.y = ny / max;
+            }
+
+            releaseStick() {
+                touchMove.active = false;
+                touchMove.id = null;
+                touchMove.x = 0;
+                touchMove.y = 0;
+                nub.style.transform = "translate(0, 0)";
+            }
+
+            loop(now) {
+                const dt = Math.min(0.033, (now - this.last) / 1000);
+                this.last = now;
+                if (this.started && !this.won && !this.lost) this.update(dt);
+                this.render();
+                requestAnimationFrame((time) => this.loop(time));
+            }
+
+            update(dt) {
+                this.time += dt;
+                this.duck.bob += dt * 10;
+                this.duck.flap += dt * 14;
+                this.messageTimer = Math.max(0, this.messageTimer - dt);
+
+                let moveX = 0;
+                let moveY = 0;
+                if (keys.has("w") || keys.has("arrowup")) moveY -= 1;
+                if (keys.has("s") || keys.has("arrowdown")) moveY += 1;
+                if (keys.has("a") || keys.has("arrowleft")) moveX -= 1;
+                if (keys.has("d") || keys.has("arrowright")) moveX += 1;
+                moveX += touchMove.x;
+                moveY += touchMove.y;
+
+                const len = Math.hypot(moveX, moveY) || 1;
+                const sprinting = keys.has("shift") || touchSprint.active;
+                const speed = sprinting ? 210 : 150;
+                if (Math.hypot(moveX, moveY) > 0.08) {
+                    this.duck.face = Math.atan2(moveY / len, moveX / len);
+                    this.moveActor(this.duck, moveX / len * speed * dt, moveY / len * speed * dt);
+                }
+
+                if (this.duck.holding) {
+                    this.duck.holding.x = this.duck.x + Math.cos(this.duck.face) * 28;
+                    this.duck.holding.y = this.duck.y + Math.sin(this.duck.face) * 28;
+                }
+
+                let chased = false;
+                this.npcs.forEach((npc) => {
+                    npc.bob += dt * (npc.state === "chase" ? 12 : 6);
+                    npc.alert = Math.max(0, npc.alert - dt);
+                    if (this.canSeeDuck(npc) || this.isCarryingTrouble()) {
+                        npc.state = "chase";
+                        npc.alert = Math.max(npc.alert, 2.8);
+                    }
+                    if (npc.state === "chase") {
+                        chased = true;
+                        const angle = Math.atan2(this.duck.y - npc.y, this.duck.x - npc.x);
+                        this.moveActor(npc, Math.cos(angle) * npc.speed * dt, Math.sin(angle) * npc.speed * dt);
+                        if (dist(npc, this.duck) < npc.r + this.duck.r + 4) ui.calm -= (npc.id === "groundskeeper" ? 34 : 20) * dt;
+                        if (npc.alert <= 0) npc.state = "patrol";
+                    } else {
+                        const target = npc.patrol[npc.patrolIndex];
+                        const angle = Math.atan2(target.y - npc.y, target.x - npc.x);
+                        this.moveActor(npc, Math.cos(angle) * npc.speed * 0.55 * dt, Math.sin(angle) * npc.speed * 0.55 * dt);
+                        if (Math.hypot(target.x - npc.x, target.y - npc.y) < 26) npc.patrolIndex = (npc.patrolIndex + 1) % npc.patrol.length;
+                    }
+                });
+
+                if (!chased) ui.calm = Math.min(100, ui.calm + 10 * dt);
+                ui.calm = clamp(ui.calm, 0, 100);
+                if (ui.calm <= 0) this.fail();
+
+                if (!this.gateOpen && this.tasks.slice(0, 4).every((task) => task.done)) {
+                    this.gateOpen = true;
+                    this.showMessage("The gate clicked open. Time to leave.");
+                    audio.bell();
+                }
+                this.gateSwing += ((this.gateOpen ? 1 : 0) - this.gateSwing) * Math.min(1, dt * 3);
+
+                this.particles.forEach((p) => {
+                    p.x += p.vx * dt;
+                    p.y += p.vy * dt;
+                    p.z += p.vz * dt;
+                    p.vy += p.dragY * dt;
+                    p.life -= dt;
+                });
+                this.particles = this.particles.filter((p) => p.life > 0);
+
+                this.syncUI();
+            }
+
+            moveActor(actor, dx, dy) {
+                const nx = actor.x + dx;
+                const ny = actor.y + dy;
+                if (!this.collides(nx, actor.y, actor.r)) actor.x = clamp(nx, 80, world.w - 80);
+                if (!this.collides(actor.x, ny, actor.r)) actor.y = clamp(ny, 80, world.h - 80);
+            }
+
+            collides(x, y, r) {
+                for (const obstacle of this.obstacles) {
+                    if (obstacle.kind === "rect") {
+                        const cx = clamp(x, obstacle.x, obstacle.x + obstacle.w);
+                        const cy = clamp(y, obstacle.y, obstacle.y + obstacle.h);
+                        if (Math.hypot(x - cx, y - cy) < r) return true;
+                    } else if (obstacle.kind === "circle") {
+                        if (Math.hypot(x - obstacle.x, y - obstacle.y) < obstacle.r + r) return true;
+                    }
+                }
+                return false;
+            }
+
+            canSeeDuck(npc) {
+                const d = dist(npc, this.duck);
+                if (d > 240) return false;
+                return d < 120 || this.isCarryingTrouble();
+            }
+
+            isCarryingTrouble() {
+                return !!this.duck.holding;
+            }
+
+            nearestItem() {
+                let best = null;
+                let bestDist = Infinity;
+                for (const item of this.items) {
+                    if (!item.visible || item.held) continue;
+                    const d = Math.hypot(item.x - this.duck.x, item.y - this.duck.y);
+                    if (d < bestDist) {
+                        best = item;
+                        bestDist = d;
+                    }
+                }
+                return bestDist < 70 ? best : null;
+            }
+
+            action() {
+                if (!this.started || this.won || this.lost) return;
+                audio.ensure();
+
+                const nearFountain = Math.hypot(this.duck.x - 820, this.duck.y - 560) < 130;
+                const nearBell = Math.hypot(this.duck.x - 1180, this.duck.y - 360) < 88;
+                const nearGate = Math.hypot(this.duck.x - 1400, this.duck.y - 170) < 110;
+
+                if (this.duck.holding) {
+                    if (this.duck.holding.type === "sandwich" && nearFountain && !this.tasks[1].done) {
+                        this.tasks[1].done = true;
+                        this.duck.holding.visible = false;
+                        this.duck.holding.held = false;
+                        this.duck.holding = null;
+                        this.showMessage("Splash. The sandwich is officially ruined.");
+                        this.spawnBurst(820, 560, "#4cc9f0", 28);
+                        audio.splash();
+                        this.updateTaskUI();
+                        return;
+                    }
+                    if (nearGate && this.gateOpen) {
+                        this.tasks[4].done = true;
+                        this.win();
+                        return;
+                    }
+                    this.dropHeld();
+                    return;
+                }
+
+                const item = this.nearestItem();
+                if (item) {
+                    item.held = true;
+                    this.duck.holding = item;
+                    if (item.type === "sandwich" && !this.tasks[0].done) this.tasks[0].done = true;
+                    if (item.type === "hat" && !this.tasks[3].done) this.tasks[3].done = true;
+                    this.showMessage(`Grabbed ${item.name.toLowerCase()}.`);
+                    this.spawnBurst(this.duck.x, this.duck.y - 20, "#ffd166", 10);
+                    audio.pickup();
+                    this.npcs.forEach((npc) => npc.alert = Math.max(npc.alert, 1.8));
+                    this.updateTaskUI();
+                    return;
+                }
+
+                if (nearBell && !this.tasks[2].done) {
+                    this.tasks[2].done = true;
+                    this.showMessage("Clang! Everyone heard that.");
+                    this.spawnBurst(1180, 360, "#ffd166", 24);
+                    this.npcs.forEach((npc) => { npc.state = "chase"; npc.alert = Math.max(npc.alert, 3.6); });
+                    audio.bell();
+                    this.updateTaskUI();
+                    return;
+                }
+
+                if (nearGate && this.gateOpen) {
+                    this.tasks[4].done = true;
+                    this.win();
+                }
+            }
+
+            dropHeld() {
+                if (!this.duck.holding) return;
+                const item = this.duck.holding;
+                item.held = false;
+                item.x = this.duck.x + Math.cos(this.duck.face) * 34;
+                item.y = this.duck.y + Math.sin(this.duck.face) * 34;
+                this.duck.holding = null;
+                this.showMessage(`Dropped ${item.name.toLowerCase()}.`);
+            }
+
+            honk() {
+                if (!this.started || this.won || this.lost) return;
+                audio.honk();
+                this.showMessage("HONK!");
+                this.spawnHonk(this.duck.x, this.duck.y - 30);
+
+                this.npcs.forEach((npc) => {
+                    if (dist(npc, this.duck) < 180) {
+                        npc.state = "chase";
+                        npc.alert = Math.max(npc.alert, 3.4);
+                    }
+                });
+
+                const groundskeeper = this.npcs.find((npc) => npc.id === "groundskeeper");
+                const hat = this.items.find((item) => item.type === "hat");
+                if (groundskeeper && groundskeeper.hatAttached && dist(groundskeeper, this.duck) < 110) {
+                    groundskeeper.hatAttached = false;
+                    if (hat) {
+                        hat.visible = true;
+                        hat.x = groundskeeper.x + 18;
+                        hat.y = groundskeeper.y + 10;
+                    }
+                    groundskeeper.alert = Math.max(groundskeeper.alert, 4.2);
+                    groundskeeper.state = "chase";
+                    this.showMessage("The groundskeeper lost his hat!");
+                    this.spawnBurst(groundskeeper.x, groundskeeper.y - 18, "#ff8fab", 18);
+                    audio.alert();
+                }
+            }
+
+            spawnBurst(x, y, color, count) {
+                for (let i = 0; i < count; i++) {
+                    const a = rand(0, Math.PI * 2);
+                    const speed = rand(20, 140);
+                    this.particles.push({
+                        x, y, z: rand(0, 26),
+                        vx: Math.cos(a) * speed,
+                        vy: Math.sin(a) * speed,
+                        vz: rand(8, 18),
+                        dragY: rand(-20, 45),
+                        life: rand(0.4, 0.9),
+                        color,
+                        size: rand(2, 7)
+                    });
+                }
+            }
+
+            spawnHonk(x, y) {
+                for (let i = 0; i < 3; i++) {
+                    this.particles.push({
+                        x, y, z: 32,
+                        vx: 0, vy: 0, vz: 0,
+                        dragY: 0,
+                        life: 0.55 + i * 0.1,
+                        color: "#fff5ba",
+                        size: 14 + i * 14,
+                        ring: true
+                    });
+                }
+            }
+
+            updateTaskUI() {
+                tasksEl.innerHTML = `<h2>Prank List</h2>${this.tasks.map((task) => `
+                    <div class="task ${task.done ? "done" : ""}">
+                        <span class="task-bullet">${task.done ? "✓" : "○"}</span>
+                        <span>${task.text}</span>
+                    </div>
+                `).join("")}`;
+            }
+
+            showMessage(text) {
+                this.messageText = text;
+                this.messageTimer = 2.8;
+            }
+
+            syncUI() {
+                holdingEl.textContent = this.duck.holding ? this.duck.holding.name : "Nothing";
+                calmFill.style.width = `${ui.calm}%`;
+                briefEl.textContent = this.messageTimer > 0 ? this.messageText : this.currentPrompt();
+            }
+
+            fail() {
+                if (this.lost) return;
+                this.lost = true;
+                this.started = false;
+                overlay.style.display = "grid";
+                overlay.querySelector("h1").innerHTML = "Too Much <span>Trouble</span>";
+                overlay.querySelector("p").textContent = "The whole park finally teamed up and shooed you out. Start again and be a little sneakier.";
+            }
+
+            win() {
+                if (this.won) return;
+                this.won = true;
+                this.started = false;
+                this.spawnBurst(this.duck.x, this.duck.y - 30, "#7df9a6", 50);
+                audio.win();
+                overlay.style.display = "grid";
+                overlay.querySelector("h1").innerHTML = "Pranks <span>Complete</span>";
+                overlay.querySelector("p").textContent = "You caused every problem on the list and waddled out through the gate like a tiny menace.";
+            }
+
+            camera() {
+                return {
+                    ox: this.width / 2 - (this.duck.x - this.duck.y) * isoX,
+                    oy: this.height * 0.56 - (this.duck.x + this.duck.y) * isoY
+                };
+            }
+
+            project(x, y, z = 0) {
+                const cam = this.camera();
+                return {
+                    x: (x - y) * isoX + cam.ox,
+                    y: (x + y) * isoY - z + cam.oy
+                };
+            }
+
+            render() {
+                ctx.clearRect(0, 0, this.width, this.height);
+                this.drawSky();
+                this.drawGround();
+
+                const renderables = [];
+                for (const hedge of this.hedges) renderables.push({ key: hedge.x + hedge.y + hedge.h, draw: () => this.drawHedge(hedge) });
+                for (const deco of this.decor) renderables.push({ key: deco.x + deco.y + 40, draw: () => this.drawDecor(deco) });
+                for (const item of this.items) if (item.visible && !item.held) renderables.push({ key: item.x + item.y + 20, draw: () => this.drawItem(item) });
+                for (const npc of this.npcs) renderables.push({ key: npc.x + npc.y + 26, draw: () => this.drawNPC(npc) });
+                renderables.push({ key: this.duck.x + this.duck.y + 30, draw: () => this.drawDuck() });
+                renderables.sort((a, b) => a.key - b.key).forEach((r) => r.draw());
+
+                this.drawHeldItem();
+                this.drawParticles();
+                this.drawPrompt();
+            }
+
+            drawSky() {
+                const g = ctx.createLinearGradient(0, 0, 0, this.height);
+                g.addColorStop(0, "#0f2037");
+                g.addColorStop(0.26, "#376996");
+                g.addColorStop(0.62, "#9fd8ff");
+                g.addColorStop(1, "#d9f4ff");
+                ctx.fillStyle = g;
+                ctx.fillRect(0, 0, this.width, this.height);
+
+                ctx.fillStyle = "rgba(255,245,186,0.9)";
+                ctx.beginPath();
+                ctx.arc(this.width * 0.82, this.height * 0.12, 42, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            drawGround() {
+                const startX = -2;
+                const startY = -2;
+                const tilesX = Math.ceil(world.w / world.tile) + 4;
+                const tilesY = Math.ceil(world.h / world.tile) + 4;
+                for (let gy = 0; gy < tilesY; gy++) {
+                    for (let gx = 0; gx < tilesX; gx++) {
+                        const x = gx * world.tile;
+                        const y = gy * world.tile;
+                        const p = this.project(x, y, 0);
+                        const tileType = this.tileType(gx, gy);
+                        const size = world.tile;
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p.x + size * isoX, p.y + size * isoY);
+                        ctx.lineTo(p.x, p.y + size * isoY * 2);
+                        ctx.lineTo(p.x - size * isoX, p.y + size * isoY);
+                        ctx.closePath();
+                        ctx.fillStyle = tileType === "path" ? this.pathColor(gx, gy) : this.grassColor(gx, gy);
+                        ctx.fill();
+                        ctx.strokeStyle = "rgba(255,255,255,0.04)";
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            tileType(gx, gy) {
+                const x = gx * world.tile;
+                const y = gy * world.tile;
+                if (x > 680 && x < 960) return "path";
+                if (y > 500 && y < 620) return "path";
+                if (x > 1120 && y < 300) return "path";
+                return "grass";
+            }
+
+            grassColor(gx, gy) {
+                const wave = Math.sin(gx * 0.7 + gy * 0.4 + this.time * 1.6) * 8;
+                return `rgb(${58 + wave}, ${118 + wave}, ${48 + wave * 0.4})`;
+            }
+
+            pathColor(gx, gy) {
+                const d = ((gx + gy) % 2) * 10;
+                return `rgb(${190 + d}, ${166 + d * 0.5}, ${129 + d * 0.3})`;
+            }
+
+            drawBox(x, y, w, d, h, top, left, right) {
+                const p1 = this.project(x, y, h);
+                const p2 = this.project(x + w, y, h);
+                const p3 = this.project(x + w, y + d, h);
+                const p4 = this.project(x, y + d, h);
+                const b1 = this.project(x, y, 0);
+                const b2 = this.project(x + w, y, 0);
+                const b3 = this.project(x + w, y + d, 0);
+                const b4 = this.project(x, y + d, 0);
+
+                ctx.fillStyle = left;
+                ctx.beginPath();
+                ctx.moveTo(p4.x, p4.y); ctx.lineTo(p1.x, p1.y); ctx.lineTo(b1.x, b1.y); ctx.lineTo(b4.x, b4.y);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = right;
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(b2.x, b2.y); ctx.lineTo(b1.x, b1.y);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = top;
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = "rgba(0,0,0,0.16)";
+                ctx.stroke();
+            }
+
+            drawHedge(hedge) {
+                this.drawBox(hedge.x, hedge.y, hedge.w, hedge.h, 44, "#5ea748", "#355f2d", "#467c37");
+            }
+
+            drawDecor(deco) {
+                if (deco.type === "tree") this.drawTree(deco.x, deco.y);
+                if (deco.type === "bench") this.drawBench(deco.x, deco.y, deco.rot);
+                if (deco.type === "blanket") this.drawBlanket(deco.x, deco.y);
+                if (deco.type === "pond") this.drawPond(deco.x, deco.y);
+                if (deco.type === "bell") this.drawBell(deco.x, deco.y);
+                if (deco.type === "fountain") this.drawFountain(deco.x, deco.y);
+                if (deco.type === "gate") this.drawGate(deco.x, deco.y);
+            }
+
+            drawTree(x, y) {
+                this.drawBox(x - 12, y - 12, 24, 24, 70, "#83502c", "#6a3b21", "#7a4527");
+                const p = this.project(x, y, 112);
+                ctx.fillStyle = "#4b8f36";
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 42, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "rgba(255,255,255,0.12)";
+                ctx.beginPath();
+                ctx.arc(p.x - 12, p.y - 12, 14, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            drawBench(x, y, rot) {
+                if (rot === 1) this.drawBox(x - 50, y - 18, 100, 36, 18, "#c89c62", "#7a5230", "#92633a");
+                else this.drawBox(x - 18, y - 50, 36, 100, 18, "#c89c62", "#7a5230", "#92633a");
+            }
+
+            drawBlanket(x, y) {
+                const p = this.project(x, y, 2);
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.fillStyle = "#d9485f";
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(70, 28);
+                ctx.lineTo(0, 56);
+                ctx.lineTo(-70, 28);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = "rgba(255,255,255,0.24)";
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            drawPond(x, y) {
+                const p = this.project(x, y, 2);
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.fillStyle = "#2ec4ff";
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 92, 48, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "#7fd8ff";
+                ctx.lineWidth = 4;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            drawBell(x, y) {
+                this.drawBox(x - 18, y - 18, 36, 36, 30, "#94623b", "#643e1f", "#7b4e28");
+                const p = this.project(x, y, 62);
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.fillStyle = "#ffd166";
+                ctx.beginPath();
+                ctx.moveTo(-16, 8);
+                ctx.quadraticCurveTo(0, -26, 16, 8);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillRect(-3, 8, 6, 10);
+                ctx.restore();
+            }
+
+            drawFountain(x, y) {
+                this.drawBox(x - 72, y - 72, 144, 144, 16, "#a0aec0", "#687689", "#7a8a9e");
+                const p = this.project(x, y, 46);
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.fillStyle = "#4cc9f0";
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 52, 26, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "#d8f4ff";
+                ctx.stroke();
+                const spray = 16 + Math.sin(this.time * 5) * 6;
+                ctx.strokeStyle = "rgba(216,244,255,0.7)";
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(0, -spray);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            drawGate(x, y) {
+                this.drawBox(x - 32, y - 16, 16, 32, 92, "#c9a86a", "#7b5b2d", "#9a7441");
+                this.drawBox(x + 16, y - 16, 16, 32, 92, "#c9a86a", "#7b5b2d", "#9a7441");
+                const p = this.project(x, y, 88);
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(-this.gateSwing * 0.5);
+                ctx.fillStyle = this.gateOpen ? "#7df9a6" : "#d9c29c";
+                ctx.fillRect(-18, 0, 36, 5);
+                for (let i = -12; i <= 12; i += 8) ctx.fillRect(i, -28, 4, 30);
+                ctx.restore();
+            }
+
+            drawItem(item) {
+                const p = this.project(item.x, item.y, item.z);
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                if (item.type === "sandwich") {
+                    ctx.fillStyle = "#f4c17b";
+                    ctx.beginPath();
+                    ctx.moveTo(-16, 0); ctx.lineTo(0, -10); ctx.lineTo(16, 0); ctx.lineTo(0, 12); ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = "#7df9a6";
+                    ctx.fillRect(-9, -2, 18, 4);
+                } else if (item.type === "hat") {
+                    ctx.fillStyle = "#ff8fab";
+                    ctx.beginPath();
+                    ctx.ellipse(0, 4, 18, 6, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillRect(-10, -10, 20, 12);
+                }
+                ctx.restore();
+            }
+
+            drawNPC(npc) {
+                const p = this.project(npc.x, npc.y, 0);
+                ctx.save();
+                ctx.translate(p.x, p.y);
+
+                ctx.fillStyle = "rgba(0,0,0,0.22)";
+                ctx.beginPath();
+                ctx.ellipse(0, 18, 20, 8, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                this.drawSimpleCharacter(npc.color, npc.skin, npc.bob, npc.hatAttached);
+
+                if (npc.state === "chase") {
+                    ctx.strokeStyle = "rgba(255,93,115,0.8)";
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.arc(0, -48, 16 + Math.sin(this.time * 10 + npc.bob) * 2, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            drawDuck() {
+                const p = this.project(this.duck.x, this.duck.y, 0);
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.fillStyle = "rgba(0,0,0,0.22)";
+                ctx.beginPath();
+                ctx.ellipse(0, 18, 22, 8, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                const flap = Math.sin(this.duck.flap) * 4;
+                ctx.fillStyle = "#fefefe";
+                ctx.beginPath();
+                ctx.ellipse(0, -6, 24, 18, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(-12, -4, 8, 14 + flap * 0.2, -0.5, 0, Math.PI * 2);
+                ctx.ellipse(12, -4, 8, 14 - flap * 0.2, 0.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#f9d66b";
+                ctx.fillRect(-3, 10, 4, 12);
+                ctx.fillRect(3, 10, 4, 12);
+
+                ctx.fillStyle = "#fefefe";
+                ctx.beginPath();
+                ctx.ellipse(10, -24, 11, 13, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#ffb703";
+                ctx.beginPath();
+                ctx.moveTo(20, -24); ctx.lineTo(34, -20); ctx.lineTo(20, -14); ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = "#111";
+                ctx.beginPath();
+                ctx.arc(12, -26, 2.3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            drawHeldItem() {
+                if (!this.duck.holding) return;
+                this.drawItem(this.duck.holding);
+            }
+
+            drawSimpleCharacter(bodyColor, skinColor, bob, hatAttached) {
+                const sway = Math.sin(bob) * 3;
+                ctx.fillStyle = bodyColor;
+                ctx.beginPath();
+                ctx.roundRect(-16, -14, 32, 34, 10);
+                ctx.fill();
+                ctx.fillStyle = skinColor;
+                ctx.beginPath();
+                ctx.arc(0, -24, 13, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#fff";
+                ctx.fillRect(-12, 18, 8, 16);
+                ctx.fillRect(4, 18, 8, 16);
+                ctx.fillStyle = "rgba(255,255,255,0.78)";
+                ctx.fillRect(-22, -6 + sway, 10, 22);
+                ctx.fillRect(12, -6 - sway, 10, 22);
+                if (hatAttached) {
+                    ctx.fillStyle = "#ff8fab";
+                    ctx.beginPath();
+                    ctx.ellipse(0, -35, 16, 5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillRect(-10, -47, 20, 12);
+                }
+            }
+
+            drawParticles() {
+                for (const particle of this.particles) {
+                    if (particle.ring) {
+                        const life = particle.life;
+                        const p = this.project(particle.x, particle.y, particle.z);
+                        ctx.save();
+                        ctx.globalAlpha = Math.max(0, life);
+                        ctx.strokeStyle = particle.color;
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, particle.size * (1.6 - life), 0, Math.PI * 2);
+                        ctx.stroke();
+                        ctx.restore();
+                    } else {
+                        const p = this.project(particle.x, particle.y, particle.z);
+                        ctx.save();
+                        ctx.globalAlpha = Math.max(0, particle.life);
+                        ctx.fillStyle = particle.color;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, particle.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            drawPrompt() {
+                if (!this.started || this.won || this.lost) return;
+
+                const prompt = this.currentPrompt();
+                const p = this.project(this.duck.x, this.duck.y, 58);
+                const text = prompt.replace(/^Action:\s*/i, "");
+                const isAction = prompt.startsWith("Action:");
+                const label = isAction ? `E / Action: ${text}` : text;
+
+                ctx.save();
+                ctx.font = "900 13px Trebuchet MS, sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                const width = Math.min(360, Math.max(132, ctx.measureText(label).width + 28));
+                const x = clamp(p.x, width / 2 + 12, this.width - width / 2 - 12);
+                const y = clamp(p.y - 34, 84, this.height - 120);
+
+                ctx.fillStyle = isAction ? "rgba(17, 37, 60, 0.86)" : "rgba(8, 14, 24, 0.66)";
+                ctx.strokeStyle = isAction ? "rgba(255, 209, 102, 0.82)" : "rgba(255, 255, 255, 0.2)";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(x - width / 2, y - 17, width, 34, 17);
+                ctx.fill();
+                ctx.stroke();
+
+                if (isAction) {
+                    ctx.fillStyle = "#ffd166";
+                    ctx.beginPath();
+                    ctx.arc(x - width / 2 + 18, y, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.fillStyle = "rgba(255,255,255,0.94)";
+                ctx.fillText(label, x + (isAction ? 8 : 0), y + 1);
+                ctx.restore();
+            }
+
+            currentPrompt() {
+                const nearItem = this.nearestItem();
+                const nearBell = Math.hypot(this.duck.x - 1180, this.duck.y - 360) < 88;
+                const nearGate = Math.hypot(this.duck.x - 1400, this.duck.y - 170) < 110;
+                if (nearItem) return `Action: grab ${nearItem.name.toLowerCase()}.`;
+                if (nearBell && !this.tasks[2].done) return "Action: ring the brass bell.";
+                if (nearGate && this.gateOpen) return "Action: slip through the gate.";
+                return this.gateOpen ? "The gate is open. Waddle out." : "Sneak, honk, grab, and cause very specific problems around the park.";
+            }
+        }
+
+        const game = new Game();
+    })();
+    </script>
+</body>
+</html>
