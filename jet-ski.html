@@ -3,45 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Jet Ski Pro 3D - K2 games</title>
+    <title>HydroStorm Rush 3D - K2 Games</title>
+    <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAnUB9WQ0N2IAAAAASUVORK5CYII=">
     <style>
         :root {
-            --accent: #ffeb3b;
-            --bg: #006064;
+            --accent: #ffdf5d;
+            --cyan: #43d9ff;
+            --hot: #ff5a7a;
+            --green: #6df2a0;
+            --bg: #075b7a;
         }
 
-        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; }
+        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; color: white; }
         
         #ui-layer {
             position: absolute; inset: 0; pointer-events: none;
             display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
         }
 
-        .hud-top { display: flex; justify-content: space-between; }
+        .hud-top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
         
         .stat-card {
-            background: rgba(0,0,0,0.6); backdrop-filter: blur(10px);
-            padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(8,22,33,0.72); backdrop-filter: blur(14px);
+            padding: 10px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.18);
             text-align: center; color: white; min-width: 100px;
+            box-shadow: 0 18px 40px rgba(0,0,0,0.22);
         }
         .stat-label { font-size: 0.6rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px; }
         .stat-val { font-size: 1.5rem; font-weight: 900; color: var(--accent); }
 
         #overlay {
-            position: absolute; inset: 0; background: rgba(0, 96, 100, 0.9);
+            position: absolute; inset: 0; background: linear-gradient(155deg, rgba(4,30,48,0.94), rgba(10,104,130,0.86));
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             z-index: 100; text-align: center; pointer-events: auto;
         }
-        h1 { font-size: 3.5rem; color: var(--accent); font-style: italic; font-weight: 900; line-height: 1; }
+        h1 { font-size: clamp(3rem, 9vw, 6.4rem); color: var(--accent); font-style: italic; font-weight: 1000; line-height: .85; letter-spacing: 0; text-transform: uppercase; }
         .btn {
-            padding: 18px 60px; font-size: 1.4rem; background: #fff; color: #000;
-            border: none; border-radius: 50px; font-weight: 900; cursor: pointer; margin-top: 25px;
+            padding: 16px 52px; font-size: 1.2rem; background: var(--accent); color: #10212b;
+            border: none; border-radius: 8px; font-weight: 1000; cursor: pointer; margin-top: 25px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
 
         .back-link {
             position: fixed; top: 20px; left: 20px; color: white; text-decoration: none;
-            background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 200;
+            background: rgba(8,22,33,0.72); padding: 8px 16px; border-radius: 8px; z-index: 200;
             font-weight: bold; font-size: 0.8rem; backdrop-filter: blur(5px); pointer-events: auto;
         }
         #mobile-controls {
@@ -81,6 +86,10 @@
                 <div class="stat-label">Progress</div>
                 <div id="progress-val" class="stat-val">0%</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-label">Gates</div>
+                <div id="gate-val" class="stat-val">0/12</div>
+            </div>
         </div>
     </div>
 
@@ -90,9 +99,8 @@
     </div>
 
     <div id="overlay">
-        <h1>JET SKI<br><span style="color:#fff">PRO 3D</span></h1>
-        <p style="color: #e0f7fa; max-width: 300px; margin-top: 10px;">High-Quality 3D Racing.<br>Use Arrows/WASD to steer and gas.</p>
-        <button class="btn" onclick="game.start()">START RACE</button>
+        <h1>HydroStorm<br><span style="color:#fff">Rush 3D</span></h1>
+        <button class="btn" onclick="game.start()">LAUNCH</button>
     </div>
 
     <script type="importmap">
@@ -109,11 +117,16 @@
                 this.speed = 0;
                 this.steering = 0;
                 this.zPos = 0;
+                this.score = 0;
+                this.nextGate = 0;
+                this.boost = 0;
+                this.courseLength = 2400;
                 
                 this.initEngine();
                 this.createWater();
                 this.createJetSki();
                 this.createEnvironment();
+                this.createCourse();
                 this.setupInput();
                 
                 this.loop = this.loop.bind(this);
@@ -129,10 +142,12 @@
                 this.renderer = new THREE.WebGLRenderer({ antialias: true });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
                 this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.outputColorSpace = THREE.SRGBColorSpace;
                 document.body.appendChild(this.renderer.domElement);
 
                 // Bright Sunny Day Lighting
-                this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+                this.scene.add(new THREE.AmbientLight(0xbfefff, 0.72));
                 
                 // The Sun
                 const sun = new THREE.DirectionalLight(0xfffae3, 1.5);
@@ -146,6 +161,10 @@
                 const sunMesh = new THREE.Mesh(sunGeo, sunMat);
                 sunMesh.position.copy(sun.position).multiplyScalar(2);
                 this.scene.add(sunMesh);
+
+                const rim = new THREE.DirectionalLight(0x4de8ff, 0.75);
+                rim.position.set(-260, 80, 220);
+                this.scene.add(rim);
 
                 window.addEventListener('resize', () => {
                     this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -177,22 +196,62 @@
             createJetSki() {
                 this.playerGroup = new THREE.Group();
                 
-                // Detailed Jet Ski Hull
-                const hull = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 5), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
-                hull.position.y = 0.5;
-                const seat = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.6, 2), new THREE.MeshStandardMaterial({ color: 0x111827 }));
-                seat.position.set(0, 1.2, 0);
-                const handlebars = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 0.2), new THREE.MeshStandardMaterial({ color: 0x374151 }));
-                handlebars.position.set(0, 1.8, -1.5);
-                const rider = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 1), new THREE.MeshStandardMaterial({ color: 0xffdbac }));
-                rider.position.set(0, 2, 0);
+                const hullMat = new THREE.MeshStandardMaterial({ color: 0xff4e66, roughness: 0.28, metalness: 0.18 });
+                const trimMat = new THREE.MeshStandardMaterial({ color: 0x101820, roughness: 0.45, metalness: 0.15 });
+                const glowMat = new THREE.MeshStandardMaterial({ color: 0x43d9ff, emissive: 0x167c93, emissiveIntensity: 0.8 });
+                const skinMat = new THREE.MeshStandardMaterial({ color: 0xffc49c, roughness: 0.55 });
+                const suitMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.5 });
 
-                this.playerGroup.add(hull, seat, handlebars, rider);
+                const lower = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.65, 5.2), hullMat);
+                lower.position.y = 0.58;
+                lower.scale.set(1, 0.9, 1);
+                lower.castShadow = true;
+                const nose = new THREE.Mesh(new THREE.ConeGeometry(1.12, 2.2, 5), hullMat);
+                nose.rotation.x = Math.PI / 2;
+                nose.position.set(0, 0.72, -3.0);
+                nose.castShadow = true;
+                const deck = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.42, 2.7), trimMat);
+                deck.position.set(0, 1.12, -0.25);
+                deck.castShadow = true;
+                const seat = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.42, 1.85), trimMat);
+                seat.position.set(0, 1.48, 0.48);
+                seat.castShadow = true;
+                const jetGlow = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.12, 0.18), glowMat);
+                jetGlow.position.set(0, 0.68, 2.72);
+                const handlebars = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.12, 0.24), trimMat);
+                handlebars.position.set(0, 1.95, -1.28);
+                handlebars.castShadow = true;
+
+                const rider = new THREE.Group();
+                const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.36, 0.9, 5, 12), suitMat);
+                torso.rotation.x = -0.42;
+                torso.position.y = 2.0;
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 18, 12), skinMat);
+                head.position.set(0, 2.82, -0.22);
+                const visor = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.14, 0.08), glowMat);
+                visor.position.set(0, 2.88, -0.52);
+                const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.82, 4, 8), skinMat);
+                armL.position.set(-0.56, 2.05, -0.62);
+                armL.rotation.z = -0.7;
+                armL.rotation.x = -0.8;
+                const armR = armL.clone();
+                armR.position.x = 0.56;
+                armR.rotation.z = 0.7;
+                const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.95, 4, 8), suitMat);
+                legL.position.set(-0.32, 1.42, 0.86);
+                legL.rotation.x = 0.72;
+                const legR = legL.clone();
+                legR.position.x = 0.32;
+                rider.add(torso, head, visor, armL, armR, legL, legR);
+                rider.userData = { torso, head, armL, armR, legL, legR };
+
+                this.playerGroup.add(lower, nose, deck, seat, jetGlow, handlebars, rider);
+                this.playerGroup.userData.rider = rider;
                 this.scene.add(this.playerGroup);
 
-                // Splash Particles
                 this.particles = [];
-                this.particleGeo = new THREE.SphereGeometry(0.2, 4, 4);
+                this.foam = [];
+                this.particleGeo = new THREE.SphereGeometry(0.18, 6, 6);
                 this.particleMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true });
             }
 
@@ -248,6 +307,38 @@
                 }
             }
 
+            createCourse() {
+                this.gates = [];
+                this.boostPads = [];
+                const gateMat = new THREE.MeshStandardMaterial({ color: 0xffdf5d, emissive: 0x7a5200, emissiveIntensity: 0.45, roughness: 0.32 });
+                const boostMat = new THREE.MeshStandardMaterial({ color: 0x43d9ff, emissive: 0x0b7285, emissiveIntensity: 1.1, transparent: true, opacity: 0.86 });
+                for (let i = 0; i < 12; i++) {
+                    const z = -160 - i * 175;
+                    const x = Math.sin(i * 0.9) * 75;
+                    const gate = new THREE.Group();
+                    const ring = new THREE.Mesh(new THREE.TorusGeometry(9, 0.55, 12, 42), gateMat);
+                    ring.rotation.y = Math.PI / 2;
+                    ring.position.y = 8.5;
+                    const mastL = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 15, 10), gateMat);
+                    mastL.position.set(-10, 5.8, 0);
+                    const mastR = mastL.clone();
+                    mastR.position.x = 10;
+                    gate.add(ring, mastL, mastR);
+                    gate.position.set(x, 0, z);
+                    gate.userData = { passed: false, index: i };
+                    this.scene.add(gate);
+                    this.gates.push(gate);
+
+                    if (i % 3 === 1) {
+                        const boost = new THREE.Mesh(new THREE.BoxGeometry(24, 0.16, 18), boostMat);
+                        boost.position.set(x * 0.8, 0.38, z + 62);
+                        boost.userData = { active: true };
+                        this.scene.add(boost);
+                        this.boostPads.push(boost);
+                    }
+                }
+            }
+
             setupInput() {
                 this.keys = {};
                 window.onkeydown = e => this.keys[e.code] = true;
@@ -262,11 +353,22 @@
             spawnSplash() {
                 const p = new THREE.Mesh(this.particleGeo, this.particleMat.clone());
                 const side = Math.random() > 0.5 ? 1 : -1;
-                p.position.set(this.playerGroup.position.x + side * 1.5, this.playerGroup.position.y, this.playerGroup.position.z + 1);
-                p.userData.velocity = new THREE.Vector3(side * (Math.random() * 5), Math.random() * 5 + 2, Math.random() * 2);
+                p.position.set(this.playerGroup.position.x + side * 1.3, this.playerGroup.position.y + 0.25, this.playerGroup.position.z + 1.7);
+                p.userData.velocity = new THREE.Vector3(side * (Math.random() * 7), Math.random() * 5 + 2, Math.random() * 5 + 2);
                 p.userData.life = 1.0;
                 this.scene.add(p);
                 this.particles.push(p);
+            }
+
+            spawnWake() {
+                const mat = new THREE.MeshBasicMaterial({ color: 0xeaffff, transparent: true, opacity: 0.44 });
+                const foam = new THREE.Mesh(new THREE.PlaneGeometry(2.2 + Math.random() * 1.8, 0.7 + Math.random() * 0.8), mat);
+                foam.rotation.x = -Math.PI / 2;
+                foam.rotation.z = (Math.random() - 0.5) * 0.7;
+                foam.position.set(this.playerGroup.position.x + (Math.random() - 0.5) * 2.2, this.playerGroup.position.y + 0.05, this.playerGroup.position.z + 2.8);
+                foam.userData.life = 1;
+                this.scene.add(foam);
+                this.foam.push(foam);
             }
 
             update(dt) {
@@ -291,32 +393,65 @@
                 if(this.state !== 'playing') return;
 
                 const gas = this.keys['ArrowUp'] || this.keys['KeyW'];
+                const brake = this.keys['ArrowDown'] || this.keys['KeyS'] || this.keys['Space'];
                 const left = this.keys['ArrowLeft'] || this.keys['KeyA'];
                 const right = this.keys['ArrowRight'] || this.keys['KeyD'];
 
-                if(gas) this.speed = THREE.MathUtils.lerp(this.speed, 60, 0.02);
+                if(gas) this.speed = THREE.MathUtils.lerp(this.speed, 72 + this.boost, 0.026);
                 else this.speed *= 0.985;
+                if(brake) this.speed *= 0.965;
+                this.boost *= 0.985;
 
                 const targetSteer = (left ? -1 : 0) + (right ? 1 : 0);
                 this.steering = THREE.MathUtils.lerp(this.steering, targetSteer * 0.6, 0.1);
                 
                 this.playerGroup.position.x += this.steering * (this.speed * 0.02);
+                this.playerGroup.position.x = THREE.MathUtils.clamp(this.playerGroup.position.x, -130, 130);
                 this.zPos -= this.speed * 0.02;
                 this.playerGroup.position.z = this.zPos;
 
                 const waterH = this.getWaterHeight(this.playerGroup.position.x, this.playerGroup.position.z);
-                // Constraint: Stay ON or ABOVE water, never dip below surface
-                const targetY = Math.max(waterH, this.playerGroup.position.y);
-                this.playerGroup.position.y = THREE.MathUtils.lerp(this.playerGroup.position.y, targetY, 0.2);
+                const targetY = waterH + 0.78 + Math.sin(this.time * 15) * Math.min(this.speed / 110, 0.35);
+                this.playerGroup.position.y = THREE.MathUtils.lerp(this.playerGroup.position.y, targetY, 0.18);
                 
                 // Tilt based on speed and water surface
                 this.playerGroup.rotation.z = -this.steering * 0.8;
                 this.playerGroup.rotation.y = -this.steering * 0.4;
-                this.playerGroup.rotation.x = THREE.MathUtils.lerp(this.playerGroup.rotation.x, (this.playerGroup.position.y - waterH) * 0.1, 0.1);
+                this.playerGroup.rotation.x = THREE.MathUtils.lerp(this.playerGroup.rotation.x, -0.08 + Math.sin(this.time * 9) * 0.04, 0.1);
+
+                const rider = this.playerGroup.userData.rider;
+                if (rider) {
+                    rider.rotation.z = -this.steering * 0.22;
+                    rider.userData.armL.rotation.x = -0.8 + Math.sin(this.time * 12) * 0.06;
+                    rider.userData.armR.rotation.x = -0.8 - Math.sin(this.time * 12) * 0.06;
+                    rider.userData.head.rotation.y = this.steering * 0.45;
+                }
 
                 if(this.speed > 20) {
-                    for(let i=0; i<Math.floor(this.speed/15); i++) this.spawnSplash();
+                    for(let i=0; i<Math.floor(this.speed/18); i++) this.spawnSplash();
+                    this.spawnWake();
                 }
+
+                this.boostPads.forEach((pad) => {
+                    pad.rotation.y += dt * 1.4;
+                    if (pad.userData.active && pad.position.distanceTo(this.playerGroup.position) < 14) {
+                        this.boost = 32;
+                        pad.userData.active = false;
+                        pad.material.opacity = 0.25;
+                        setTimeout(() => { pad.userData.active = true; pad.material.opacity = 0.86; }, 1800);
+                    }
+                });
+
+                this.gates.forEach((gate, i) => {
+                    gate.rotation.y = Math.sin(this.time * 1.8 + i) * 0.08;
+                    gate.children[0].rotation.z += dt * 1.6;
+                    if (!gate.userData.passed && i === this.nextGate && gate.position.distanceTo(this.playerGroup.position) < 13) {
+                        gate.userData.passed = true;
+                        this.nextGate++;
+                        this.score += 100;
+                        gate.children.forEach(child => child.material.color.setHex(0x6df2a0));
+                    }
+                });
 
                 this.particles.forEach((p, i) => {
                     p.position.add(p.userData.velocity.clone().multiplyScalar(dt));
@@ -329,12 +464,24 @@
                     }
                 });
 
+                this.foam.forEach((f, i) => {
+                    f.userData.life -= dt * 0.8;
+                    f.scale.x += dt * 2.2;
+                    f.scale.y += dt * 1.4;
+                    f.material.opacity = f.userData.life * 0.42;
+                    if(f.userData.life <= 0) {
+                        this.scene.remove(f);
+                        this.foam.splice(i, 1);
+                    }
+                });
+
                 const camTarget = this.playerGroup.position.clone().add(new THREE.Vector3(0, 5, 12));
                 this.camera.position.lerp(camTarget, 0.1);
                 this.camera.lookAt(this.playerGroup.position.clone().add(new THREE.Vector3(0, 1, -10)));
 
                 document.getElementById('speed-val').textContent = Math.floor(this.speed);
-                document.getElementById('progress-val').textContent = Math.min(100, Math.floor(-this.zPos / 20)) + "%";
+                document.getElementById('progress-val').textContent = Math.min(100, Math.floor((-this.zPos / this.courseLength) * 100)) + "%";
+                document.getElementById('gate-val').textContent = Math.min(this.nextGate, this.gates.length) + "/" + this.gates.length;
             }
 
             loop() {

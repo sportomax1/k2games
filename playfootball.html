@@ -2,67 +2,222 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Football Master: Pro Edition</title>
+    <link rel="icon" href="data:,">
     <style>
         :root {
-            --nfl-blue: #013369;
-            --nfl-red: #d50a0a;
-            --gold: #ffcc00;
-            --field-green: #2d5a27;
+            --blue: #123b7a;
+            --red: #c91f2c;
+            --gold: #ffd35a;
+            --ink: #071018;
+            --glass: rgba(4, 12, 22, 0.76);
+            --line: rgba(255,255,255,0.18);
         }
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; background: #000; color: white; touch-action: none; }
 
-        /* UI Overlay */
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+        body {
+            background: #071018;
+            color: #fff;
+            font-family: "Segoe UI", system-ui, sans-serif;
+            touch-action: none;
+            user-select: none;
+        }
+        canvas { display: block; width: 100vw; height: 100vh; }
+
+        #ui-layer {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            pointer-events: none;
+        }
         .screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); display: flex; flex-direction: column; 
-            align-items: center; justify-content: center; pointer-events: all;
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 1.25rem;
+            background:
+                radial-gradient(circle at 50% 22%, rgba(255,211,90,0.16), transparent 26rem),
+                rgba(3, 8, 15, 0.88);
+            pointer-events: all;
+            text-align: center;
         }
         .hidden { display: none !important; }
+        h1 {
+            margin: 0;
+            font-size: clamp(2.4rem, 8vw, 5rem);
+            line-height: 0.92;
+            letter-spacing: 0;
+            font-weight: 950;
+            text-transform: uppercase;
+        }
+        .lede {
+            max-width: 620px;
+            margin: 0;
+            color: rgba(255,255,255,0.78);
+            line-height: 1.5;
+            font-weight: 650;
+        }
+        .btn {
+            border: 0;
+            border-radius: 999px;
+            padding: 0.9rem 1.6rem;
+            min-width: 11rem;
+            background: linear-gradient(135deg, var(--gold), #ff9e2d);
+            color: #111;
+            font-size: 1rem;
+            font-weight: 950;
+            letter-spacing: 0;
+            cursor: pointer;
+            box-shadow: 0 1rem 2rem rgba(0,0,0,0.32);
+        }
+        .btn:active { transform: translateY(1px) scale(0.98); }
+        .btn-ghost {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid var(--line);
+            color: white;
+            box-shadow: none;
+        }
 
-        /* HUD */
         #hud {
-            position: absolute; top: 10px; width: 100%; display: flex; 
-            justify-content: center; gap: 10px; pointer-events: none;
+            position: absolute;
+            left: max(0.75rem, env(safe-area-inset-left));
+            right: max(0.75rem, env(safe-area-inset-right));
+            top: max(0.75rem, env(safe-area-inset-top));
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 0.5rem;
         }
         .hud-box {
-            background: rgba(0,0,0,0.9); border-bottom: 3px solid var(--nfl-blue);
-            padding: 5px 15px; border-radius: 5px; text-align: center;
+            min-height: 3rem;
+            padding: 0.45rem 0.55rem;
+            border: 1px solid var(--line);
+            border-bottom: 3px solid var(--gold);
+            border-radius: 8px;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            text-align: center;
+            box-shadow: 0 0.7rem 1.6rem rgba(0,0,0,0.22);
         }
-        .hud-val { font-size: 20px; font-weight: 900; color: white; }
-        .hud-lab { font-size: 10px; color: #aaa; text-transform: uppercase; }
-
-        /* Announcer */
+        .hud-lab {
+            color: rgba(255,255,255,0.58);
+            font-size: 0.64rem;
+            font-weight: 850;
+            text-transform: uppercase;
+        }
+        .hud-val {
+            margin-top: 0.1rem;
+            color: #fff;
+            font-size: clamp(0.9rem, 2.6vw, 1.25rem);
+            font-weight: 950;
+            white-space: nowrap;
+        }
         #announcer {
-            position: absolute; top: 40%; width: 100%; text-align: center;
-            font-size: 4rem; font-weight: 900; color: var(--gold);
-            text-shadow: 0 0 20px black; opacity: 0; transition: 0.3s;
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 37%;
+            opacity: 0;
+            transform: translateY(10px) scale(0.96);
+            color: var(--gold);
+            font-size: clamp(2rem, 9vw, 5.5rem);
+            font-weight: 950;
+            text-align: center;
+            text-shadow: 0 0 1rem #000, 0 0 2.6rem rgba(255,211,90,0.55);
+            transition: 0.22s ease;
         }
-        #announcer.show { opacity: 1; transform: scale(1.1); }
+        #announcer.show { opacity: 1; transform: translateY(0) scale(1); }
+        #play-hint {
+            position: absolute;
+            left: 50%;
+            top: max(4.8rem, calc(env(safe-area-inset-top) + 4.6rem));
+            transform: translateX(-50%);
+            max-width: min(92vw, 820px);
+            padding: 0.55rem 0.8rem;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: var(--glass);
+            color: rgba(255,255,255,0.86);
+            font-size: 0.78rem;
+            font-weight: 850;
+            text-align: center;
+            backdrop-filter: blur(8px);
+        }
 
-        /* Controls / Touch UI */
+        #joystick {
+            position: absolute;
+            left: max(1rem, env(safe-area-inset-left));
+            bottom: max(1rem, env(safe-area-inset-bottom));
+            width: 8.25rem;
+            height: 8.25rem;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.08);
+            pointer-events: all;
+            backdrop-filter: blur(8px);
+        }
+        #knob {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 3.2rem;
+            height: 3.2rem;
+            margin: -1.6rem 0 0 -1.6rem;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.9);
+            box-shadow: inset 0 -0.35rem 0 rgba(0,0,0,0.18);
+        }
+        .touch-row {
+            position: absolute;
+            right: max(1rem, env(safe-area-inset-right));
+            bottom: max(1rem, env(safe-area-inset-bottom));
+            display: grid;
+            grid-template-columns: repeat(2, 4.2rem);
+            gap: 0.65rem;
+            pointer-events: all;
+        }
         .touch-btn {
-            position: absolute; pointer-events: all; background: rgba(255,255,255,0.2);
-            border: 2px solid white; border-radius: 50%; width: 70px; height: 70px;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 900; font-size: 24px; color: white; backdrop-filter: blur(5px);
+            width: 4.2rem;
+            height: 4.2rem;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.35);
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+            font-weight: 950;
+            font-size: 0.78rem;
+            display: grid;
+            place-items: center;
+            text-align: center;
+            backdrop-filter: blur(8px);
+            cursor: pointer;
         }
-        .touch-btn:active { background: var(--gold); color: black; transform: scale(0.9); }
+        .touch-btn:active, .touch-btn.active { background: var(--gold); color: #111; transform: scale(0.95); }
+        #snap-btn { border-color: var(--gold); background: rgba(18,59,122,0.72); }
+        .pass-bank {
+            position: absolute;
+            left: 50%;
+            bottom: max(1rem, env(safe-area-inset-bottom));
+            transform: translateX(-50%);
+            display: flex;
+            gap: 0.7rem;
+            pointer-events: all;
+        }
+        .pass-btn { width: 4rem; height: 4rem; }
 
-        #snap-btn { bottom: 40px; right: 40px; width: 100px; height: 100px; background: var(--nfl-blue); border-color: var(--gold); }
-        
-        #pass-controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; }
-        .pass-btn { position: relative; width: 60px; height: 60px; font-size: 18px; }
-
-        #joystick-container { position: absolute; bottom: 40px; left: 40px; width: 120px; height: 120px; background: rgba(255,255,255,0.1); border-radius: 50%; pointer-events: all; }
-        #joystick-knob { position: absolute; top: 35px; left: 35px; width: 50px; height: 50px; background: white; border-radius: 50%; transition: transform 0.1s; }
-
-        h1 { font-size: 3rem; margin: 0; color: white; text-shadow: 0 5px 15px rgba(0,0,0,0.5); }
-        .btn-start { background: var(--gold); color: black; padding: 15px 40px; border-radius: 50px; font-weight: 900; border: none; cursor: pointer; margin-top: 20px; font-size: 1.2rem; }
-
-        canvas { display: block; }
+        @media (max-width: 720px) {
+            #hud { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .hud-box:nth-child(5) { display: none; }
+            #play-hint { top: max(7.7rem, calc(env(safe-area-inset-top) + 7.4rem)); font-size: 0.7rem; }
+            #joystick { width: 7.2rem; height: 7.2rem; }
+            .touch-row { grid-template-columns: repeat(2, 3.75rem); }
+            .touch-btn, .pass-btn { width: 3.75rem; height: 3.75rem; font-size: 0.7rem; }
+            .pass-bank { bottom: max(8.9rem, calc(env(safe-area-inset-bottom) + 8.7rem)); }
+        }
     </style>
     <!-- Google Analytics -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-CCZ9JJGEDP"></script>
@@ -74,39 +229,36 @@
     </script>
 </head>
 <body>
-
     <div id="ui-layer">
-        <div id="screen-welcome" class="screen">
-            <h1>FOOTBALL MASTER</h1>
-            <p>TOUCH TO LEAD YOUR TEAM</p>
-            <button class="btn-start" onclick="startGame()">START GAME</button>
+        <div id="welcome" class="screen">
+            <h1>Football Master</h1>
+            <p class="lede">Run a compact pro-style offense with live routes, rush pressure, catches in traffic, open-field cuts, and broadcast 3D presentation.</p>
+            <button class="btn" onclick="startGame()">Start Drive</button>
+            <button class="btn btn-ghost" onclick="location='index.html'">Back to Vault</button>
         </div>
 
         <div id="game-ui" class="hidden">
             <div id="hud">
                 <div class="hud-box"><div class="hud-lab">Score</div><div id="score" class="hud-val">0</div></div>
-                <div class="hud-box"><div class="hud-lab">Down</div><div id="down" class="hud-val">1ST & 10</div></div>
-                <div class="hud-box"><div class="hud-lab">Yard</div><div id="yard" class="hud-val">20</div></div>
+                <div class="hud-box"><div class="hud-lab">Down</div><div id="down" class="hud-val">1st</div></div>
+                <div class="hud-box"><div class="hud-lab">To Go</div><div id="togo" class="hud-val">10</div></div>
+                <div class="hud-box"><div class="hud-lab">Ball On</div><div id="ballon" class="hud-val">25</div></div>
+                <div class="hud-box"><div class="hud-lab">Clock</div><div id="clock" class="hud-val">2:00</div></div>
             </div>
+            <div id="play-hint">Space or SNAP to start. WASD/left stick moves. 1/2/3 pass. Shift/SPRINT bursts. E/DIVE cuts through tackles.</div>
+            <div id="announcer"></div>
 
-            <div id="announcer">TOUCHDOWN!</div>
-
-            <!-- Pre-snap Instruction -->
-            <div id="pre-snap-hint" style="position: absolute; top: 120px; width: 100%; text-align: center; font-weight: bold; color: var(--gold);">
-                REVIEW ROUTES... TAP SNAP TO BEGIN
+            <div id="joystick"><div id="knob"></div></div>
+            <div class="pass-bank hidden" id="pass-controls">
+                <div class="touch-btn pass-btn" onclick="passTo(0)" style="border-color:#39ff88;">X</div>
+                <div class="touch-btn pass-btn" onclick="passTo(1)" style="border-color:#56d8ff;">Y</div>
+                <div class="touch-btn pass-btn" onclick="passTo(2)" style="border-color:#ff72e1;">B</div>
             </div>
-
-            <!-- Joystick (Mobile) -->
-            <div id="joystick-container"><div id="joystick-knob"></div></div>
-
-            <!-- Snap Button -->
-            <div id="snap-btn" class="touch-btn" onclick="snapBall()">SNAP</div>
-
-            <!-- Pass Buttons -->
-            <div id="pass-controls" class="hidden">
-                <div class="touch-btn pass-btn" onclick="passTo(0)" style="border-color: #00ff00;">X</div>
-                <div class="touch-btn pass-btn" onclick="passTo(1)" style="border-color: #00ffff;">Y</div>
-                <div class="touch-btn pass-btn" onclick="passTo(2)" style="border-color: #ff00ff;">Z</div>
+            <div class="touch-row">
+                <div id="snap-btn" class="touch-btn" onclick="snapBall()">SNAP</div>
+                <div id="sprint-btn" class="touch-btn">SPRINT</div>
+                <div id="dive-btn" class="touch-btn">DIVE</div>
+                <div class="touch-btn" onclick="resetPlay()">RESET</div>
             </div>
         </div>
     </div>
@@ -118,367 +270,740 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- Constants ---
-        const Y_UNIT = 1.2;
-        const FIELD_WIDTH = 53.3 * Y_UNIT;
-        const STATE = { PRE_SNAP: 0, ACTIVE: 1, BALL_IN_AIR: 2, RESULT: 3 };
+        const YARD = 1.2;
+        const FIELD_WIDTH = 53.3 * YARD;
+        const FIELD_LENGTH = 120 * YARD;
+        const LEFT_HASH = -9.4;
+        const RIGHT_HASH = 9.4;
+        const STATE = { PRE: 0, PASS_READY: 1, PASS_AIR: 2, RUN: 3, RESULT: 4 };
 
-        // --- Game Variables ---
         let scene, camera, renderer, clock;
-        let qb, ball, ballShadow;
-        let receivers = [], defenders = [], routeLines = [];
-        let gameState = STATE.PRE_SNAP;
-        let score = 0;
-        let moveInput = { x: 0, y: 0 };
-        let ballVel = new THREE.Vector3();
-        let targetRecIndex = -1;
+        let qb, ball, ballShadow, firstLine, scrimmageLine;
+        let receivers = [], defenders = [], blockers = [], rushers = [], routeLines = [], allPlayers = [];
+        let carrier = null, ballFlight = null, targetRecIndex = -1;
+        let state = STATE.PRE;
+        let score = 0, down = 1, toGo = 10, ballOn = 25, playStartBallOn = 25, playStartZ = 0;
+        let gameClock = 120, playTime = 0, pulse = 0, lastPadButtons = {};
+        let padSprintActive = false, padDiveActive = false;
+        let input = { x: 0, y: 0, sprint: false, dive: false };
+
+        const routes = [
+            { label: 'X', color: 0x39ff88, startX: -18, points: [[-18, -8], [-18, -23], [-8, -34], [-3, -42]], speed: 11.5 },
+            { label: 'Y', color: 0x56d8ff, startX: 0, points: [[0, -7], [0, -22], [7, -32]], speed: 10.5 },
+            { label: 'B', color: 0xff72e1, startX: 17, points: [[17, -5], [10, -14], [18, -28], [25, -36]], speed: 11.0 }
+        ];
+
+        init();
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x87ceeb);
-            scene.fog = new THREE.Fog(0x87ceeb, 40, 160);
+            scene.background = new THREE.Color(0x88b9df);
+            scene.fog = new THREE.Fog(0x88b9df, 90, 210);
 
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-            
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 600);
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+            renderer.setSize(innerWidth, innerHeight);
             renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
             document.body.appendChild(renderer.domElement);
 
-            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-            const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-            sun.position.set(50, 100, 50);
+            scene.add(new THREE.HemisphereLight(0xcfefff, 0x18350e, 1.7));
+            const sun = new THREE.DirectionalLight(0xffffff, 2.1);
+            sun.position.set(-45, 95, 55);
             sun.castShadow = true;
+            sun.shadow.mapSize.set(2048, 2048);
+            sun.shadow.camera.near = 1;
+            sun.shadow.camera.far = 220;
+            sun.shadow.camera.left = -95;
+            sun.shadow.camera.right = 95;
+            sun.shadow.camera.top = 95;
+            sun.shadow.camera.bottom = -95;
             scene.add(sun);
 
             createField();
             createPlayers();
             createBall();
             setupInput();
-
             clock = new THREE.Clock();
-            resetPlay();
+            resetDrive();
             animate();
         }
 
         function createField() {
-            // Main Grass
-            const grass = new THREE.Mesh(new THREE.PlaneGeometry(FIELD_WIDTH + 10, 140 * Y_UNIT), new THREE.MeshPhongMaterial({ color: 0x2e5e2e }));
-            grass.rotation.x = -Math.PI/2;
-            grass.receiveShadow = true;
-            scene.add(grass);
-
-            // Endzones
-            const ezGeo = new THREE.PlaneGeometry(FIELD_WIDTH, 10 * Y_UNIT);
-            const ezBlue = new THREE.Mesh(ezGeo, new THREE.MeshPhongMaterial({ color: 0x013369 }));
-            ezBlue.rotation.x = -Math.PI/2; ezBlue.position.set(0, 0.02, 60 * Y_UNIT);
-            scene.add(ezBlue);
-            const ezRed = new THREE.Mesh(ezGeo, new THREE.MeshPhongMaterial({ color: 0xd50a0a }));
-            ezRed.rotation.x = -Math.PI/2; ezRed.position.set(0, 0.02, -60 * Y_UNIT);
-            scene.add(ezRed);
-
-            // Lines & Yard Markers
-            for (let i = -60; i <= 60; i += 5) {
-                const isMajor = i % 10 === 0;
-                const line = new THREE.Mesh(
-                    new THREE.PlaneGeometry(FIELD_WIDTH, isMajor ? 0.5 : 0.2), 
-                    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: isMajor ? 0.8 : 0.4 })
-                );
-                line.rotation.x = -Math.PI/2;
-                line.position.set(0, 0.03, i * Y_UNIT);
-                scene.add(line);
-
-                if (isMajor && Math.abs(i) <= 50) {
-                    // Yard Numbers
-                    const num = 50 - Math.abs(i);
-                    // (Simplified numbers as white squares for now or actual text if needed)
-                }
+            const grassMatA = new THREE.MeshStandardMaterial({ color: 0x246a37, roughness: 0.92 });
+            const grassMatB = new THREE.MeshStandardMaterial({ color: 0x2c7a3f, roughness: 0.92 });
+            for (let i = -60; i < 60; i += 5) {
+                const stripe = new THREE.Mesh(new THREE.PlaneGeometry(FIELD_WIDTH + 8, 5 * YARD), ((i / 5) & 1) ? grassMatA : grassMatB);
+                stripe.rotation.x = -Math.PI / 2;
+                stripe.position.z = (i + 2.5) * YARD;
+                stripe.receiveShadow = true;
+                scene.add(stripe);
             }
-            
-            // Sidelines
-            const sideGeo = new THREE.PlaneGeometry(0.5, 120 * Y_UNIT);
-            const sideL = new THREE.Mesh(sideGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
-            sideL.rotation.x = -Math.PI/2; sideL.position.set(-FIELD_WIDTH/2, 0.03, 0);
-            scene.add(sideL);
-            const sideR = sideL.clone(); sideR.position.x = FIELD_WIDTH/2;
-            scene.add(sideR);
+
+            addFieldBand(0x123b7a, -55 * YARD, 'K2');
+            addFieldBand(0xc91f2c, 55 * YARD, 'GUEST');
+
+            for (let y = -50; y <= 50; y += 5) {
+                const major = y % 10 === 0;
+                addFieldLine(FIELD_WIDTH, major ? 0.42 : 0.18, y * YARD, 0xffffff, major ? 0.92 : 0.45);
+                addHashMarks(y * YARD);
+                if (major && Math.abs(y) < 50) addYardNumber(50 - Math.abs(y), y * YARD);
+            }
+            addFieldLine(0.5, FIELD_LENGTH, 0, 0xffffff, 0.9, -FIELD_WIDTH / 2);
+            addFieldLine(0.5, FIELD_LENGTH, 0, 0xffffff, 0.9, FIELD_WIDTH / 2);
+
+            scrimmageLine = addFieldLine(FIELD_WIDTH, 0.55, 0, 0x48a8ff, 0.8);
+            firstLine = addFieldLine(FIELD_WIDTH, 0.55, 0, 0xffd35a, 0.8);
+            scrimmageLine.position.y = firstLine.position.y = 0.055;
+
+            createGoalPost(0, -61.6 * YARD);
+            createGoalPost(0, 61.6 * YARD);
+            createStadium();
+        }
+
+        function addFieldBand(color, z, text) {
+            const band = new THREE.Mesh(new THREE.PlaneGeometry(FIELD_WIDTH, 10 * YARD), new THREE.MeshStandardMaterial({ color, roughness: 0.72 }));
+            band.rotation.x = -Math.PI / 2;
+            band.position.set(0, 0.012, z);
+            band.receiveShadow = true;
+            scene.add(band);
+            const label = makeFieldText(text, 13, '#ffffff', 'rgba(255,255,255,0)');
+            label.rotation.x = -Math.PI / 2;
+            label.rotation.z = z < 0 ? 0 : Math.PI;
+            label.position.set(0, 0.04, z);
+            scene.add(label);
+        }
+
+        function addFieldLine(w, h, z, color, opacity, x = 0) {
+            const line = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color, transparent: true, opacity }));
+            line.rotation.x = -Math.PI / 2;
+            line.position.set(x, 0.035, z);
+            scene.add(line);
+            return line;
+        }
+
+        function addHashMarks(z) {
+            [-RIGHT_HASH, -LEFT_HASH, LEFT_HASH, RIGHT_HASH].forEach(x => addFieldLine(2.1, 0.16, z, 0xffffff, 0.68, x));
+        }
+
+        function addYardNumber(num, z) {
+            [-FIELD_WIDTH / 2 + 8.5, FIELD_WIDTH / 2 - 8.5].forEach((x, side) => {
+                const label = makeFieldText(String(num), 3.5, '#ffffff', 'rgba(255,255,255,0)');
+                label.rotation.x = -Math.PI / 2;
+                label.rotation.z = side ? Math.PI : 0;
+                label.position.set(x, 0.045, z);
+                scene.add(label);
+            });
+        }
+
+        function createGoalPost(x, z) {
+            const mat = new THREE.MeshStandardMaterial({ color: 0xffd35a, metalness: 0.2, roughness: 0.35 });
+            const post = new THREE.Group();
+            const makeBar = (r, h) => new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 16), mat);
+            const base = makeBar(0.16, 7); base.position.y = 3.5; post.add(base);
+            const cross = makeBar(0.13, 10); cross.rotation.z = Math.PI / 2; cross.position.y = 6.9; post.add(cross);
+            [-5, 5].forEach(px => { const up = makeBar(0.13, 8); up.position.set(px, 10.7, 0); post.add(up); });
+            post.position.set(x, 0, z);
+            post.rotation.y = z < 0 ? 0 : Math.PI;
+            scene.add(post);
+        }
+
+        function createStadium() {
+            const standMat = new THREE.MeshStandardMaterial({ color: 0x1b2638, roughness: 0.82 });
+            [-1, 1].forEach(side => {
+                for (let row = 0; row < 5; row++) {
+                    const block = new THREE.Mesh(new THREE.BoxGeometry(160, 3, 13), standMat);
+                    block.position.set(side * (FIELD_WIDTH / 2 + 12 + row * 5), 2 + row * 2.6, 0);
+                    block.rotation.z = side * -0.08;
+                    scene.add(block);
+                }
+                for (let i = -48; i <= 48; i += 8) {
+                    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.75, 8, 8), new THREE.MeshBasicMaterial({ color: [0xffffff, 0xffd35a, 0xc91f2c, 0x56d8ff][Math.abs(i / 8) % 4] }));
+                    dot.position.set(side * (FIELD_WIDTH / 2 + 13 + Math.abs(i % 16)), 9 + Math.abs(i % 24) * 0.12, i * 1.2);
+                    scene.add(dot);
+                }
+            });
+        }
+
+        function makeFieldText(text, height, fill, bg) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 192;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = fill; ctx.font = '900 92px Segoe UI, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 8; ctx.strokeText(text, 256, 100); ctx.fillText(text, 256, 100);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(height * 2.4, height), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+            return mesh;
         }
 
         function createPlayers() {
-            const createMan = (color, isQB = false) => {
-                const g = new THREE.Group();
-                
-                // Torso
-                const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 0.8), new THREE.MeshPhongMaterial({ color }));
-                body.position.y = 1.2;
-                g.add(body);
-
-                // Arms
-                const armGeo = new THREE.CapsuleGeometry(0.12, 0.6);
-                const lArm = new THREE.Mesh(armGeo, new THREE.MeshPhongMaterial({ color }));
-                lArm.position.set(-0.55, 1.4, 0);
-                lArm.rotation.z = Math.PI/8;
-                const rArm = lArm.clone();
-                rArm.position.x = 0.55;
-                rArm.rotation.z = -Math.PI/8;
-                g.add(lArm, rArm);
-
-                // Head
-                const head = new THREE.Mesh(new THREE.SphereGeometry(0.35), new THREE.MeshPhongMaterial({ color: 0xffdbac }));
-                head.position.y = 2.0;
-                g.add(head);
-
-                // Helmet with Face Mask
-                const helmet = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.38, 16, 16, 0, Math.PI*2, 0, Math.PI/1.5), 
-                    new THREE.MeshPhongMaterial({ color: isQB ? 0x333333 : 0xffcc00 })
-                );
-                helmet.position.y = 2.0;
-                g.add(helmet);
-
-                const mask = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.02, 8, 16, Math.PI), new THREE.MeshPhongMaterial({ color: 0x555555 }));
-                mask.position.set(0, 1.95, 0.25);
-                mask.rotation.x = Math.PI/2;
-                g.add(mask);
-
-                g.castShadow = true;
-                return g;
-            };
-
-            qb = createMan(0x222222, true);
+            qb = createPlayer({ jersey: 0x123b7a, pants: 0xf2f5f7, helmet: 0x0c1630, accent: 0xffd35a, number: '12', role: 'QB' });
             scene.add(qb);
 
-            const routes = [
-                { id: 'X', color: 0x00ff00, pts: [new THREE.Vector3(-15,0,0), new THREE.Vector3(-15,0,-15), new THREE.Vector3(-5,0,-25)] },
-                { id: 'Y', color: 0x00ffff, pts: [new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-40)] },
-                { id: 'Z', color: 0xff00ff, pts: [new THREE.Vector3(15,0,0), new THREE.Vector3(15,0,-15), new THREE.Vector3(25,0,-20)] }
-            ];
-
-            routes.forEach((r, i) => {
-                const rec = createMan(0x2d5a27);
-                rec.userData = { route: r.pts, color: r.color, index: i };
+            routes.forEach((route, i) => {
+                const rec = createPlayer({ jersey: 0x123b7a, pants: 0xf2f5f7, helmet: 0x0c1630, accent: route.color, number: ['11','84','19'][i], role: route.label });
+                rec.userData.route = route;
+                rec.userData.routeIndex = 0;
+                rec.userData.open = 0;
                 receivers.push(rec);
                 scene.add(rec);
 
-                const def = createMan(0xd50a0a);
+                const def = createPlayer({ jersey: 0xc91f2c, pants: 0xf7f7f7, helmet: 0x101010, accent: 0xffffff, number: ['21','32','24'][i], role: 'CB' });
                 defenders.push(def);
                 scene.add(def);
-
-                // Route Visualization Line
-                const lineGeo = new THREE.BufferGeometry().setFromPoints(r.pts);
-                const lineMat = new THREE.LineBasicMaterial({ color: r.color, transparent: true, opacity: 0.5 });
-                const line = new THREE.Line(lineGeo, lineMat);
-                routeLines.push(line);
-                scene.add(line);
             });
+
+            [-8, -4, 0, 4, 8].forEach((x, i) => {
+                const lineman = createPlayer({ jersey: 0x123b7a, pants: 0xf2f5f7, helmet: 0x0c1630, accent: 0xffd35a, number: String(60 + i), role: 'OL' });
+                lineman.userData.baseX = x;
+                blockers.push(lineman);
+                scene.add(lineman);
+
+                const rusher = createPlayer({ jersey: 0xc91f2c, pants: 0xf7f7f7, helmet: 0x101010, accent: 0xffffff, number: String(90 + i), role: 'DL' });
+                rusher.userData.baseX = x;
+                rushers.push(rusher);
+                scene.add(rusher);
+            });
+        }
+
+        function createPlayer(cfg) {
+            const group = new THREE.Group();
+            const skin = new THREE.MeshStandardMaterial({ color: 0xd9a56f, roughness: 0.7 });
+            const jersey = new THREE.MeshStandardMaterial({ color: cfg.jersey, roughness: 0.58 });
+            const pants = new THREE.MeshStandardMaterial({ color: cfg.pants, roughness: 0.64 });
+            const helmetMat = new THREE.MeshStandardMaterial({ color: cfg.helmet, metalness: 0.15, roughness: 0.38 });
+            const accent = new THREE.MeshStandardMaterial({ color: cfg.accent, emissive: cfg.accent, emissiveIntensity: 0.1 });
+
+            const hips = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 0.5, 6, 12), pants); hips.position.y = 0.92; group.add(hips);
+            const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 0.9, 8, 16), jersey); torso.position.y = 1.55; torso.scale.set(1.2, 1, 0.82); group.add(torso);
+            const pads = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.28, 0.72), jersey); pads.position.y = 1.88; group.add(pads);
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.31, 16, 12), skin); head.position.y = 2.36; group.add(head);
+            const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.39, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.82), helmetMat); helmet.position.y = 2.42; group.add(helmet);
+            const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.06, 0.76), accent); stripe.position.set(0, 2.78, 0.02); group.add(stripe);
+            const mask = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.018, 8, 20, Math.PI), new THREE.MeshStandardMaterial({ color: 0xd8dee8, metalness: 0.4, roughness: 0.35 }));
+            mask.position.set(0, 2.34, -0.27); mask.rotation.x = Math.PI / 2; group.add(mask);
+
+            const parts = { arms: [], legs: [], torso, pads };
+            [-1, 1].forEach(side => {
+                const arm = new THREE.Group();
+                const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.56, 6, 10), jersey); upper.position.y = -0.23; arm.add(upper);
+                const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.46, 6, 10), skin); fore.position.y = -0.72; arm.add(fore);
+                arm.position.set(side * 0.72, 1.82, 0);
+                arm.rotation.z = side * -0.22;
+                group.add(arm);
+                parts.arms.push(arm);
+
+                const leg = new THREE.Group();
+                const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.15, 0.62, 6, 10), pants); thigh.position.y = -0.3; leg.add(thigh);
+                const calf = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.56, 6, 10), new THREE.MeshStandardMaterial({ color: 0xf7f7f7 })); calf.position.y = -0.88; leg.add(calf);
+                const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.48), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 })); shoe.position.set(0, -1.19, -0.12); leg.add(shoe);
+                leg.position.set(side * 0.26, 0.92, 0);
+                group.add(leg);
+                parts.legs.push(leg);
+            });
+
+            const number = makeNumberSprite(cfg.number, cfg.accent);
+            number.position.set(0, 1.62, -0.48);
+            group.add(number);
+            const label = makeLabelSprite(cfg.role, cfg.accent);
+            label.position.set(0, 3.05, 0);
+            group.add(label);
+
+            const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.72, 22), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28 }));
+            shadow.rotation.x = -Math.PI / 2;
+            shadow.position.y = 0.025;
+            group.add(shadow);
+
+            group.userData.parts = parts;
+            group.userData.phase = Math.random() * Math.PI * 2;
+            group.userData.prev = new THREE.Vector3();
+            group.userData.speed = 0;
+            group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+            allPlayers.push(group);
+            return group;
+        }
+
+        function makeNumberSprite(text, color) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 96;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fff'; ctx.font = '900 54px Segoe UI, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.strokeStyle = '#111'; ctx.lineWidth = 7; ctx.strokeText(text, 64, 49); ctx.fillText(text, 64, 49);
+            const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace;
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+            sprite.scale.set(0.82, 0.58, 1);
+            sprite.material.color.setHex(0xffffff);
+            return sprite;
+        }
+
+        function makeLabelSprite(text, color) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 160; canvas.height = 80;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+            ctx.beginPath(); ctx.roundRect(18, 18, 124, 44, 18); ctx.fill();
+            ctx.fillStyle = '#071018'; ctx.font = '900 32px Segoe UI, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, 80, 41);
+            const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace;
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+            sprite.scale.set(1.65, 0.82, 1);
+            return sprite;
         }
 
         function createBall() {
-            ball = new THREE.Mesh(new THREE.SphereGeometry(0.25).scale(1.4,1,1), new THREE.MeshPhongMaterial({ color: 0x654321 }));
+            const ballGeo = new THREE.SphereGeometry(0.24, 20, 14);
+            ballGeo.scale(1.55, 0.9, 0.9);
+            ball = new THREE.Mesh(ballGeo, new THREE.MeshStandardMaterial({ color: 0x7b3f1d, roughness: 0.55 }));
+            ball.castShadow = true;
             scene.add(ball);
-            ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.3), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0.4 }));
-            ballShadow.rotation.x = -Math.PI/2;
+            const lace = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.035, 0.035), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+            lace.position.set(0, 0.12, -0.02);
+            ball.add(lace);
+            ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.36, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32 }));
+            ballShadow.rotation.x = -Math.PI / 2;
             scene.add(ballShadow);
         }
 
+        function resetDrive() {
+            score = 0; down = 1; toGo = 10; ballOn = 25; gameClock = 120;
+            updateHud();
+            resetPlay();
+        }
+
+        window.resetPlay = resetPlay;
         function resetPlay() {
-            gameState = STATE.PRE_SNAP;
-            qb.position.set(0, 0, 40 * Y_UNIT);
-            qb.rotation.y = 0;
-            
+            state = STATE.PRE;
+            playTime = 0;
+            carrier = null;
+            ballFlight = null;
+            targetRecIndex = -1;
+            playStartBallOn = ballOn;
+            playStartZ = worldZFromBallOn(ballOn);
+            const los = playStartZ;
+            qb.position.set(0, 0, los + 6.2);
+            qb.rotation.y = Math.PI;
+
             receivers.forEach((rec, i) => {
-                const startPos = rec.userData.route[0].clone().add(new THREE.Vector3(0, 0, 38 * Y_UNIT));
-                rec.position.copy(startPos);
-                defenders[i].position.copy(startPos).add(new THREE.Vector3(0, 0, -5));
-                routeLines[i].position.copy(startPos);
-                routeLines[i].visible = true;
+                const route = routes[i];
+                rec.position.set(route.startX, 0, los - 1.6);
+                rec.rotation.y = Math.PI;
+                rec.userData.routeIndex = 0;
+                rec.userData.open = 0;
+                defenders[i].position.set(route.startX + (i - 1) * 1.1, 0, los - 8.6);
+                defenders[i].rotation.y = 0;
             });
 
+            blockers.forEach((p, i) => { p.position.set(p.userData.baseX, 0, los + 0.8 + Math.abs(i - 2) * 0.14); p.rotation.y = Math.PI; });
+            rushers.forEach((p, i) => { p.position.set(p.userData.baseX + (i - 2) * 0.4, 0, los - 3.9); p.rotation.y = 0; });
+
+            drawRoutes();
             ball.visible = true;
             ballShadow.visible = false;
-            announce("", false);
-            
+            setBallOnPlayer(qb);
+            scrimmageLine.position.z = los;
+            firstLine.position.z = worldZFromBallOn(Math.min(99, ballOn + toGo));
             document.getElementById('snap-btn').classList.remove('hidden');
             document.getElementById('pass-controls').classList.add('hidden');
-            document.getElementById('pre-snap-hint').classList.remove('hidden');
+            document.getElementById('play-hint').textContent = 'Read the routes, then snap. X/Y/B labels show receivers. Space or SNAP starts the play.';
+            announce('', false);
+            updateHud();
         }
 
-        window.snapBall = () => {
-            if (gameState !== STATE.PRE_SNAP) return;
-            gameState = STATE.ACTIVE;
-            routeLines.forEach(l => l.visible = false);
+        function drawRoutes() {
+            routeLines.forEach(l => scene.remove(l));
+            routeLines = [];
+            const los = playStartZ;
+            routes.forEach(route => {
+                const pts = [new THREE.Vector3(route.startX, 0.08, los - 1.6)];
+                route.points.forEach(([x, dz]) => pts.push(new THREE.Vector3(x, 0.08, los + dz)));
+                const geom = new THREE.BufferGeometry().setFromPoints(pts);
+                const mat = new THREE.LineBasicMaterial({ color: route.color, transparent: true, opacity: 0.78 });
+                const line = new THREE.Line(geom, mat);
+                scene.add(line);
+                routeLines.push(line);
+            });
+        }
+
+        window.snapBall = snapBall;
+        function snapBall() {
+            if (state !== STATE.PRE) return;
+            state = STATE.PASS_READY;
+            playTime = 0;
+            announce('HIKE', true, 650);
             document.getElementById('snap-btn').classList.add('hidden');
             document.getElementById('pass-controls').classList.remove('hidden');
-            document.getElementById('pre-snap-hint').classList.add('hidden');
-        };
-
-        window.passTo = (index) => {
-            if (gameState !== STATE.ACTIVE) return;
-            gameState = STATE.BALL_IN_AIR;
-            targetRecIndex = index;
-            
-            const target = receivers[index].position.clone().add(new THREE.Vector3(0, 1.5, -5)); // Lead the receiver
-            const start = ball.position.clone();
-            
-            const dist = start.distanceTo(target);
-            const travelTime = dist / 25;
-            
-            ballVel.copy(target).sub(start).divideScalar(travelTime);
-            ballVel.y = 10; // Arc
-            
-            document.getElementById('pass-controls').classList.add('hidden');
-        };
-
-        function updateBall(delta) {
-            if (gameState === STATE.ACTIVE) {
-                ball.position.set(qb.position.x + 0.5, 2.2, qb.position.z - 0.2);
-            } else if (gameState === STATE.BALL_IN_AIR) {
-                ballShadow.visible = true;
-                ballShadow.position.set(ball.position.x, 0.02, ball.position.z);
-                
-                ballVel.y -= 18 * delta; // Gravity
-                ball.position.add(ballVel.clone().multiplyScalar(delta));
-                ball.rotation.x += 10 * delta;
-
-                // Catch logic
-                const rec = receivers[targetRecIndex];
-                if (ball.position.distanceTo(rec.position.clone().add(new THREE.Vector3(0,2,0))) < 1.5) {
-                    score += 7;
-                    document.getElementById('score').innerText = score;
-                    finishPlay("TOUCHDOWN!", true);
-                } else if (ball.position.y < 0.2) {
-                    finishPlay("INCOMPLETE", false);
-                }
-
-                // Defensive Interception
-                defenders.forEach(def => {
-                    if (ball.position.distanceTo(def.position.clone().add(new THREE.Vector3(0,2,0))) < 1.2) {
-                        finishPlay("INTERCEPTED!", false);
-                    }
-                });
-            }
+            document.getElementById('play-hint').textContent = 'Move in the pocket. Pass with 1/2/3 or tap X/Y/B. Scramble past the line to run.';
         }
 
-        function finishPlay(msg, success) {
-            gameState = STATE.RESULT;
-            announce(msg, true);
-            setTimeout(resetPlay, 2000);
+        window.passTo = passTo;
+        function passTo(index) {
+            if (state !== STATE.PASS_READY || !receivers[index]) return;
+            targetRecIndex = index;
+            const rec = receivers[index];
+            const nearest = nearestDefenderTo(rec.position);
+            const lead = new THREE.Vector3(input.x * 1.4, 0, -5.5 - rec.userData.open * 2.5);
+            const target = rec.position.clone().add(lead);
+            target.y = 2.0;
+            const start = ball.position.clone();
+            const dist = start.distanceTo(target);
+            ballFlight = { start, target, t: 0, duration: THREE.MathUtils.clamp(dist / 26, 0.48, 1.05), arc: THREE.MathUtils.clamp(dist * 0.12, 3.2, 8.5), nearest };
+            state = STATE.PASS_AIR;
+            document.getElementById('pass-controls').classList.add('hidden');
+            document.getElementById('play-hint').textContent = 'Ball is in the air. Take control after the catch and cut upfield.';
+        }
+
+        function update(delta) {
+            pulse += delta;
+            if (state !== STATE.PRE && state !== STATE.RESULT) {
+                playTime += delta;
+                gameClock = Math.max(0, gameClock - delta);
+            }
+            pollGamepad();
+            updatePlayers(delta);
+            updateBall(delta);
+            allPlayers.forEach(p => animatePlayer(p, delta));
+            updateCamera(delta);
+            updateHud();
         }
 
         function updatePlayers(delta) {
-            if (gameState === STATE.ACTIVE || gameState === STATE.BALL_IN_AIR) {
-                // QB Movement
-                const speed = 10;
-                qb.position.x += moveInput.x * speed * delta;
-                qb.position.z += moveInput.y * speed * delta;
-                if (Math.abs(moveInput.x) > 0.1 || Math.abs(moveInput.y) > 0.1) {
-                    qb.rotation.y = Math.atan2(moveInput.x, moveInput.y);
+            if (state === STATE.PRE || state === STATE.RESULT) return;
+            const los = playStartZ;
+            const qbSpeed = input.sprint ? 13.2 : 9.2;
+            const runSpeed = input.sprint ? 16.2 : 11.6;
+
+            if (state === STATE.PASS_READY) {
+                moveControlled(qb, qbSpeed, delta, los + 12, los - 4);
+                if (qb.position.z < los - 3.1) {
+                    carrier = qb;
+                    state = STATE.RUN;
+                    document.getElementById('pass-controls').classList.add('hidden');
+                    announce('SCRAMBLE', true, 700);
                 }
+            }
+            if (state === STATE.RUN && carrier) {
+                moveControlled(carrier, runSpeed, delta, playStartZ + 14, -61 * YARD);
+                if (input.dive) {
+                    carrier.position.z -= 12 * delta;
+                    carrier.rotation.x = THREE.MathUtils.lerp(carrier.rotation.x, -0.35, 0.2);
+                }
+            }
 
-                // Receivers run routes
-                receivers.forEach((rec, i) => {
-                    const route = rec.userData.route;
-                    const worldPts = route.map(p => p.clone().add(routeLines[i].position));
-                    
-                    // Simple logic: move towards next point in route
-                    const target = worldPts[1]; // simplified to just 1st downfield point
-                    const dir = target.clone().sub(rec.position).normalize();
-                    rec.position.add(dir.multiplyScalar(8 * delta));
-                    rec.lookAt(target);
+            receivers.forEach((rec, i) => runRoute(rec, routes[i], delta));
+            rushers.forEach((rusher, i) => {
+                const blocker = blockers[i];
+                const target = carrier || qb;
+                const engage = rusher.position.distanceTo(blocker.position) < 2.25;
+                moveToward(rusher, engage ? blocker.position : target.position, engage ? 2.1 : 8.8, delta);
+                if (engage) blocker.lookAt(rusher.position.x, 1, rusher.position.z);
+                if (state === STATE.PASS_READY && rusher.position.distanceTo(qb.position) < 1.15) finishPlay('SACKED', false, qb);
+            });
+            defenders.forEach((def, i) => {
+                const target = carrier || receivers[i];
+                const cushion = state === STATE.PASS_READY ? new THREE.Vector3((i - 1) * 0.8, 0, 1.8) : new THREE.Vector3();
+                moveToward(def, target.position.clone().add(cushion), state === STATE.RUN ? 12.8 : 9.6, delta);
+                if (state === STATE.RUN && carrier && def.position.distanceTo(carrier.position) < (input.dive ? 0.95 : 1.25)) {
+                    finishPlay('TACKLED', false, carrier);
+                }
+            });
 
-                    // Defenders shadow
-                    const def = defenders[i];
-                    const defTarget = rec.position.clone().add(new THREE.Vector3(0,0,-2));
-                    def.position.lerp(defTarget, 0.05);
-                    def.lookAt(rec.position);
-                });
+            if (carrier && carrier.position.z <= -50 * YARD) finishPlay('TOUCHDOWN', true, carrier);
+            if (state === STATE.PASS_READY && playTime > 6.2) finishPlay('THROW IT AWAY', false, qb);
+        }
+
+        function moveControlled(player, speed, delta, maxZ, minZ) {
+            const dir = new THREE.Vector3(input.x, 0, input.y);
+            if (dir.lengthSq() > 1) dir.normalize();
+            const next = player.position.clone().add(dir.multiplyScalar(speed * delta));
+            next.x = THREE.MathUtils.clamp(next.x, -FIELD_WIDTH / 2 + 2.2, FIELD_WIDTH / 2 - 2.2);
+            next.z = THREE.MathUtils.clamp(next.z, minZ, maxZ);
+            player.position.copy(next);
+            if (Math.abs(input.x) + Math.abs(input.y) > 0.08) player.rotation.y = Math.atan2(input.x, input.y);
+        }
+
+        function runRoute(rec, route, delta) {
+            if (state === STATE.PRE || state === STATE.RESULT) return;
+            const los = playStartZ;
+            const idx = rec.userData.routeIndex;
+            const [x, dz] = route.points[Math.min(idx, route.points.length - 1)];
+            const target = new THREE.Vector3(x, 0, los + dz);
+            moveToward(rec, target, route.speed + (state === STATE.PASS_AIR ? 1.8 : 0), delta);
+            if (rec.position.distanceTo(target) < 1.25 && idx < route.points.length - 1) rec.userData.routeIndex++;
+            const near = nearestDefenderTo(rec.position);
+            rec.userData.open = THREE.MathUtils.clamp((near.distance - 1.5) / 5, 0, 1);
+        }
+
+        function moveToward(player, target, speed, delta) {
+            const dir = target.clone().sub(player.position);
+            dir.y = 0;
+            const dist = dir.length();
+            if (dist < 0.05) return;
+            dir.normalize();
+            player.position.add(dir.multiplyScalar(Math.min(dist, speed * delta)));
+            player.rotation.y = Math.atan2(dir.x, dir.z);
+        }
+
+        function updateBall(delta) {
+            if (state === STATE.PRE || state === STATE.PASS_READY) {
+                setBallOnPlayer(qb);
+                return;
+            }
+            if (state === STATE.RUN && carrier) {
+                setBallOnPlayer(carrier);
+                return;
+            }
+            if (state !== STATE.PASS_AIR || !ballFlight) return;
+
+            ballFlight.t += delta / ballFlight.duration;
+            const t = Math.min(1, ballFlight.t);
+            ball.position.lerpVectors(ballFlight.start, ballFlight.target, t);
+            ball.position.y += Math.sin(t * Math.PI) * ballFlight.arc;
+            ball.rotation.x += 12 * delta;
+            ball.rotation.z += 7 * delta;
+            ballShadow.visible = true;
+            ballShadow.position.set(ball.position.x, 0.035, ball.position.z);
+            ballShadow.material.opacity = 0.28 * (1 - Math.min(0.7, ball.position.y / 12));
+
+            if (t >= 1) resolvePass();
+        }
+
+        function resolvePass() {
+            const rec = receivers[targetRecIndex];
+            const close = nearestDefenderTo(rec.position);
+            const catchPoint = rec.position.clone().setY(2);
+            const accuracy = ball.position.distanceTo(catchPoint);
+            const openBonus = rec.userData.open;
+            const contested = close.distance < 2.2;
+            if (accuracy < 3.2 && (!contested || openBonus > 0.35 || input.dive)) {
+                carrier = rec;
+                state = STATE.RUN;
+                ballFlight = null;
+                ballShadow.visible = false;
+                announce(contested ? 'CATCH IN TRAFFIC' : 'COMPLETE', true, 900);
+                document.getElementById('play-hint').textContent = 'You have the ball. Sprint, cut, and dive through contact.';
+                return;
+            }
+            if (close.distance < 1.25) {
+                finishPlay('INTERCEPTED', false, rec, true);
+            } else {
+                finishPlay('INCOMPLETE', false, rec);
             }
         }
 
-        function animate() {
-            requestAnimationFrame(animate);
-            const delta = clock.getDelta();
-            
-            updatePlayers(delta);
-            updateBall(delta);
-            
-            // Camera
-            const camTarget = (gameState === STATE.BALL_IN_AIR) ? ball.position : qb.position;
-            camera.position.lerp(new THREE.Vector3(camTarget.x, 15, camTarget.z + 18), 0.1);
-            camera.lookAt(camTarget);
+        function setBallOnPlayer(player) {
+            ball.visible = true;
+            ballShadow.visible = false;
+            const side = state === STATE.RUN ? -0.48 : 0.48;
+            const hand = new THREE.Vector3(side, 1.72, -0.18).applyAxisAngle(new THREE.Vector3(0,1,0), player.rotation.y);
+            ball.position.copy(player.position).add(hand);
+            ball.rotation.set(0.3, player.rotation.y + Math.PI / 2, 0.2);
+        }
 
-            renderer.render(scene, camera);
+        function finishPlay(msg, touchdown, spotPlayer, turnover = false) {
+            if (state === STATE.RESULT) return;
+            state = STATE.RESULT;
+            carrier = spotPlayer || carrier || qb;
+            document.getElementById('pass-controls').classList.add('hidden');
+            document.getElementById('snap-btn').classList.add('hidden');
+            announce(msg, true);
+
+            if (touchdown) {
+                score += 7;
+                ballOn = 25; down = 1; toGo = 10;
+            } else if (msg === 'INCOMPLETE' || msg === 'INTERCEPTED' || turnover) {
+                advanceDown(msg === 'INTERCEPTED' ? -5 : 0);
+            } else {
+                const gained = Math.max(-8, Math.floor((playStartZ - carrier.position.z) / YARD));
+                advanceDown(gained);
+            }
+            updateHud();
+            setTimeout(resetPlay, touchdown ? 2200 : 1700);
+        }
+
+        function advanceDown(gained) {
+            ballOn = THREE.MathUtils.clamp(playStartBallOn + gained, 1, 99);
+            if (gained >= toGo) {
+                down = 1;
+                toGo = Math.min(10, 100 - ballOn);
+                announce('FIRST DOWN', true, 900);
+            } else {
+                down++;
+                toGo = Math.max(1, toGo - gained);
+                if (down > 4) {
+                    announce('TURNOVER ON DOWNS', true, 1200);
+                    ballOn = 25;
+                    down = 1;
+                    toGo = 10;
+                }
+            }
+        }
+
+        function nearestDefenderTo(pos) {
+            let best = { player: null, distance: Infinity };
+            [...defenders, ...rushers].forEach(p => {
+                const d = p.position.distanceTo(pos);
+                if (d < best.distance) best = { player: p, distance: d };
+            });
+            return best;
+        }
+
+        function animatePlayer(player, delta) {
+            const speed = player.position.distanceTo(player.userData.prev) / Math.max(delta, 0.001);
+            player.userData.prev.copy(player.position);
+            player.userData.speed = THREE.MathUtils.lerp(player.userData.speed || 0, speed, 0.25);
+            const parts = player.userData.parts;
+            const run = THREE.MathUtils.clamp(player.userData.speed / 13, 0, 1);
+            player.userData.phase += delta * (5 + run * 10);
+            const s = Math.sin(player.userData.phase) * run;
+            parts.legs[0].rotation.x = s * 0.72;
+            parts.legs[1].rotation.x = -s * 0.72;
+            parts.arms[0].rotation.x = -s * 0.78;
+            parts.arms[1].rotation.x = s * 0.78;
+            parts.torso.rotation.x = THREE.MathUtils.lerp(parts.torso.rotation.x, -run * 0.12, 0.12);
+            player.position.y = Math.abs(Math.sin(player.userData.phase * 2)) * run * 0.045;
+            if (state !== STATE.RUN || player !== carrier || !input.dive) player.rotation.x = THREE.MathUtils.lerp(player.rotation.x, 0, 0.12);
+        }
+
+        function updateCamera(delta) {
+            const focus = (state === STATE.PASS_AIR && ballFlight) ? ball.position : (carrier || qb).position;
+            const mobile = innerWidth < 760;
+            const desired = new THREE.Vector3(
+                focus.x * 0.35,
+                mobile ? 18 : 21,
+                focus.z + (mobile ? 25 : 30)
+            );
+            camera.position.lerp(desired, 1 - Math.pow(0.002, delta));
+            camera.lookAt(focus.x * 0.6, 1.8, focus.z - 9);
+        }
+
+        function updateHud() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('down').textContent = `${ordinal(down)}`;
+            document.getElementById('togo').textContent = toGo >= 10 ? '10' : String(toGo);
+            document.getElementById('ballon').textContent = ballOn >= 50 ? `OPP ${100 - ballOn}` : `OWN ${ballOn}`;
+            const min = Math.floor(gameClock / 60);
+            const sec = Math.floor(gameClock % 60).toString().padStart(2, '0');
+            document.getElementById('clock').textContent = `${min}:${sec}`;
+        }
+
+        function ordinal(n) { return ['1st','2nd','3rd','4th'][n - 1] || `${n}th`; }
+        function worldZFromBallOn(yardLine) { return (50 - yardLine) * YARD; }
+
+        function announce(text, show, duration = 0) {
+            const el = document.getElementById('announcer');
+            el.textContent = text;
+            el.classList.toggle('show', !!show && !!text);
+            if (duration) setTimeout(() => { if (el.textContent === text) el.classList.remove('show'); }, duration);
         }
 
         function setupInput() {
-            // Keyboard
-            window.addEventListener('keydown', e => {
-                if (e.code === 'ArrowUp' || e.code === 'KeyW') moveInput.y = -1;
-                if (e.code === 'ArrowDown' || e.code === 'KeyS') moveInput.y = 1;
-                if (e.code === 'ArrowLeft' || e.code === 'KeyA') moveInput.x = -1;
-                if (e.code === 'ArrowRight' || e.code === 'KeyD') moveInput.x = 1;
+            addEventListener('keydown', e => {
+                if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+                if (e.code === 'ArrowUp' || e.code === 'KeyW') input.y = -1;
+                if (e.code === 'ArrowDown' || e.code === 'KeyS') input.y = 1;
+                if (e.code === 'ArrowLeft' || e.code === 'KeyA') input.x = -1;
+                if (e.code === 'ArrowRight' || e.code === 'KeyD') input.x = 1;
+                if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') input.sprint = true;
+                if (e.code === 'KeyE') input.dive = true;
                 if (e.code === 'Space') snapBall();
-                if (e.code === 'KeyX') passTo(0);
-                if (e.code === 'KeyY') passTo(1);
-                if (e.code === 'KeyZ') passTo(2);
+                if (e.code === 'Digit1' || e.code === 'KeyX') passTo(0);
+                if (e.code === 'Digit2' || e.code === 'KeyY') passTo(1);
+                if (e.code === 'Digit3' || e.code === 'KeyB' || e.code === 'KeyZ') passTo(2);
             });
-            window.addEventListener('keyup', e => { moveInput.x = 0; moveInput.y = 0; });
+            addEventListener('keyup', e => {
+                if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'ArrowDown' || e.code === 'KeyS') input.y = 0;
+                if (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'ArrowRight' || e.code === 'KeyD') input.x = 0;
+                if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') input.sprint = false;
+                if (e.code === 'KeyE') input.dive = false;
+            });
 
-            // Gamepad Adapter
-            const pollGamepad = () => {
-                const pads = navigator.getGamepads();
-                if (pads[0]) {
-                    const p = pads[0], ax = p.axes[0], ay = p.axes[1], b = p.buttons;
-                    if (gameState === STATE.ACTIVE || gameState === STATE.PRE_SNAP) {
-                        moveInput.x = Math.abs(ax) > 0.1 ? ax : 0;
-                        moveInput.y = Math.abs(ay) > 0.1 ? ay : 0;
-                        
-                        if (b[0].pressed || b[9].pressed || b[7].pressed) snapBall();
-                        if (b[2].pressed) passTo(0); // X
-                        if (b[3].pressed) passTo(1); // Y
-                        if (b[1].pressed) passTo(2); // B
-                    }
-                }
-                requestAnimationFrame(pollGamepad);
-            };
-            pollGamepad();
-
-            // Simple Touch Joystick
-            const joy = document.getElementById('joystick-container');
-            const knob = document.getElementById('joystick-knob');
-            joy.addEventListener('touchstart', (e) => { e.preventDefault(); }, {passive: false});
-            joy.addEventListener('touchmove', (e) => {
+            const joy = document.getElementById('joystick');
+            const knob = document.getElementById('knob');
+            let joyPointer = null;
+            joy.addEventListener('pointerdown', e => { joyPointer = e.pointerId; joy.setPointerCapture(joyPointer); setStick(e); });
+            joy.addEventListener('pointermove', e => { if (e.pointerId === joyPointer) setStick(e); });
+            joy.addEventListener('pointerup', clearStick);
+            joy.addEventListener('pointercancel', clearStick);
+            function setStick(e) {
                 const rect = joy.getBoundingClientRect();
-                const touch = e.touches[0];
-                const x = (touch.clientX - rect.left - 60) / 60;
-                const y = (touch.clientY - rect.top - 60) / 60;
-                moveInput.x = Math.max(-1, Math.min(1, x));
-                moveInput.y = Math.max(-1, Math.min(1, y));
-                knob.style.transform = `translate(${moveInput.x * 30}px, ${moveInput.y * 30}px)`;
-            });
-            joy.addEventListener('touchend', () => { moveInput = {x:0, y:0}; knob.style.transform = ''; });
+                const dx = e.clientX - rect.left - rect.width / 2;
+                const dy = e.clientY - rect.top - rect.height / 2;
+                const max = rect.width * 0.34;
+                const len = Math.hypot(dx, dy) || 1;
+                const scale = Math.min(max, len) / len;
+                input.x = THREE.MathUtils.clamp(dx / max, -1, 1);
+                input.y = THREE.MathUtils.clamp(dy / max, -1, 1);
+                knob.style.transform = `translate(${dx * scale}px, ${dy * scale}px)`;
+            }
+            function clearStick() {
+                joyPointer = null;
+                input.x = 0; input.y = 0;
+                knob.style.transform = '';
+            }
+
+            bindHold('sprint-btn', 'sprint');
+            bindHold('dive-btn', 'dive');
+            addEventListener('resize', onResize);
         }
 
-        function announce(text, show) {
-            const el = document.getElementById('announcer');
-            el.innerText = text;
-            el.className = show ? 'show' : '';
+        function bindHold(id, prop) {
+            const el = document.getElementById(id);
+            el.addEventListener('pointerdown', e => { e.preventDefault(); input[prop] = true; el.classList.add('active'); });
+            const release = () => { input[prop] = false; el.classList.remove('active'); };
+            el.addEventListener('pointerup', release);
+            el.addEventListener('pointercancel', release);
+            el.addEventListener('pointerleave', release);
+        }
+
+        function pollGamepad() {
+            const pad = navigator.getGamepads ? navigator.getGamepads()[0] : null;
+            if (!pad) return;
+            const ax = Math.abs(pad.axes[0]) > 0.12 ? pad.axes[0] : 0;
+            const ay = Math.abs(pad.axes[1]) > 0.12 ? pad.axes[1] : 0;
+            input.x = ax || input.x;
+            input.y = ay || input.y;
+            const sprintPressed = !!(pad.buttons[7]?.pressed || pad.buttons[5]?.pressed);
+            const divePressed = !!pad.buttons[0]?.pressed;
+            if (sprintPressed) input.sprint = true;
+            else if (padSprintActive) input.sprint = false;
+            if (divePressed) input.dive = true;
+            else if (padDiveActive) input.dive = false;
+            padSprintActive = sprintPressed;
+            padDiveActive = divePressed;
+            edgeButton(pad, 9, snapBall);
+            edgeButton(pad, 2, () => passTo(0));
+            edgeButton(pad, 3, () => passTo(1));
+            edgeButton(pad, 1, () => passTo(2));
+        }
+
+        function edgeButton(pad, index, fn) {
+            const pressed = !!pad.buttons[index]?.pressed;
+            if (pressed && !lastPadButtons[index]) fn();
+            lastPadButtons[index] = pressed;
         }
 
         window.startGame = () => {
-            document.getElementById('screen-welcome').classList.add('hidden');
+            document.getElementById('welcome').classList.add('hidden');
             document.getElementById('game-ui').classList.remove('hidden');
             resetPlay();
         };
 
-        window.onResize = () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
+        function onResize() {
+            camera.aspect = innerWidth / innerHeight;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        };
-        window.addEventListener('resize', onResize);
+            renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+            renderer.setSize(innerWidth, innerHeight);
+        }
 
-        init();
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.033);
+            update(delta);
+            renderer.render(scene, camera);
+        }
     </script>
 </body>
 </html>

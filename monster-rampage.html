@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Kaiju City Rampage - K2 Games</title>
+    <title>Titan Smash District 3D - K2 Games</title>
+    <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAnUB9WQ0N2IAAAAASUVORK5CYII=">
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; touch-action: none; }
+        :root { --ink:#fff7eb; --panel:rgba(16,18,22,.72); --hot:#ff4d3d; --gold:#ffd166; --cyan:#54d6ff; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', system-ui, sans-serif; touch-action: none; color: var(--ink); }
         
         #ui {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
@@ -13,15 +15,17 @@
         }
 
         .score-board {
-            background: rgba(0, 0, 0, 0.6);
-            color: #fff;
-            padding: 10px 20px;
-            border-radius: 10px;
-            font-size: 24px;
+            background: var(--panel);
+            color: var(--ink);
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-size: 20px;
             font-weight: bold;
             text-shadow: 0 2px 4px rgba(0,0,0,0.5);
             align-self: flex-start;
-            border: 2px solid #ef4444;
+            border: 1px solid rgba(255,255,255,.18);
+            backdrop-filter: blur(14px);
+            box-shadow: 0 20px 46px rgba(0,0,0,.3);
         }
 
         .controls-hint {
@@ -65,7 +69,7 @@
 
         .action-btn {
             width: 120px; height: 120px;
-            background: #ef4444;
+            background: var(--hot);
             border-radius: 50%;
             border: 6px solid #b91c1c;
             color: white;
@@ -97,7 +101,9 @@
 
 <div id="ui">
     <div class="score-board">
-        DESTRUCTION: <span id="score">0</span>%
+        TITAN SMASH DISTRICT
+        <div style="font-size:16px;color:var(--gold);margin-top:4px">DESTRUCTION: <span id="score">0</span>%</div>
+        <div class="controls-hint">HEAT: <span id="heat">LOW</span> / TARGET: <span id="target">City Core</span></div>
         <div class="controls-hint">WASD to Move • SPACE to Smash</div>
     </div>
     
@@ -134,6 +140,8 @@
     let cars = [];
     let particles = [];
     let score = 0;
+    let heat = 0;
+    let quake = 0;
     let totalBuildings = 0;
     
     // Inputs
@@ -155,6 +163,8 @@
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
         document.body.appendChild(renderer.domElement);
 
         // Lights
@@ -169,6 +179,10 @@
         dirLight.shadow.camera.left = -100;
         dirLight.shadow.camera.right = 100;
         scene.add(dirLight);
+
+        const rimLight = new THREE.DirectionalLight(0xff4d3d, 0.9);
+        rimLight.position.set(-80, 55, -60);
+        scene.add(rimLight);
 
         // Ground
         const groundGeo = new THREE.PlaneGeometry(1000, 1000);
@@ -285,13 +299,19 @@
     function createMonster() {
         monster = new THREE.Group();
 
-        const skinMat = new THREE.MeshStandardMaterial({ color: 0x228B22, roughness: 0.6 });
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0x2f9f5b, roughness: 0.54, metalness: 0.04 });
+        const bellyMat = new THREE.MeshStandardMaterial({ color: 0x8ee0a5, roughness: 0.68 });
+        const hornMat = new THREE.MeshStandardMaterial({ color: 0xf5ead0, roughness: 0.4 });
+        const glowMat = new THREE.MeshStandardMaterial({ color: 0xffef6a, emissive: 0xffa500, emissiveIntensity: 1.4 });
 
         // Body - Scaled up 2.5x
         const body = new THREE.Mesh(new THREE.BoxGeometry(15, 35, 18), skinMat);
         body.position.y = 25;
         body.castShadow = true;
         monster.add(body);
+        const belly = new THREE.Mesh(new THREE.BoxGeometry(10, 24, 1.2), bellyMat);
+        belly.position.set(0, 25, 9.7);
+        monster.add(belly);
 
         // Head
         const head = new THREE.Mesh(new THREE.BoxGeometry(12, 12, 15), skinMat);
@@ -300,10 +320,29 @@
 
         // Eyes
         const eyeGeo = new THREE.BoxGeometry(2, 2, 2);
-        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const eyeMat = glowMat;
         const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(3, 52, 12);
         const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(-3, 52, 12);
         monster.add(eyeL); monster.add(eyeR);
+        const jaw = new THREE.Mesh(new THREE.BoxGeometry(9, 2.5, 5), new THREE.MeshStandardMaterial({ color: 0x174f31, roughness: 0.7 }));
+        jaw.position.set(0, 46, 13.2);
+        monster.add(jaw);
+        monster.userData.jaw = jaw;
+
+        [-4, 4].forEach(x => {
+            const horn = new THREE.Mesh(new THREE.ConeGeometry(1.4, 7, 12), hornMat);
+            horn.position.set(x, 58, 2);
+            horn.rotation.x = -0.55;
+            horn.castShadow = true;
+            monster.add(horn);
+        });
+        for (let i = 0; i < 6; i++) {
+            const spike = new THREE.Mesh(new THREE.ConeGeometry(1.4, 6, 10), hornMat);
+            spike.position.set(0, 44 - i * 5.2, -10.5 - i * 1.5);
+            spike.rotation.x = Math.PI * 0.55;
+            spike.castShadow = true;
+            monster.add(spike);
+        }
 
         // Tail
         const tail = new THREE.Mesh(new THREE.BoxGeometry(8, 8, 25), skinMat);
@@ -327,6 +366,10 @@
         monster.userData.legR = createLimb(-6, 12, 0, 6, 18, 8);
         monster.userData.armL = createLimb(10, 35, 4, 4, 15, 4);
         monster.userData.armR = createLimb(-10, 35, 4, 4, 15, 4);
+        monster.userData.body = body;
+        monster.userData.head = head;
+        monster.userData.eyeL = eyeL;
+        monster.userData.eyeR = eyeR;
 
         scene.add(monster);
     }
@@ -401,6 +444,8 @@
     function smash() {
         if(monster.userData.isAttacking) return;
         monster.userData.isAttacking = true;
+        heat = Math.min(100, heat + 12);
+        createShockwave();
         
         // Attack Animation
         let t = 0;
@@ -413,13 +458,24 @@
                 clearInterval(interval);
                 monster.userData.isAttacking = false;
                 // Deal Damage Area
-                checkDestruction(20, 20); // High damage radius
+                checkDestruction(28, 32); // High damage radius
                 
                 // Shake Camera
-                camera.position.y -= 1;
-                setTimeout(() => camera.position.y += 1, 100);
+                quake = 1.4;
             }
         }, 16);
+    }
+
+    function createShockwave() {
+        const ring = new THREE.Mesh(
+            new THREE.RingGeometry(2, 2.8, 48),
+            new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.78, side: THREE.DoubleSide })
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(monster.position.x, 1.2, monster.position.z);
+        ring.userData = { life: 1, shock: true };
+        scene.add(ring);
+        particles.push(ring);
     }
 
     function checkDestruction(radius, damage) {
@@ -445,6 +501,7 @@
     function destroyBuilding(b) {
         b.visible = false;
         createParticles(b.position, b.geometry.parameters.height);
+        heat = Math.min(100, heat + 4);
         
         // Update Score
         const destroyed = buildings.filter(b => !b.visible).length;
@@ -483,6 +540,9 @@
 
         const time = Date.now() * 0.005;
         const dt = 0.5; // Speed factor
+        heat = Math.max(0, heat - 0.018);
+        document.getElementById('heat').innerText = heat > 70 ? 'MAX' : heat > 35 ? 'HIGH' : 'LOW';
+        document.getElementById('target').innerText = score > 65 ? 'Financial Row' : score > 30 ? 'Transit Hub' : 'City Core';
 
         // --- Movement Logic ---
         const moveSpeed = 0.5;
@@ -542,6 +602,8 @@
             
             // Body Bob
             monster.position.y = Math.abs(Math.sin(time * 6)) * 0.5;
+            monster.userData.head.rotation.z = Math.sin(time * 2.4) * 0.04;
+            monster.userData.jaw.rotation.x = Math.sin(time * 4) * 0.08;
         } else {
             // Idle Breaths
             monster.scale.y = 1 + Math.sin(time) * 0.02;
@@ -553,18 +615,30 @@
                 monster.userData.armL.rotation.x *= 0.9;
                 monster.userData.armR.rotation.x *= 0.9;
             }
+            monster.userData.jaw.rotation.x = Math.sin(time * 1.5) * 0.04;
         }
 
         // --- Camera Follow ---
         const camY = 80;
         const camZ = 100;
-        camera.position.x = monster.position.x;
-        camera.position.y = camY;
-        camera.position.z = monster.position.z + camZ;
+        quake *= 0.9;
+        camera.position.x = monster.position.x + (Math.random() - 0.5) * quake;
+        camera.position.y = camY + (Math.random() - 0.5) * quake;
+        camera.position.z = monster.position.z + camZ + (Math.random() - 0.5) * quake;
         camera.lookAt(monster.position.x, 10, monster.position.z);
 
         // --- Particles ---
         particles.forEach((p, i) => {
+            if (p.userData.shock) {
+                p.userData.life -= 0.025;
+                p.scale.multiplyScalar(1.08);
+                p.material.opacity = p.userData.life * 0.78;
+                if (p.userData.life <= 0) {
+                    scene.remove(p);
+                    particles[i] = null;
+                }
+                return;
+            }
             p.position.add(p.userData.vel);
             p.userData.vel.y -= 0.05; // Gravity
             p.rotation.x += 0.1;
