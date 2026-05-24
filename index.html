@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>K2 Games: The Vault</title>
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="K2 Games">
+    <link rel="manifest" href="./manifest.json">
+    <link rel="apple-touch-icon" href="./football-mobile.png">
     <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAnUB9WQ0N2IAAAAASUVORK5CYII=">
     <style>
         :root {
@@ -34,6 +40,20 @@
         .subtitle { color: var(--muted); margin-top: 0.5rem; text-transform: uppercase; letter-spacing: 2px; font-weight: 600; }
 
         .controls { max-width: 900px; margin: 2rem auto; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+        .offline-status {
+            max-width: 900px;
+            margin: 0 auto 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            font-size: 0.9rem;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--muted);
+        }
+        .offline-status--loading { color: #fde68a; border-color: rgba(245, 158, 11, 0.5); }
+        .offline-status--ready { color: #86efac; border-color: rgba(34, 197, 94, 0.5); }
+        .offline-status--offline { color: #fca5a5; border-color: rgba(239, 68, 68, 0.5); }
         #search { flex: 2; min-width: 200px; padding: 1rem; border-radius: 12px; border: 1px solid var(--border); background: rgba(255,255,255,0.05); color: white; outline: none; }
         #sort, #filter, #app-filter { flex: 1; padding: 1rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: white; cursor: pointer; }
         #random-btn {
@@ -120,6 +140,10 @@
             </select>
             <button id="random-btn">🎲 Random Game</button>
         </div>
+
+        <p id="offline-status" class="offline-status offline-status--loading" role="status" aria-live="polite">
+            Preparing offline cache...
+        </p>
 
         <div id="launcher">
             <div class="launcher-content">
@@ -504,6 +528,62 @@
                 setTimeout(() => { window.location.href = game.f; }, 1000);
             }, 1500);
         });
+    </script>
+    <script>
+        (function () {
+            var statusEl = document.getElementById('offline-status');
+            var cacheName = 'k2-games-v1';
+
+            function updateStatus(message, className) {
+                if (!statusEl) return;
+                statusEl.textContent = message;
+                statusEl.className = 'offline-status ' + className;
+            }
+
+            function checkOfflineReady() {
+                if (!('caches' in window)) return;
+                caches.open(cacheName).then(function (cache) {
+                    return cache.keys();
+                }).then(function (keys) {
+                    if (keys && keys.length > 200) {
+                        updateStatus('✅ Offline ready: all games are cached for Home Screen play.', 'offline-status--ready');
+                    } else {
+                        updateStatus('⏳ Caching games for offline play. Keep this page open briefly.', 'offline-status--loading');
+                    }
+                }).catch(function () {
+                    updateStatus('⚠️ Offline cache check failed. Reload while online to retry.', 'offline-status--offline');
+                });
+            }
+
+            window.addEventListener('online', function () {
+                checkOfflineReady();
+            });
+
+            window.addEventListener('offline', function () {
+                updateStatus('📴 You are offline. Cached games remain playable.', 'offline-status--offline');
+            });
+
+            if (!('serviceWorker' in navigator)) {
+                updateStatus('⚠️ Service worker is not supported in this browser.', 'offline-status--offline');
+                return;
+            }
+
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('./service-worker.js').then(function () {
+                    checkOfflineReady();
+                }).catch(function () {
+                    updateStatus('⚠️ Offline setup failed. Reload while online.', 'offline-status--offline');
+                });
+            });
+
+            if (navigator.serviceWorker) {
+                navigator.serviceWorker.addEventListener('message', function (event) {
+                    if (event.data && event.data.type === 'PRECACHE_COMPLETE') {
+                        updateStatus('✅ Offline ready: all games are cached for Home Screen play.', 'offline-status--ready');
+                    }
+                });
+            }
+        })();
     </script>
 </body>
 </html>
