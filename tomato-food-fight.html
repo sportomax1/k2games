@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Tomato Food Fight</title>
+  <style>
+    :root{
+      --bg0:#07131b; --bg1:#0b2430; --ui:rgba(10,16,28,.72);
+      --accent:#ff3d71; --accent2:#36d399; --text:#eaf2ff; --muted:rgba(234,242,255,.72); --border:rgba(255,255,255,.14);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg0),var(--bg1));color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    body{overflow:hidden;touch-action:none}
+    canvas{position:fixed;inset:0;width:100%;height:100%}
+    .ui{position:fixed;inset:0;pointer-events:none}
+    .hud{position:absolute;left:12px;top:12px;right:12px;display:flex;justify-content:space-between;gap:10px}
+    .pill{background:var(--ui);border:1px solid var(--border);backdrop-filter:blur(10px);padding:10px 12px;border-radius:14px;display:flex;gap:12px;align-items:center;box-shadow:0 16px 40px rgba(0,0,0,.25)}
+    .small{font-size:12px;color:var(--muted)}
+    .value{font-variant-numeric:tabular-nums;font-weight:1000;letter-spacing:.4px}
+    .btn{
+      pointer-events:auto;border:1px solid var(--border);
+      background:linear-gradient(135deg, rgba(255,61,113,.22), rgba(54,211,153,.12));
+      color:var(--text);padding:10px 12px;border-radius:14px;cursor:pointer;font-weight:900;letter-spacing:.4px;
+      box-shadow:0 16px 40px rgba(0,0,0,.25)
+    }
+    .overlay{
+      pointer-events:auto;position:absolute;inset:0;
+      display:flex;align-items:center;justify-content:center;
+      background:radial-gradient(800px 600px at 50% 30%, rgba(255,61,113,.12), transparent 60%), rgba(0,0,0,.55);
+      backdrop-filter:blur(8px);
+    }
+    .card{
+      width:min(600px,92vw);
+      border-radius:24px;border:1px solid var(--border);
+      background:linear-gradient(180deg, rgba(18,26,44,.92), rgba(10,14,26,.92));
+      box-shadow:0 30px 80px rgba(0,0,0,.55);
+      padding:18px 18px 16px;
+    }
+    .title{font-size:28px;font-weight:1000;line-height:1.05;margin:0}
+    .sub{margin:10px 0 0;color:var(--muted);line-height:1.35}
+    .cta{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap}
+    .primary{
+      pointer-events:auto;border:none;background:linear-gradient(135deg, var(--accent), #ff7a18);
+      color:#0b1020;padding:12px 14px;border-radius:16px;cursor:pointer;font-weight:1000;letter-spacing:.6px;
+      box-shadow:0 20px 50px rgba(255,61,113,.25)
+    }
+    .mutebtn{pointer-events:auto;border:1px solid var(--border);background:rgba(255,255,255,.06);color:var(--text);padding:12px 14px;border-radius:16px;cursor:pointer;font-weight:900}
+    .kbd{padding:2px 8px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.06);font-weight:800;font-size:12px;color:var(--text)}
+    .toast{
+      position:absolute;left:50%;bottom:14px;transform:translateX(-50%);
+      background:rgba(0,0,0,.55);
+      border:1px solid var(--border);
+      padding:10px 12px;border-radius:999px;
+      font-size:12px;color:rgba(255,255,255,.9);
+      pointer-events:none;
+      opacity:0; transition:opacity .25s ease;
+    }
+    .toast.show{opacity:1}
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="ui">
+    <div class="hud">
+      <div class="pill">
+        <div>
+          <div class="small">SCORE</div>
+          <div class="value" id="score">0</div>
+        </div>
+        <div style="width:1px;height:34px;background:var(--border)"></div>
+        <div>
+          <div class="small">WAVE</div>
+          <div class="value" id="wave">1</div>
+        </div>
+        <div style="width:1px;height:34px;background:var(--border)"></div>
+        <div>
+          <div class="small">HEARTS</div>
+          <div class="value" id="hearts">3</div>
+        </div>
+      </div>
+      <button class="btn" id="pauseBtn">Pause</button>
+    </div>
+
+    <div class="toast" id="toast">Left side: move • Right side: tap to throw</div>
+
+    <div class="overlay" id="start">
+      <div class="card">
+        <h1 class="title">TOMATO<br>FOOD FIGHT</h1>
+        <p class="sub">Defend the picnic. Paint the yard. Land juicy hits to combo, build ketchup streaks, and survive the waves.</p>
+        <p class="sub">
+          <span class="kbd">Mobile</span> <span class="small">Left thumb moves • Tap right side to lob tomatoes</span><br>
+          <span class="kbd">PC</span> <span class="small">WASD/Arrows move • Mouse click throws</span>
+        </p>
+        <div class="cta">
+          <button class="primary" id="playBtn">Tap to Play</button>
+          <button class="mutebtn" id="howBtn">Tips</button>
+        </div>
+        <div class="sub" style="font-size:12px">Tip: aim ahead of runners. Splash damage helps when they bunch up.</div>
+      </div>
+    </div>
+
+    <div class="overlay" id="over" style="display:none">
+      <div class="card">
+        <h2 class="title" style="font-size:26px">SPLATTERED</h2>
+        <p class="sub">Score: <strong class="value" id="finalScore">0</strong></p>
+        <p class="sub">Best: <strong class="value" id="bestScore">0</strong></p>
+        <div class="cta">
+          <button class="primary" id="retryBtn">Play Again</button>
+          <button class="mutebtn" id="homeBtn">Back to Start</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="paused" style="display:none">
+      <div class="card">
+        <h2 class="title" style="font-size:26px">PAUSED</h2>
+        <p class="sub">Hydrate. Wipe the goggles. Resume when ready.</p>
+        <div class="cta">
+          <button class="primary" id="resumeBtn">Resume</button>
+          <button class="mutebtn" id="restartBtn">Restart</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById('c');
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const ui = {
+        score: document.getElementById('score'),
+        wave: document.getElementById('wave'),
+        hearts: document.getElementById('hearts'),
+        start: document.getElementById('start'),
+        over: document.getElementById('over'),
+        paused: document.getElementById('paused'),
+        finalScore: document.getElementById('finalScore'),
+        bestScore: document.getElementById('bestScore'),
+        pauseBtn: document.getElementById('pauseBtn'),
+        playBtn: document.getElementById('playBtn'),
+        retryBtn: document.getElementById('retryBtn'),
+        homeBtn: document.getElementById('homeBtn'),
+        resumeBtn: document.getElementById('resumeBtn'),
+        restartBtn: document.getElementById('restartBtn'),
+        howBtn: document.getElementById('howBtn'),
+        toast: document.getElementById('toast'),
+      };
+
+      const DPR = () => Math.min(2, window.devicePixelRatio || 1);
+      let w = 1, h = 1, dpr = 1;
+      function resize() {
+        dpr = DPR();
+        w = Math.max(1, Math.floor(window.innerWidth));
+        h = Math.max(1, Math.floor(window.innerHeight));
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      window.addEventListener('resize', resize, { passive: true });
+      resize();
+
+      let seed = (Date.now() ^ (Math.random() * 1e9)) >>> 0;
+      function rand() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
+      function rrange(a, b) { return a + (b - a) * rand(); }
+      function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+      function len2(x, y) { return Math.hypot(x, y); }
+
+      const storageKey = 'k2_tomato_best_v1';
+      let best = +(localStorage.getItem(storageKey) || 0);
+      ui.bestScore.textContent = Math.floor(best).toString();
+
+      let running = false;
+      let gameOver = false;
+      let paused = false;
+      let last = 0;
+      let tNow = 0;
+      let score = 0;
+      let wave = 1;
+      let hearts = 3;
+      let shake = 0;
+      let vignette = 0;
+      let combo = 0;
+      let comboT = 0;
+
+      const arena = { w: 24, h: 14 };
+      const camera = { x: 0, y: 0, zoom: 52 };
+
+      const player = { x: 0, y: 0, vx: 0, vy: 0, r: 0.55, cooldown: 0, aimX: 1, aimY: 0 };
+      const enemies = [];
+      const shots = [];
+      const splats = [];
+      const crumbs = [];
+      const pickups = [];
+
+      let leftTouch = null;
+      let leftStick = { x:0, y:0 };
+
+      function toast(msg, ms=2000) {
+        ui.toast.textContent = msg;
+        ui.toast.classList.add('show');
+        window.clearTimeout(toast._t);
+        toast._t = window.setTimeout(() => ui.toast.classList.remove('show'), ms);
+      }
+
+      function setOverlay(name) {
+        ui.start.style.display = name === 'start' ? 'flex' : 'none';
+        ui.over.style.display = name === 'over' ? 'flex' : 'none';
+        ui.paused.style.display = name === 'paused' ? 'flex' : 'none';
+      }
+
+      function syncHud() {
+        ui.score.textContent = Math.floor(score).toString();
+        ui.wave.textContent = String(wave);
+        ui.hearts.textContent = String(hearts);
+      }
+
+      function screenToWorld(sx, sy) {
+        const cx = w * 0.5 + (camera.x * -camera.zoom);
+        const cy = h * 0.58 + (camera.y * -camera.zoom);
+        return { x: (sx - cx) / camera.zoom, y: (sy - cy) / camera.zoom };
+      }
+
+      function throwAtScreen(sx, sy) {
+        if (player.cooldown > 0) return;
+        const target = screenToWorld(sx, sy);
+        const dx = target.x - player.x;
+        const dy = target.y - player.y;
+        const d = Math.max(0.001, len2(dx, dy));
+        const ax = dx / d, ay = dy / d;
+        player.aimX = ax; player.aimY = ay;
+
+        const speed = 12.2;
+        const arc = 5.2;
+        shots.push({
+          x: player.x + ax * 0.8,
+          y: player.y + ay * 0.8,
+          z: 0,
+          vx: ax * speed,
+          vy: ay * speed,
+          vz: arc,
+          r: 0.18,
+          life: 1.55,
+          spicy: combo >= 8 ? 1 : 0,
+        });
+        player.cooldown = 0.18;
+      }
+
+      function spawnWave() {
+        const count = 4 + Math.floor(wave * 1.5);
+        for (let i = 0; i < count; i++) {
+          const edge = rand() < 0.5 ? 'h' : 'v';
+          const x = edge === 'h' ? rrange(-arena.w/2, arena.w/2) : (rand() < 0.5 ? -arena.w/2 - 1 : arena.w/2 + 1);
+          const y = edge === 'v' ? rrange(-arena.h/2, arena.h/2) : (rand() < 0.5 ? -arena.h/2 - 1 : arena.h/2 + 1);
+          enemies.push({
+            x, y, vx:0, vy:0,
+            r: rrange(0.45, 0.65),
+            hp: 1 + (wave >= 4 ? (rand() < 0.25 ? 1 : 0) : 0),
+            kind: rand() < 0.78 ? 'kid' : 'goon',
+            wob: rrange(0, Math.PI*2),
+            hitT: 0,
+            speed: rrange(2.8, 3.6) + wave * 0.12,
+          });
+        }
+      }
+
+      function addSplat(x, y, pow=1, hueShift=0) {
+        splats.push({ x, y, r: rrange(0.5, 1.05) * pow, a: 1, hue: 0 + hueShift, seed: rand() });
+        for (let i = 0; i < 10; i++) {
+          crumbs.push({ x, y, vx: rrange(-4.5, 4.5) * pow, vy: rrange(-4.5, 4.5) * pow, life: rrange(0.35, 0.8), r: rrange(0.02, 0.07) * pow, hue: rrange(-6, 10) });
+        }
+      }
+
+      function hurt() {
+        hearts -= 1;
+        shake = Math.max(shake, 0.55);
+        vignette = Math.max(vignette, 1);
+        combo = 0; comboT = 0;
+        syncHud();
+        if (hearts <= 0) end();
+      }
+
+      function reset() {
+        score = 0;
+        wave = 1;
+        hearts = 3;
+        shake = 0;
+        vignette = 0;
+        combo = 0;
+        comboT = 0;
+        player.x = 0; player.y = 0; player.vx = 0; player.vy = 0; player.cooldown = 0; player.aimX = 1; player.aimY = 0;
+        enemies.length = 0;
+        shots.length = 0;
+        splats.length = 0;
+        crumbs.length = 0;
+        pickups.length = 0;
+        spawnWave();
+        syncHud();
+      }
+
+      function begin() {
+        reset();
+        running = true;
+        paused = false;
+        gameOver = false;
+        setOverlay('none');
+        toast('Left: move • Right: tap to throw', 2200);
+        last = performance.now();
+        requestAnimationFrame(frame);
+      }
+
+      function end() {
+        if (gameOver) return;
+        gameOver = true;
+        running = false;
+        paused = false;
+        ui.finalScore.textContent = Math.floor(score).toString();
+        if (score > best) { best = score; localStorage.setItem(storageKey, String(best)); }
+        ui.bestScore.textContent = Math.floor(best).toString();
+        setOverlay('over');
+      }
+
+      function setPaused(next) {
+        if (!running || gameOver) return;
+        paused = next;
+        setOverlay(paused ? 'paused' : 'none');
+        if (!paused) { last = performance.now(); requestAnimationFrame(frame); }
+      }
+
+      ui.pauseBtn.addEventListener('click', () => setPaused(!paused));
+      ui.playBtn.addEventListener('click', begin);
+      ui.retryBtn.addEventListener('click', begin);
+      ui.homeBtn.addEventListener('click', () => { setOverlay('start'); running = false; paused = false; gameOver = false; });
+      ui.resumeBtn.addEventListener('click', () => setPaused(false));
+      ui.restartBtn.addEventListener('click', begin);
+      ui.howBtn.addEventListener('click', () => toast('Throw into groups for splash. Keep moving to avoid tackles.', 2400));
+
+      const keys = { up:false, down:false, left:false, right:false };
+      window.addEventListener('keydown', (e) => {
+        const k = e.key.toLowerCase();
+        if (k === 'w' || e.key === 'ArrowUp') keys.up = true;
+        if (k === 's' || e.key === 'ArrowDown') keys.down = true;
+        if (k === 'a' || e.key === 'ArrowLeft') keys.left = true;
+        if (k === 'd' || e.key === 'ArrowRight') keys.right = true;
+        if (k === 'p' || e.key === 'Escape') setPaused(true);
+      });
+      window.addEventListener('keyup', (e) => {
+        const k = e.key.toLowerCase();
+        if (k === 'w' || e.key === 'ArrowUp') keys.up = false;
+        if (k === 's' || e.key === 'ArrowDown') keys.down = false;
+        if (k === 'a' || e.key === 'ArrowLeft') keys.left = false;
+        if (k === 'd' || e.key === 'ArrowRight') keys.right = false;
+      });
+
+      window.addEventListener('pointerdown', (e) => {
+        if (!running || paused || gameOver) return;
+        const sideLeft = e.clientX < w * 0.5;
+        if (sideLeft && !leftTouch) {
+          leftTouch = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY };
+          leftStick = { x:0, y:0 };
+        } else {
+          throwAtScreen(e.clientX, e.clientY);
+        }
+      }, { passive: true });
+      window.addEventListener('pointermove', (e) => {
+        if (!running || paused || gameOver) return;
+        if (leftTouch && e.pointerId === leftTouch.id) {
+          leftTouch.x = e.clientX; leftTouch.y = e.clientY;
+          const dx = (leftTouch.x - leftTouch.x0) / Math.max(1, w * 0.22);
+          const dy = (leftTouch.y - leftTouch.y0) / Math.max(1, h * 0.22);
+          leftStick.x = clamp(dx, -1, 1);
+          leftStick.y = clamp(dy, -1, 1);
+        }
+      }, { passive: true });
+      window.addEventListener('pointerup', (e) => {
+        if (leftTouch && e.pointerId === leftTouch.id) { leftTouch = null; leftStick = { x:0, y:0 }; }
+      }, { passive: true });
+      window.addEventListener('pointercancel', (e) => {
+        if (leftTouch && e.pointerId === leftTouch.id) { leftTouch = null; leftStick = { x:0, y:0 }; }
+      }, { passive: true });
+      window.addEventListener('click', (e) => {
+        if (!running || paused || gameOver) return;
+        throwAtScreen(e.clientX, e.clientY);
+      }, { passive: true });
+
+      function update(dt) {
+        tNow += dt;
+        player.cooldown = Math.max(0, player.cooldown - dt);
+        comboT = Math.max(0, comboT - dt);
+        if (comboT <= 0) combo = 0;
+
+        let ix = 0, iy = 0;
+        if (keys.left) ix -= 1;
+        if (keys.right) ix += 1;
+        if (keys.up) iy -= 1;
+        if (keys.down) iy += 1;
+        if (leftTouch) { ix = leftStick.x; iy = leftStick.y; }
+        const d = Math.max(0.001, len2(ix, iy));
+        ix /= d; iy /= d;
+        const accel = 18.0;
+        player.vx += (ix * accel - player.vx * 7.5) * dt;
+        player.vy += (iy * accel - player.vy * 7.5) * dt;
+        player.x += player.vx * dt;
+        player.y += player.vy * dt;
+
+        const mx = arena.w/2 - player.r, my = arena.h/2 - player.r;
+        player.x = clamp(player.x, -mx, mx);
+        player.y = clamp(player.y, -my, my);
+
+        for (let i = enemies.length - 1; i >= 0; i--) {
+          const e = enemies[i];
+          e.wob += dt * (2.2 + e.speed * 0.25);
+          e.hitT = Math.max(0, e.hitT - dt);
+          const dx = player.x - e.x;
+          const dy = player.y - e.y;
+          const dist = Math.max(0.001, len2(dx, dy));
+          const ax = dx / dist, ay = dy / dist;
+          const sp = e.speed * (e.kind === 'goon' ? 1.05 : 1.0);
+          e.vx += (ax * sp - e.vx * 6.2) * dt;
+          e.vy += (ay * sp - e.vy * 6.2) * dt;
+          e.x += e.vx * dt;
+          e.y += e.vy * dt;
+
+          if (dist < (player.r + e.r) * 0.92) {
+            hurt();
+            const kb = 8.5;
+            player.vx -= ax * kb;
+            player.vy -= ay * kb;
+            e.vx += ax * 5.0;
+            e.vy += ay * 5.0;
+          }
+        }
+
+        for (let i = shots.length - 1; i >= 0; i--) {
+          const s = shots[i];
+          s.life -= dt;
+          s.vz -= 16.5 * dt;
+          s.x += s.vx * dt;
+          s.y += s.vy * dt;
+          s.z = Math.max(0, s.z + s.vz * dt);
+          if (s.life <= 0 || (s.z <= 0 && s.vz < 0)) {
+            const pow = s.spicy ? 1.25 : 1.0;
+            addSplat(s.x, s.y, pow, s.spicy ? 10 : 0);
+            shake = Math.max(shake, 0.10);
+
+            const splash = 1.0 * pow;
+            for (let j = enemies.length - 1; j >= 0; j--) {
+              const e = enemies[j];
+              const dx = e.x - s.x, dy = e.y - s.y;
+              if (len2(dx, dy) < splash) {
+                e.hp -= 1;
+                e.hitT = 0.15;
+                if (e.hp <= 0) {
+                  enemies.splice(j, 1);
+                  score += 15 + combo * 2;
+                  combo = Math.min(30, combo + 1);
+                  comboT = 2.2;
+                  if (rand() < 0.07) pickups.push({ x: e.x, y: e.y, kind: 'heart', t: 7 });
+                  if (rand() < 0.08) pickups.push({ x: e.x, y: e.y, kind: 'spice', t: 7 });
+                } else {
+                  score += 6;
+                  combo = Math.min(30, combo + 1);
+                  comboT = 2.2;
+                }
+              }
+            }
+
+            shots.splice(i, 1);
+            syncHud();
+          }
+        }
+
+        for (let i = splats.length - 1; i >= 0; i--) {
+          const s = splats[i];
+          s.a -= dt * 0.06;
+          if (s.a <= 0.12) splats.splice(i, 1);
+        }
+        for (let i = crumbs.length - 1; i >= 0; i--) {
+          const c = crumbs[i];
+          c.life -= dt;
+          c.vx *= Math.pow(0.001, dt);
+          c.vy *= Math.pow(0.001, dt);
+          c.x += c.vx * dt;
+          c.y += c.vy * dt;
+          if (c.life <= 0) crumbs.splice(i, 1);
+        }
+        for (let i = pickups.length - 1; i >= 0; i--) {
+          const p = pickups[i];
+          p.t -= dt;
+          const dx = player.x - p.x, dy = player.y - p.y;
+          if (len2(dx, dy) < 0.8) {
+            if (p.kind === 'heart') hearts = Math.min(5, hearts + 1);
+            if (p.kind === 'spice') { combo = Math.max(combo, 8); comboT = 3.5; }
+            pickups.splice(i, 1);
+            syncHud();
+            continue;
+          }
+          if (p.t <= 0) pickups.splice(i, 1);
+        }
+
+        if (enemies.length === 0) {
+          wave += 1;
+          hearts = Math.min(5, hearts + (wave % 3 === 0 ? 1 : 0));
+          spawnWave();
+          syncHud();
+          toast(`Wave ${wave}!`, 1200);
+        }
+
+        shake = Math.max(0, shake - dt * 2.0);
+        vignette = Math.max(0, vignette - dt * 1.25);
+      }
+
+      function worldToScreen(x, y) {
+        const cx = w * 0.5 + (camera.x * -camera.zoom);
+        const cy = h * 0.58 + (camera.y * -camera.zoom);
+        return { sx: cx + x * camera.zoom, sy: cy + y * camera.zoom };
+      }
+
+      function drawGround() {
+        const g = ctx.createLinearGradient(0, 0, 0, h);
+        g.addColorStop(0, '#07131b');
+        g.addColorStop(0.55, '#0b2430');
+        g.addColorStop(1, '#06101a');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.save();
+        ctx.translate(w * 0.5, h * 0.58);
+        const tile = 18;
+        const spanX = Math.ceil(w / tile) + 4;
+        const spanY = Math.ceil(h / tile) + 4;
+        for (let y = -spanY; y <= spanY; y++) {
+          for (let x = -spanX; x <= spanX; x++) {
+            const px = x * tile + Math.sin((x + y) * 0.9 + tNow * 0.3) * 0.6;
+            const py = y * tile + Math.cos((x - y) * 0.8 + tNow * 0.25) * 0.6;
+            const v = (x * 928371 + y * 12377) & 255;
+            const a = 0.06 + (v / 255) * 0.08;
+            ctx.fillStyle = `rgba(54,211,153,${a})`;
+            ctx.fillRect(px, py, 2, 2);
+            ctx.fillStyle = `rgba(255,61,113,${a * 0.25})`;
+            ctx.fillRect(px + 6, py + 8, 2, 2);
+          }
+        }
+        ctx.restore();
+
+        const p = worldToScreen(0, -0.2);
+        const tw = 240, th = 92;
+        const grd = ctx.createLinearGradient(p.sx - tw/2, p.sy - th/2, p.sx + tw/2, p.sy + th/2);
+        grd.addColorStop(0, 'rgba(210,134,0,.35)');
+        grd.addColorStop(1, 'rgba(255,183,3,.18)');
+        ctx.fillStyle = grd;
+        ctx.strokeStyle = 'rgba(255,255,255,.12)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(p.sx - tw/2, p.sy - th/2, tw, th, 18);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      function drawSplat(s) {
+        const p = worldToScreen(s.x, s.y);
+        ctx.save();
+        ctx.translate(p.sx, p.sy);
+        ctx.globalAlpha = clamp(s.a, 0, 1);
+        const base = s.r * camera.zoom;
+        const hue = 350 + s.hue;
+        const g = ctx.createRadialGradient(-base*0.15, -base*0.15, base*0.1, 0, 0, base*1.1);
+        g.addColorStop(0, `hsla(${hue}, 92%, 62%, 0.95)`);
+        g.addColorStop(1, `hsla(${hue}, 92%, 38%, 0.65)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        const spikes = 11;
+        for (let i = 0; i <= spikes; i++) {
+          const a = (i / spikes) * Math.PI * 2;
+          const rr = base * (0.78 + Math.sin(a * 3 + s.seed * 9) * 0.12 + Math.sin(a * 7 + s.seed * 4) * 0.09);
+          const xx = Math.cos(a) * rr;
+          const yy = Math.sin(a) * rr;
+          if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawEntity(x, y, r, fill0, fill1, outline='rgba(0,0,0,.22)', hit=0) {
+        const p = worldToScreen(x, y);
+        const rr = r * camera.zoom;
+        ctx.save();
+        ctx.globalAlpha = 0.22;
+        ctx.fillStyle = 'rgba(0,0,0,.8)';
+        ctx.beginPath();
+        ctx.ellipse(p.sx, p.sy + rr*0.26, rr*0.85, rr*0.42, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+
+        const g = ctx.createRadialGradient(p.sx - rr*0.25, p.sy - rr*0.35, rr*0.12, p.sx, p.sy, rr*1.25);
+        g.addColorStop(0, fill0);
+        g.addColorStop(1, fill1);
+        ctx.fillStyle = g;
+        ctx.strokeStyle = outline;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy - (hit ? (Math.sin(tNow*30)*1.5) : 0), rr, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      function drawPlayer() {
+        drawEntity(player.x, player.y, player.r, 'rgba(129,140,248,.98)', 'rgba(54,211,153,.75)');
+        const p = worldToScreen(player.x, player.y);
+        const rr = player.r * camera.zoom;
+        ctx.save();
+        ctx.translate(p.sx, p.sy);
+        ctx.strokeStyle = 'rgba(255,255,255,.28)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, rr*0.92, -0.2, Math.PI + 0.2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = 'rgba(255,183,3,.95)';
+        ctx.beginPath();
+        ctx.arc(player.aimX*rr*0.55, player.aimY*rr*0.55, rr*0.12, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawEnemy(e) {
+        const base0 = e.kind === 'goon' ? 'rgba(255,61,113,.98)' : 'rgba(255,183,3,.96)';
+        const base1 = e.kind === 'goon' ? 'rgba(180,40,75,.72)' : 'rgba(210,134,0,.70)';
+        drawEntity(e.x, e.y, e.r, base0, base1, 'rgba(0,0,0,.24)', e.hitT);
+        const p = worldToScreen(e.x, e.y);
+        const rr = e.r * camera.zoom;
+        ctx.save();
+        ctx.translate(p.sx, p.sy - rr*0.1);
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = 'rgba(10,12,18,.85)';
+        ctx.beginPath();
+        ctx.arc(-rr*0.22, -rr*0.08, rr*0.10, 0, Math.PI*2);
+        ctx.arc(rr*0.22, -rr*0.08, rr*0.10, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawShot(s) {
+        const sh = worldToScreen(s.x, s.y);
+        const rr = s.r * camera.zoom;
+        ctx.save();
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = 'rgba(0,0,0,.9)';
+        ctx.beginPath();
+        ctx.ellipse(sh.sx, sh.sy + rr*0.55, rr*0.92, rr*0.42, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+
+        const lift = s.z * 14;
+        const p = { sx: sh.sx, sy: sh.sy - lift };
+        const g = ctx.createRadialGradient(p.sx - rr*0.25, p.sy - rr*0.25, rr*0.12, p.sx, p.sy, rr*1.15);
+        g.addColorStop(0, 'rgba(255,240,240,.92)');
+        g.addColorStop(1, s.spicy ? 'rgba(255,61,113,.98)' : 'rgba(210,30,50,.95)');
+        ctx.fillStyle = g;
+        ctx.strokeStyle = 'rgba(0,0,0,.18)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, rr, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(p.sx, p.sy - rr*0.2);
+        ctx.rotate(Math.sin(tNow*14 + s.x*2) * 0.25);
+        ctx.fillStyle = 'rgba(54,211,153,.88)';
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-rr*0.22, -rr*0.36);
+        ctx.lineTo(0, -rr*0.24);
+        ctx.lineTo(rr*0.22, -rr*0.36);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawPickup(pu) {
+        const p = worldToScreen(pu.x, pu.y);
+        const r = 0.26 * camera.zoom;
+        ctx.save();
+        ctx.translate(p.sx, p.sy);
+        ctx.globalAlpha = 0.9 * clamp(pu.t / 7, 0.35, 1);
+        const g = ctx.createRadialGradient(-r*0.2, -r*0.2, r*0.1, 0, 0, r*1.3);
+        g.addColorStop(0, pu.kind === 'heart' ? 'rgba(255,240,240,.95)' : 'rgba(255,255,255,.95)');
+        g.addColorStop(1, pu.kind === 'heart' ? 'rgba(255,61,113,.9)' : 'rgba(255,183,3,.9)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(10,12,18,.72)';
+        ctx.font = `900 ${Math.max(14, r*0.9)}px system-ui`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(pu.kind === 'heart' ? '❤' : '✦', 0, 1);
+        ctx.restore();
+      }
+
+      function drawScreenFx() {
+        const v = clamp(vignette, 0, 1);
+        if (v > 0.01) {
+          const g = ctx.createRadialGradient(w*0.5, h*0.58, Math.min(w,h)*0.18, w*0.5, h*0.58, Math.min(w,h)*0.78);
+          g.addColorStop(0, 'rgba(0,0,0,0)');
+          g.addColorStop(1, `rgba(0,0,0,${0.55*v})`);
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, w, h);
+          ctx.globalAlpha = 0.18*v;
+          const r = ctx.createRadialGradient(w*0.5, h*0.58, Math.min(w,h)*0.24, w*0.5, h*0.58, Math.min(w,h)*0.80);
+          r.addColorStop(0, 'rgba(255,61,113,0)');
+          r.addColorStop(1, 'rgba(255,61,113,1)');
+          ctx.fillStyle = r;
+          ctx.fillRect(0, 0, w, h);
+          ctx.globalAlpha = 1;
+        }
+        if (combo >= 2) {
+          ctx.save();
+          const txt = `COMBO x${combo}`;
+          ctx.font = '1000 16px system-ui';
+          const m = ctx.measureText(txt);
+          const padX = 12;
+          const bx = w * 0.5 - m.width/2 - padX;
+          const by = 64;
+          ctx.globalAlpha = clamp(comboT / 2.2, 0.2, 1);
+          ctx.fillStyle = 'rgba(0,0,0,.40)';
+          ctx.beginPath();
+          ctx.roundRect(bx, by, m.width + padX*2, 36, 14);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,.12)';
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(255,183,3,.95)';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(txt, w*0.5, by + 18);
+          ctx.restore();
+        }
+      }
+
+      function draw() {
+        ctx.save();
+        const s = shake * shake;
+        ctx.translate((rand()-0.5)*22*s, (rand()-0.5)*16*s);
+        drawGround();
+        for (const s of splats) drawSplat(s);
+        for (const c of crumbs) {
+          const p = worldToScreen(c.x, c.y);
+          ctx.save();
+          ctx.globalAlpha = clamp(c.life / 0.8, 0, 1);
+          ctx.fillStyle = `hsla(${350 + c.hue}, 90%, 55%, .95)`;
+          ctx.beginPath();
+          ctx.arc(p.sx, p.sy, Math.max(1, c.r * camera.zoom), 0, Math.PI*2);
+          ctx.fill();
+          ctx.restore();
+        }
+        for (const p of pickups) drawPickup(p);
+        for (const e of enemies) drawEnemy(e);
+        for (const s of shots) drawShot(s);
+        drawPlayer();
+        ctx.restore();
+        drawScreenFx();
+      }
+
+      function frame(ts) {
+        if (!running || paused) return;
+        const dt = clamp((ts - last) / 1000, 0, 0.033);
+        last = ts;
+        update(dt);
+        draw();
+        requestAnimationFrame(frame);
+      }
+
+      if (!CanvasRenderingContext2D.prototype.roundRect) {
+        CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, r) {
+          const rr = Array.isArray(r) ? r : [r, r, r, r];
+          const [r1, r2, r3, r4] = rr.map(v => Math.max(0, Math.min(v, Math.min(width, height) / 2)));
+          this.beginPath();
+          this.moveTo(x + r1, y);
+          this.lineTo(x + width - r2, y);
+          this.quadraticCurveTo(x + width, y, x + width, y + r2);
+          this.lineTo(x + width, y + height - r3);
+          this.quadraticCurveTo(x + width, y + height, x + width - r3, y + height);
+          this.lineTo(x + r4, y + height);
+          this.quadraticCurveTo(x, y + height, x, y + height - r4);
+          this.lineTo(x, y + r1);
+          this.quadraticCurveTo(x, y, x + r1, y);
+          this.closePath();
+          return this;
+        };
+      }
+
+      setOverlay('start');
+      draw();
+    })();
+  </script>
+</body>
+</html>
+
