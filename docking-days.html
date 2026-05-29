@@ -94,6 +94,26 @@
             z-index: 60;
             pointer-events: none;
         }
+        @media (pointer: fine) {
+            #osc-controls { display: none; }
+        }
+        @media (max-width: 860px) {
+            .desktop-controls { display: none !important; }
+            #osc-controls {
+                padding: 10px 14px calc(16px + env(safe-area-inset-bottom, 0px));
+            }
+            .osc-btn {
+                width: 78px;
+                height: 78px;
+                border-radius: 18px;
+                font-size: 1.6rem;
+            }
+            .osc-brake {
+                width: 108px;
+                height: 62px;
+                font-size: 0.84rem;
+            }
+        }
         .osc-group {
             display: flex;
             flex-direction: column;
@@ -194,7 +214,7 @@
         </div>
 
         <!-- Bottom Bar: Permanent Controls -->
-        <div class="flex justify-center mb-4">
+        <div class="desktop-controls flex justify-center mb-4">
             <div class="vibe-card flex gap-8 items-center px-8 py-4 border-t-4 border-blue-500">
                 <div class="flex flex-col items-center">
                     <div class="flex gap-1 mb-2">
@@ -544,6 +564,7 @@
     draw();
 
     // Wire on-screen control buttons
+    const controlButtons = [];
     [
         ['osc-W',    'KeyW'],
         ['osc-S',    'KeyS'],
@@ -552,12 +573,37 @@
         ['osc-Space','Space']
     ].forEach(([id, code]) => {
         const btn = document.getElementById(id);
-        const press = e => { e.preventDefault(); keys[code] = true;  btn.classList.add('pressed'); };
-        const release = e => {                    keys[code] = false; btn.classList.remove('pressed'); };
+        let pointerId = null;
+        const press = e => {
+            e.preventDefault();
+            pointerId = e.pointerId;
+            btn.setPointerCapture(pointerId);
+            keys[code] = true;
+            btn.classList.add('pressed');
+        };
+        const release = e => {
+            if (e && pointerId !== null && e.pointerId !== pointerId) return;
+            pointerId = null;
+            keys[code] = false;
+            btn.classList.remove('pressed');
+        };
         btn.addEventListener('pointerdown',   press);
         btn.addEventListener('pointerup',     release);
         btn.addEventListener('pointercancel', release);
         btn.addEventListener('pointerleave',  release);
+        controlButtons.push({ code, btn, release });
+    });
+
+    const clearTouchControls = () => {
+        controlButtons.forEach(({ code, btn, release }) => {
+            keys[code] = false;
+            release();
+            btn.classList.remove('pressed');
+        });
+    };
+    window.addEventListener('blur', clearTouchControls);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) clearTouchControls();
     });
 </script>
 </body>

@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Lake Powell Slot Canyon Rescue - K2 games</title>
+    <style>
+        :root {
+            --panel: rgba(6, 18, 34, 0.78);
+            --line: rgba(255,255,255,0.18);
+            --gold: #fbbf24;
+            --mint: #6ee7b7;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: radial-gradient(circle at 20% 20%, #1e3a5f, #0a1320 60%);
+            color: #fff;
+            font-family: "Segoe UI", system-ui, sans-serif;
+            touch-action: none;
+        }
+        #game { position: fixed; inset: 0; width: 100vw; height: 100dvh; }
+        #home-btn {
+            position: fixed;
+            left: 14px;
+            top: calc(14px + env(safe-area-inset-top, 0px));
+            z-index: 20;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            color: #fff;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.8rem;
+        }
+        #hud {
+            position: fixed;
+            right: 14px;
+            top: calc(14px + env(safe-area-inset-top, 0px));
+            z-index: 10;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: var(--panel);
+            padding: 10px 12px;
+            min-width: 180px;
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+        #hud b { color: var(--gold); }
+        #notice {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+            z-index: 10;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: var(--panel);
+            padding: 10px 15px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-align: center;
+            max-width: min(92vw, 720px);
+        }
+        #mobile-controls {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 15;
+            display: none;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+            pointer-events: none;
+        }
+        #joyPad {
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.24);
+            background: rgba(4, 10, 18, 0.56);
+            position: relative;
+            pointer-events: auto;
+            touch-action: none;
+        }
+        #joyKnob {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 54px;
+            height: 54px;
+            margin-left: -27px;
+            margin-top: -27px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #fff6cc, #fbbf24 68%, #d97706);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.35);
+        }
+        #boostBtn {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.24);
+            background: linear-gradient(165deg, rgba(110,231,183,0.72), rgba(45,212,191,0.62));
+            color: #fff;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            pointer-events: auto;
+            touch-action: none;
+        }
+        @media (max-width: 860px) {
+            #mobile-controls { display: flex; }
+            #notice { bottom: calc(170px + env(safe-area-inset-bottom, 0px)); }
+        }
+    </style>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CCZ9JJGEDP"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-CCZ9JJGEDP');
+    </script>
+</head>
+<body>
+    <a href="index.html" id="home-btn">← HUB</a>
+    <canvas id="game"></canvas>
+    <div id="hud">
+        <div><b>Lake Powell Slot Canyon Rescue</b></div>
+        <div>Rescued: <span id="rescuedValue">0 / 5</span></div>
+        <div>Fuel: <span id="fuelValue">100%</span></div>
+        <div>Time: <span id="timeValue">0.0s</span></div>
+    </div>
+    <div id="notice">Navigate narrow canyons, pick up stranded hikers, and return to the houseboat before fuel runs dry.</div>
+    <div id="mobile-controls" aria-hidden="true">
+        <div id="joyPad"><div id="joyKnob"></div></div>
+        <button id="boostBtn" type="button">Boost</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const rescuedValueEl = document.getElementById('rescuedValue');
+        const fuelValueEl = document.getElementById('fuelValue');
+        const timeValueEl = document.getElementById('timeValue');
+        const noticeEl = document.getElementById('notice');
+        const joyPad = document.getElementById('joyPad');
+        const joyKnob = document.getElementById('joyKnob');
+        const boostBtn = document.getElementById('boostBtn');
+
+        const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+        const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
+        const normalize = (x, y) => {
+            const len = Math.hypot(x, y);
+            if (!len) return { x: 0, y: 0 };
+            return { x: x / len, y: y / len };
+        };
+
+        const game = {
+            w: 0,
+            h: 0,
+            keys: {},
+            joy: { x: 0, y: 0, mag: 0, pointerId: null },
+            boostTouch: false,
+            running: true,
+            time: 0,
+            fuel: 100,
+            rescued: 0,
+            totalHikers: 5,
+            boat: { x: 180, y: 180, vx: 0, vy: 0, dir: 0 },
+            base: { x: 90, y: 90, r: 34 },
+            hikers: [],
+            walls: []
+        };
+
+        function makeLevel() {
+            game.walls = [];
+            const margin = 70;
+            game.walls.push({ x: 0, y: 0, w: game.w, h: margin });
+            game.walls.push({ x: 0, y: game.h - margin, w: game.w, h: margin });
+            game.walls.push({ x: 0, y: 0, w: margin, h: game.h });
+            game.walls.push({ x: game.w - margin, y: 0, w: margin, h: game.h });
+            const chunk = game.w / 5;
+            game.walls.push({ x: chunk, y: margin + 20, w: 68, h: game.h * 0.55 });
+            game.walls.push({ x: chunk * 2 - 16, y: game.h * 0.35, w: 68, h: game.h * 0.6 });
+            game.walls.push({ x: chunk * 3 - 10, y: margin + 15, w: 68, h: game.h * 0.58 });
+            game.walls.push({ x: chunk * 4 - 12, y: game.h * 0.34, w: 68, h: game.h * 0.6 });
+            game.hikers = [
+                { x: game.w * 0.32, y: game.h * 0.22, rescued: false },
+                { x: game.w * 0.48, y: game.h * 0.78, rescued: false },
+                { x: game.w * 0.61, y: game.h * 0.24, rescued: false },
+                { x: game.w * 0.76, y: game.h * 0.7, rescued: false },
+                { x: game.w * 0.89, y: game.h * 0.25, rescued: false }
+            ];
+            game.base.x = 120;
+            game.base.y = 120;
+            game.boat.x = 180;
+            game.boat.y = 180;
+            game.boat.vx = 0;
+            game.boat.vy = 0;
+            game.boat.dir = 0;
+            game.fuel = 100;
+            game.rescued = 0;
+            game.time = 0;
+            game.running = true;
+            noticeEl.textContent = 'Navigate narrow canyons, pick up stranded hikers, and return to the houseboat before fuel runs dry.';
+        }
+
+        function resize() {
+            game.w = window.innerWidth;
+            game.h = window.innerHeight;
+            canvas.width = game.w * devicePixelRatio;
+            canvas.height = game.h * devicePixelRatio;
+            canvas.style.width = game.w + 'px';
+            canvas.style.height = game.h + 'px';
+            ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+            makeLevel();
+        }
+
+        function insideWall(x, y, r) {
+            return game.walls.some((wall) =>
+                x + r > wall.x &&
+                x - r < wall.x + wall.w &&
+                y + r > wall.y &&
+                y - r < wall.y + wall.h
+            );
+        }
+
+        function readAxis() {
+            let x = 0, y = 0;
+            if (game.keys.KeyA || game.keys.ArrowLeft) x -= 1;
+            if (game.keys.KeyD || game.keys.ArrowRight) x += 1;
+            if (game.keys.KeyW || game.keys.ArrowUp) y -= 1;
+            if (game.keys.KeyS || game.keys.ArrowDown) y += 1;
+            if (!x && !y && game.joy.mag > 0.06) {
+                x = game.joy.x;
+                y = game.joy.y;
+            }
+            const len = Math.hypot(x, y);
+            return len ? { x: x / len, y: y / len, mag: len } : { x: 0, y: 0, mag: 0 };
+        }
+
+        function update(dt) {
+            if (!game.running) return;
+            game.time += dt;
+            const axis = readAxis();
+            const boosting = !!game.keys.ShiftLeft || !!game.keys.ShiftRight || !!game.boostTouch;
+            const speed = boosting ? 238 : 172;
+            const accel = 7.2;
+
+            game.boat.vx += (axis.x * speed - game.boat.vx) * clamp(dt * accel, 0, 1);
+            game.boat.vy += (axis.y * speed - game.boat.vy) * clamp(dt * accel, 0, 1);
+            game.boat.vx *= 0.97;
+            game.boat.vy *= 0.97;
+            if (axis.mag > 0.08) game.boat.dir = Math.atan2(axis.y, axis.x);
+
+            const nextX = game.boat.x + game.boat.vx * dt;
+            const nextY = game.boat.y + game.boat.vy * dt;
+            const boatR = 18;
+            if (!insideWall(nextX, game.boat.y, boatR)) game.boat.x = nextX; else game.boat.vx *= -0.2;
+            if (!insideWall(game.boat.x, nextY, boatR)) game.boat.y = nextY; else game.boat.vy *= -0.2;
+
+            const movingCost = axis.mag > 0.04 ? (boosting ? 6.5 : 3.2) : 0.35;
+            game.fuel = clamp(game.fuel - movingCost * dt, 0, 100);
+
+            for (const hiker of game.hikers) {
+                if (!hiker.rescued && dist(game.boat.x, game.boat.y, hiker.x, hiker.y) < 28) {
+                    hiker.rescued = true;
+                    game.rescued++;
+                    noticeEl.textContent = `Rescue secured (${game.rescued}/${game.totalHikers}). Head back for more.`;
+                }
+            }
+
+            if (game.fuel <= 0) {
+                game.running = false;
+                noticeEl.textContent = 'Out of fuel. Tap or press R to restart the rescue run.';
+            }
+
+            if (game.rescued === game.totalHikers && dist(game.boat.x, game.boat.y, game.base.x, game.base.y) < 45) {
+                game.running = false;
+                noticeEl.textContent = `Mission complete in ${game.time.toFixed(1)}s. Tap or press R to launch another run.`;
+            }
+
+            rescuedValueEl.textContent = `${game.rescued} / ${game.totalHikers}`;
+            fuelValueEl.textContent = `${Math.round(game.fuel)}%`;
+            timeValueEl.textContent = `${game.time.toFixed(1)}s`;
+        }
+
+        function draw() {
+            const water = ctx.createLinearGradient(0, 0, game.w, game.h);
+            water.addColorStop(0, '#0f3f63');
+            water.addColorStop(0.5, '#0c3352');
+            water.addColorStop(1, '#082338');
+            ctx.fillStyle = water;
+            ctx.fillRect(0, 0, game.w, game.h);
+
+            ctx.fillStyle = '#3f2a1f';
+            for (const wall of game.walls) ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+
+            ctx.fillStyle = 'rgba(251,191,36,0.2)';
+            ctx.beginPath();
+            ctx.arc(game.base.x, game.base.y, 42, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(game.base.x, game.base.y, game.base.r, 0, Math.PI * 2);
+            ctx.stroke();
+
+            for (const hiker of game.hikers) {
+                if (hiker.rescued) continue;
+                ctx.fillStyle = '#fca5a5';
+                ctx.beginPath();
+                ctx.arc(hiker.x, hiker.y, 11, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(hiker.x, hiker.y - 15, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.save();
+            ctx.translate(game.boat.x, game.boat.y);
+            ctx.rotate(game.boat.dir + Math.PI / 2);
+            ctx.fillStyle = '#f8fafc';
+            ctx.beginPath();
+            ctx.roundRect(-14, -24, 28, 48, 8);
+            ctx.fill();
+            ctx.fillStyle = '#60a5fa';
+            ctx.fillRect(-8, -8, 16, 20);
+            ctx.restore();
+        }
+
+        function loop(last = performance.now()) {
+            const now = performance.now();
+            const dt = Math.min(0.033, (now - last) / 1000);
+            update(dt);
+            draw();
+            requestAnimationFrame(() => loop(now));
+        }
+
+        window.addEventListener('keydown', (event) => {
+            game.keys[event.code] = true;
+            if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
+            if (event.code === 'KeyR') makeLevel();
+        }, { passive: false });
+        window.addEventListener('keyup', (event) => {
+            game.keys[event.code] = false;
+        });
+        window.addEventListener('pointerdown', () => {
+            if (!game.running) makeLevel();
+        });
+
+        const readJoy = (event) => {
+            const rect = joyPad.getBoundingClientRect();
+            const cx = rect.left + rect.width * 0.5;
+            const cy = rect.top + rect.height * 0.5;
+            const radius = rect.width * 0.5 - 10;
+            const dx = event.clientX - cx;
+            const dy = event.clientY - cy;
+            const len = Math.hypot(dx, dy);
+            const limit = len > radius ? radius / len : 1;
+            const px = dx * limit;
+            const py = dy * limit;
+            game.joy.x = px / radius;
+            game.joy.y = py / radius;
+            game.joy.mag = clamp(Math.hypot(game.joy.x, game.joy.y), 0, 1);
+            joyKnob.style.transform = `translate(${px}px, ${py}px)`;
+        };
+        const releaseJoy = (event) => {
+            if (event && game.joy.pointerId !== event.pointerId) return;
+            game.joy.pointerId = null;
+            game.joy.x = 0; game.joy.y = 0; game.joy.mag = 0;
+            joyKnob.style.transform = 'translate(0px, 0px)';
+        };
+        joyPad.addEventListener('pointerdown', (event) => {
+            game.joy.pointerId = event.pointerId;
+            joyPad.setPointerCapture(event.pointerId);
+            readJoy(event);
+            event.preventDefault();
+        });
+        joyPad.addEventListener('pointermove', (event) => {
+            if (game.joy.pointerId === event.pointerId) {
+                readJoy(event);
+                event.preventDefault();
+            }
+        });
+        joyPad.addEventListener('pointerup', releaseJoy);
+        joyPad.addEventListener('pointercancel', releaseJoy);
+        boostBtn.addEventListener('pointerdown', (event) => {
+            game.boostTouch = true;
+            boostBtn.style.transform = 'scale(0.94)';
+            event.preventDefault();
+        });
+        const releaseBoost = () => {
+            game.boostTouch = false;
+            boostBtn.style.transform = 'scale(1)';
+        };
+        boostBtn.addEventListener('pointerup', releaseBoost);
+        boostBtn.addEventListener('pointercancel', releaseBoost);
+        boostBtn.addEventListener('pointerleave', releaseBoost);
+
+        window.addEventListener('resize', resize);
+        resize();
+        loop();
+    </script>
+</body>
+</html>
