@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Running With The Bulls: Drone Selfie Run</title>
+  <meta name="theme-color" content="#06101f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Running With The Bulls" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./football-mobile.png" />
+  <link rel="icon" type="image/png" href="./football-mobile.png" />
   <style>
     :root{
       --bg0:#06101f; --bg1:#0b2142; --ui:rgba(10,16,28,.72);
@@ -195,9 +202,11 @@
 
       const input = { left:false, right:false, jump:false, pause:false };
       let pointerActive = false;
+      let mouseSteer = false;
       let steerDragX = 0;
       let steerTarget = 0;
       let lastTouch = { x:0, y:0, t:0 };
+      let hitRecovery = 0;
 
       const camera = { y: 1.25, z: -6.8, pitch: 0.18, fov: 520 };
       const lanes = 3;
@@ -235,7 +244,10 @@
         vignette = 0;
         player.x = 0; player.vx = 0; player.y = 0; player.vy = 0; player.jumpCooldown = 0; player.bob = 0;
         herd.closeness = 0; herd.pulse = 0;
+        pointerActive = false;
+        mouseSteer = false;
         steerTarget = 0;
+        hitRecovery = 0;
 
         let z = 0;
         for (let i = 0; i < 24; i++) {
@@ -315,6 +327,11 @@
 
       function onPointerDown(e) {
         if (!running || paused || gameOver) return;
+        if (e.pointerType === 'mouse') {
+          mouseSteer = true;
+          steerTarget = clamp((e.clientX - (w * 0.5)) / Math.max(180, w * 0.45), -1, 1) * (laneW * 1.05);
+          return;
+        }
         pointerActive = true;
         const x = e.clientX ?? (e.touches && e.touches[0]?.clientX) ?? 0;
         const y = e.clientY ?? (e.touches && e.touches[0]?.clientY) ?? 0;
@@ -322,6 +339,11 @@
         lastTouch = { x, y, t: performance.now() };
       }
       function onPointerMove(e) {
+        if (e.pointerType === 'mouse') {
+          mouseSteer = true;
+          steerTarget = clamp((e.clientX - (w * 0.5)) / Math.max(180, w * 0.45), -1, 1) * (laneW * 1.05);
+          return;
+        }
         if (!pointerActive) return;
         const x = e.clientX ?? (e.touches && e.touches[0]?.clientX) ?? 0;
         const y = e.clientY ?? (e.touches && e.touches[0]?.clientY) ?? 0;
@@ -428,6 +450,7 @@
         const dt = clamp((ts - last) / 1000, 0, 0.033);
         last = ts;
         tNow += dt;
+        hitRecovery = Math.max(0, hitRecovery - dt);
 
         if (input.pause) setPaused(true);
         if (input.jump) tryJump();
@@ -436,7 +459,9 @@
 
         const keyboardTarget = (input.left ? -1 : 0) + (input.right ? 1 : 0);
         const kbX = keyboardTarget * (laneW * 1.08);
-        const targetX = pointerActive ? steerTarget : (Math.abs(keyboardTarget) > 0 ? kbX : player.x);
+        const targetX = pointerActive
+          ? steerTarget
+          : (Math.abs(keyboardTarget) > 0 ? kbX : (mouseSteer ? steerTarget : player.x));
         const steerK = pointerActive ? 14 : 10.5;
         const accel = (targetX - player.x) * steerK - player.vx * 7.0;
         player.vx += accel * dt;
@@ -473,10 +498,11 @@
             const dx = (o.x + worldOffsetX(o.z)) - (player.x + worldOffsetX(playerZ));
             const dz = (o.z - playerZ);
             const near = dz > -0.4 && dz < 0.9;
-            if (near && Math.abs(dx) < (playerR + o.w * 0.55)) {
+            if (near && Math.abs(dx) < (playerR + o.w * 0.55) && hitRecovery <= 0) {
               const canClear = player.y > 0.65 && o.kind !== 'barrier';
               if (!canClear) {
                 o.hit = true;
+                hitRecovery = 0.55;
                 hitImpact(o.kind === 'barrier' ? 1.2 : 1);
                 spawnHitFx(o.x + worldOffsetX(o.z), o.z, o.kind === 'barrier' ? 1.2 : 1);
                 speed = Math.max(6.8, speed * 0.78);

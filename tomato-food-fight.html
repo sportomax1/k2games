@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Tomato Food Fight</title>
+  <meta name="theme-color" content="#07131b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Tomato Food Fight" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./football-mobile.png" />
+  <link rel="icon" type="image/png" href="./football-mobile.png" />
   <style>
     :root{
       --bg0:#07131b; --bg1:#0b2430; --ui:rgba(10,16,28,.72);
@@ -195,6 +202,8 @@
 
       let leftTouch = null;
       let leftStick = { x:0, y:0 };
+      let mouseAim = { x: 0, y: 0 };
+      let hurtCooldown = 0;
 
       function toast(msg, ms=2000) {
         ui.toast.textContent = msg;
@@ -272,6 +281,8 @@
       }
 
       function hurt() {
+        if (hurtCooldown > 0) return;
+        hurtCooldown = 0.75;
         hearts -= 1;
         shake = Math.max(shake, 0.55);
         vignette = Math.max(vignette, 1);
@@ -288,6 +299,7 @@
         vignette = 0;
         combo = 0;
         comboT = 0;
+        hurtCooldown = 0;
         player.x = 0; player.y = 0; player.vx = 0; player.vy = 0; player.cooldown = 0; player.aimX = 1; player.aimY = 0;
         enemies.length = 0;
         shots.length = 0;
@@ -342,6 +354,10 @@
         if (k === 's' || e.key === 'ArrowDown') keys.down = true;
         if (k === 'a' || e.key === 'ArrowLeft') keys.left = true;
         if (k === 'd' || e.key === 'ArrowRight') keys.right = true;
+        if (e.code === 'Space') {
+          e.preventDefault();
+          if (running && !paused && !gameOver) throwAtScreen(mouseAim.x || (w * 0.5), mouseAim.y || (h * 0.5));
+        }
         if (k === 'p' || e.key === 'Escape') setPaused(true);
       });
       window.addEventListener('keyup', (e) => {
@@ -354,6 +370,12 @@
 
       window.addEventListener('pointerdown', (e) => {
         if (!running || paused || gameOver) return;
+        if (e.pointerType === 'mouse') {
+          mouseAim.x = e.clientX;
+          mouseAim.y = e.clientY;
+          throwAtScreen(e.clientX, e.clientY);
+          return;
+        }
         const sideLeft = e.clientX < w * 0.5;
         if (sideLeft && !leftTouch) {
           leftTouch = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY };
@@ -364,6 +386,10 @@
       }, { passive: true });
       window.addEventListener('pointermove', (e) => {
         if (!running || paused || gameOver) return;
+        if (e.pointerType === 'mouse') {
+          mouseAim.x = e.clientX;
+          mouseAim.y = e.clientY;
+        }
         if (leftTouch && e.pointerId === leftTouch.id) {
           leftTouch.x = e.clientX; leftTouch.y = e.clientY;
           const dx = (leftTouch.x - leftTouch.x0) / Math.max(1, w * 0.22);
@@ -378,13 +404,9 @@
       window.addEventListener('pointercancel', (e) => {
         if (leftTouch && e.pointerId === leftTouch.id) { leftTouch = null; leftStick = { x:0, y:0 }; }
       }, { passive: true });
-      window.addEventListener('click', (e) => {
-        if (!running || paused || gameOver) return;
-        throwAtScreen(e.clientX, e.clientY);
-      }, { passive: true });
-
       function update(dt) {
         tNow += dt;
+        hurtCooldown = Math.max(0, hurtCooldown - dt);
         player.cooldown = Math.max(0, player.cooldown - dt);
         comboT = Math.max(0, comboT - dt);
         if (comboT <= 0) combo = 0;
