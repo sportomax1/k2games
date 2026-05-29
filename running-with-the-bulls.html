@@ -87,6 +87,37 @@
       opacity:0; transition:opacity .25s ease;
     }
     .toast.show{opacity:1}
+    .mobile-controls{
+      position:absolute;
+      left:12px;
+      right:12px;
+      bottom:12px;
+      display:none;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:10px;
+      pointer-events:none;
+      z-index:4;
+    }
+    .mobile-pad{display:flex;gap:10px;pointer-events:none}
+    .control-btn{
+      width:56px;
+      height:56px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:rgba(10,16,28,.62);
+      color:var(--text);
+      font-weight:1000;
+      font-size:20px;
+      pointer-events:auto;
+      backdrop-filter:blur(8px);
+      box-shadow:0 10px 24px rgba(0,0,0,.28);
+      user-select:none;
+      touch-action:none;
+    }
+    .control-btn.jump{width:72px;height:72px;border-radius:18px;font-size:14px;letter-spacing:.5px}
+    .control-btn.active{background:rgba(255,183,3,.35);border-color:rgba(255,183,3,.6)}
+    body.touch-mode .mobile-controls{display:flex}
   </style>
 </head>
 <body>
@@ -110,6 +141,14 @@
     </div>
 
     <div class="toast" id="toast">Swipe to steer • Swipe up to jump</div>
+
+    <div class="mobile-controls" id="mobileControls" aria-hidden="true">
+      <div class="mobile-pad">
+        <button class="control-btn" id="leftBtn" aria-label="Steer left">◀</button>
+        <button class="control-btn" id="rightBtn" aria-label="Steer right">▶</button>
+      </div>
+      <button class="control-btn jump" id="jumpBtn" aria-label="Jump">JUMP</button>
+    </div>
 
     <div class="overlay" id="start">
       <div class="card">
@@ -176,7 +215,13 @@
         resumeBtn: document.getElementById('resumeBtn'),
         restartBtn: document.getElementById('restartBtn'),
         howBtn: document.getElementById('howBtn'),
+        leftBtn: document.getElementById('leftBtn'),
+        rightBtn: document.getElementById('rightBtn'),
+        jumpBtn: document.getElementById('jumpBtn'),
       };
+
+      const isCoarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      if (isCoarsePointer) document.body.classList.add('touch-mode');
 
       const DPR = () => Math.min(2, window.devicePixelRatio || 1);
       let w = 1, h = 1, dpr = 1;
@@ -226,6 +271,7 @@
       let heat = 0;
       let shake = 0;
       let vignette = 0;
+      let loopTimer = 0;
 
       const segments = [];
       const obstacles = [];
@@ -366,6 +412,47 @@
       window.addEventListener('pointerup', onPointerUp, { passive: true });
       window.addEventListener('pointercancel', onPointerUp, { passive: true });
 
+      // Fallback touch handlers for browsers/devices that do not emit pointer events consistently.
+      function readTouchPoint(ev) {
+        const t = (ev.changedTouches && ev.changedTouches[0]) || (ev.touches && ev.touches[0]);
+        if (!t) return null;
+        return { clientX: t.clientX, clientY: t.clientY, touches: ev.touches, changedTouches: ev.changedTouches };
+      }
+      window.addEventListener('touchstart', (ev) => {
+        const p = readTouchPoint(ev);
+        if (p) onPointerDown(p);
+      }, { passive: true });
+      window.addEventListener('touchmove', (ev) => {
+        const p = readTouchPoint(ev);
+        if (p) onPointerMove(p);
+      }, { passive: true });
+      window.addEventListener('touchend', (ev) => {
+        const p = readTouchPoint(ev) || { clientX: lastTouch.x, clientY: lastTouch.y, changedTouches: [] };
+        onPointerUp(p);
+      }, { passive: true });
+
+      function bindHoldButton(btn, prop) {
+        if (!btn) return;
+        const press = () => { input[prop] = true; btn.classList.add('active'); };
+        const release = () => { input[prop] = false; btn.classList.remove('active'); };
+        btn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); press(); });
+        btn.addEventListener('pointerup', release);
+        btn.addEventListener('pointercancel', release);
+        btn.addEventListener('pointerleave', release);
+        btn.addEventListener('touchstart', press, { passive: true });
+        btn.addEventListener('touchend', release, { passive: true });
+      }
+      bindHoldButton(ui.leftBtn, 'left');
+      bindHoldButton(ui.rightBtn, 'right');
+      if (ui.jumpBtn) {
+        ui.jumpBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); tryJump(); ui.jumpBtn.classList.add('active'); });
+        const clearJumpBtn = () => ui.jumpBtn.classList.remove('active');
+        ui.jumpBtn.addEventListener('pointerup', clearJumpBtn);
+        ui.jumpBtn.addEventListener('pointercancel', clearJumpBtn);
+        ui.jumpBtn.addEventListener('touchstart', () => { tryJump(); ui.jumpBtn.classList.add('active'); }, { passive: true });
+        ui.jumpBtn.addEventListener('touchend', clearJumpBtn, { passive: true });
+      }
+
       function toast(msg, ms=1800) {
         ui.toast.textContent = msg;
         ui.toast.classList.add('show');
@@ -379,6 +466,19 @@
         ui.paused.style.display = name === 'paused' ? 'flex' : 'none';
       }
 
+      function ensureLoopRunning() {
+        if (loopTimer) return;
+        loopTimer = window.setInterval(() => {
+          if (running && !paused) frame(performance.now());
+        }, 16);
+      }
+
+      function stopLoop() {
+        if (!loopTimer) return;
+        window.clearInterval(loopTimer);
+        loopTimer = 0;
+      }
+
       function begin() {
         resetWorld();
         running = true;
@@ -387,7 +487,7 @@
         setOverlay('none');
         toast('Drag to steer • Swipe up to jump', 2200);
         last = performance.now();
-        requestAnimationFrame(frame);
+        ensureLoopRunning();
       }
 
       function endGame() {
@@ -395,6 +495,7 @@
         gameOver = true;
         running = false;
         paused = false;
+        stopLoop();
         ui.finalDist.textContent = Math.floor(distance).toString();
         if (distance > best) { best = distance; localStorage.setItem(storageKey, String(best)); }
         ui.bestDist.textContent = Math.floor(best).toString();
@@ -405,13 +506,22 @@
         if (!running || gameOver) return;
         paused = next;
         setOverlay(paused ? 'paused' : 'none');
-        if (!paused) { last = performance.now(); requestAnimationFrame(frame); }
+        if (!paused) {
+          last = performance.now();
+          ensureLoopRunning();
+        }
       }
 
       ui.pauseBtn.addEventListener('click', () => setPaused(!paused));
       ui.playBtn.addEventListener('click', begin);
       ui.retryBtn.addEventListener('click', begin);
-      ui.homeBtn.addEventListener('click', () => { setOverlay('start'); running = false; paused = false; gameOver = false; });
+      ui.homeBtn.addEventListener('click', () => {
+        setOverlay('start');
+        running = false;
+        paused = false;
+        gameOver = false;
+        stopLoop();
+      });
       ui.resumeBtn.addEventListener('click', () => setPaused(false));
       ui.restartBtn.addEventListener('click', begin);
       ui.howBtn.addEventListener('click', () => toast('Steer smoothly. Jump hay + barriers. Miss clean gaps to cool heat.', 2600));
@@ -447,7 +557,7 @@
 
       function frame(ts) {
         if (!running || paused) return;
-        const dt = clamp((ts - last) / 1000, 0, 0.033);
+        const dt = clamp((ts - last) / 1000, 0, 0.1);
         last = ts;
         tNow += dt;
         hitRecovery = Math.max(0, hitRecovery - dt);
@@ -545,7 +655,6 @@
         ui.heat.textContent = Math.floor(heat).toString();
 
         draw();
-        requestAnimationFrame(frame);
       }
 
       function drawRoad() {
@@ -819,6 +928,42 @@
         ctx.restore();
       }
 
+      function drawStreetCrowd() {
+        const baseZ = distance + 16;
+        for (let side = -1; side <= 1; side += 2) {
+          for (let i = 0; i < 16; i++) {
+            const z = baseZ + i * 7.2;
+            const x = side * (road.halfW + 1.15 + Math.sin(i * 0.7 + tNow * 1.8) * 0.12) + worldOffsetX(z);
+            const p = project(x, 0, z);
+            const k = p.k;
+            if (k < 0.15 || p.sy > h + 40 || p.sy < -40) continue;
+
+            const bh = 28 * k;
+            const bw = 12 * k;
+            ctx.save();
+            ctx.translate(p.sx, p.sy);
+            ctx.globalAlpha = clamp(0.2 + k * 0.35, 0, 0.75);
+            ctx.fillStyle = i % 2 ? 'rgba(129,140,248,.85)' : 'rgba(255,183,3,.85)';
+            ctx.beginPath();
+            ctx.roundRect(-bw * 0.45, -bh, bw * 0.9, bh * 0.72, Math.max(2, bw * 0.2));
+            ctx.fill();
+            ctx.fillStyle = 'rgba(240,208,180,.95)';
+            ctx.beginPath();
+            ctx.arc(0, -bh * 1.05, bw * 0.28, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,.28)';
+            ctx.lineWidth = Math.max(0.8, bw * 0.08);
+            ctx.beginPath();
+            ctx.moveTo(-bw * 0.4, -bh * 0.5);
+            ctx.lineTo(-bw * 0.8, -bh * 0.75);
+            ctx.moveTo(bw * 0.4, -bh * 0.5);
+            ctx.lineTo(bw * 0.8, -bh * 0.75);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+      }
+
       function drawHerd() {
         const zBehind = distance - 2.4 - herd.closeness * 7.5;
         const spread = 1.35 + herd.closeness * 0.6;
@@ -841,23 +986,46 @@
           ctx.arc(0, -s * 0.2, s * 1.8, 0, Math.PI * 2);
           ctx.fill();
 
-          ctx.fillStyle = 'rgba(10,12,18,.85)';
+          const body = ctx.createLinearGradient(-s * 0.4, -s * 0.2, s * 0.4, s * 0.35);
+          body.addColorStop(0, 'rgba(36,28,24,.96)');
+          body.addColorStop(1, 'rgba(15,12,12,.92)');
+          ctx.fillStyle = body;
           ctx.beginPath();
-          ctx.ellipse(0, 0, s * 0.62, s * 0.40, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.beginPath();
-          ctx.ellipse(0, -s * 0.32, s * 0.32, s * 0.26, 0, 0, Math.PI * 2);
+          ctx.ellipse(0, 0, s * 0.62, s * 0.36, 0, 0, Math.PI * 2);
           ctx.fill();
 
-          ctx.strokeStyle = `rgba(255,183,3,${0.35 + 0.25 * pulse})`;
-          ctx.lineWidth = Math.max(2, s * 0.06);
+          ctx.fillStyle = 'rgba(20,14,12,.95)';
+          ctx.beginPath();
+          ctx.ellipse(0, -s * 0.28, s * 0.28, s * 0.22, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = 'rgba(8,8,8,.95)';
+          ctx.lineWidth = Math.max(2, s * 0.08);
           ctx.lineCap = 'round';
           ctx.beginPath();
-          ctx.moveTo(-s * 0.20, -s * 0.38);
-          ctx.lineTo(-s * 0.42, -s * 0.50);
-          ctx.moveTo(s * 0.20, -s * 0.38);
-          ctx.lineTo(s * 0.42, -s * 0.50);
+          ctx.moveTo(-s * 0.28, s * 0.16);
+          ctx.lineTo(-s * 0.24, s * 0.62);
+          ctx.moveTo(-s * 0.1, s * 0.18);
+          ctx.lineTo(-s * 0.06, s * 0.64);
+          ctx.moveTo(s * 0.1, s * 0.18);
+          ctx.lineTo(s * 0.06, s * 0.64);
+          ctx.moveTo(s * 0.28, s * 0.16);
+          ctx.lineTo(s * 0.24, s * 0.62);
           ctx.stroke();
+
+          ctx.strokeStyle = `rgba(255,196,92,${0.35 + 0.25 * pulse})`;
+          ctx.lineWidth = Math.max(2, s * 0.06);
+          ctx.beginPath();
+          ctx.moveTo(-s * 0.14, -s * 0.34);
+          ctx.quadraticCurveTo(-s * 0.36, -s * 0.58, -s * 0.48, -s * 0.43);
+          ctx.moveTo(s * 0.14, -s * 0.34);
+          ctx.quadraticCurveTo(s * 0.36, -s * 0.58, s * 0.48, -s * 0.43);
+          ctx.stroke();
+
+          ctx.fillStyle = 'rgba(255,80,110,.8)';
+          ctx.beginPath();
+          ctx.arc(0, -s * 0.22, s * 0.045, 0, Math.PI * 2);
+          ctx.fill();
           ctx.restore();
         }
       }
@@ -925,6 +1093,7 @@
         const s = shake * shake;
         ctx.translate((rand() - 0.5) * 20 * s, (rand() - 0.5) * 14 * s);
         drawRoad();
+        drawStreetCrowd();
         drawHerd();
         const sorted = obstacles.slice().sort((a, b) => b.z - a.z);
         for (const o of sorted) drawObstacle(o);
