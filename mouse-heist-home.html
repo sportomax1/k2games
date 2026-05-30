@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Mouse Heist Home</title>
+    <style>
+        body { margin:0; background:#111827; color:#e5e7eb; font-family:Arial,sans-serif; padding:12px; }
+        .wrap { max-width:920px; margin:0 auto; }
+        .top { display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap; }
+        a { color:#7dd3fc; text-decoration:none; border:1px solid rgba(125,211,252,.5); padding:8px 12px; border-radius:999px; font-weight:700; }
+        #game { width:100%; aspect-ratio: 16/9; background:#1f2937; border-radius:12px; margin-top:10px; display:block; }
+        .hud { margin:8px 0; background:rgba(17,24,39,.9); border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:8px; }
+        .controls { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:8px; }
+        button { padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,.2); background:#374151; color:white; font-weight:800; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="top">
+        <a href="index.html">← Back</a>
+        <h1>🐭 Mouse Heist Home</h1>
+        <span>Desktop: Arrow keys</span>
+    </div>
+    <canvas id="game" width="960" height="540"></canvas>
+    <div class="hud" id="msg">Steal 5 items from humans and return them to your mouse home without getting caught.</div>
+    <div class="hud">Bag: <strong id="bag">0</strong> | Delivered: <strong id="del">0</strong>/5</div>
+    <div class="controls">
+        <button data-m="up">⬆ Up</button>
+        <button data-m="left">⬅ Left</button>
+        <button data-m="right">Right ➡</button>
+        <button data-m="down">⬇ Down</button>
+        <button data-m="reset">🔄 Reset</button>
+    </div>
+</div>
+<script>
+const c=document.getElementById('game'),x=c.getContext('2d');
+const msg=document.getElementById('msg'),bagEl=document.getElementById('bag'),delEl=document.getElementById('del');
+const keys=new Set();
+const home={x:85,y:455,w:120,h:70};
+const walls=[{x:260,y:70,w:20,h:310},{x:460,y:160,w:20,h:280},{x:640,y:60,w:20,h:300}];
+let mouse,humans,items,bag,delivered,over;
+
+function reset(){
+  mouse={x:80,y:470,r:14,s:2.8};
+  humans=[{x:340,y:120,vx:2,vy:0,w:24,h:34},{x:730,y:300,vx:0,vy:2,w:24,h:34}];
+  items=[{x:360,y:430,t:false},{x:550,y:95,t:false},{x:860,y:130,t:false},{x:740,y:470,t:false},{x:220,y:250,t:false}];
+  bag=0; delivered=0; over=false;
+  msg.textContent='Steal 5 items from humans and return them to your mouse home without getting caught.';
+}
+
+function intersects(a,b){return !(a.x+a.w<b.x||b.x+b.w<a.x||a.y+a.h<b.y||b.y+b.h<a.y);}
+
+function blocked(nx,ny){
+  const box={x:nx-mouse.r,y:ny-mouse.r,w:mouse.r*2,h:mouse.r*2};
+  if(box.x<0||box.y<0||box.x+box.w>c.width||box.y+box.h>c.height) return true;
+  return walls.some(w=>intersects(box,w));
+}
+
+function update(){
+  if(over){bagEl.textContent=bag;delEl.textContent=delivered;return;}
+
+  let dx=0,dy=0;
+  if(keys.has('arrowleft'))dx-=mouse.s;
+  if(keys.has('arrowright'))dx+=mouse.s;
+  if(keys.has('arrowup'))dy-=mouse.s;
+  if(keys.has('arrowdown'))dy+=mouse.s;
+
+  const nx=mouse.x+dx, ny=mouse.y+dy;
+  if(!blocked(nx,mouse.y)) mouse.x=nx;
+  if(!blocked(mouse.x,ny)) mouse.y=ny;
+
+  for(const h of humans){
+    h.x+=h.vx; h.y+=h.vy;
+    if(h.x<290||h.x>900) h.vx*=-1;
+    if(h.y<80||h.y>500) h.vy*=-1;
+    const d=Math.hypot(h.x-mouse.x,h.y-mouse.y);
+    if(d<40){
+      over=true;
+      msg.textContent='Caught by a human! Tap reset.';
+    }
+  }
+
+  for(const it of items){
+    if(!it.t && Math.hypot(it.x-mouse.x,it.y-mouse.y)<22){
+      it.t=true; bag++; msg.textContent='Item stolen! Bring it back home.';
+    }
+  }
+
+  const inHome = mouse.x > home.x && mouse.x < home.x+home.w && mouse.y > home.y && mouse.y < home.y+home.h;
+  if(inHome && bag>0){
+    delivered += bag;
+    bag = 0;
+    msg.textContent='Safe drop-off at mouse home!';
+    if(delivered>=5){
+      over=true;
+      msg.textContent='Heist complete! You stocked the mouse home.';
+    }
+  }
+
+  bagEl.textContent=bag;
+  delEl.textContent=Math.min(delivered,5);
+}
+
+function draw(){
+  x.clearRect(0,0,c.width,c.height);
+  x.fillStyle='#f5f5f4'; x.fillRect(0,0,c.width,c.height);
+  x.fillStyle='#d6d3d1'; x.fillRect(250,40,670,470);
+
+  x.fillStyle='#92400e'; x.fillRect(home.x,home.y,home.w,home.h);
+  x.fillStyle='#fde68a'; x.fillText('Mouse Home',home.x+14,home.y+40);
+
+  x.fillStyle='#6b7280'; for(const w of walls) x.fillRect(w.x,w.y,w.w,w.h);
+
+  for(const it of items){ if(it.t) continue; x.fillStyle='#f59e0b'; x.beginPath(); x.arc(it.x,it.y,10,0,Math.PI*2); x.fill(); }
+  for(const h of humans){ x.fillStyle='#ef4444'; x.fillRect(h.x-12,h.y-20,h.w,h.h); x.fillStyle='#111827'; x.fillRect(h.x-8,h.y-28,16,8); }
+
+  x.fillStyle='#374151'; x.beginPath(); x.arc(mouse.x,mouse.y,mouse.r,0,Math.PI*2); x.fill();
+  x.fillStyle='#f9fafb'; x.beginPath(); x.arc(mouse.x+5,mouse.y-4,3,0,Math.PI*2); x.fill();
+}
+
+function loop(){update();draw();requestAnimationFrame(loop);} 
+
+document.addEventListener('keydown',e=>keys.add(e.key.toLowerCase()));
+document.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
+
+document.querySelectorAll('[data-m]').forEach(b=>{
+  const m=b.dataset.m;
+  const down=()=>{
+    if(m==='reset'){reset();return;}
+    keys.add('arrow'+m);
+  };
+  const up=()=>keys.delete('arrow'+m);
+  b.addEventListener('pointerdown',down);
+  b.addEventListener('pointerup',up);
+  b.addEventListener('pointerleave',up);
+  b.addEventListener('pointercancel',up);
+});
+
+reset();loop();
+</script>
+</body>
+</html>

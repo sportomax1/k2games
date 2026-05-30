@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Kombat Arena</title>
+    <style>
+        body { margin:0; background:#0f0f0f; color:#f3f4f6; font-family:Arial,sans-serif; padding:12px; }
+        .wrap { max-width:940px; margin:0 auto; }
+        .top { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
+        a { color:#fca5a5; text-decoration:none; border:1px solid rgba(252,165,165,.45); border-radius:999px; padding:8px 12px; font-weight:700; }
+        #arena { width:100%; aspect-ratio:16/9; background:linear-gradient(#3f1d1d,#111827 65%); border-radius:12px; display:block; margin-top:8px; }
+        .bars { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0; }
+        .bar { background:#1f2937; border:1px solid rgba(255,255,255,.12); border-radius:999px; overflow:hidden; height:18px; }
+        .fill { height:100%; width:100%; }
+        #p { background:linear-gradient(90deg,#f59e0b,#f97316); }
+        #e { background:linear-gradient(90deg,#fb7185,#dc2626); }
+        #msg { min-height:24px; font-weight:800; }
+        .controls { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:8px; }
+        button { padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,.2); background:#374151; color:white; font-weight:800; }
+        @media (max-width:700px) { .controls { grid-template-columns:repeat(2,1fr); } }
+    </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="index.html">← Back</a>
+    <h1>🐉 Kombat Arena</h1>
+    <span>Desktop: A/D move, J jab, K kick, L block</span>
+  </div>
+  <canvas id="arena" width="960" height="540"></canvas>
+  <div class="bars">
+    <div><strong>You</strong><div class="bar"><div class="fill" id="p"></div></div></div>
+    <div><strong>Shadow Rival</strong><div class="bar"><div class="fill" id="e"></div></div></div>
+  </div>
+  <div id="msg">Two rounds to win. Keep pressure, block counters.</div>
+  <div class="controls">
+    <button data-a="left">⬅</button>
+    <button data-a="right">➡</button>
+    <button data-a="jab">Jab</button>
+    <button data-a="kick">Kick</button>
+    <button data-a="block">Block</button>
+  </div>
+</div>
+<script>
+const c=document.getElementById('arena'),x=c.getContext('2d');
+const pBar=document.getElementById('p'),eBar=document.getElementById('e'),msg=document.getElementById('msg');
+const keys=new Set();
+let p,e,over,pRounds,eRounds;
+
+function initFight(full=true){
+  p={x:260,hp:100,cd:0,block:0,flash:0};
+  e={x:700,hp:100,cd:0,block:0,flash:0};
+  over=false;
+  if(full){pRounds=0;eRounds=0;}
+  msg.textContent='Two rounds to win. Keep pressure, block counters.';
+}
+
+function strike(att,target,power,reach,dir,label){
+  if(att.cd>0||over)return;
+  att.cd = power===18?28:20;
+  if(Math.abs(att.x-target.x)<reach){
+    const dmg = target.block>0 ? Math.max(2,power-10) : power;
+    target.hp=Math.max(0,target.hp-dmg);
+    target.flash=7;
+    target.x += dir*(6 + dmg*0.3);
+    msg.textContent=label;
+  }
+}
+
+function ai(){
+  if(over)return;
+  const dir=p.x<e.x?-1:1;
+  if(e.cd>0)e.cd--;
+  if(e.block>0)e.block--;
+  if(Math.abs(p.x-e.x)>130)e.x += dir*2.6;
+  else if(Math.random()<0.05)strike(e,p,10,95,dir,'Enemy jab landed.');
+  else if(Math.random()<0.03)strike(e,p,16,110,dir,'Enemy heavy kick landed.');
+  else if(Math.random()<0.03)e.block=12;
+}
+
+function update(){
+  if(!over){
+    if(keys.has('a')||keys.has('arrowleft'))p.x-=4;
+    if(keys.has('d')||keys.has('arrowright'))p.x+=4;
+    p.x=Math.max(70,Math.min(890,p.x));
+    e.x=Math.max(70,Math.min(890,e.x));
+
+    if(p.cd>0)p.cd--;
+    if(p.block>0)p.block--;
+    if(p.flash>0)p.flash--;
+    if(e.flash>0)e.flash--;
+
+    ai();
+
+    if(p.hp<=0||e.hp<=0){
+      over=true;
+      if(e.hp<=0){
+        pRounds++;
+        msg.textContent = pRounds>=2 ? 'You win the match! Press Jab to restart.' : 'Round won! Press Jab for next round.';
+      } else {
+        eRounds++;
+        msg.textContent = eRounds>=2 ? 'Rival wins match. Press Jab to restart.' : 'Round lost. Press Jab for next round.';
+      }
+    }
+  }
+
+  pBar.style.width=p.hp+'%';
+  eBar.style.width=e.hp+'%';
+}
+
+function drawF(f,color,facing,blocking){
+  x.save();x.translate(f.x,412);x.scale(facing,1);
+  x.fillStyle=f.flash>0?'#fff':color;
+  x.fillRect(-24,-94,48,94);x.fillRect(-30,-132,60,38);
+  x.fillRect(-10,0,10,38);x.fillRect(2,0,10,38);
+  if(blocking){x.strokeStyle='#93c5fd';x.lineWidth=4;x.strokeRect(18,-96,16,54);}x.restore();
+}
+
+function draw(){
+  x.clearRect(0,0,c.width,c.height);
+  x.fillStyle='#7f1d1d';x.fillRect(0,0,c.width,340);
+  x.fillStyle='#1f2937';x.fillRect(0,420,c.width,120);
+  for(let i=0;i<16;i++){x.fillStyle=i%2?'rgba(255,255,255,.09)':'rgba(0,0,0,.2)';x.fillRect(i*60,420,60,120);}  
+  drawF(p,'#f59e0b',1,p.block>0);drawF(e,'#ef4444',-1,e.block>0);
+  x.fillStyle='#e5e7eb';x.font='bold 22px Arial';x.fillText(`${pRounds} - ${eRounds}`,460,50);
+}
+
+function jabAction(){
+  if((pRounds>=2||eRounds>=2)){initFight(true);return;}
+  if(over){initFight(false);return;}
+  strike(p,e,9,95,p.x<e.x?1:-1,'Jab connected.');
+}
+function kickAction(){ if(!over) strike(p,e,18,120,p.x<e.x?1:-1,'Heavy kick!'); }
+function blockAction(){ if(!over) {p.block=12; msg.textContent='Blocking...';} }
+
+function loop(){update();draw();requestAnimationFrame(loop);} 
+
+document.addEventListener('keydown',ev=>{keys.add(ev.key.toLowerCase());
+  if(ev.key.toLowerCase()==='j')jabAction();
+  if(ev.key.toLowerCase()==='k')kickAction();
+  if(ev.key.toLowerCase()==='l')blockAction();
+});
+document.addEventListener('keyup',ev=>keys.delete(ev.key.toLowerCase()));
+
+document.querySelectorAll('[data-a]').forEach(b=>{
+  const a=b.dataset.a;
+  const down=()=>{
+    if(a==='left')keys.add('arrowleft');
+    if(a==='right')keys.add('arrowright');
+    if(a==='jab')jabAction();
+    if(a==='kick')kickAction();
+    if(a==='block')blockAction();
+  };
+  const up=()=>{ if(a==='left')keys.delete('arrowleft'); if(a==='right')keys.delete('arrowright'); };
+  b.addEventListener('pointerdown',down);b.addEventListener('pointerup',up);b.addEventListener('pointerleave',up);b.addEventListener('pointercancel',up);
+});
+
+initFight(true);loop();
+</script>
+</body>
+</html>

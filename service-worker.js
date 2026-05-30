@@ -7,7 +7,7 @@
  * 3) Commit and deploy; clients will refresh cache on next load.
  */
 
-var CACHE_NAME = 'k2-games-v5';
+var CACHE_NAME = 'k2-games-v6';
 var CORE_ASSETS = [
   './',
   './index.html'
@@ -144,6 +144,7 @@ var GAME_HTML_FILES = [
   './jetpack.html',
   './jungle-swing.html',
   './juggling.html',
+  './kombat-arena.html',
   './jump-junkie.html',
   './key-crusher.html',
   './keyfly.html',
@@ -173,6 +174,7 @@ var GAME_HTML_FILES = [
   './minigolf.html',
   './monster-rampage.html',
   './moon-lander.html',
+  './mouse-heist-home.html',
   './nashball.html',
   './neck-stretch.html',
   './number-ninja.html',
@@ -259,6 +261,7 @@ var GAME_HTML_FILES = [
   './street-guess.html',
   './subway-jumper.html',
   './sudoku.html',
+  './super-smash-brawl.html',
   './suit-sync.html',
   './surfing.html',
   './sweet-match.html',
