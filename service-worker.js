@@ -7,7 +7,7 @@
  * 3) Commit and deploy; clients will refresh cache on next load.
  */
 
-var CACHE_NAME = 'k2-games-v4';
+var CACHE_NAME = 'k2-games-v5';
 var CORE_ASSETS = [
   './',
   './index.html'
@@ -80,6 +80,7 @@ var GAME_HTML_FILES = [
   './cup-stacking.html',
   './curling.html',
   './darts.html',
+  './dino-cart.html',
   './deep-sea-salvage.html',
   './descent-dash.html',
   './dice-fortune.html',
@@ -123,6 +124,7 @@ var GAME_HTML_FILES = [
   './half-court-hoops.html',
   './halfpipe.html',
   './harvest-hustle.html',
+  './hero-helper.html',
   './helmetshuffle.html',
   './hits-and-outs.html',
   './hive-hustle.html',
@@ -140,6 +142,7 @@ var GAME_HTML_FILES = [
   './javelin.html',
   './jet-ski.html',
   './jetpack.html',
+  './jungle-swing.html',
   './juggling.html',
   './jump-junkie.html',
   './key-crusher.html',
@@ -186,6 +189,7 @@ var GAME_HTML_FILES = [
   './paperboy-8bit.html',
   './parachute-jumper.html',
   './parking-lot-boss.html',
+  './paintball-arena.html',
   './pattern-pals.html',
   './peg-drop.html',
   './pinball.html',
