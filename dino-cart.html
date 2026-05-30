@@ -11,7 +11,7 @@
     #wrap { width:min(980px,100vw); padding:12px; }
     #ui { display:flex; gap:10px; flex-wrap:wrap; justify-content:space-between; margin-bottom:8px; font-weight:700; }
     #ui span { background:rgba(8,20,38,.75); border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:6px 10px; }
-    #c { width:100%; aspect-ratio:16/9; background:linear-gradient(#7ad0ff 0 55%, #355f25 55%); border:2px solid rgba(255,255,255,.25); border-radius:12px; display:block; }
+    #c { width:100%; aspect-ratio:16/9; background:#061225; border:2px solid rgba(255,255,255,.25); border-radius:12px; display:block; }
     .overlay { position:fixed; inset:0; background:rgba(2,8,16,.82); display:flex; align-items:center; justify-content:center; padding:16px; }
     .card { background:linear-gradient(170deg,#102646,#0b1a32); border:1px solid rgba(255,255,255,.25); border-radius:16px; padding:20px; width:min(560px,100%); }
     h1,h2 { margin:.1em 0 .3em; }
@@ -163,43 +163,160 @@
     end.style.display='flex';
   }
 
+  const HORIZON = 190;
+  const GROUND_H = cv.height - HORIZON; // 350
+
+  function screenZ(pz){ return HORIZON + (1-pz)*(1-pz)*GROUND_H; }
+  function roadW(pz){ return 28 + (1-pz)*400; }
+
+  function drawKart(cx, y, scale, color, cabin, shield){
+    const bw=62*scale, bh=26*scale, cw=42*scale, ch=18*scale;
+    ctx.fillStyle=color; ctx.beginPath(); ctx.roundRect(cx-bw/2,y-bh/2,bw,bh,4*scale); ctx.fill();
+    ctx.fillStyle=cabin; ctx.beginPath(); ctx.roundRect(cx-cw/2,y-bh/2-ch+2*scale,cw,ch,3*scale); ctx.fill();
+    ctx.fillStyle='#111'; const wr=5*scale;
+    [[-bw*.35,bh*.4],[bw*.35,bh*.4],[-bw*.35,-bh*.4],[bw*.35,-bh*.4]].forEach(([wx,wy])=>{
+      ctx.beginPath(); ctx.arc(cx+wx,y+wy,wr,0,Math.PI*2); ctx.fill();
+    });
+    if(shield>0){ctx.save();ctx.globalAlpha=0.5;ctx.strokeStyle='#9bf6ff';ctx.lineWidth=2*scale;ctx.beginPath();ctx.arc(cx,y,bw*.65,0,7);ctx.stroke();ctx.restore();}
+  }
+
   function drawRoad(){
     ctx.clearRect(0,0,cv.width,cv.height);
-    const horizon = 200;
     const camZ = p.z, camX = p.x;
-    for(let n=0;n<120;n++){
-      const z0 = n/120, z1=(n+1)/120;
-      const world0 = (camZ + z0*1000)%trackLen, world1=(camZ+z1*1000)%trackLen;
-      const y0 = horizon + z0*z0*380, y1 = horizon + z1*z1*380;
-      const w0 = 460*(1-z0*.88), w1 = 460*(1-z1*.88);
-      const cx0 = cv.width/2 + (curveAt(world0)-camX*1.6)*330*(1-z0);
-      const cx1 = cv.width/2 + (curveAt(world1)-camX*1.6)*330*(1-z1);
-      ctx.fillStyle = n%2? '#6b6a6f':'#50505a';
-      ctx.beginPath(); ctx.moveTo(cx0-w0,y0); ctx.lineTo(cx0+w0,y0); ctx.lineTo(cx1+w1,y1); ctx.lineTo(cx1-w1,y1); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#f4f1d8'; ctx.fillRect(cx0-6,y0,12,Math.max(2,y1-y0));
+
+    // Sky gradient
+    const sky = ctx.createLinearGradient(0,0,0,HORIZON);
+    sky.addColorStop(0,'#0d1f3c'); sky.addColorStop(0.5,'#1a4a7a'); sky.addColorStop(1,'#4a8fc4');
+    ctx.fillStyle=sky; ctx.fillRect(0,0,cv.width,HORIZON);
+
+    // Distant mountains silhouette
+    ctx.fillStyle='rgba(12,28,54,0.7)';
+    ctx.beginPath(); ctx.moveTo(0,HORIZON);
+    for(let x=0;x<=cv.width;x+=18){
+      const h=20+Math.sin(x*0.013+camZ*0.001)*14+Math.sin(x*0.031)*8;
+      ctx.lineTo(x, HORIZON-h);
     }
-    ctx.fillStyle='rgba(20,32,56,.26)'; ctx.fillRect(0,0,cv.width,horizon);
+    ctx.lineTo(cv.width,HORIZON); ctx.closePath(); ctx.fill();
+
+    // Ground/grass base
+    const ground = ctx.createLinearGradient(0,HORIZON,0,cv.height);
+    ground.addColorStop(0,'#2a5e22'); ground.addColorStop(1,'#1a3d15');
+    ctx.fillStyle=ground; ctx.fillRect(0,HORIZON,cv.width,cv.height-HORIZON);
+
+    // Road strips – z0=0 is horizon/far, z0=1 is near/camera-bottom
+    for(let n=0;n<120;n++){
+      const z0=n/120, z1=(n+1)/120;
+      // CORRECT: far track ahead at horizon, near track at camera
+      const world0=(camZ+(1-z0)*1000+trackLen*3)%trackLen;
+      const world1=(camZ+(1-z1)*1000+trackLen*3)%trackLen;
+      const y0=HORIZON+z0*z0*GROUND_H, y1=HORIZON+z1*z1*GROUND_H;
+      const w0=28+z0*400, w1=28+z1*400;
+      const cv2=cv.width/2;
+      const cx0=cv2+(curveAt(world0)-camX*1.4)*240*(1-z0);
+      const cx1=cv2+(curveAt(world1)-camX*1.4)*240*(1-z1);
+
+      // Grass verge on either side
+      const g0=w0+55*z0, g1=w1+55*z1;
+      ctx.fillStyle=n%2?'#2a6020':'#245519';
+      ctx.beginPath(); ctx.moveTo(0,y0); ctx.lineTo(cx0-g0,y0); ctx.lineTo(cx1-g1,y1); ctx.lineTo(0,y1); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(cv.width,y0); ctx.lineTo(cx0+g0,y0); ctx.lineTo(cx1+g1,y1); ctx.lineTo(cv.width,y1); ctx.closePath(); ctx.fill();
+
+      // Curb (red/white alternating)
+      const curbW=18*z0;
+      ctx.fillStyle=n%4<2?'#cc2222':'#f0f0f0';
+      ctx.beginPath(); ctx.moveTo(cx0-w0,y0); ctx.lineTo(cx0-w0+curbW,y0); ctx.lineTo(cx1-w1+curbW*.8,y1); ctx.lineTo(cx1-w1,y1); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(cx0+w0,y0); ctx.lineTo(cx0+w0-curbW,y0); ctx.lineTo(cx1+w1-curbW*.8,y1); ctx.lineTo(cx1+w1,y1); ctx.closePath(); ctx.fill();
+
+      // Road surface
+      const isFinish = world0 < 80 || world0 > trackLen-80;
+      if(isFinish){
+        // Checkered finish line
+        const cols=Math.floor(w0*2/20);
+        for(let c=0;c<cols;c++){
+          ctx.fillStyle=(c+n)%2?'#fff':'#111';
+          const bx=cx0-w0+c*(w0*2/cols);
+          ctx.fillRect(bx,y0,w0*2/cols+1,Math.max(2,y1-y0));
+        }
+      } else {
+        ctx.fillStyle=n%2?'#5c5a60':'#484650';
+        ctx.beginPath(); ctx.moveTo(cx0-w0,y0); ctx.lineTo(cx0+w0,y0); ctx.lineTo(cx1+w1,y1); ctx.lineTo(cx1-w1,y1); ctx.closePath(); ctx.fill();
+        // Center dashes
+        if(n%4===0){ctx.fillStyle='rgba(255,241,180,0.8)'; ctx.beginPath(); ctx.moveTo(cx0-5,y0); ctx.lineTo(cx0+5,y0); ctx.lineTo(cx1+5,y1); ctx.lineTo(cx1-5,y1); ctx.closePath(); ctx.fill();}
+      }
+    }
+
+    // Objects: pz = dz/1000 where pz=0 is near, pz=1 is far
+    // Sorted by distance descending so near objects draw on top
+    const objList = [];
     hazards.forEach(h=>{
-      const dz = diff(h.z,camZ); if(dz<0||dz>900||(h.life!==undefined&&h.life<=0)) return;
-      const pz = dz/1000; const y = 200 + pz*pz*380; const w = 460*(1-pz*.88); const cx = cv.width/2 + (curveAt(h.z)-camX*1.6)*330*(1-pz) + h.x*w*.85;
-      const s = Math.max(6,24*(1-pz));
-      ctx.fillStyle = h.t==='ramp'?'#ff9f1c':h.t==='pit'?'#1f2846':h.t==='pod'?'#f94144':'#b85e2f';
-      ctx.beginPath(); ctx.arc(cx,y,s,0,Math.PI*2); ctx.fill();
+      const dz=diff(h.z,camZ); if(dz<0||dz>900||(h.life!==undefined&&h.life<=0)) return;
+      objList.push({type:'hazard',dz,obj:h});
     });
-    gems.forEach(g=>{ if(g.got) return; const dz=diff(g.z,camZ); if(dz<0||dz>900) return; const pz=dz/1000, y=200+pz*pz*380, w=460*(1-pz*.88), cx=cv.width/2+(curveAt(g.z)-camX*1.6)*330*(1-pz)+g.x*w*.85; ctx.fillStyle='#00e5ff'; ctx.fillRect(cx-4,y-8,8,8);});
-    boxes.forEach(b=>{ if(b.open) return; const dz=diff(b.z,camZ); if(dz<0||dz>850) return; const pz=dz/1000,y=200+pz*pz*380,w=460*(1-pz*.88),cx=cv.width/2+(curveAt(b.z)-camX*1.6)*330*(1-pz)+b.x*w*.85; ctx.fillStyle='#ffd166'; ctx.fillRect(cx-8,y-8,16,16); });
+    gems.forEach(g=>{ if(g.got) return; const dz=diff(g.z,camZ); if(dz<0||dz>900) return; objList.push({type:'gem',dz,obj:g}); });
+    boxes.forEach(b=>{ if(b.open) return; const dz=diff(b.z,camZ); if(dz<0||dz>850) return; objList.push({type:'box',dz,obj:b}); });
+    racers.slice(1).forEach(r=>{ const dz=diff(r.z,camZ); if(dz<20||dz>750) return; objList.push({type:'racer',dz,obj:r}); });
+    objList.sort((a,b)=>b.dz-a.dz);
 
-    // rivals and player kart
-    racers.slice(1).forEach(r=>{ const dz=diff(r.z,camZ); if(dz<40||dz>680) return; const pz=dz/1000,y=210+pz*pz*350,w=420*(1-pz*.86),cx=cv.width/2+(curveAt(r.z)-camX*1.6)*300*(1-pz)+r.x*w*.9; const s=24*(1-pz)+8; ctx.fillStyle='#f9844a'; ctx.fillRect(cx-s*.6,y-s*.3,s*1.2,s*.7); if(r.shield>0){ctx.strokeStyle='#9bf6ff';ctx.beginPath();ctx.arc(cx,y,s*.9,0,7);ctx.stroke();}});
-    ctx.fillStyle='#35d07f'; ctx.fillRect(cv.width/2-32,448,64,28); ctx.fillStyle='#1b5e39'; ctx.fillRect(cv.width/2-20,432,40,18);
-    if(p.shield>0){ctx.strokeStyle='#a9f8ff';ctx.beginPath();ctx.arc(cv.width/2,446,42,0,7);ctx.stroke();}
+    objList.forEach(({type,dz,obj})=>{
+      const pz=dz/1000;
+      const y=screenZ(pz);
+      const w=roadW(pz);
+      const cx=cv.width/2+(curveAt(obj.z)-camX*1.4)*240*pz+obj.x*w*0.42;
+      if(type==='hazard'){
+        const s=Math.max(5,26*(1-pz));
+        ctx.fillStyle=obj.t==='ramp'?'#ff9f1c':obj.t==='pit'?'#1a1f46':obj.t==='pod'?'#f94144':'#b85e2f';
+        ctx.beginPath(); ctx.arc(cx,y,s,0,Math.PI*2); ctx.fill();
+        if(obj.t==='ramp'){ctx.fillStyle='rgba(255,159,28,0.35)';ctx.beginPath();ctx.arc(cx,y,s*1.5,0,Math.PI*2);ctx.fill();}
+      } else if(type==='gem'){
+        const gs=Math.max(4,10*(1-pz));
+        ctx.fillStyle='#00e5ff'; ctx.strokeStyle='#80f4ff'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(cx,y-gs); ctx.lineTo(cx+gs*.7,y); ctx.lineTo(cx,y+gs); ctx.lineTo(cx-gs*.7,y); ctx.closePath(); ctx.fill(); ctx.stroke();
+      } else if(type==='box'){
+        const bs=Math.max(5,14*(1-pz));
+        ctx.fillStyle='#ffd166'; ctx.strokeStyle='#ff9900'; ctx.lineWidth=1;
+        ctx.fillRect(cx-bs,y-bs,bs*2,bs*2); ctx.strokeRect(cx-bs,y-bs,bs*2,bs*2);
+        ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.moveTo(cx-bs,y-bs); ctx.lineTo(cx+bs,y+bs); ctx.moveTo(cx+bs,y-bs); ctx.lineTo(cx-bs,y+bs); ctx.stroke();
+      } else if(type==='racer'){
+        const scale=Math.max(0.15,(1-pz)*0.85+0.15);
+        const colors=['#f9844a','#e040fb','#ff4060'];
+        const racerIdx=racers.indexOf(obj)-1;
+        drawKart(cx,y,scale,colors[racerIdx%3],'#222',obj.shield);
+        // Racer name tag
+        if(pz<0.6){ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(cx-18,y-26*scale-12,36,14);ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,11*(1-pz*.5))}px system-ui`;ctx.textAlign='center';ctx.fillText(obj.name,cx,y-26*scale-2);}
+      }
+    });
 
-    // minimap
-    ctx.fillStyle='rgba(5,10,20,.6)'; ctx.fillRect(12,12,140,100); ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.strokeRect(12,12,140,100);
-    racers.forEach((r,i)=>{ const t=((r.lap*trackLen+r.z)%(trackLen))/trackLen*6.28; const x=82+Math.cos(t)*44, y=62+Math.sin(t)*28; ctx.fillStyle=i?'#ff9f1c':'#2ee6a6'; ctx.fillRect(x,y,5,5); });
+    // Player kart (fixed near-bottom position)
+    const pKartY = cv.height - 88;
+    drawKart(cv.width/2, pKartY, 1, '#35d07f', '#1b5e39', p.shield);
+    // Drift sparks
+    if(driftCharge>0.15){
+      for(let i=0;i<3;i++){
+        const sx=cv.width/2+(Math.random()-0.5)*50+driftCharge*60*(Math.random()>.5?1:-1);
+        ctx.fillStyle=`rgba(255,210,50,${driftCharge*0.7})`;
+        ctx.beginPath(); ctx.arc(sx,pKartY+14,2+driftCharge*3,0,Math.PI*2); ctx.fill();
+      }
+    }
 
-    if(state==='countdown'){ ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(0,0,cv.width,cv.height); ctx.fillStyle='#fff'; ctx.font='bold 88px system-ui'; ctx.textAlign='center'; ctx.fillText(Math.ceil(countdown),cv.width/2,280); }
-    if(state==='pause'){ ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillRect(0,0,cv.width,cv.height); ctx.fillStyle='#fff'; ctx.font='700 52px system-ui'; ctx.textAlign='center'; ctx.fillText('Paused',cv.width/2,280); }
+    // Minimap
+    ctx.fillStyle='rgba(5,10,20,.75)'; ctx.fillRect(cv.width-154,8,142,92); ctx.strokeStyle='rgba(255,255,255,.3)'; ctx.lineWidth=1; ctx.strokeRect(cv.width-154,8,142,92);
+    ctx.font='bold 9px system-ui'; ctx.textAlign='left'; ctx.fillStyle='rgba(255,255,255,.5)'; ctx.fillText('MAP',cv.width-149,20);
+    racers.forEach((r,i)=>{ const t=((r.lap*trackLen+r.z)%trackLen)/trackLen*6.28; const mx=cv.width-83+Math.cos(t)*46, my=54+Math.sin(t)*28; ctx.fillStyle=i?'#ff9f1c':'#2ee6a6'; ctx.beginPath(); ctx.arc(mx,my,i?3:4,0,Math.PI*2); ctx.fill(); });
+
+    // Countdown / pause overlay
+    if(state==='countdown'){
+      ctx.fillStyle='rgba(0,0,0,.4)'; ctx.fillRect(0,0,cv.width,cv.height);
+      const cd=Math.ceil(countdown);
+      ctx.font='bold 100px system-ui'; ctx.textAlign='center';
+      ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fillText(cd,cv.width/2+3,cv.height/2+8);
+      ctx.fillStyle=cd>1?'#ffd166':'#2ee6a6'; ctx.fillText(cd,cv.width/2,cv.height/2);
+    }
+    if(state==='pause'){
+      ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(0,0,cv.width,cv.height);
+      ctx.font='700 58px system-ui'; ctx.textAlign='center';
+      ctx.fillStyle='rgba(0,0,0,.4)'; ctx.fillText('PAUSED',cv.width/2+2,cv.height/2+4);
+      ctx.fillStyle='#fff'; ctx.fillText('PAUSED',cv.width/2,cv.height/2);
+    }
   }
 
   let last=performance.now();

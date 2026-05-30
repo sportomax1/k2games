@@ -122,6 +122,23 @@
       padding:10px 14px;font-size:12px;color:var(--muted);opacity:0;transition:opacity .25s ease;pointer-events:none
     }
     .toast.show{opacity:1}
+    #raceBar{
+      position:absolute;left:8%;right:8%;bottom:28px;height:12px;
+      background:rgba(0,0,0,.4);border-radius:999px;border:1px solid var(--border);overflow:visible;
+    }
+    #countdownOverlay{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      pointer-events:none;background:rgba(3,5,16,.6);
+    }
+    #countdownNum{
+      font-size:clamp(90px,22vw,200px);font-weight:1000;letter-spacing:-.03em;
+      color:#fff;text-shadow:0 0 60px rgba(34,211,238,.9);line-height:1;
+    }
+    .lb-row{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:10px;font-size:13px}
+    .lb-row.you{background:rgba(34,211,238,.15);border:1px solid rgba(34,211,238,.35)}
+    .lb-pos{font-weight:900;width:28px;color:var(--muted)}
+    .lb-name{flex:1;font-weight:700}
+    .lb-time{font-variant-numeric:tabular-nums;color:var(--accent2)}
     @media (max-width: 640px){
       .topbar{flex-direction:column;align-items:stretch}
       .pill{width:100%;justify-content:space-between}
@@ -209,8 +226,13 @@
           <span class="chip">Tap + hold on mobile</span>
         </div>
         <div class="cta" style="margin-top:16px;justify-content:space-between;align-items:center">
-          <button class="primary" id="playBtn">Tap to Run</button>
+          <button class="primary" id="playBtn">Free Run</button>
           <button class="btn" id="homeBtn" aria-label="Back to library">Back to Library</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
+          <button class="primary" id="race100Btn" style="background:linear-gradient(135deg,#fb7185,#f97316);box-shadow:0 10px 30px rgba(251,113,133,.3);padding:10px 8px;font-size:13px">🏁 100m<br><span style="font-size:10px;font-weight:500;opacity:.8">Sprint</span></button>
+          <button class="primary" id="race400Btn" style="background:linear-gradient(135deg,#8b5cf6,#22d3ee);box-shadow:0 10px 30px rgba(139,92,246,.3);padding:10px 8px;font-size:13px">🏃 400m<br><span style="font-size:10px;font-weight:500;opacity:.8">Race</span></button>
+          <button class="primary" id="race1000Btn" style="background:linear-gradient(135deg,#34d399,#0891b2);box-shadow:0 10px 30px rgba(52,211,153,.3);padding:10px 8px;font-size:13px">🌟 1000m<br><span style="font-size:10px;font-weight:500;opacity:.8">Marathon</span></button>
         </div>
         <div class="hint">Tip: lift the opposite knee before you drive, and never mash both drives together.</div>
       </div>
@@ -238,6 +260,31 @@
         </div>
       </div>
     </div>
+
+    <!-- Countdown overlay -->
+    <div class="overlay" id="countdownOverlay" style="display:none">
+      <div id="countdownNum">3</div>
+    </div>
+
+    <!-- Race result overlay -->
+    <div class="overlay" id="raceResultOverlay" style="display:none">
+      <div class="card">
+        <h2 class="title title-gradient" id="raceResultTitle">Race Complete!</h2>
+        <p class="sub" style="margin-bottom:12px">
+          <strong id="raceResultDist">0m</strong> •
+          <strong id="raceResultTime">0.0s</strong> •
+          <strong id="raceResultPos">1st place</strong>
+        </p>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:14px" id="leaderboard"></div>
+        <div class="cta" style="justify-content:space-between;align-items:center">
+          <button class="primary" id="raceRetryBtn">Race Again</button>
+          <button class="btn" id="raceMenuBtn">Main Screen</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Race progress bar (drawn on canvas, but HUD marker in DOM) -->
+    <div id="raceBar" style="display:none"></div>
   </div>
 
   <script>
@@ -252,6 +299,14 @@
         start: document.getElementById('startOverlay'),
         over: document.getElementById('gameOverOverlay'),
         pause: document.getElementById('pauseOverlay'),
+        countdown: document.getElementById('countdownOverlay'),
+        countdownNum: document.getElementById('countdownNum'),
+        raceResult: document.getElementById('raceResultOverlay'),
+        raceResultTitle: document.getElementById('raceResultTitle'),
+        raceResultDist: document.getElementById('raceResultDist'),
+        raceResultTime: document.getElementById('raceResultTime'),
+        raceResultPos: document.getElementById('raceResultPos'),
+        leaderboard: document.getElementById('leaderboard'),
         finalDistance: document.getElementById('finalDistance'),
         bestDistance: document.getElementById('bestDistance'),
         gameOverReason: document.getElementById('gameOverReason'),
@@ -262,8 +317,25 @@
         resumeBtn: document.getElementById('resumeBtn'),
         restartBtn: document.getElementById('restartBtn'),
         homeBtn: document.getElementById('homeBtn'),
-        menuBtn: document.getElementById('menuBtn')
+        menuBtn: document.getElementById('menuBtn'),
+        race100Btn: document.getElementById('race100Btn'),
+        race400Btn: document.getElementById('race400Btn'),
+        race1000Btn: document.getElementById('race1000Btn'),
+        raceRetryBtn: document.getElementById('raceRetryBtn'),
+        raceMenuBtn: document.getElementById('raceMenuBtn'),
       };
+
+      let currentRaceMode = null; // null = free run, or distance in meters
+      let raceStartTime = 0;
+
+      // Fake leaderboard names for race result screen
+      const fakeNames = ['Riley K.','Morgan T.','Sam V.','Alex B.','Jordan P.','Casey N.','Avery L.','Quinn M.','Drew S.','Parker W.'];
+
+      const OPPONENT_PROFILES = [
+        { name: 'BlazeFast', color: '#fb7185', paceMultiplier: 0.95 },
+        { name: 'SteadyBeat', color: '#fbbf24', paceMultiplier: 1.0 },
+        { name: 'IronLegs', color: '#34d399', paceMultiplier: 1.05 },
+      ];
 
       const storageKey = 'k2_stride_surge_best_v1';
       let best = +(localStorage.getItem(storageKey) || 0);
@@ -304,9 +376,9 @@
           event.preventDefault();
           setInput(keyMap[event.code], true);
         }
-        if (event.code === 'Space' && !state.running && !state.gameOver) {
+        if (event.code === 'Space' && !state.running && !state.gameOver && !state.countdownActive) {
           event.preventDefault();
-          startGame();
+          startGame(null);
         }
         if (event.code === 'KeyP' && state.running) togglePause();
       });
@@ -352,7 +424,12 @@
           failReason: 'You lost the rhythm.',
           left: legFactory(),
           right: legFactory(),
-          particles: []
+          particles: [],
+          // Race fields
+          countdown: 0,
+          countdownActive: false,
+          raceFinished: false,
+          opponents: [],
         };
         Object.keys(input).forEach((key) => setInput(key, false));
         syncUi();
@@ -365,20 +442,44 @@
         state.messageTimer = duration;
       }
 
-      function startGame() {
+      function startGame(raceMode) {
+        currentRaceMode = raceMode || null;
         resetState();
-        state.running = true;
         ui.start.style.display = 'none';
         ui.over.style.display = 'none';
         ui.pause.style.display = 'none';
-        showToast('Lift one side, drive the other, and stay smooth.');
+        ui.raceResult.style.display = 'none';
+
+        if (currentRaceMode) {
+          // Set up opponents
+          state.opponents = OPPONENT_PROFILES.map(p => ({
+            name: p.name,
+            color: p.color,
+            paceMultiplier: p.paceMultiplier,
+            distance: 0,
+            speed: 0,
+            phase: Math.random() * Math.PI * 2,
+          }));
+          // Start countdown
+          state.countdownActive = true;
+          state.countdown = 3.0;
+          ui.countdown.style.display = 'flex';
+          ui.countdownNum.textContent = '3';
+          document.getElementById('raceBar').style.display = 'block';
+        } else {
+          state.running = true;
+          showToast('Lift one side, drive the other, and stay smooth.');
+        }
       }
 
       function openMenu() {
+        currentRaceMode = null;
         resetState();
         ui.start.style.display = 'flex';
         ui.over.style.display = 'none';
         ui.pause.style.display = 'none';
+        ui.raceResult.style.display = 'none';
+        document.getElementById('raceBar').style.display = 'none';
       }
 
       function togglePause(forceValue) {
@@ -387,13 +488,18 @@
         ui.pause.style.display = state.paused ? 'flex' : 'none';
       }
 
-      ui.playBtn.addEventListener('click', startGame);
-      ui.retryBtn.addEventListener('click', startGame);
+      ui.playBtn.addEventListener('click', () => startGame(null));
+      ui.retryBtn.addEventListener('click', () => startGame(null));
       ui.resumeBtn.addEventListener('click', () => togglePause(false));
-      ui.restartBtn.addEventListener('click', startGame);
+      ui.restartBtn.addEventListener('click', () => startGame(currentRaceMode));
       ui.pauseBtn.addEventListener('click', () => togglePause());
       ui.homeBtn.addEventListener('click', () => { window.location.href = './index.html'; });
       ui.menuBtn.addEventListener('click', openMenu);
+      ui.race100Btn.addEventListener('click', () => startGame(100));
+      ui.race400Btn.addEventListener('click', () => startGame(400));
+      ui.race1000Btn.addEventListener('click', () => startGame(1000));
+      ui.raceRetryBtn.addEventListener('click', () => startGame(currentRaceMode));
+      ui.raceMenuBtn.addEventListener('click', openMenu);
 
       function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
       function lerp(a, b, t) { return a + (b - a) * t; }
@@ -481,7 +587,22 @@
       }
 
       function update(dt) {
-        if (!state.running || state.paused || state.gameOver) return;
+        // Handle race countdown
+        if (state.countdownActive) {
+          state.countdown -= dt;
+          const displayVal = Math.ceil(state.countdown);
+          ui.countdownNum.textContent = displayVal > 0 ? String(displayVal) : 'GO!';
+          if (state.countdown <= -0.5) {
+            state.countdownActive = false;
+            ui.countdown.style.display = 'none';
+            state.running = true;
+            raceStartTime = state.time;
+            showToast('Lift one side, drive the other, and stay smooth.');
+          }
+          return;
+        }
+
+        if (!state.running || state.paused || state.gameOver || state.raceFinished) return;
 
         state.time += dt;
         state.flash = Math.max(0, state.flash - dt);
@@ -525,6 +646,34 @@
         state.speed = Math.max(0, state.speed - (0.68 + doubleDrive * 0.55 + Math.abs(state.lean) * 0.28) * dt);
         state.distance += state.speed * dt * 4.2;
 
+        // Update race opponents
+        if (currentRaceMode) {
+          const raceElapsed = state.time - raceStartTime;
+          // Reference human pace (target speed for 1.0 multiplier)
+          const refSpeed = currentRaceMode === 100 ? 9.2 : currentRaceMode === 400 ? 7.4 : 5.8;
+          state.opponents.forEach(opp => {
+            opp.phase += dt * (3 + opp.paceMultiplier * 2);
+            const wobble = Math.sin(opp.phase * 0.7) * 0.8;
+            opp.speed = Math.max(0, refSpeed * opp.paceMultiplier + wobble);
+            opp.distance += opp.speed * dt * 4.2;
+          });
+
+          // Check if player finished
+          if (state.distance >= currentRaceMode) {
+            state.raceFinished = true;
+            const raceTime = state.time - raceStartTime;
+            const playerPos = state.opponents.filter(o => o.distance > currentRaceMode).length + 1;
+            showRaceResult(raceTime, playerPos);
+          }
+          // Check if all opponents finished without player
+          const allDone = state.opponents.every(o => o.distance >= currentRaceMode);
+          if (allDone && !state.raceFinished) {
+            state.raceFinished = true;
+            const raceTime = state.time - raceStartTime;
+            showRaceResult(raceTime, 4);
+          }
+        }
+
         if (state.speed < 0.4 && state.time > 1.6) state.leanVel += Math.sin(state.time * 4.2) * 0.015;
         if (!state.left.contact && !state.right.contact) state.leanVel += Math.sin(state.time * 7) * 0.035;
 
@@ -548,6 +697,128 @@
         } else if (!state.hasDriven && state.speed <= 0.05 && state.time > 5) {
           endGame('You stalled out before locking into a stride.');
         }
+      }
+
+      function showRaceResult(raceTime, position) {
+        state.running = false;
+        best = Math.max(best, state.distance);
+        localStorage.setItem(storageKey, String(best));
+        document.getElementById('raceBar').style.display = 'none';
+
+        const posLabel = ['🥇 1st Place','🥈 2nd Place','🥉 3rd Place','4th Place'][position - 1] || '4th Place';
+        ui.raceResultTitle.textContent = position === 1 ? '🏆 You Won!' : position <= 3 ? 'Race Complete!' : 'Race Finished!';
+        ui.raceResultDist.textContent = `${Math.floor(state.distance)}m`;
+        ui.raceResultTime.textContent = `${raceTime.toFixed(2)}s`;
+        ui.raceResultPos.textContent = posLabel;
+
+        // Build fake leaderboard: generate plausible opponents + player entry
+        const allEntries = [];
+        // Human-opponent finishers with slightly varied times
+        OPPONENT_PROFILES.forEach((p, i) => {
+          const baseTime = raceTime * p.paceMultiplier * (0.95 + Math.random() * 0.1);
+          allEntries.push({ name: p.name, time: baseTime, isPlayer: false });
+        });
+        // Generate fake online entries
+        const shuffled = fakeNames.slice().sort(() => Math.random() - 0.5);
+        shuffled.slice(0, 7).forEach((name, i) => {
+          const variance = (Math.random() - 0.5) * raceTime * 0.3;
+          allEntries.push({ name, time: raceTime * (0.85 + i * 0.04) + variance, isPlayer: false });
+        });
+        allEntries.push({ name: 'YOU', time: raceTime, isPlayer: true });
+        allEntries.sort((a, b) => a.time - b.time);
+
+        ui.leaderboard.innerHTML = allEntries.slice(0, 8).map((e, i) => `
+          <div class="lb-row${e.isPlayer ? ' you' : ''}">
+            <span class="lb-pos">#${i + 1}</span>
+            <span class="lb-name">${e.name}</span>
+            <span class="lb-time">${e.time.toFixed(2)}s</span>
+          </div>`).join('');
+
+        ui.raceResult.style.display = 'flex';
+      }
+
+      function drawGhostRunner(gx, gy, sc, color, phase) {
+        const bob = Math.sin(phase) * 5 * sc;
+        const py = gy - bob;
+        const sh = { x: gx, y: py - 70 * sc };
+        const hd = { x: gx, y: py - 90 * sc };
+        const lh = { x: gx - 14 * sc, y: py - 4 * sc };
+        const rh = { x: gx + 14 * sc, y: py - 4 * sc };
+        const la = Math.sin(phase) * 0.55;
+        const ra = -Math.sin(phase) * 0.55;
+        const lk = { x: lh.x - Math.sin(la) * 34 * sc, y: lh.y + Math.cos(la) * 34 * sc };
+        const rk = { x: rh.x - Math.sin(ra) * 34 * sc, y: rh.y + Math.cos(ra) * 34 * sc };
+        const lf = { x: lk.x - Math.sin(la + 0.8) * 38 * sc, y: lk.y + Math.cos(la + 0.8) * 38 * sc };
+        const rf = { x: rk.x - Math.sin(ra + 0.8) * 38 * sc, y: rk.y + Math.cos(ra + 0.8) * 38 * sc };
+        const la2 = { x: sh.x - 14 * sc - Math.sin(phase + 1) * 30 * sc, y: sh.y + 24 * sc };
+        const ra2 = { x: sh.x + 14 * sc + Math.sin(phase + 1) * 30 * sc, y: sh.y + 24 * sc };
+
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 8 * sc;
+        ctx.lineCap = 'round';
+        [[{x:gx,y:py}, sh],[lh,lk],[lk,lf],[rh,rk],[rk,rf],[{x:sh.x-14*sc,y:sh.y+4*sc},la2],[{x:sh.x+14*sc,y:sh.y+4*sc},ra2]].forEach(([a,b]) => {
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        });
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.arc(hd.x, hd.y, 13 * sc, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+
+      function drawRaceOverlay() {
+        if (!currentRaceMode || !state.running) return;
+        const barW = w * 0.78;
+        const barX = (w - barW) / 2;
+        const barY = h - 22;
+        const barH = 8;
+
+        // Track bar background
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.beginPath();
+        ctx.roundRect(barX, barY, barW, barH, 4);
+        ctx.fill();
+
+        // Finish line marker
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.fillRect(barX + barW - 2, barY - 5, 3, barH + 10);
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.font = 'bold 10px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('FINISH', barX + barW, barY - 9);
+
+        // Opponent dots
+        state.opponents.forEach(opp => {
+          const t = Math.min(1, opp.distance / currentRaceMode);
+          const ox = barX + t * barW;
+          ctx.fillStyle = opp.color;
+          ctx.beginPath(); ctx.arc(ox, barY + barH/2, 6, 0, Math.PI * 2); ctx.fill();
+        });
+
+        // Player dot
+        const pt = Math.min(1, state.distance / currentRaceMode);
+        const px2 = barX + pt * barW;
+        ctx.fillStyle = '#22d3ee';
+        ctx.beginPath(); ctx.arc(px2, barY + barH/2, 8, 0, Math.PI * 2); ctx.fill();
+
+        // Position label
+        const pos = state.opponents.filter(o => o.distance > state.distance).length + 1;
+        const posLabels = ['🥇 1st', '🥈 2nd', '🥉 3rd', '4th'];
+        ctx.fillStyle = '#eef3ff';
+        ctx.font = 'bold 11px system-ui';
+        ctx.fillText(posLabels[pos - 1] || 'last', px2, barY - 7);
+        ctx.textAlign = 'start';
+
+        // Ghost runners (side-by-side silhouettes, slightly behind)
+        const groundY = h * 0.82;
+        state.opponents.forEach((opp, i) => {
+          const offset = (i - 1) * w * 0.18; // -0.18w, 0, +0.18w
+          const relDist = opp.distance - state.distance;
+          const scale = clamp(0.45 - relDist * 0.0004, 0.32, 0.62);
+          const gy = groundY - (relDist > 0 ? Math.min(relDist * 0.04, 40) : 0);
+          drawGhostRunner(w * 0.5 + offset + (i - 1) * 30, gy, scale, opp.color, opp.phase);
+        });
       }
 
       function drawBackground() {
@@ -761,6 +1032,7 @@
         drawBackground();
         drawTrack();
         drawParticles();
+        drawRaceOverlay();
         drawRunner();
         drawHudGlow();
 

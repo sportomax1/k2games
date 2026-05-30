@@ -114,6 +114,32 @@
                 font-size: 0.84rem;
             }
         }
+        /* Landscape phone mode */
+        @media (orientation: landscape) and (max-height: 520px) {
+            .desktop-controls { display: none !important; }
+            #osc-controls {
+                padding: 4px 10px 6px;
+                align-items: center;
+            }
+            .osc-btn {
+                width: 52px !important;
+                height: 52px !important;
+                border-radius: 12px;
+                font-size: 1.1rem;
+            }
+            .osc-brake {
+                width: 70px !important;
+                height: 42px !important;
+                font-size: 0.7rem;
+            }
+            .osc-group { gap: 5px; }
+            .ui-overlay { padding: 6px 10px; }
+            .vibe-card { padding: 0.4rem 0.6rem; }
+            h1.text-lg { font-size: 0.85rem !important; }
+            .wind-gauge-container { width: 50px !important; height: 50px !important; }
+            #wind-speed-text { font-size: 1rem !important; }
+            #level-indicator { font-size: 0.7rem; }
+        }
         .osc-group {
             display: flex;
             flex-direction: column;
@@ -190,7 +216,7 @@
             <div class="vibe-card flex items-center gap-6">
                 <div>
                     <h1 class="text-lg font-bold leading-tight">Marina Master</h1>
-                    <p class="text-[10px] opacity-60 uppercase tracking-widest">Docking Simulation</p>
+                    <p id="level-indicator" class="text-[10px] opacity-60 uppercase tracking-widest">Docking Simulation</p>
                 </div>
                 <div class="h-10 w-[1px] bg-white/20"></div>
                 <div class="flex items-center gap-3">
@@ -261,10 +287,28 @@
     </div>
 
     <!-- Feedback Message -->
-    <div id="message-box" class="vibe-card w-80 shadow-2xl hidden text-center">
+    <div id="message-box" class="vibe-card w-80 shadow-2xl hidden text-center" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:80;">
         <h2 id="msg-title" class="text-2xl font-bold mb-2"></h2>
         <p id="msg-body" class="mb-6 opacity-90 text-sm"></p>
-        <button onclick="location.reload()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95">Try Again</button>
+        <button id="btn-next-level" onclick="advanceLevel()" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95 mb-3 hidden">Next Level →</button>
+        <button id="btn-try-again" onclick="restartCurrentLevel()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95">Try Again</button>
+    </div>
+
+    <!-- Level Select Screen -->
+    <div id="level-select" class="vibe-card shadow-2xl text-center" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:90;min-width:300px;max-width:90vw;">
+        <h2 class="text-2xl font-bold mb-1">⚓ Marina Master</h2>
+        <p class="text-xs opacity-60 mb-5 uppercase tracking-widest">Choose Your Challenge</p>
+        <div class="flex flex-col gap-3">
+            <button onclick="startLevel(1)" class="bg-green-700 hover:bg-green-600 text-white font-bold py-4 rounded-xl transition-all active:scale-95">
+                🌤 Level 1 — Calm Harbor <span class="block text-xs font-normal opacity-70 mt-0.5">Light wind · Gentle entry</span>
+            </button>
+            <button onclick="startLevel(2)" class="bg-yellow-700 hover:bg-yellow-600 text-white font-bold py-4 rounded-xl transition-all active:scale-95">
+                💨 Level 2 — Breezy Marina <span class="block text-xs font-normal opacity-70 mt-0.5">Stiff crosswind · Tighter slip</span>
+            </button>
+            <button onclick="startLevel(3)" class="bg-red-800 hover:bg-red-700 text-white font-bold py-4 rounded-xl transition-all active:scale-95">
+                ⛈ Level 3 — Storm Dock <span class="block text-xs font-normal opacity-70 mt-0.5">Strong gusts · Night marina</span>
+            </button>
+        </div>
     </div>
 </div>
 
@@ -274,6 +318,11 @@
     const msgBox = document.getElementById('message-box');
     const msgTitle = document.getElementById('msg-title');
     const msgBody = document.getElementById('msg-body');
+    const levelSelectEl = document.getElementById('level-select');
+    const levelIndicator = document.getElementById('level-indicator');
+    const btnNextLevel = document.getElementById('btn-next-level');
+
+    let currentLevel = 0; // 0 = not started
 
     const BOAT_WIDTH = 34; 
     const BOAT_HEIGHT = 110;
@@ -293,17 +342,44 @@
         braking: false
     };
 
-    let wind = {
-        angle: (Math.random() * 0.4 - 0.2) * Math.PI + Math.PI/2, // Mostly coming from the side
-        speed: 5 + Math.random() * 10
-    };
+    let wind = { angle: Math.PI / 2, speed: 6 };
 
     let docks = [];
     let otherBoats = [];
     let targetSlip = null;
     const keys = {};
 
-    function init() {
+    function startLevel(level) {
+        currentLevel = level;
+        levelSelectEl.style.display = 'none';
+        msgBox.classList.add('hidden');
+        init(level);
+    }
+
+    function restartCurrentLevel() {
+        msgBox.classList.add('hidden');
+        init(currentLevel);
+    }
+
+    function advanceLevel() {
+        const next = currentLevel + 1;
+        if (next > 3) { location.reload(); return; }
+        startLevel(next);
+    }
+
+    const LEVEL_CONFIGS = {
+        1: { windSpeed: () => 3 + Math.random() * 6, slipW: 80, slipCount: 7, targetSlip: 3, night: false, label: 'Level 1 — Calm Harbor' },
+        2: { windSpeed: () => 12 + Math.random() * 8, slipW: 68, slipCount: 8, targetSlip: 4, night: false, label: 'Level 2 — Breezy Marina' },
+        3: { windSpeed: () => 22 + Math.random() * 10, slipW: 58, slipCount: 8, targetSlip: 4, night: true,  label: 'Level 3 — Storm Dock' },
+    };
+
+    function init(level) {
+        const cfg = LEVEL_CONFIGS[level] || LEVEL_CONFIGS[1];
+        wind.angle = (Math.random() * 0.6 - 0.3) * Math.PI + Math.PI/2;
+        wind.speed = cfg.windSpeed();
+
+        levelIndicator.textContent = cfg.label;
+
         width = window.innerWidth;
         height = window.innerHeight;
         canvas.width = width;
@@ -319,24 +395,25 @@
         docks = [];
         otherBoats = [];
         
+        const slipPx = cfg.slipW;
+        const slipCount = cfg.slipCount;
         const centerX = width * 0.55;
-        const slipCount = 7;
-        const totalPierHeight = slipCount * SLIP_WIDTH;
-        const startY = (height - totalPierHeight) / 2 + 50; // Shifted down to clear top start
+        const totalPierHeight = slipCount * slipPx;
+        const startY = (height - totalPierHeight) / 2 + 50;
 
         // RIGHT ROW (Row 1)
         docks.push({ x: centerX + 130, y: startY, w: 30, h: totalPierHeight }); // Main Pier
         for(let i = 0; i < slipCount; i++) {
-            const y = startY + (i * SLIP_WIDTH);
+            const y = startY + (i * slipPx);
             docks.push({ x: centerX, y: y, w: 140, h: 8 }); // Divider
             
-            if (i === 3) {
-                targetSlip = { x: centerX, y: y + 8, w: 140, h: SLIP_WIDTH - 8 };
+            if (i === cfg.targetSlip) {
+                targetSlip = { x: centerX, y: y + 8, w: 140, h: slipPx - 8 };
             } else {
                 otherBoats.push({
                     x: centerX + 65, 
-                    y: y + (SLIP_WIDTH/2) + 4,
-                    angle: Math.PI / 2, // Facing right pier
+                    y: y + (slipPx/2) + 4,
+                    angle: Math.PI / 2,
                     color: '#f1f5f9'
                 });
             }
@@ -346,14 +423,14 @@
         const leftRowX = centerX - 350;
         docks.push({ x: leftRowX - 30, y: startY, w: 30, h: totalPierHeight }); // Left Main Pier
         for(let i = 0; i < slipCount; i++) {
-            const y = startY + (i * SLIP_WIDTH);
+            const y = startY + (i * slipPx);
             docks.push({ x: leftRowX - 110, y: y, w: 140, h: 8 }); // Divider
             
             if (i !== 2) {
                 otherBoats.push({
                     x: leftRowX - 35, 
-                    y: y + (SLIP_WIDTH/2) + 4,
-                    angle: -Math.PI / 2, // Flipped 180 (facing left pier)
+                    y: y + (slipPx/2) + 4,
+                    angle: -Math.PI / 2,
                     color: i % 2 === 0 ? '#cbd5e1' : '#94a3b8'
                 });
             }
@@ -429,6 +506,8 @@
                 boat.collided = true;
                 msgTitle.innerText = "Hull Damage!";
                 msgBody.innerText = "You hit the pier. Use Reverse or Brake to manage your speed!";
+                btnNextLevel.classList.add('hidden');
+                document.getElementById('btn-try-again').textContent = 'Try Again';
                 msgBox.classList.remove('hidden');
                 return;
             }
@@ -444,21 +523,27 @@
                 boat.collided = true;
                 msgTitle.innerText = "Fender Bender!";
                 msgBody.innerText = "You scraped a neighbor's boat. That's gonna cost you!";
+                btnNextLevel.classList.add('hidden');
+                document.getElementById('btn-try-again').textContent = 'Try Again';
                 msgBox.classList.remove('hidden');
                 return;
             }
         }
 
-        // Docking Success logic
-        if(targetSlip && boat.x > targetSlip.x + 60 && boat.x < targetSlip.x + targetSlip.w + 35 &&
-           boat.y > targetSlip.y && boat.y < targetSlip.y + targetSlip.h) {
+        // Docking Success logic — boat must be horizontal (≈ π/2) and inside the slip at low speed
+        if(targetSlip && boat.x > targetSlip.x + 30 && boat.x < targetSlip.x + targetSlip.w - 20 &&
+           boat.y > targetSlip.y + 5 && boat.y < targetSlip.y + targetSlip.h - 5) {
             const speed = Math.sqrt(boat.velX**2 + boat.velY**2);
-            const normalizedAngle = Math.abs((boat.angle) % (Math.PI*2));
-            // Facing pier (angle ~0 or ~2PI) at low speed
-            if(speed < 0.28 && (normalizedAngle < 0.3 || normalizedAngle > 5.9)) {
+            // angle ~π/2 or ~3π/2 = horizontal = fits in horizontal slip
+            if(speed < 0.35 && Math.abs(Math.cos(boat.angle)) < 0.4) {
                 boat.docked = true;
-                msgTitle.innerText = "Nice Docking!";
-                msgBody.innerText = "You're safely in the slip. Time for a cold drink!";
+                const isLast = currentLevel >= 3;
+                msgTitle.innerText = isLast ? "🏆 Master Marina!" : "⚓ Nice Docking!";
+                msgBody.innerText = isLast
+                    ? "You conquered all three levels — true docking legend!"
+                    : `Level ${currentLevel} complete! Ready for a tougher challenge?`;
+                btnNextLevel.classList.toggle('hidden', isLast);
+                document.getElementById('btn-try-again').textContent = isLast ? 'Play Again' : 'Retry Level';
                 msgBox.classList.remove('hidden');
             }
         }
@@ -517,11 +602,42 @@
     }
 
     function draw() {
-        const grad = ctx.createLinearGradient(0, 0, width, height);
-        grad.addColorStop(0, '#0c4a6e');
-        grad.addColorStop(1, '#075985');
-        ctx.fillStyle = grad;
+        if (currentLevel === 0) {
+            // Idle background while level select is shown
+            const grad = ctx.createLinearGradient(0, 0, width || window.innerWidth, height || window.innerHeight);
+            grad.addColorStop(0, '#0c4a6e');
+            grad.addColorStop(1, '#075985');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            requestAnimationFrame(draw);
+            return;
+        }
+
+        const isNight = currentLevel === 3;
+        if (isNight) {
+            const grad = ctx.createLinearGradient(0, 0, width, height);
+            grad.addColorStop(0, '#020617');
+            grad.addColorStop(1, '#0f172a');
+            ctx.fillStyle = grad;
+        } else {
+            const grad = ctx.createLinearGradient(0, 0, width, height);
+            grad.addColorStop(0, '#0c4a6e');
+            grad.addColorStop(1, '#075985');
+            ctx.fillStyle = grad;
+        }
         ctx.fillRect(0,0,width,height);
+
+        // Night stars
+        if (isNight) {
+            const t = Date.now() * 0.0003;
+            for (let i = 0; i < 60; i++) {
+                const sx = ((i * 137.508 + 50) % width);
+                const sy = ((i * 97.3 + 20) % (height * 0.6));
+                const alpha = 0.4 + 0.4 * Math.sin(t + i);
+                ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+                ctx.fillRect(sx, sy, 1.5, 1.5);
+            }
+        }
 
         drawWaves();
 
@@ -552,6 +668,15 @@
             drawBoat(b.x, b.y, b.angle, b.color);
         }
 
+        // Night fog overlay for level 3
+        if (isNight) {
+            const fog = ctx.createRadialGradient(boat.x, boat.y, 80, boat.x, boat.y, 340);
+            fog.addColorStop(0, 'rgba(0,0,0,0)');
+            fog.addColorStop(1, 'rgba(2,6,23,0.72)');
+            ctx.fillStyle = fog;
+            ctx.fillRect(0, 0, width, height);
+        }
+
         // Draw Player
         drawBoat(boat.x, boat.y, boat.angle, '#ffffff', true);
 
@@ -559,9 +684,12 @@
         requestAnimationFrame(draw);
     }
 
-    window.addEventListener('resize', init);
-    init();
+    window.addEventListener('resize', () => { if (currentLevel > 0) init(currentLevel); });
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
     draw();
+
+    // Show level select on start — init() called only after player picks a level
 
     // Wire on-screen control buttons
     const controlButtons = [];
