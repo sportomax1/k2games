@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Stride Surge: Neon Sprint</title>
+  <meta name="theme-color" content="#100f2e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Stride Surge" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./football-mobile.png" />
+  <link rel="icon" type="image/png" href="./football-mobile.png" />
+  <style>
+    :root{
+      --bg0:#080918; --bg1:#151845; --bg2:#2a1258; --ui:rgba(10,12,27,.7);
+      --border:rgba(255,255,255,.14); --text:#eef3ff; --muted:rgba(238,243,255,.75);
+      --accent:#8b5cf6; --accent2:#22d3ee; --accent3:#fb7185; --good:#34d399; --warn:#fbbf24;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg0),var(--bg1));color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    body{overflow:hidden;touch-action:none}
+    canvas{position:fixed;inset:0;width:100%;height:100%}
+    .ui{position:fixed;inset:0;pointer-events:none}
+    .topbar{position:absolute;left:12px;right:12px;top:12px;display:flex;gap:10px;justify-content:space-between;align-items:flex-start}
+    .pill,.btn,.card,.control-btn{
+      border:1px solid var(--border);
+      backdrop-filter:blur(12px);
+      box-shadow:0 18px 45px rgba(0,0,0,.28);
+    }
+    .pill{
+      background:var(--ui);
+      border-radius:18px;
+      padding:10px 12px;
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+    .metric{min-width:78px}
+    .label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+    .value{font-size:22px;font-weight:1000;line-height:1.1;font-variant-numeric:tabular-nums}
+    .subvalue{font-size:12px;color:var(--muted)}
+    .divider{width:1px;height:36px;background:var(--border)}
+    .balance-bar{width:120px;height:12px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(255,255,255,.12)}
+    .balance-fill{height:100%;width:100%;background:linear-gradient(90deg,var(--good),var(--warn),var(--accent3));transform-origin:left center}
+    .btn{
+      pointer-events:auto;
+      background:rgba(255,255,255,.08);
+      color:var(--text);
+      border-radius:16px;
+      padding:10px 14px;
+      cursor:pointer;
+      font-weight:900;
+      letter-spacing:.04em;
+    }
+    .btn:active,.primary:active,.control-btn:active{transform:translateY(1px)}
+    .overlay{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      pointer-events:auto;background:radial-gradient(900px 600px at 50% 25%, rgba(34,211,238,.12), transparent 60%), rgba(3,5,16,.54);
+      padding:18px;
+    }
+    .card{
+      width:min(580px,92vw);
+      border-radius:28px;
+      background:linear-gradient(180deg, rgba(18,21,47,.96), rgba(10,11,28,.95));
+      padding:20px;
+    }
+    .title{margin:0;font-size:34px;line-height:.96;font-weight:1000;letter-spacing:.02em}
+    .title-gradient{
+      background:linear-gradient(135deg, #c4b5fd, #67e8f9, #fb7185);
+      -webkit-background-clip:text;
+      -webkit-text-fill-color:transparent;
+    }
+    .sub{margin:12px 0 0;color:var(--muted);line-height:1.45}
+    .chips,.how-grid,.cta{display:flex;gap:10px;flex-wrap:wrap}
+    .chips{margin-top:14px}
+    .chip{padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--border);font-size:12px;font-weight:800}
+    .how-grid{margin-top:14px}
+    .how-card{flex:1 1 150px;padding:12px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}
+    .how-card strong{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
+    .primary{
+      pointer-events:auto;
+      border:none;
+      border-radius:18px;
+      padding:13px 16px;
+      background:linear-gradient(135deg, var(--accent2), var(--accent));
+      color:#09111a;
+      font-weight:1000;
+      cursor:pointer;
+      box-shadow:0 20px 50px rgba(34,211,238,.25);
+    }
+    .hint{margin-top:12px;font-size:12px;color:var(--muted)}
+    .mobile-controls{
+      position:absolute;left:12px;right:12px;bottom:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;pointer-events:none;
+      max-width:520px;margin:0 auto;
+    }
+    .control-btn{
+      pointer-events:auto;
+      min-height:72px;
+      border-radius:20px;
+      background:linear-gradient(180deg, rgba(255,255,255,.1), rgba(255,255,255,.04));
+      color:var(--text);
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      align-items:flex-start;
+      padding:12px 14px;
+      user-select:none;
+      touch-action:none;
+    }
+    .control-btn .tiny{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+    .control-btn .big{font-size:20px;font-weight:1000;line-height:1.05}
+    .control-btn.left{border-color:rgba(34,211,238,.35)}
+    .control-btn.right{border-color:rgba(139,92,246,.35)}
+    .control-btn.drive{background:linear-gradient(180deg, rgba(251,113,133,.18), rgba(255,255,255,.05))}
+    .control-btn.active{transform:translateY(2px) scale(.99);filter:brightness(1.12)}
+    body:not(.touch-mode) .mobile-controls{display:none}
+    .toast{
+      position:absolute;left:50%;bottom:176px;transform:translateX(-50%);
+      background:rgba(5,7,20,.74);border:1px solid var(--border);border-radius:999px;
+      padding:10px 14px;font-size:12px;color:var(--muted);opacity:0;transition:opacity .25s ease;pointer-events:none
+    }
+    .toast.show{opacity:1}
+    @media (max-width: 640px){
+      .topbar{flex-direction:column;align-items:stretch}
+      .pill{width:100%;justify-content:space-between}
+      .value{font-size:18px}
+      .balance-bar{width:100px}
+      .title{font-size:28px}
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div class="ui">
+    <div class="topbar">
+      <div class="pill">
+        <div class="metric">
+          <div class="label">Distance</div>
+          <div class="value" id="distanceValue">0 m</div>
+        </div>
+        <div class="divider"></div>
+        <div class="metric">
+          <div class="label">Flow</div>
+          <div class="value" id="speedValue">0</div>
+          <div class="subvalue">stride power</div>
+        </div>
+        <div class="divider"></div>
+        <div class="metric">
+          <div class="label">Combo</div>
+          <div class="value" id="comboValue">x0</div>
+        </div>
+        <div class="divider"></div>
+        <div class="metric">
+          <div class="label">Balance</div>
+          <div class="balance-bar"><div class="balance-fill" id="balanceFill"></div></div>
+        </div>
+      </div>
+      <button class="btn" id="pauseBtn" aria-label="Pause game">Pause</button>
+    </div>
+
+    <div class="toast" id="toast">Alternate the legs. Lift one, drive the other.</div>
+
+    <div class="mobile-controls" aria-label="Stride controls">
+      <button class="control-btn left" data-input="liftLeft" aria-label="Lift left leg">
+        <span class="tiny">Left leg</span>
+        <span class="big">Lift</span>
+      </button>
+      <button class="control-btn right" data-input="liftRight" aria-label="Lift right leg">
+        <span class="tiny">Right leg</span>
+        <span class="big">Lift</span>
+      </button>
+      <button class="control-btn left drive" data-input="driveLeft" aria-label="Drive left leg">
+        <span class="tiny">Left leg</span>
+        <span class="big">Drive</span>
+      </button>
+      <button class="control-btn right drive" data-input="driveRight" aria-label="Drive right leg">
+        <span class="tiny">Right leg</span>
+        <span class="big">Drive</span>
+      </button>
+    </div>
+
+    <div class="overlay" id="startOverlay">
+      <div class="card">
+        <h1 class="title title-gradient">STRIDE<br>SURGE</h1>
+        <p class="sub">A neon sprinting balance game built for thumbs. Fire the runner down the track by alternating lifts and drives while keeping the torso from collapsing.</p>
+        <div class="chips">
+          <span class="chip">Mobile-first</span>
+          <span class="chip">Physics chaos</span>
+          <span class="chip">Procedural visuals</span>
+        </div>
+        <div class="how-grid">
+          <div class="how-card">
+            <strong>Lift</strong>
+            Raise a knee to lighten that side.
+          </div>
+          <div class="how-card">
+            <strong>Drive</strong>
+            Slam the planted leg to build speed.
+          </div>
+          <div class="how-card">
+            <strong>Rhythm</strong>
+            Alternate sides to stay upright.
+          </div>
+        </div>
+        <div class="chips">
+          <span class="chip">Desktop: A / S / K / L</span>
+          <span class="chip">Tap + hold on mobile</span>
+        </div>
+        <div class="cta" style="margin-top:16px;justify-content:space-between;align-items:center">
+          <button class="primary" id="playBtn">Tap to Run</button>
+          <button class="btn" id="homeBtn" aria-label="Back to library">Back to Library</button>
+        </div>
+        <div class="hint">Tip: lift the opposite knee before you drive, and never mash both drives together.</div>
+      </div>
+    </div>
+
+    <div class="overlay" id="gameOverOverlay" style="display:none">
+      <div class="card">
+        <h2 class="title">TRACK WIPED YOU OUT</h2>
+        <p class="sub">Distance <strong id="finalDistance">0 m</strong> • Best <strong id="bestDistance">0 m</strong></p>
+        <p class="sub" id="gameOverReason">You lost the rhythm.</p>
+        <div class="cta" style="margin-top:16px;justify-content:space-between;align-items:center">
+          <button class="primary" id="retryBtn">Run Again</button>
+          <button class="btn" id="menuBtn">Main Screen</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="pauseOverlay" style="display:none">
+      <div class="card" style="max-width:420px">
+        <h2 class="title">Paused</h2>
+        <p class="sub">Catch your breath and get back into the stride.</p>
+        <div class="cta" style="margin-top:16px;justify-content:space-between;align-items:center">
+          <button class="primary" id="resumeBtn">Resume</button>
+          <button class="btn" id="restartBtn">Restart</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById('game');
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const ui = {
+        distance: document.getElementById('distanceValue'),
+        speed: document.getElementById('speedValue'),
+        combo: document.getElementById('comboValue'),
+        balanceFill: document.getElementById('balanceFill'),
+        start: document.getElementById('startOverlay'),
+        over: document.getElementById('gameOverOverlay'),
+        pause: document.getElementById('pauseOverlay'),
+        finalDistance: document.getElementById('finalDistance'),
+        bestDistance: document.getElementById('bestDistance'),
+        gameOverReason: document.getElementById('gameOverReason'),
+        toast: document.getElementById('toast'),
+        pauseBtn: document.getElementById('pauseBtn'),
+        playBtn: document.getElementById('playBtn'),
+        retryBtn: document.getElementById('retryBtn'),
+        resumeBtn: document.getElementById('resumeBtn'),
+        restartBtn: document.getElementById('restartBtn'),
+        homeBtn: document.getElementById('homeBtn'),
+        menuBtn: document.getElementById('menuBtn')
+      };
+
+      const storageKey = 'k2_stride_surge_best_v1';
+      let best = +(localStorage.getItem(storageKey) || 0);
+      ui.bestDistance.textContent = `${Math.floor(best)} m`;
+
+      const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      if (coarse) document.body.classList.add('touch-mode');
+
+      const DPR = () => Math.min(2, window.devicePixelRatio || 1);
+      let w = 1, h = 1;
+      function resize() {
+        const dpr = DPR();
+        w = Math.max(1, Math.floor(window.innerWidth));
+        h = Math.max(1, Math.floor(window.innerHeight));
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      window.addEventListener('resize', resize, { passive: true });
+      resize();
+
+      const input = { liftLeft:false, liftRight:false, driveLeft:false, driveRight:false };
+      const keyMap = {
+        KeyA: 'liftLeft',
+        KeyS: 'driveLeft',
+        KeyK: 'liftRight',
+        KeyL: 'driveRight'
+      };
+
+      function setInput(name, value) {
+        input[name] = value;
+        const button = document.querySelector(`[data-input="${name}"]`);
+        if (button) button.classList.toggle('active', value);
+      }
+
+      document.addEventListener('keydown', (event) => {
+        if (event.code in keyMap) {
+          event.preventDefault();
+          setInput(keyMap[event.code], true);
+        }
+        if (event.code === 'Space' && !state.running && !state.gameOver) {
+          event.preventDefault();
+          startGame();
+        }
+        if (event.code === 'KeyP' && state.running) togglePause();
+      });
+      document.addEventListener('keyup', (event) => {
+        if (event.code in keyMap) {
+          event.preventDefault();
+          setInput(keyMap[event.code], false);
+        }
+      });
+
+      document.querySelectorAll('[data-input]').forEach((button) => {
+        const name = button.dataset.input;
+        const down = (event) => { event.preventDefault(); setInput(name, true); };
+        const up = (event) => { event.preventDefault(); setInput(name, false); };
+        button.addEventListener('pointerdown', down);
+        button.addEventListener('pointerup', up);
+        button.addEventListener('pointerleave', up);
+        button.addEventListener('pointercancel', up);
+      });
+
+      const legFactory = () => ({ lift: 0.08, drive: 0.14, contact: true, prevDrive: false, prevLift: false });
+      let state;
+
+      function resetState() {
+        state = {
+          running: false,
+          paused: false,
+          gameOver: false,
+          distance: 0,
+          speed: 0.5,
+          combo: 0,
+          maxCombo: 0,
+          lean: 0.04,
+          leanVel: 0,
+          wobble: 0,
+          wobbleVel: 0,
+          flash: 0,
+          pulse: 0,
+          time: 0,
+          messageTimer: 0,
+          lastPushSide: 1,
+          failReason: 'You lost the rhythm.',
+          left: legFactory(),
+          right: legFactory(),
+          particles: []
+        };
+        Object.keys(input).forEach((key) => setInput(key, false));
+        syncUi();
+      }
+      resetState();
+
+      function showToast(message, duration = 1.8) {
+        ui.toast.textContent = message;
+        ui.toast.classList.add('show');
+        state.messageTimer = duration;
+      }
+
+      function startGame() {
+        resetState();
+        state.running = true;
+        ui.start.style.display = 'none';
+        ui.over.style.display = 'none';
+        ui.pause.style.display = 'none';
+        showToast('Lift one side, drive the other, and stay smooth.');
+      }
+
+      function openMenu() {
+        resetState();
+        ui.start.style.display = 'flex';
+        ui.over.style.display = 'none';
+        ui.pause.style.display = 'none';
+      }
+
+      function togglePause(forceValue) {
+        if (!state.running || state.gameOver) return;
+        state.paused = typeof forceValue === 'boolean' ? forceValue : !state.paused;
+        ui.pause.style.display = state.paused ? 'flex' : 'none';
+      }
+
+      ui.playBtn.addEventListener('click', startGame);
+      ui.retryBtn.addEventListener('click', startGame);
+      ui.resumeBtn.addEventListener('click', () => togglePause(false));
+      ui.restartBtn.addEventListener('click', startGame);
+      ui.pauseBtn.addEventListener('click', () => togglePause());
+      ui.homeBtn.addEventListener('click', () => { window.location.href = './index.html'; });
+      ui.menuBtn.addEventListener('click', openMenu);
+
+      function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+      function lerp(a, b, t) { return a + (b - a) * t; }
+      function seg(origin, length, angle) {
+        return { x: origin.x + Math.sin(angle) * length, y: origin.y + Math.cos(angle) * length };
+      }
+
+      function attemptLift(side) {
+        state.leanVel += side < 0 ? 0.18 : -0.18;
+        state.wobbleVel += side < 0 ? 0.04 : -0.04;
+      }
+
+      function spawnDust(side) {
+        const baseX = w * 0.5 + (side < 0 ? -24 : 24);
+        const baseY = h * 0.82;
+        for (let i = 0; i < 6; i++) {
+          state.particles.push({
+            x: baseX + (Math.random() - 0.5) * 12,
+            y: baseY - 4,
+            vx: (Math.random() - 0.5) * 1.5 - state.speed * 0.12,
+            vy: -Math.random() * 1.4 - 0.2,
+            life: 0.8 + Math.random() * 0.5,
+            maxLife: 0.8 + Math.random() * 0.5,
+            size: 6 + Math.random() * 10,
+            hue: side < 0 ? '34,211,238' : '251,113,133'
+          });
+        }
+      }
+
+      function attemptDrive(side) {
+        const leg = side < 0 ? state.left : state.right;
+        const other = side < 0 ? state.right : state.left;
+        const alternating = state.lastPushSide !== side;
+        const grounded = leg.contact;
+        const chambered = other.lift > 0.42;
+        const balance = clamp(1 - Math.abs(state.lean) * 0.75 - Math.abs(state.wobble) * 0.18, 0, 1);
+        const flowWindow = clamp(1 - Math.abs(state.speed - 7.5) / 10, 0.2, 1);
+        const valid = grounded && chambered && alternating;
+
+        if (valid) {
+          const boost = 1.2 + balance * 2 + flowWindow * 1.1 + Math.min(1.5, state.combo * 0.04);
+          state.speed = clamp(state.speed + boost, 0, 18);
+          state.combo += 1;
+          state.maxCombo = Math.max(state.maxCombo, state.combo);
+          state.lastPushSide = side;
+          state.pulse = 0.28;
+          state.flash = 0.18;
+          state.leanVel += side < 0 ? -0.08 : 0.08;
+          state.wobbleVel *= 0.84;
+          spawnDust(side);
+        } else {
+          state.combo = 0;
+          state.speed *= 0.88;
+          state.flash = 0.35;
+          state.leanVel += side < 0 ? -0.42 : 0.42;
+          state.wobbleVel += side < 0 ? -0.2 : 0.2;
+          showToast(alternating ? 'Lift the opposite knee before driving.' : 'Alternate your drive legs.');
+        }
+      }
+
+      function syncUi() {
+        ui.distance.textContent = `${Math.floor(state.distance)} m`;
+        ui.speed.textContent = Math.round(state.speed).toString();
+        ui.combo.textContent = `x${state.combo}`;
+        const balance = clamp(1 - Math.abs(state.lean) * 0.78 - Math.abs(state.wobble) * 0.2, 0, 1);
+        ui.balanceFill.style.transform = `scaleX(${balance})`;
+        ui.balanceFill.style.background = balance > 0.62
+          ? 'linear-gradient(90deg, #34d399, #22d3ee)'
+          : balance > 0.32
+            ? 'linear-gradient(90deg, #fbbf24, #fb7185)'
+            : 'linear-gradient(90deg, #fb7185, #ef4444)';
+      }
+
+      function endGame(reason) {
+        state.running = false;
+        state.gameOver = true;
+        state.failReason = reason;
+        best = Math.max(best, state.distance);
+        localStorage.setItem(storageKey, String(best));
+        ui.finalDistance.textContent = `${Math.floor(state.distance)} m`;
+        ui.bestDistance.textContent = `${Math.floor(best)} m`;
+        ui.gameOverReason.textContent = reason;
+        ui.over.style.display = 'flex';
+      }
+
+      function update(dt) {
+        if (!state.running || state.paused || state.gameOver) return;
+
+        state.time += dt;
+        state.flash = Math.max(0, state.flash - dt);
+        state.pulse = Math.max(0, state.pulse - dt);
+
+        [
+          [state.left, input.liftLeft, input.driveLeft, -1],
+          [state.right, input.liftRight, input.driveRight, 1]
+        ].forEach(([leg, liftPressed, drivePressed, side]) => {
+          leg.lift = lerp(leg.lift, liftPressed ? 1 : 0.08, 1 - Math.exp(-dt * 10));
+          leg.drive = lerp(leg.drive, drivePressed ? 1 : 0.14, 1 - Math.exp(-dt * 12));
+          leg.contact = leg.lift < 0.44;
+          if (liftPressed && !leg.prevLift) attemptLift(side);
+          if (drivePressed && !leg.prevDrive) attemptDrive(side);
+          leg.prevLift = liftPressed;
+          leg.prevDrive = drivePressed;
+        });
+
+        const doubleDrive = Number(input.driveLeft && input.driveRight);
+        const doubleLift = Number(input.liftLeft && input.liftRight);
+        const asymLift = state.right.lift - state.left.lift;
+        const asymDrive = state.right.drive - state.left.drive;
+
+        state.wobbleVel += (asymLift * 0.55 + asymDrive * 0.18 + (doubleDrive - doubleLift) * 0.12) * dt;
+        state.leanVel += (asymDrive * 0.22 - state.lean * 3.7 - state.wobble * 0.7) * dt;
+        state.leanVel *= Math.exp(-dt * 1.8);
+        state.wobbleVel *= Math.exp(-dt * 2.2);
+        state.lean += state.leanVel * dt;
+        state.wobble += state.wobbleVel * dt;
+        state.speed = Math.max(0, state.speed - (0.68 + doubleDrive * 0.55 + Math.abs(state.lean) * 0.28) * dt);
+        state.distance += state.speed * dt * 4.2;
+
+        if (state.speed < 0.4 && state.time > 1.6) state.leanVel += Math.sin(state.time * 4.2) * 0.015;
+        if (!state.left.contact && !state.right.contact) state.leanVel += Math.sin(state.time * 7) * 0.035;
+
+        state.particles = state.particles.filter((particle) => {
+          particle.life -= dt;
+          particle.x += particle.vx * 60 * dt;
+          particle.y += particle.vy * 60 * dt;
+          particle.vy += 0.03 * 60 * dt;
+          return particle.life > 0;
+        });
+
+        if (state.messageTimer > 0) {
+          state.messageTimer -= dt;
+          if (state.messageTimer <= 0) ui.toast.classList.remove('show');
+        }
+
+        syncUi();
+
+        if (Math.abs(state.lean) > 0.98 || Math.abs(state.wobble) > 1.45) {
+          endGame('The torso folded and the sprint snapped.');
+        } else if (state.speed <= 0.05 && state.time > 4) {
+          endGame('You stalled out before locking into a stride.');
+        }
+      }
+
+      function drawBackground() {
+        const sky = ctx.createLinearGradient(0, 0, 0, h);
+        sky.addColorStop(0, '#070814');
+        sky.addColorStop(0.45, '#21125b');
+        sky.addColorStop(1, '#ff8b5f');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, w, h);
+
+        const glow = ctx.createRadialGradient(w * 0.5, h * 0.26, 20, w * 0.5, h * 0.26, w * 0.35);
+        glow.addColorStop(0, 'rgba(251,113,133,0.34)');
+        glow.addColorStop(1, 'rgba(251,113,133,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.save();
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = '#ffd7a8';
+        ctx.beginPath();
+        ctx.arc(w * 0.5, h * 0.26, Math.min(w, h) * 0.09, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        const horizonY = h * 0.42;
+        const scroll = state.distance * 0.02;
+        const mountainSets = [
+          { color: 'rgba(17,24,39,0.55)', amp: h * 0.06, offset: 0.6, base: horizonY + 18 },
+          { color: 'rgba(8,12,28,0.82)', amp: h * 0.1, offset: 1.1, base: horizonY + 42 }
+        ];
+
+        mountainSets.forEach((layer, index) => {
+          ctx.fillStyle = layer.color;
+          ctx.beginPath();
+          ctx.moveTo(0, h);
+          for (let x = 0; x <= w + 20; x += 20) {
+            const y = layer.base - Math.sin((x * 0.01) + scroll * layer.offset + index * 1.7) * layer.amp - Math.cos((x * 0.017) - scroll * 0.8) * layer.amp * 0.35;
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(w, h);
+          ctx.closePath();
+          ctx.fill();
+        });
+
+        for (let i = 0; i < 36; i++) {
+          const t = (i / 35 + scroll * 0.015) % 1;
+          const x = t * w;
+          const y = horizonY - 24 - Math.sin(t * 6.28) * 8;
+          ctx.fillStyle = i % 2 ? 'rgba(34,211,238,0.5)' : 'rgba(196,181,253,0.42)';
+          ctx.fillRect(x, y, 3, 8);
+        }
+      }
+
+      function drawTrack() {
+        const horizonY = h * 0.43;
+        const baseY = h * 0.98;
+        const leftTop = w * 0.3;
+        const rightTop = w * 0.7;
+        const leftBottom = w * 0.08;
+        const rightBottom = w * 0.92;
+
+        const track = ctx.createLinearGradient(0, horizonY, 0, baseY);
+        track.addColorStop(0, 'rgba(18,21,41,0.95)');
+        track.addColorStop(1, 'rgba(3,5,12,1)');
+        ctx.fillStyle = track;
+        ctx.beginPath();
+        ctx.moveTo(leftTop, horizonY);
+        ctx.lineTo(rightTop, horizonY);
+        ctx.lineTo(rightBottom, baseY);
+        ctx.lineTo(leftBottom, baseY);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(34,211,238,0.24)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(leftTop, horizonY);
+        ctx.lineTo(leftBottom, baseY);
+        ctx.moveTo(rightTop, horizonY);
+        ctx.lineTo(rightBottom, baseY);
+        ctx.stroke();
+
+        const stripeScroll = (state.distance * 0.08) % 1;
+        for (let i = 0; i < 14; i++) {
+          const t = ((i / 14) + stripeScroll) % 1;
+          const y = lerp(horizonY, baseY, t * t);
+          const width = lerp(8, 62, t * t);
+          const x = w * 0.5;
+          ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.12)' : 'rgba(251,113,133,0.22)';
+          ctx.fillRect(x - width / 2, y, width, 8 + t * 16);
+        }
+
+        ctx.fillStyle = 'rgba(0,0,0,0.24)';
+        ctx.fillRect(0, baseY - 20, w, 40);
+      }
+
+      function drawParticles() {
+        state.particles.forEach((particle) => {
+          const alpha = particle.life / particle.maxLife;
+          ctx.fillStyle = `rgba(${particle.hue},${alpha * 0.35})`;
+          ctx.beginPath();
+          ctx.arc(particle.x, particle.y, particle.size * alpha, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      function drawRunner() {
+        const pulse = state.pulse;
+        const baseX = w * 0.5 + state.lean * 30;
+        const groundY = h * 0.82;
+        const bob = Math.sin(state.time * (2 + state.speed * 0.16)) * (6 + state.speed * 0.18) * (state.running ? 1 : 0);
+        const pelvis = { x: baseX, y: groundY - 118 - bob };
+        const shoulders = seg(pelvis, 74, -Math.PI + state.lean * 0.28);
+        const head = seg(shoulders, 24, -Math.PI + state.lean * 0.18);
+
+        const leftHip = { x: pelvis.x - 16, y: pelvis.y + 6 };
+        const rightHip = { x: pelvis.x + 16, y: pelvis.y + 6 };
+        const leftThighAngle = 0.25 + state.left.drive * 0.95 - state.left.lift * 1.15 + state.lean * 0.2;
+        const rightThighAngle = 0.25 + state.right.drive * 0.95 - state.right.lift * 1.15 + state.lean * 0.2;
+        const leftKnee = seg(leftHip, 46, leftThighAngle);
+        const rightKnee = seg(rightHip, 46, rightThighAngle);
+        const leftCalf = seg(leftKnee, 50, leftThighAngle + 0.82 + state.left.lift * 0.48 - state.left.drive * 0.42);
+        const rightCalf = seg(rightKnee, 50, rightThighAngle + 0.82 + state.right.lift * 0.48 - state.right.drive * 0.42);
+
+        const leftShoulder = { x: shoulders.x - 12, y: shoulders.y + 4 };
+        const rightShoulder = { x: shoulders.x + 12, y: shoulders.y + 4 };
+        const leftArm = seg(leftShoulder, 46, -0.22 - state.right.drive * 0.74 + state.right.lift * 0.62);
+        const rightArm = seg(rightShoulder, 46, 0.22 - state.left.drive * 0.74 + state.left.lift * 0.62);
+
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = `rgba(8,11,24,${0.35 + pulse * 0.4})`;
+        ctx.lineWidth = 20 + pulse * 5;
+        [[pelvis, shoulders], [leftHip, leftKnee], [leftKnee, leftCalf], [rightHip, rightKnee], [rightKnee, rightCalf]].forEach(([a, b]) => {
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        });
+
+        ctx.strokeStyle = '#d8deff';
+        ctx.lineWidth = 12;
+        ctx.beginPath();
+        ctx.moveTo(pelvis.x, pelvis.y);
+        ctx.lineTo(shoulders.x, shoulders.y);
+        ctx.stroke();
+
+        const suit = ctx.createLinearGradient(pelvis.x - 40, pelvis.y - 20, pelvis.x + 40, pelvis.y + 80);
+        suit.addColorStop(0, '#67e8f9');
+        suit.addColorStop(0.55, '#8b5cf6');
+        suit.addColorStop(1, '#fb7185');
+        ctx.strokeStyle = suit;
+        [[leftHip, leftKnee], [leftKnee, leftCalf], [rightHip, rightKnee], [rightKnee, rightCalf], [leftShoulder, leftArm], [rightShoulder, rightArm]].forEach(([a, b]) => {
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        });
+
+        ctx.strokeStyle = '#f8fafc';
+        ctx.lineWidth = 10;
+        ctx.beginPath();
+        ctx.moveTo(leftShoulder.x, leftShoulder.y);
+        ctx.lineTo(rightShoulder.x, rightShoulder.y);
+        ctx.stroke();
+
+        ctx.fillStyle = '#f8d5c0';
+        ctx.beginPath();
+        ctx.arc(head.x, head.y, 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#111827';
+        ctx.beginPath();
+        ctx.arc(head.x + 2, head.y - 6, 20, Math.PI * 0.9, Math.PI * 1.95);
+        ctx.fill();
+
+        ctx.fillStyle = '#22d3ee';
+        ctx.beginPath();
+        ctx.ellipse(leftCalf.x, groundY - 4, 18, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fb7185';
+        ctx.beginPath();
+        ctx.ellipse(rightCalf.x, groundY - 4, 18, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = `rgba(0,0,0,${0.18 + Math.abs(state.lean) * 0.12})`;
+        ctx.beginPath();
+        ctx.ellipse(baseX + state.lean * 16, groundY + 10, 84, 18, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawHudGlow() {
+        if (!state.running) return;
+        ctx.save();
+        ctx.globalAlpha = 0.12 + state.pulse * 0.5 + state.flash * 0.15;
+        const grad = ctx.createLinearGradient(0, h, w, 0);
+        grad.addColorStop(0, '#22d3ee');
+        grad.addColorStop(1, '#fb7185');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, h * 0.74, w, h * 0.26);
+        ctx.restore();
+      }
+
+      let last = performance.now();
+      function frame(now) {
+        const dt = Math.min(0.033, (now - last) / 1000);
+        last = now;
+
+        update(dt);
+        drawBackground();
+        drawTrack();
+        drawParticles();
+        drawRunner();
+        drawHudGlow();
+
+        requestAnimationFrame(frame);
+      }
+
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>
