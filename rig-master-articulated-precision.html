@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Rig-Master: Articulated Precision - K2 Games</title>
+<style>
+:root {
+  --bg: #05070c;
+  --panel: rgba(15, 22, 30, 0.68);
+  --glass: rgba(144, 238, 255, 0.13);
+  --cyan: #15f2ff;
+  --cyan-soft: rgba(21, 242, 255, 0.4);
+  --magenta: #ff23d0;
+  --danger: #ff3d3d;
+  --text: #d6f8ff;
+  --muted: #89a7bd;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: radial-gradient(circle at 15% 15%, #0a111f 0%, #05070c 55%, #020305 100%); font-family: 'Segoe UI', system-ui, sans-serif; color: var(--text); }
+#home-btn {
+  position: fixed; top: 14px; left: 14px; z-index: 40;
+  color: #9fbed1; text-decoration: none; font-size: 0.78rem; font-weight: 700;
+  border: 1px solid rgba(159,190,209,0.4); border-radius: 999px; padding: 7px 12px;
+  background: rgba(8,14,20,0.72); backdrop-filter: blur(4px);
+}
+#app { height: 100%; display: grid; place-items: center; padding: 16px; }
+#monitor {
+  position: relative;
+  width: min(96vw, 1000px);
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  transform: perspective(1400px) rotateX(4deg) rotateY(-2deg);
+}
+#bezel {
+  width: 100%; height: 100%;
+  border-radius: 26px;
+  padding: clamp(8px, 2.2vw, 18px);
+  background: linear-gradient(145deg, #121a2b, #05080e 72%);
+  box-shadow: 0 30px 65px rgba(0,0,0,0.8), inset 0 0 28px rgba(0,0,0,0.72), 0 0 34px rgba(21,242,255,0.15);
+  position: relative;
+}
+#screen {
+  position: relative;
+  width: 100%; height: 100%;
+  border-radius: 16px;
+  background: #010205;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+#screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.03) 50%, rgba(0,0,0,0.18) 50%);
+  background-size: 100% 4px;
+  opacity: 0.35;
+  z-index: 22;
+}
+#screen::after {
+  content: "";
+  position: absolute;
+  inset: -8%;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(255,255,255,0) 58%, rgba(0,0,0,0.38) 100%);
+  z-index: 23;
+}
+#canvas-wrap { position: relative; width: 800px; height: 600px; transform-origin: center; }
+#game {
+  width: 800px;
+  height: 600px;
+  display: block;
+  background: #04070f;
+}
+.hud {
+  position: absolute;
+  z-index: 20;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(152, 227, 255, 0.25);
+  background: var(--panel);
+  box-shadow: inset 0 0 18px rgba(21,242,255,0.08);
+}
+#dashboard {
+  top: 12px; left: 12px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 220px;
+}
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.stat {
+  background: var(--glass);
+  border: 1px solid rgba(21,242,255,0.2);
+  border-radius: 8px;
+  padding: 6px;
+  text-align: center;
+}
+.stat label { display:block; font-size: 10px; letter-spacing: 1px; color: var(--muted); }
+.stat strong { display:block; font-size: 15px; color: var(--cyan); margin-top: 2px; }
+#warning {
+  margin-top: 8px;
+  border: 1px solid rgba(255, 61, 61, 0.45);
+  color: #ffd2d2;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 11px;
+  padding: 5px 8px;
+  background: rgba(255, 45, 45, 0.15);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#warning.active { opacity: 1; animation: danger 0.4s step-end infinite; }
+@keyframes danger { 50% { background: rgba(255,0,0,0.42); } }
+#minimap-panel {
+  top: 12px;
+  right: 12px;
+  border-radius: 12px;
+  padding: 8px;
+}
+#minimap { width: 170px; height: 130px; display: block; border-radius: 8px; border: 1px solid rgba(21,242,255,0.35); background: rgba(0,0,0,0.45); }
+#meta {
+  position: absolute; left: 12px; bottom: 12px; z-index: 20;
+  border-radius: 10px; padding: 8px 10px; font-size: 11px;
+  color: var(--muted);
+}
+#gear-toggle {
+  position: absolute; right: 12px; bottom: 12px; z-index: 21;
+  border: 1px solid rgba(21,242,255,0.35); border-radius: 8px;
+  background: rgba(5,14,24,0.72); color: var(--text);
+  font-size: 12px; font-weight: 800; letter-spacing: .5px;
+  padding: 8px 10px; cursor: pointer;
+}
+#gear-toggle.rev { border-color: rgba(255, 56, 118, 0.45); color: #ffd4e8; }
+.terminal {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 7, 12, 0.72);
+  backdrop-filter: blur(8px);
+}
+.terminal.hidden { display: none; }
+.panel {
+  width: min(88%, 640px);
+  max-height: 85%;
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid rgba(21,242,255,0.28);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(10,18,29,0.9), rgba(5,12,20,0.9));
+  box-shadow: 0 0 35px rgba(21,242,255,0.12), inset 0 0 25px rgba(255,35,208,0.08);
+}
+.panel h1, .panel h2 { margin: 0 0 8px; color: var(--cyan); letter-spacing: 1px; }
+.panel p, .panel li { color: #bdd7e8; font-size: 13px; line-height: 1.5; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+button.cta {
+  margin-top: 10px;
+  width: 100%;
+  border: 1px solid rgba(21,242,255,0.35);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(21,242,255,0.23), rgba(255,35,208,0.22));
+  color: white;
+  font-weight: 800;
+  letter-spacing: .8px;
+  cursor: pointer;
+  padding: 10px;
+}
+.shop-item {
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 8px;
+  background: rgba(0,0,0,0.2);
+}
+.shop-item h4 { margin: 0 0 4px; font-size: 14px; color: #ffe08f; }
+.shop-item button { margin-top: 8px; width: 100%; padding: 7px; cursor: pointer; border-radius: 7px; border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.1); color: #fff; font-weight: 700; }
+.leader-item { display:flex; justify-content:space-between; border-bottom: 1px dashed rgba(255,255,255,0.15); padding: 5px 0; font-size: 12px; }
+#mobile-ui {
+  position: absolute; inset: 0; z-index: 25; pointer-events: none;
+}
+#steering-pad {
+  position: absolute; left: 18px; bottom: 20px; width: 120px; height: 120px; border-radius: 50%;
+  border: 2px solid rgba(21,242,255,0.35); background: radial-gradient(circle, rgba(21,242,255,0.15), rgba(0,0,0,0.2));
+  pointer-events: auto; touch-action: none; display:none;
+}
+#wheel {
+  position:absolute; inset:16px; border-radius:50%; border:2px solid rgba(255,255,255,0.5); transform: rotate(0deg);
+}
+#pedals {
+  position:absolute; right: 16px; bottom: 16px; display:flex; gap:10px; pointer-events:auto; touch-action:none; display:none;
+}
+.slider {
+  width: 54px; height: 150px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.25); background: rgba(4,10,17,0.82); position: relative;
+}
+.fill { position:absolute; bottom:0; left:0; width:100%; height:0%; border-radius: 0 0 9px 9px; }
+#throttle-fill { background: linear-gradient(to top, #00fdb2, #7afff3); }
+#brake-fill { background: linear-gradient(to top, #ff4366, #ff9fb3); }
+@media (max-width: 920px), (pointer: coarse) {
+  #steering-pad, #pedals { display: block; }
+}
+</style>
+</head>
+<body>
+<a href="index.html" id="home-btn">← HUB</a>
+<div id="app">
+  <div id="monitor">
+    <div id="bezel">
+      <div id="screen">
+        <div id="canvas-wrap">
+          <canvas id="game" width="800" height="600"></canvas>
+          <div id="dashboard" class="hud">
+            <div class="stat-row">
+              <div class="stat"><label>MPH</label><strong id="mph">0</strong></div>
+              <div class="stat"><label>GEAR</label><strong id="gear">DRIVE</strong></div>
+              <div class="stat"><label>ANGLE</label><strong id="angle">0°</strong></div>
+            </div>
+            <div id="warning">CRITICAL ANGLE</div>
+          </div>
+          <div id="minimap-panel" class="hud"><canvas id="minimap" width="170" height="130"></canvas></div>
+          <div id="meta" class="hud">LVL <span id="lvl">1</span>/50 • Credits <span id="credits">0</span></div>
+          <button id="gear-toggle">GEAR: DRIVE</button>
+          <div id="mobile-ui">
+            <div id="steering-pad"><div id="wheel"></div></div>
+            <div id="pedals">
+              <div class="slider" id="throttle-slider"><div class="fill" id="throttle-fill"></div></div>
+              <div class="slider" id="brake-slider"><div class="fill" id="brake-fill"></div></div>
+            </div>
+          </div>
+
+          <div id="start-overlay" class="terminal">
+            <div class="panel">
+              <h1>RIG-MASTER: ARTICULATED PRECISION</h1>
+              <p>Cyber-freight tactical sim. Park the trailer in the neon bay without jackknifing through 50 escalating lots.</p>
+              <ul>
+                <li>W/S throttle-brake, A/D steer, Space emergency brake, R gear swap.</li>
+                <li>Use the touch steering wheel + throttle/brake sliders on mobile.</li>
+                <li>Earn Chrome Credits from clean parks and spend them in the shop.</li>
+              </ul>
+              <div class="grid2">
+                <button class="cta" id="start-btn">START RUN</button>
+                <button class="cta" id="open-shop-btn">SHOP</button>
+                <button class="cta" id="open-leaderboard-btn">LEADERBOARD</button>
+                <button class="cta" id="reset-progress-btn">RESET PROGRESS</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="shop-overlay" class="terminal hidden">
+            <div class="panel">
+              <h2>INDUSTRIAL TERMINAL // SHOP</h2>
+              <p>Chrome Credits: <strong id="shop-credits">0</strong></p>
+              <div class="shop-item">
+                <h4>Traction Tires (90)</h4>
+                <p>Improves grip and reduces lateral slide drift.</p>
+                <button data-upgrade="traction">Purchase</button>
+              </div>
+              <div class="shop-item">
+                <h4>Short-Wheelbase Trailer (120)</h4>
+                <p>Shortens trailer length for easier reverse articulation.</p>
+                <button data-upgrade="shortTrailer">Purchase</button>
+              </div>
+              <div class="shop-item">
+                <h4>Neon Underglow (70)</h4>
+                <p>Adds high-visibility underglow around tractor and trailer.</p>
+                <button data-upgrade="underglow">Purchase</button>
+              </div>
+              <button class="cta" id="close-shop-btn">BACK</button>
+            </div>
+          </div>
+
+          <div id="leader-overlay" class="terminal hidden">
+            <div class="panel">
+              <h2>MASTER TRUCKER LEADERBOARD</h2>
+              <div id="leader-list"></div>
+              <button class="cta" id="close-leader-btn">BACK</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // --- DOM references ---
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const mini = document.getElementById('minimap');
+  const mctx = mini.getContext('2d');
+  const ui = {
+    mph: document.getElementById('mph'), gear: document.getElementById('gear'), angle: document.getElementById('angle'),
+    warning: document.getElementById('warning'), lvl: document.getElementById('lvl'), credits: document.getElementById('credits'),
+    gearToggle: document.getElementById('gear-toggle'), shopCredits: document.getElementById('shop-credits'), leaderList: document.getElementById('leader-list')
+  };
+  const overlays = {
+    start: document.getElementById('start-overlay'), shop: document.getElementById('shop-overlay'), leader: document.getElementById('leader-overlay')
+  };
+
+  // --- constants ---
+  const W = 800, H = 600;
+  const WORLD = { x: 35, y: 35, w: 730, h: 530 };
+  const MAX_LEVEL = 50;
+  const STORAGE = { board: 'rigMasterLeaderboard', credits: 'rigMasterCredits', upgrades: 'rigMasterUpgrades' };
+
+  // --- utility ---
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const normAngle = a => {
+    while (a > Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    return a;
+  };
+
+  // --- particle system ---
+  class ParticleSystem {
+    constructor() { this.items = []; }
+    emit(x, y, cfg) {
+      for (let i = 0; i < cfg.count; i++) {
+        const sp = rand(cfg.minSpeed, cfg.maxSpeed);
+        const ang = cfg.angle + rand(-cfg.spread, cfg.spread);
+        this.items.push({
+          x, y,
+          vx: Math.cos(ang) * sp,
+          vy: Math.sin(ang) * sp,
+          life: cfg.life,
+          maxLife: cfg.life,
+          size: rand(cfg.minSize, cfg.maxSize),
+          colorA: cfg.colorA,
+          colorB: cfg.colorB,
+          line: cfg.line || false
+        });
+      }
+    }
+    update(dt) {
+      for (let i = this.items.length - 1; i >= 0; i--) {
+        const p = this.items[i];
+        p.life -= dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= 0.985;
+        p.vy *= 0.985;
+        if (p.life <= 0) this.items.splice(i, 1);
+      }
+    }
+    draw(ctx) {
+      for (const p of this.items) {
+        const t = clamp(p.life / p.maxLife, 0, 1);
+        ctx.globalAlpha = t;
+        if (p.line) {
+          ctx.strokeStyle = p.colorA;
+          ctx.lineWidth = p.size;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03);
+          ctx.stroke();
+        } else {
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+          g.addColorStop(0, p.colorA);
+          g.addColorStop(1, p.colorB);
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // --- realtime engine synth ---
+  class RealTimeEngine {
+    constructor() {
+      this.ctx = null;
+      this.osc = null;
+      this.filter = null;
+      this.gain = null;
+    }
+    ensure() {
+      if (this.ctx) return;
+      const A = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new A();
+      this.osc = this.ctx.createOscillator();
+      this.filter = this.ctx.createBiquadFilter();
+      this.gain = this.ctx.createGain();
+      this.osc.type = 'sawtooth';
+      this.filter.type = 'lowpass';
+      this.filter.frequency.value = 480;
+      this.gain.gain.value = 0.001;
+      this.osc.connect(this.filter);
+      this.filter.connect(this.gain);
+      this.gain.connect(this.ctx.destination);
+      this.osc.start();
+    }
+    update(speedAbs, throttle) {
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const rpm = 70 + speedAbs * 50 + throttle * 50;
+      this.osc.frequency.setTargetAtTime(clamp(rpm, 55, 320), now, 0.04);
+      this.filter.frequency.setTargetAtTime(260 + speedAbs * 150, now, 0.06);
+      this.gain.gain.setTargetAtTime(0.02 + throttle * 0.06 + speedAbs * 0.015, now, 0.04);
+    }
+    airBrake() {
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.15, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+      const src = this.ctx.createBufferSource();
+      const gain = this.ctx.createGain();
+      src.buffer = buffer;
+      src.connect(gain); gain.connect(this.ctx.destination);
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+      src.start(now);
+      src.stop(now + 0.16);
+    }
+  }
+
+  // --- physics helpers ---
+  function getRectPoly(x, y, w, h, angle) {
+    const hw = w * 0.5, hh = h * 0.5;
+    const c = Math.cos(angle), s = Math.sin(angle);
+    return [
+      { x: x + (-hw * c - -hh * s), y: y + (-hw * s + -hh * c) },
+      { x: x + ( hw * c - -hh * s), y: y + ( hw * s + -hh * c) },
+      { x: x + ( hw * c - hh * s), y: y + ( hw * s + hh * c) },
+      { x: x + (-hw * c - hh * s), y: y + (-hw * s + hh * c) }
+    ];
+  }
+  function axes(poly) {
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const p1 = poly[i], p2 = poly[(i + 1) % poly.length];
+      const ex = p2.x - p1.x, ey = p2.y - p1.y;
+      const len = Math.hypot(ex, ey) || 1;
+      out.push({ x: -ey / len, y: ex / len });
+    }
+    return out;
+  }
+  function proj(poly, ax) {
+    let min = Infinity, max = -Infinity;
+    for (const p of poly) {
+      const d = p.x * ax.x + p.y * ax.y;
+      if (d < min) min = d;
+      if (d > max) max = d;
+    }
+    return { min, max };
+  }
+  function sat(polyA, polyB) {
+    const all = axes(polyA).concat(axes(polyB));
+    for (const ax of all) {
+      const a = proj(polyA, ax), b = proj(polyB, ax);
+      if (a.max < b.min || b.max < a.min) return false;
+    }
+    return true;
+  }
+
+  // --- game state ---
+  const smoke = new ParticleSystem();
+  const sparks = new ParticleSystem();
+  const audio = new RealTimeEngine();
+
+  const keys = Object.create(null);
+  const state = {
+    active: false,
+    level: 1,
+    runStart: 0,
+    trauma: 0,
+    throttleInput: 0,
+    brakeInput: 0,
+    steeringInput: 0,
+    gear: 1,
+    trailerAngleCritical: false,
+    obstacles: [],
+    tracks: [],
+    destination: { x: 100, y: 80, w: 96, h: 140 },
+    truck: { x: WORLD.x + 90, y: WORLD.y + WORLD.h - 70, angle: -Math.PI / 2, vel: 0, steer: 0, w: 34, h: 60 },
+    trailer: { x: 0, y: 0, angle: -Math.PI / 2, w: 34, h: 92, length: 88 },
+    upgrades: JSON.parse(localStorage.getItem(STORAGE.upgrades) || '{"traction":false,"shortTrailer":false,"underglow":false}'),
+    credits: Number(localStorage.getItem(STORAGE.credits) || '0'),
+    leaderboard: JSON.parse(localStorage.getItem(STORAGE.board) || '[]')
+  };
+
+  function persist() {
+    localStorage.setItem(STORAGE.upgrades, JSON.stringify(state.upgrades));
+    localStorage.setItem(STORAGE.credits, String(state.credits));
+    localStorage.setItem(STORAGE.board, JSON.stringify(state.leaderboard.slice(0, 10)));
+  }
+
+  function setOverlay(name) {
+    Object.entries(overlays).forEach(([k, el]) => el.classList.toggle('hidden', k !== name));
+    if (!name) Object.values(overlays).forEach(el => el.classList.add('hidden'));
+  }
+
+  function addLeaderboard(timeSec, level) {
+    state.leaderboard.push({ time: timeSec, level, at: new Date().toISOString().slice(0, 10) });
+    state.leaderboard.sort((a, b) => a.time - b.time);
+    state.leaderboard = state.leaderboard.slice(0, 10);
+    persist();
+  }
+
+  function renderLeaderboard() {
+    if (!state.leaderboard.length) {
+      ui.leaderList.innerHTML = '<p>No runs yet.</p>';
+      return;
+    }
+    ui.leaderList.innerHTML = state.leaderboard.map((e, i) =>
+      `<div class="leader-item"><span>#${i + 1}  L${e.level}</span><span>${e.time.toFixed(1)}s</span><span>${e.at}</span></div>`
+    ).join('');
+  }
+
+  // --- procedural levels ---
+  function addObstacle(x, y, w, h) { state.obstacles.push({ x, y, w, h }); }
+  function generateLevel(level) {
+    state.obstacles = [];
+    state.tracks.length = 0;
+
+    const openFactor = clamp(1 - level / MAX_LEVEL, 0.1, 1);
+    const obstacleCount = Math.floor(3 + level * 0.45);
+    const laneW = lerp(170, 75, level / MAX_LEVEL);
+
+    // Core lot walls
+    addObstacle(WORLD.x - 8, WORLD.y - 8, WORLD.w + 16, 8);
+    addObstacle(WORLD.x - 8, WORLD.y + WORLD.h, WORLD.w + 16, 8);
+    addObstacle(WORLD.x - 8, WORLD.y, 8, WORLD.h);
+    addObstacle(WORLD.x + WORLD.w, WORLD.y, 8, WORLD.h);
+
+    // S-curve style alleys increase with level
+    if (level > 12) {
+      const segments = Math.floor(2 + level / 8);
+      for (let i = 0; i < segments; i++) {
+        const y = WORLD.y + 60 + i * ((WORLD.h - 120) / segments);
+        const gapCenter = (i % 2 === 0 ? WORLD.x + WORLD.w * 0.35 : WORLD.x + WORLD.w * 0.65);
+        addObstacle(WORLD.x + 20, y, gapCenter - WORLD.x - laneW * 0.5 - 20, 18);
+        addObstacle(gapCenter + laneW * 0.5, y, WORLD.x + WORLD.w - gapCenter - laneW * 0.5 - 20, 18);
+      }
+    }
+
+    // Random neon crates
+    for (let i = 0; i < obstacleCount; i++) {
+      const rw = rand(26, 54), rh = rand(26, 58);
+      const rx = rand(WORLD.x + 30, WORLD.x + WORLD.w - rw - 30);
+      const ry = rand(WORLD.y + 30, WORLD.y + WORLD.h - rh - 30);
+      if (Math.random() < openFactor * 0.45) continue;
+      addObstacle(rx, ry, rw, rh);
+    }
+
+    // Destination bay
+    const baySide = Math.random() < 0.5 ? 'left' : 'right';
+    state.destination.w = 92;
+    state.destination.h = 132;
+    state.destination.x = baySide === 'left' ? WORLD.x + 28 : WORLD.x + WORLD.w - state.destination.w - 28;
+    state.destination.y = WORLD.y + 35 + ((level * 37) % (WORLD.h - state.destination.h - 70));
+
+    // Spawn
+    state.truck.x = WORLD.x + WORLD.w * 0.5;
+    state.truck.y = WORLD.y + WORLD.h - 54;
+    state.truck.angle = -Math.PI / 2;
+    state.truck.vel = 0;
+    state.truck.steer = 0;
+    state.trailer.angle = state.truck.angle;
+    state.trailer.length = state.upgrades.shortTrailer ? 68 : 88;
+    syncTrailerPosition();
+  }
+
+  function syncTrailerPosition() {
+    const hitchX = state.truck.x - Math.cos(state.truck.angle) * 32;
+    const hitchY = state.truck.y - Math.sin(state.truck.angle) * 32;
+    state.trailer.x = hitchX - Math.cos(state.trailer.angle) * (state.trailer.length * 0.5);
+    state.trailer.y = hitchY - Math.sin(state.trailer.angle) * (state.trailer.length * 0.5);
+  }
+
+  // --- collision & effects ---
+  function collisionCheckAndResolve(prev) {
+    const truckPoly = getRectPoly(state.truck.x, state.truck.y, state.truck.w, state.truck.h, state.truck.angle);
+    const trailerPoly = getRectPoly(state.trailer.x, state.trailer.y, state.trailer.w, state.trailer.length, state.trailer.angle);
+    let collided = false;
+
+    for (const r of state.obstacles) {
+      const box = [
+        { x: r.x, y: r.y }, { x: r.x + r.w, y: r.y }, { x: r.x + r.w, y: r.y + r.h }, { x: r.x, y: r.y + r.h }
+      ];
+      if (sat(truckPoly, box) || sat(trailerPoly, box)) { collided = true; break; }
+    }
+
+    if (!collided) return;
+
+    state.truck.x = prev.tx; state.truck.y = prev.ty; state.truck.angle = prev.ta;
+    state.trailer.x = prev.bx; state.trailer.y = prev.by; state.trailer.angle = prev.ba;
+    state.truck.vel *= -0.24;
+    state.trauma = clamp(state.trauma + 0.9, 0, 2.5);
+
+    sparks.emit(state.truck.x, state.truck.y, {
+      count: 18, minSpeed: 45, maxSpeed: 210, angle: rand(0, Math.PI * 2), spread: Math.PI,
+      life: 0.26, minSize: 1.2, maxSize: 2.6, colorA: '#ffe875', colorB: 'rgba(255,180,0,0)', line: true
+    });
+  }
+
+  function addTrack() {
+    const rearX = state.truck.x - Math.cos(state.truck.angle) * 21;
+    const rearY = state.truck.y - Math.sin(state.truck.angle) * 21;
+    const tRearX = state.trailer.x - Math.cos(state.trailer.angle) * (state.trailer.length * 0.44);
+    const tRearY = state.trailer.y - Math.sin(state.trailer.angle) * (state.trailer.length * 0.44);
+    state.tracks.push({
+      ax: rearX - Math.cos(state.truck.angle + Math.PI / 2) * 12,
+      ay: rearY - Math.sin(state.truck.angle + Math.PI / 2) * 12,
+      bx: rearX + Math.cos(state.truck.angle + Math.PI / 2) * 12,
+      by: rearY + Math.sin(state.truck.angle + Math.PI / 2) * 12,
+      tx: tRearX,
+      ty: tRearY,
+      life: 1
+    });
+    if (state.tracks.length > 800) state.tracks.splice(0, state.tracks.length - 800);
+  }
+
+  // --- update ---
+  function update(dt) {
+    if (!state.active) return;
+    dt = clamp(dt, 0, 0.035);
+
+    const prev = { tx: state.truck.x, ty: state.truck.y, ta: state.truck.angle, bx: state.trailer.x, by: state.trailer.y, ba: state.trailer.angle };
+
+    // Inputs
+    const keyThrottle = keys['w'] || keys['ArrowUp'] ? 1 : 0;
+    const keyBrake = keys['s'] || keys['ArrowDown'] ? 1 : 0;
+    const keyLeft = keys['a'] || keys['ArrowLeft'] ? 1 : 0;
+    const keyRight = keys['d'] || keys['ArrowRight'] ? 1 : 0;
+
+    const throttle = Math.max(state.throttleInput, keyThrottle);
+    const brake = Math.max(state.brakeInput, keyBrake);
+    const steerTarget = clamp((keyRight - keyLeft) + state.steeringInput, -1, 1);
+
+    const traction = state.upgrades.traction ? 0.955 : 0.932;
+    state.truck.steer = lerp(state.truck.steer, steerTarget, 0.16);
+
+    if (keys[' ']) state.truck.vel *= 0.82;
+    if (throttle) state.truck.vel += (2.9 * state.gear) * dt;
+    if (brake) state.truck.vel -= (4.8 * state.gear) * dt;
+
+    state.truck.vel *= traction;
+    state.truck.vel = clamp(state.truck.vel, -3.9, 3.9);
+    if (Math.abs(state.truck.vel) < 0.01) state.truck.vel = 0;
+
+    const wheelBase = 46;
+    state.truck.angle += (state.truck.vel / wheelBase) * state.truck.steer * 1.95;
+    state.truck.x += Math.cos(state.truck.angle) * state.truck.vel * 60 * dt;
+    state.truck.y += Math.sin(state.truck.angle) * state.truck.vel * 60 * dt;
+
+    // Articulated trailer logic: TrailerAngle += (Velocity / TrailerLength) * sin(TruckAngle - TrailerAngle)
+    state.trailer.angle += (state.truck.vel / state.trailer.length) * Math.sin(state.truck.angle - state.trailer.angle) * 60 * dt;
+    syncTrailerPosition();
+
+    // world collision clamp via boundary obstacles and SAT
+    collisionCheckAndResolve(prev);
+
+    // jackknife warning
+    const articulation = normAngle(state.truck.angle - state.trailer.angle);
+    state.trailerAngleCritical = Math.abs(articulation) * 180 / Math.PI > 75;
+
+    // Exhaust linked to RPM
+    if (Math.abs(state.truck.vel) > 0.04 || throttle > 0) {
+      const stackX = state.truck.x + Math.cos(state.truck.angle + Math.PI / 2) * 10;
+      const stackY = state.truck.y + Math.sin(state.truck.angle + Math.PI / 2) * 10;
+      smoke.emit(stackX, stackY, {
+        count: 1 + Math.floor(clamp(Math.abs(state.truck.vel) * 2 + throttle * 2, 1, 4)),
+        minSpeed: 4, maxSpeed: 20, angle: state.truck.angle - Math.PI + rand(-0.4, 0.4), spread: 0.7,
+        life: rand(0.45, 0.85), minSize: 3, maxSize: 8,
+        colorA: 'rgba(155,165,176,0.45)', colorB: 'rgba(120,130,140,0)'
+      });
+    }
+
+    if (Math.abs(state.truck.vel) > 0.08) addTrack();
+
+    for (let i = state.tracks.length - 1; i >= 0; i--) {
+      state.tracks[i].life -= dt * 0.03;
+      if (state.tracks[i].life <= 0) state.tracks.splice(i, 1);
+    }
+
+    state.trauma = Math.max(0, state.trauma - dt * 1.8);
+    smoke.update(dt);
+    sparks.update(dt);
+    audio.update(Math.abs(state.truck.vel), throttle);
+
+    checkParkSuccess();
+    syncHud(articulation);
+  }
+
+  function entityInBay(entityCenterX, entityCenterY, entityW, entityH) {
+    const pad = 10;
+    return entityCenterX > state.destination.x + pad && entityCenterX < state.destination.x + state.destination.w - pad &&
+           entityCenterY > state.destination.y + pad && entityCenterY < state.destination.y + state.destination.h - pad &&
+           entityW < state.destination.w - 8 && entityH < state.destination.h + 30;
+  }
+
+  function checkParkSuccess() {
+    const truckIn = entityInBay(state.truck.x, state.truck.y, state.truck.w, state.truck.h);
+    const trailerIn = entityInBay(state.trailer.x, state.trailer.y, state.trailer.w, state.trailer.length);
+    const speedOk = Math.abs(state.truck.vel) < 0.22;
+    const angleDeg = Math.abs(normAngle(state.truck.angle - state.trailer.angle) * 180 / Math.PI);
+    if (truckIn && trailerIn && speedOk && angleDeg < 20) {
+      const elapsed = (performance.now() - state.runStart) / 1000;
+      const gain = 20 + state.level * 3 + Math.max(0, 25 - Math.floor(elapsed));
+      state.credits += gain;
+      addLeaderboard(elapsed, state.level);
+      state.level = Math.min(MAX_LEVEL, state.level + 1);
+      generateLevel(state.level);
+      state.runStart = performance.now();
+      persist();
+    }
+  }
+
+  // --- draw ---
+  function drawWorld() {
+    ctx.fillStyle = '#05080f';
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid + glow
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = 'rgba(21,242,255,0.12)';
+    for (let x = WORLD.x; x <= WORLD.x + WORLD.w; x += 22) {
+      ctx.beginPath(); ctx.moveTo(x, WORLD.y); ctx.lineTo(x, WORLD.y + WORLD.h); ctx.stroke();
+    }
+    for (let y = WORLD.y; y <= WORLD.y + WORLD.h; y += 22) {
+      ctx.beginPath(); ctx.moveTo(WORLD.x, y); ctx.lineTo(WORLD.x + WORLD.w, y); ctx.stroke();
+    }
+    ctx.restore();
+
+    // Tire tracks persistent
+    ctx.lineWidth = 2.3;
+    for (const t of state.tracks) {
+      ctx.strokeStyle = `rgba(0,0,0,${clamp(t.life * 0.35, 0.02, 0.28)})`;
+      ctx.beginPath();
+      ctx.moveTo(t.ax, t.ay); ctx.lineTo(t.bx, t.by); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(t.tx - 8, t.ty); ctx.lineTo(t.tx + 8, t.ty); ctx.stroke();
+    }
+
+    // Destination bay
+    ctx.fillStyle = 'rgba(50, 255, 180, 0.08)';
+    ctx.strokeStyle = 'rgba(65, 255, 190, 0.9)';
+    ctx.lineWidth = 2;
+    ctx.fillRect(state.destination.x, state.destination.y, state.destination.w, state.destination.h);
+    ctx.strokeRect(state.destination.x, state.destination.y, state.destination.w, state.destination.h);
+
+    // Obstacles
+    const pulse = 0.5 + Math.sin(performance.now() * 0.006) * 0.35;
+    for (const o of state.obstacles) {
+      const grad = ctx.createLinearGradient(o.x, o.y, o.x + o.w, o.y + o.h);
+      grad.addColorStop(0, `rgba(255,35,208,${0.22 + pulse * 0.18})`);
+      grad.addColorStop(1, `rgba(255,35,208,${0.38 + pulse * 0.2})`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(o.x, o.y, o.w, o.h);
+      ctx.strokeStyle = 'rgba(255, 125, 226, 0.72)';
+      ctx.strokeRect(o.x, o.y, o.w, o.h);
+    }
+
+    smoke.draw(ctx);
+    sparks.draw(ctx);
+
+    drawRig(state.trailer.x, state.trailer.y, state.trailer.w, state.trailer.length, state.trailer.angle, '#16bde0');
+    drawRig(state.truck.x, state.truck.y, state.truck.w, state.truck.h, state.truck.angle, '#19f6ff');
+
+    // Hitch point
+    const hitchX = state.truck.x - Math.cos(state.truck.angle) * 32;
+    const hitchY = state.truck.y - Math.sin(state.truck.angle) * 32;
+    ctx.fillStyle = '#ffe26f';
+    ctx.beginPath(); ctx.arc(hitchX, hitchY, 3, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawRig(x, y, w, h, a, color) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(a);
+    if (state.upgrades.underglow) {
+      ctx.shadowBlur = 22;
+      ctx.shadowColor = 'rgba(21,242,255,0.65)';
+    }
+    ctx.fillStyle = color;
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.fillStyle = '#0f1f30';
+    ctx.fillRect(-w / 2 + 4, -h / 2 + 6, w - 8, h * 0.32);
+    ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+    ctx.strokeRect(-w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+
+  function drawMinimap() {
+    mctx.clearRect(0, 0, mini.width, mini.height);
+    mctx.fillStyle = 'rgba(3,8,13,0.95)';
+    mctx.fillRect(0, 0, mini.width, mini.height);
+
+    const sx = mini.width / W, sy = mini.height / H;
+
+    mctx.strokeStyle = 'rgba(21,242,255,0.4)';
+    mctx.strokeRect(WORLD.x * sx, WORLD.y * sy, WORLD.w * sx, WORLD.h * sy);
+
+    mctx.fillStyle = 'rgba(255, 35, 208, 0.75)';
+    for (const o of state.obstacles) mctx.fillRect(o.x * sx, o.y * sy, o.w * sx, o.h * sy);
+
+    mctx.strokeStyle = 'rgba(65,255,190,0.9)';
+    mctx.strokeRect(state.destination.x * sx, state.destination.y * sy, state.destination.w * sx, state.destination.h * sy);
+
+    mctx.fillStyle = '#15f2ff';
+    mctx.beginPath(); mctx.arc(state.truck.x * sx, state.truck.y * sy, 3, 0, Math.PI * 2); mctx.fill();
+    mctx.fillStyle = '#82dbff';
+    mctx.beginPath(); mctx.arc(state.trailer.x * sx, state.trailer.y * sy, 3, 0, Math.PI * 2); mctx.fill();
+  }
+
+  function syncHud(articulation) {
+    const mph = Math.round(Math.abs(state.truck.vel) * 12);
+    const deg = Math.round(Math.abs(articulation) * 180 / Math.PI);
+    ui.mph.textContent = String(mph);
+    ui.gear.textContent = state.gear > 0 ? 'DRIVE' : 'REVERSE';
+    ui.angle.textContent = `${deg}°`;
+    ui.warning.classList.toggle('active', state.trailerAngleCritical);
+    ui.lvl.textContent = String(state.level);
+    ui.credits.textContent = String(state.credits);
+    ui.gearToggle.textContent = `GEAR: ${state.gear > 0 ? 'DRIVE' : 'REVERSE'}`;
+    ui.gearToggle.classList.toggle('rev', state.gear < 0);
+    ui.shopCredits.textContent = String(state.credits);
+  }
+
+  function draw(dt) {
+    ctx.save();
+    const shake = state.trauma * state.trauma * 7;
+    if (shake > 0.02) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+    drawWorld();
+    ctx.restore();
+
+    drawMinimap();
+  }
+
+  // --- loop ---
+  let last = performance.now();
+  function loop(now) {
+    const dt = (now - last) / 1000;
+    last = now;
+    update(dt);
+    draw(dt);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // --- input handling ---
+  window.addEventListener('keydown', e => {
+    keys[e.key.toLowerCase()] = true;
+    if (e.key.toLowerCase() === 'r') {
+      state.gear *= -1;
+      syncHud(normAngle(state.truck.angle - state.trailer.angle));
+    }
+  });
+  window.addEventListener('keyup', e => {
+    const k = e.key.toLowerCase();
+    if (k === 's' || k === 'arrowdown') audio.airBrake();
+    keys[k] = false;
+  });
+
+  ui.gearToggle.addEventListener('click', () => {
+    state.gear *= -1;
+    syncHud(normAngle(state.truck.angle - state.trailer.angle));
+  });
+
+  // mobile steering wheel
+  const steerPad = document.getElementById('steering-pad');
+  const wheel = document.getElementById('wheel');
+  let steerActive = false;
+  function updateWheelFromPoint(clientX, clientY) {
+    const rect = steerPad.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const ang = Math.atan2(clientY - cy, clientX - cx);
+    const deg = ang * 180 / Math.PI;
+    wheel.style.transform = `rotate(${deg}deg)`;
+    state.steeringInput = clamp(ang / Math.PI, -1, 1);
+  }
+  steerPad.addEventListener('pointerdown', e => { steerActive = true; steerPad.setPointerCapture(e.pointerId); updateWheelFromPoint(e.clientX, e.clientY); });
+  steerPad.addEventListener('pointermove', e => { if (steerActive) updateWheelFromPoint(e.clientX, e.clientY); });
+  steerPad.addEventListener('pointerup', e => { steerActive = false; state.steeringInput = 0; wheel.style.transform = 'rotate(0deg)'; });
+
+  // mobile throttle/brake sliders
+  function attachSlider(id, fillId, setter) {
+    const el = document.getElementById(id), fill = document.getElementById(fillId);
+    let active = false;
+    const apply = (clientY) => {
+      const r = el.getBoundingClientRect();
+      const v = clamp((r.bottom - clientY) / r.height, 0, 1);
+      fill.style.height = `${Math.round(v * 100)}%`;
+      setter(v);
+    };
+    el.addEventListener('pointerdown', e => { active = true; el.setPointerCapture(e.pointerId); apply(e.clientY); });
+    el.addEventListener('pointermove', e => { if (active) apply(e.clientY); });
+    el.addEventListener('pointerup', () => { active = false; fill.style.height = '0%'; setter(0); });
+  }
+  attachSlider('throttle-slider', 'throttle-fill', v => state.throttleInput = v);
+  attachSlider('brake-slider', 'brake-fill', v => state.brakeInput = v);
+
+  // overlay buttons
+  document.getElementById('start-btn').addEventListener('click', () => {
+    audio.ensure();
+    setOverlay(null);
+    state.active = true;
+    state.runStart = performance.now();
+    generateLevel(state.level);
+    syncHud(0);
+  });
+  document.getElementById('open-shop-btn').addEventListener('click', () => { ui.shopCredits.textContent = String(state.credits); setOverlay('shop'); });
+  document.getElementById('open-leaderboard-btn').addEventListener('click', () => { renderLeaderboard(); setOverlay('leader'); });
+  document.getElementById('close-shop-btn').addEventListener('click', () => setOverlay('start'));
+  document.getElementById('close-leader-btn').addEventListener('click', () => setOverlay('start'));
+  document.getElementById('reset-progress-btn').addEventListener('click', () => {
+    state.level = 1; state.credits = 0; state.leaderboard = []; state.upgrades = { traction: false, shortTrailer: false, underglow: false }; persist(); syncHud(0); renderLeaderboard();
+  });
+
+  // shop actions
+  const prices = { traction: 90, shortTrailer: 120, underglow: 70 };
+  overlays.shop.querySelectorAll('[data-upgrade]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const up = btn.dataset.upgrade;
+      if (state.upgrades[up]) { btn.textContent = 'OWNED'; return; }
+      const cost = prices[up];
+      if (state.credits < cost) { btn.textContent = 'INSUFFICIENT CREDITS'; setTimeout(() => btn.textContent = 'Purchase', 900); return; }
+      state.credits -= cost;
+      state.upgrades[up] = true;
+      btn.textContent = 'OWNED';
+      ui.shopCredits.textContent = String(state.credits);
+      persist();
+    });
+  });
+
+  // initial setup
+  generateLevel(1);
+  syncHud(0);
+  renderLeaderboard();
+})();
+</script>
+</body>
+</html>

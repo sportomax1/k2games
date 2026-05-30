@@ -7,7 +7,7 @@
  * 3) Commit and deploy; clients will refresh cache on next load.
  */
 
-var CACHE_NAME = 'k2-games-v6';
+var CACHE_NAME = 'k2-games-v7';
 var CORE_ASSETS = [
   './',
   './index.html'
@@ -210,6 +210,7 @@ var GAME_HTML_FILES = [
   './relics.html',
   './restaurant-tycoon.html',
   './reversi.html',
+  './rig-master-articulated-precision.html',
   './rim-rush-dunk.html',
   './risk-roller.html',
   './river-run.html',
