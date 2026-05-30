@@ -6,6 +6,7 @@
   <title>Stride Surge: Neon Sprint</title>
   <meta name="theme-color" content="#100f2e" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Stride Surge" />
   <link rel="manifest" href="./manifest.json" />
@@ -338,6 +339,7 @@
           speed: 0.5,
           combo: 0,
           maxCombo: 0,
+          hasDriven: false,
           lean: 0.04,
           leanVel: 0,
           wobble: 0,
@@ -426,12 +428,13 @@
         const other = side < 0 ? state.right : state.left;
         const alternating = state.lastPushSide !== side;
         const grounded = leg.contact;
-        const chambered = other.lift > 0.42;
+        const chambered = other.lift > 0.34 || (side < 0 ? input.liftRight : input.liftLeft);
         const balance = clamp(1 - Math.abs(state.lean) * 0.75 - Math.abs(state.wobble) * 0.18, 0, 1);
         const flowWindow = clamp(1 - Math.abs(state.speed - 7.5) / 10, 0.2, 1);
         const valid = grounded && chambered && alternating;
 
         if (valid) {
+          state.hasDriven = true;
           const boost = 1.2 + balance * 2 + flowWindow * 1.1 + Math.min(1.5, state.combo * 0.04);
           state.speed = clamp(state.speed + boost, 0, 18);
           state.combo += 1;
@@ -499,8 +502,19 @@
 
         const doubleDrive = Number(input.driveLeft && input.driveRight);
         const doubleLift = Number(input.liftLeft && input.liftRight);
+        const anyInput = input.liftLeft || input.liftRight || input.driveLeft || input.driveRight;
         const asymLift = state.right.lift - state.left.lift;
         const asymDrive = state.right.drive - state.left.drive;
+
+        if (!state.hasDriven && !anyInput) {
+          state.lean = lerp(state.lean, 0.03, 1 - Math.exp(-dt * 3));
+          state.wobble = lerp(state.wobble, 0, 1 - Math.exp(-dt * 4));
+          state.leanVel *= Math.exp(-dt * 5);
+          state.wobbleVel *= Math.exp(-dt * 5);
+          state.speed = Math.max(0, state.speed - 0.2 * dt);
+          syncUi();
+          return;
+        }
 
         state.wobbleVel += (asymLift * 0.55 + asymDrive * 0.18 + (doubleDrive - doubleLift) * 0.12) * dt;
         state.leanVel += (asymDrive * 0.22 - state.lean * 3.7 - state.wobble * 0.7) * dt;
@@ -531,7 +545,7 @@
 
         if (Math.abs(state.lean) > 0.98 || Math.abs(state.wobble) > 1.45) {
           endGame('The torso folded and the sprint snapped.');
-        } else if (state.speed <= 0.05 && state.time > 4) {
+        } else if (!state.hasDriven && state.speed <= 0.05 && state.time > 5) {
           endGame('You stalled out before locking into a stride.');
         }
       }
