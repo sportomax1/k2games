@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Super Smash Brawl</title>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; background: #091129; color: #e2e8f0; padding: 12px; }
+        .wrap { max-width: 960px; margin: 0 auto; }
+        .top { display: flex; gap: 10px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        a { color: #7dd3fc; text-decoration: none; border: 1px solid rgba(125,211,252,.45); border-radius: 999px; padding: 8px 12px; font-weight: 700; }
+        #game { width: 100%; aspect-ratio: 16 / 9; background: linear-gradient(#1d4ed8, #0f172a 65%); border-radius: 14px; display: block; margin-top: 10px; }
+        .hud { margin: 8px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .panel { background: rgba(15,23,42,.8); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 8px; }
+        .controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+        button { padding: 11px; border-radius: 10px; border: 1px solid rgba(255,255,255,.2); background: #1f2937; color: white; font-weight: 800; }
+        @media (max-width: 700px) { .controls { grid-template-columns: repeat(2, 1fr);} }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="top">
+        <a href="index.html">← Back</a>
+        <h1>🥊 Super Smash Brawl</h1>
+        <span>Desktop: A/D move, W jump, J smash</span>
+    </div>
+    <canvas id="game" width="960" height="540"></canvas>
+    <div class="hud">
+        <div class="panel">You Damage: <strong id="pDmg">0%</strong></div>
+        <div class="panel">Rival Damage: <strong id="eDmg">0%</strong></div>
+    </div>
+    <div class="panel" id="msg">Launch your rival off stage. Higher damage means bigger knockback.</div>
+    <div class="controls">
+        <button data-act="left">⬅ Left</button>
+        <button data-act="right">Right ➡</button>
+        <button data-act="jump">⬆ Jump</button>
+        <button data-act="attack">💥 Smash</button>
+    </div>
+</div>
+<script>
+const c = document.getElementById('game'), x = c.getContext('2d');
+const pD = document.getElementById('pDmg'), eD = document.getElementById('eDmg'), msg = document.getElementById('msg');
+const keys = new Set();
+const gravity = 0.55;
+const stage = { y: 420, left: 110, right: 850 };
+
+let player, enemy, over;
+function start() {
+    player = { x: 290, y: 360, vx: 0, vy: 0, d: 0, cd: 0, onGround: false, color: '#22d3ee' };
+    enemy = { x: 680, y: 360, vx: 0, vy: 0, d: 0, cd: 0, onGround: false, color: '#f87171' };
+    over = false;
+    msg.textContent = 'Launch your rival off stage. Higher damage means bigger knockback.';
+}
+
+function applyPhysics(f) {
+    f.vy += gravity;
+    f.x += f.vx;
+    f.y += f.vy;
+    f.vx *= 0.89;
+
+    const onMain = f.x > stage.left && f.x < stage.right && f.y >= stage.y - 60;
+    const onPlat = f.x > 390 && f.x < 570 && f.y >= 310 - 60 && f.y < 330;
+
+    if (onPlat) { f.y = 250; f.vy = 0; f.onGround = true; }
+    else if (onMain) { f.y = stage.y - 60; f.vy = 0; f.onGround = true; }
+    else f.onGround = false;
+}
+
+function hit(attacker, target, dir) {
+    if (attacker.cd > 0) return;
+    attacker.cd = 24;
+    if (Math.abs(attacker.x - target.x) < 85 && Math.abs(attacker.y - target.y) < 80) {
+        target.d = Math.min(240, target.d + 12);
+        const kb = 4.2 + target.d * 0.05;
+        target.vx = dir * kb;
+        target.vy = -3 - target.d * 0.02;
+        msg.textContent = 'Smash hit!';
+    }
+}
+
+function ai() {
+    if (over) return;
+    if (enemy.cd > 0) enemy.cd--;
+    const dir = player.x < enemy.x ? -1 : 1;
+    enemy.vx += dir * 0.28;
+    if (Math.random() < 0.02 && enemy.onGround) enemy.vy = -10;
+    if (Math.abs(player.x - enemy.x) < 95 && Math.random() < 0.05) hit(enemy, player, dir);
+}
+
+function update() {
+    if (!over) {
+        if (keys.has('a') || keys.has('ArrowLeft')) player.vx -= 0.45;
+        if (keys.has('d') || keys.has('ArrowRight')) player.vx += 0.45;
+        if ((keys.has('w') || keys.has('ArrowUp')) && player.onGround) player.vy = -10.5;
+        if (player.cd > 0) player.cd--;
+
+        applyPhysics(player);
+        applyPhysics(enemy);
+        ai();
+
+        const outP = player.y > c.height + 100 || player.x < -140 || player.x > c.width + 140;
+        const outE = enemy.y > c.height + 100 || enemy.x < -140 || enemy.x > c.width + 140;
+        if (outP || outE) {
+            over = true;
+            msg.textContent = outE ? 'Victory! Tap smash to rematch.' : 'Defeat! Tap smash to rematch.';
+        }
+    }
+
+    pD.textContent = Math.round(player.d) + '%';
+    eD.textContent = Math.round(enemy.d) + '%';
+}
+
+function drawF(f) {
+    x.fillStyle = f.color;
+    x.fillRect(f.x - 20, f.y, 40, 60);
+    x.fillRect(f.x - 16, f.y - 24, 32, 24);
+}
+
+function draw() {
+    x.clearRect(0,0,c.width,c.height);
+    x.fillStyle = '#60a5fa'; x.fillRect(0,0,c.width,c.height*0.62);
+    x.fillStyle = '#4ade80'; x.fillRect(stage.left, stage.y, stage.right - stage.left, 20);
+    x.fillStyle = '#22c55e'; x.fillRect(390, 310, 180, 16);
+    drawF(player); drawF(enemy);
+}
+
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+
+function smash() {
+    if (over) { start(); return; }
+    const dir = player.x < enemy.x ? 1 : -1;
+    hit(player, enemy, dir);
+}
+
+document.addEventListener('keydown', e => {
+    keys.add(e.key.toLowerCase());
+    if (e.key.toLowerCase() === 'j') smash();
+});
+document.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+
+document.querySelectorAll('[data-act]').forEach(b => {
+    const act = b.dataset.act;
+    const down = () => {
+        if (act === 'left') keys.add('arrowleft');
+        if (act === 'right') keys.add('arrowright');
+        if (act === 'jump') keys.add('arrowup');
+        if (act === 'attack') smash();
+    };
+    const up = () => {
+        if (act === 'left') keys.delete('arrowleft');
+        if (act === 'right') keys.delete('arrowright');
+        if (act === 'jump') keys.delete('arrowup');
+    };
+    b.addEventListener('pointerdown', down);
+    b.addEventListener('pointerup', up);
+    b.addEventListener('pointerleave', up);
+    b.addEventListener('pointercancel', up);
+});
+
+start(); loop();
+</script>
+</body>
+</html>

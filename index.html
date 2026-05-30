@@ -93,6 +93,8 @@
         .card:hover { transform: translateY(-5px); border-color: var(--primary); background: #2d3748; }
         .game-idx { position: absolute; top: 10px; left: 10px; font-size: 0.6rem; opacity: 0.3; }
         .classic-tag { position: absolute; top: 10px; right: 10px; font-size: 0.6rem; background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; font-weight: 800; }
+        .favorite-toggle { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 999px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.9); font-size: 0.9rem; cursor: pointer; user-select: none; }
+        .favorite-toggle.active { border-color: #fb7185; box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.28); }
         .icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
         .title { font-size: 0.85rem; font-weight: 700; text-transform: capitalize; }
         .date { font-size: 0.6rem; color: var(--muted); margin-top: 0.5rem; }
@@ -102,6 +104,7 @@
             .card { flex-direction: row; text-align: left; padding: 1rem; gap: 1rem; }
             .icon { margin-bottom: 0; font-size: 1.5rem; }
             .classic-tag { bottom: 10px; top: auto; }
+            .favorite-toggle { top: 8px; right: 8px; }
         }
 
         footer { margin-top: 4rem; padding: 2rem; border-top: 1px solid var(--border); text-align: center; color: var(--muted); font-size: 0.8rem; }
@@ -129,6 +132,7 @@
                 <option value="all">All Titles</option>
                 <option value="originals">Originals</option>
                 <option value="classics">Classics</option>
+                <option value="favorites">Favorites</option>
             </select>
             <select id="app-filter">
                 <option value="all">All App Icons</option>
@@ -172,6 +176,9 @@
             { f: 'jungle-swing.html', t: 'Jungle Swing: Vine Rush', i: '🌿', c: '2026-05-30T00:00:00', u: '2026-05-30T00:00:00', cl: false },
             { f: 'hero-helper.html', t: 'Hero Helper: City Lift', i: '🦸', c: '2026-05-30T00:00:00', u: '2026-05-30T00:00:00', cl: false },
             { f: 'stride-surge.html', t: 'Stride Surge', i: '🏃', c: '2026-05-30T00:00:00', u: '2026-05-30T00:00:00', cl: false },
+            { f: 'super-smash-brawl.html', t: 'Super Smash Brawl', i: '🥊', c: '2026-05-30T00:00:00', u: '2026-05-30T00:00:00', cl: false },
+            { f: 'mouse-heist-home.html', t: 'Mouse Heist Home', i: '🐭', c: '2026-05-30T00:00:00', u: '2026-05-30T00:00:00', cl: false },
+            { f: 'kombat-arena.html', t: 'Kombat Arena', i: '🐉', c: '2026-05-30T00:00:00', u: '2026-05-30T00:00:00', cl: false },
             { f: 'lake-powell-slot-canyon.html', t: 'Lake Powell Slot Canyon Rescue', i: '🏜️', c: '2026-05-29T00:00:00', u: '2026-05-29T00:00:00', cl: false },
             { f: 'sheepdog-summit-3d.html', t: 'Sheepdog Summit 3D', i: '🐑', c: '2026-05-29T00:00:00', u: '2026-05-29T00:00:00', cl: false },
             { f: 'running-with-the-bulls.html', t: 'Running With The Bulls', i: '🐂', c: '2026-05-29T00:00:00', u: '2026-05-29T00:00:00', cl: false },
@@ -180,7 +187,7 @@
             { f: 'rail-forge.html', t: 'Rail Forge', i: '🛤️', c: '2026-05-04T00:00:00', u: '2026-05-04T00:00:00', cl: false },
             { f: 'open-world-3d.html', t: 'Metro Free Ride 3D', i: '🏙️', c: '2026-05-04T00:00:00', u: '2026-05-04T00:00:00', cl: false },
             { f: 'corn-maze-escape.html', t: 'Corn Maze Escape', i: '🌽', c: '2026-05-03T00:00:00', u: '2026-05-03T00:00:00', cl: false },
-            { f: 'dungeon-ironfang.html', t: 'Dungeon Ironfang', i: '⚔️', c: '2026-05-03T00:00:00', u: '2026-05-03T00:00:00', cl: false },
+            { f: 'dungeon-ironfang.html', t: 'Dungeon Ironfang Duel', i: '⚔️', c: '2026-05-03T00:00:00', u: '2026-05-30T00:00:00', cl: false },
             { f: 'sinkhole.html', t: 'Sinkhole Master', i: '🕳️', c: '2026-04-28T10:00:00', u: '2026-05-04T00:00:00', cl: false },
             { f: 'mahjong.html', t: 'Mahjong Elite', i: '🀄', c: '2026-04-13T10:00:00', u: '2026-04-13T10:00:00', cl: true },
             { f: 'calendar-puzzle.html', t: 'Calendar Puzzle', i: '📅', c: '2026-04-11T13:00:00', u: '2026-04-11T13:00:00', cl: false },
@@ -456,6 +463,26 @@
         const count = document.getElementById('count');
 
         let filteredGames = [];
+        const FAVORITES_STORAGE_KEY = 'k2-favorites';
+        const favorites = loadFavorites();
+
+        function loadFavorites() {
+            try {
+                const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
+                const parsed = raw ? JSON.parse(raw) : [];
+                return new Set(Array.isArray(parsed) ? parsed : []);
+            } catch (error) {
+                return new Set();
+            }
+        }
+
+        function saveFavorites() {
+            localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...favorites]));
+        }
+
+        function isFavorite(file) {
+            return favorites.has(file);
+        }
 
         function populateAppFilter() {
             const counts = games.reduce((acc, game) => {
@@ -481,7 +508,8 @@
                 const matchesSearch = g.t.toLowerCase().includes(query);
                 const matchesFilter = filterMode === 'all' || 
                                      (filterMode === 'classics' && g.cl) || 
-                                     (filterMode === 'originals' && !g.cl);
+                                     (filterMode === 'originals' && !g.cl) ||
+                                     (filterMode === 'favorites' && isFavorite(g.f));
                 const matchesApp = appMode === 'all' || g.i === appMode;
                 return matchesSearch && matchesFilter && matchesApp;
             });
@@ -493,18 +521,43 @@
                 return 0;
             });
 
-            grid.innerHTML = filteredGames.map((g, idx) => `
+            grid.innerHTML = filteredGames.map((g, idx) => {
+                const favoriteState = isFavorite(g.f);
+                return `
                 <a href="${g.f}" class="card">
                     <div class="game-idx">${idx + 1}</div>
                     ${g.cl ? '<div class="classic-tag">CLASSIC</div>' : ''}
+                    <span class="favorite-toggle ${favoriteState ? 'active' : ''}" role="button" tabindex="0" aria-label="${favoriteState ? 'Remove from favorites' : 'Save to favorites'}" data-file="${g.f}">${favoriteState ? '❤️' : '🤍'}</span>
                     <div class="icon">${g.i}</div>
                     <div class="title">${g.t}</div>
                     <div class="date">${new Date(g.u).toLocaleDateString()}</div>
                 </a>
-            `).join('');
+            `;
+            }).join('');
             
             count.textContent = filteredGames.length;
         }
+
+        grid.addEventListener('click', (event) => {
+            const button = event.target.closest('.favorite-toggle');
+            if (!button) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const file = button.dataset.file;
+            if (!file) return;
+            if (favorites.has(file)) favorites.delete(file);
+            else favorites.add(file);
+            saveFavorites();
+            render();
+        });
+
+        grid.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            const button = event.target.closest('.favorite-toggle');
+            if (!button) return;
+            event.preventDefault();
+            button.click();
+        });
 
         search.addEventListener('input', render);
         sort.addEventListener('change', render);
