@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Jungle Swing: Vine Rush</title>
+<style>
+:root{--bg:#072016;--panel:#113126;--text:#eafff2;--accent:#65f7b3;--danger:#ff6b6b}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#1d4b37,#072016 58%);font-family:Segoe UI,system-ui,sans-serif;color:var(--text);display:flex;justify-content:center}
+#root{width:min(980px,100vw);padding:10px}#hud{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}#hud span{padding:6px 10px;background:rgba(6,18,13,.74);border:1px solid rgba(255,255,255,.2);border-radius:8px;font-weight:700}
+#cv{width:100%;aspect-ratio:16/9;background:linear-gradient(#8ad6ff 0 42%,#2f7f38 42%);border:2px solid rgba(255,255,255,.22);border-radius:12px;display:block}
+.overlay{position:fixed;inset:0;background:rgba(5,12,10,.84);display:flex;align-items:center;justify-content:center;padding:12px}.panel{width:min(560px,100%);background:#113126;border:1px solid rgba(255,255,255,.2);border-radius:16px;padding:18px}
+button{border:0;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer;background:var(--accent);color:#052216}.alt{background:#355a4f;color:#e4fff3}
+#mobile{position:fixed;left:8px;right:8px;bottom:8px;display:none;justify-content:space-between;pointer-events:none}.mbtns{display:grid;grid-template-columns:repeat(2,58px);gap:5px;pointer-events:auto}
+#mobile button{width:58px;height:58px;border-radius:12px;background:rgba(9,26,18,.88);color:#fff;border:1px solid rgba(255,255,255,.2)}
+@media(max-width:860px){#mobile{display:flex}}
+</style>
+</head>
+<body>
+<div id="root"><div id="hud"><span id="distance">Distance 0m</span><span id="combo">Combo x1</span><span id="score">Score 0</span><span id="lives">Lives 3</span><span id="hs">High 0</span></div><canvas id="cv" width="960" height="540"></canvas></div>
+<div id="start" class="overlay"><div class="panel"><h1>Jungle Swing: Vine Rush</h1><p>Swing, release, and chain perfect arcs through an endless jungle run.</p><p><b>Desktop:</b> Space/click grab-release, Arrow keys lean, P pause.<br><b>Mobile:</b> Tap GRAB, lean buttons.</p><button id="play">Start Run</button><button id="how" class="alt">Instructions</button></div></div>
+<div id="help" class="overlay" style="display:none"><div class="panel"><h2>Tips</h2><ul><li>Grab a vine near the peak for a perfect swing combo.</li><li>Avoid thorns, logs, birds, and deep water.</li><li>Collect fruit crystals for bonus points and tiny speed burst.</li><li>Difficulty rises with distance.</li></ul><button id="closeHelp">Back</button></div></div>
+<div id="end" class="overlay" style="display:none"><div class="panel"><h2 id="endTitle"></h2><p id="endText"></p><button id="restart">Restart</button></div></div>
+<div id="mobile"><div class="mbtns"><button data-k="left">◀</button><button data-k="right">▶</button></div><div class="mbtns"><button data-k="grab">GRAB</button><button data-k="pause">II</button></div></div>
+<script>
+(()=>{
+const c=cv,ctx=c.getContext('2d');
+const UI={distance,combo,score,lives,hs};
+const KEY='jungle_swing_high_v1'; let high=+localStorage.getItem(KEY)||0; UI.hs.textContent=`High ${high}`;
+const AC=window.AudioContext?new AudioContext():null; const tone=(f=600,d=.06,t='triangle',v=.03)=>{if(!AC)return;const o=AC.createOscillator(),g=AC.createGain();o.type=t;o.frequency.value=f;o.connect(g);g.connect(AC.destination);g.gain.value=v;o.start();o.stop(AC.currentTime+d);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+d)};
+
+let state='menu',world=0,diff=1;
+const p={x:220,y:250,vx:140,vy:0,r:14,grab:false,anchor:null,rope:120,lives:3,score:0,combo:1,bestCombo:1};
+const anchors=[],hazards=[],loot=[];
+const gravity=460, floorY=430, waterY=470;
+const keys={}; let wantGrab=false;
+
+function regen(toX){
+  let x = anchors.length?anchors[anchors.length-1].x+90:160;
+  while(x<toX){
+    anchors.push({x:x+Math.random()*70,y:110+Math.random()*170,used:false,crumble:Math.random()<0.2,life:2.4});
+    if(Math.random()<0.55) hazards.push({x:x+100+Math.random()*80,y:Math.random()<0.5?floorY-10:120+Math.random()*250,t:['thorn','log','bird'][Math.floor(Math.random()*3)],r:16});
+    if(Math.random()<0.65) loot.push({x:x+40+Math.random()*70,y:160+Math.random()*190,hit:false});
+    x += 110;
+  }
+}
+regen(2200);
+
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(e.key===' ') {e.preventDefault(); wantGrab=true;}});
+addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false; if(e.key===' ') wantGrab=false;});
+c.addEventListener('mousedown',()=>wantGrab=true); addEventListener('mouseup',()=>wantGrab=false);
+c.addEventListener('touchstart',e=>{e.preventDefault();wantGrab=true;}); c.addEventListener('touchend',e=>{e.preventDefault();wantGrab=false;});
+document.querySelectorAll('#mobile button').forEach(b=>{const k=b.dataset.k; const set=v=>{if(k==='left'||k==='right') keys[k]=v; if(k==='grab') wantGrab=v;}; ['touchstart','mousedown'].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();set(true);if(k==='pause'&&state==='play')state='pause';else if(k==='pause'&&state==='pause')state='play';})); ['touchend','touchcancel','mouseup','mouseleave'].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();set(false);}));});
+
+function reset(){ Object.assign(p,{x:220,y:250,vx:140,vy:0,grab:false,anchor:null,rope:120,lives:3,score:0,combo:1,bestCombo:1}); anchors.length=hazards.length=loot.length=0; world=0; diff=1; regen(2400); state='play'; }
+function nearAnchor(){ const px=world+p.x; return anchors.find(a=>!a.used && Math.hypot(px-a.x,p.y-a.y)<95); }
+
+function loseLife(){
+  p.lives--; p.combo=1; tone(180,.14,'sawtooth',.05); p.x=220; p.y=220; p.vx=140+diff*10; p.vy=-80; p.grab=false; p.anchor=null; world=Math.max(0,world-120);
+  if(p.lives<=0) endGame();
+}
+function endGame(){ state='end'; const final=Math.round(p.score + world*.08 + p.bestCombo*50); if(final>high){high=final;localStorage.setItem(KEY,high);} UI.hs.textContent=`High ${high}`; endTitle.textContent='Run Over'; endText.textContent=`Distance ${Math.round(world/10)}m • Score ${final} • Best combo x${p.bestCombo} • High ${high}`; end.style.display='flex'; }
+
+function step(dt){
+  if(state!=='play') return;
+  diff = 1 + world/2500;
+  if((keys.p||keys.pause)&&state==='play'){state='pause';keys.p=keys.pause=false;return;}
+  const lean=((keys.arrowleft||keys.a||keys.left)?-1:0)+((keys.arrowright||keys.d||keys.right)?1:0);
+
+  if(!p.grab && wantGrab){ const a=nearAnchor(); if(a){ p.grab=true; p.anchor=a; p.rope=Math.max(68,Math.hypot((world+p.x)-a.x,p.y-a.y)); tone(780,.06,'triangle',.04);} }
+  if(p.grab && !wantGrab){
+    const vertical=Math.abs(p.vy)<120, forward=p.vx>140;
+    if(vertical&&forward){ p.combo++; p.bestCombo=Math.max(p.bestCombo,p.combo); p.score += 40*p.combo; tone(980,.06,'triangle',.04);} else p.combo=1;
+    p.grab=false; p.anchor=null;
+  }
+
+  if(p.grab && p.anchor){
+    const ax = p.anchor.x-world, ay=p.anchor.y;
+    p.vy += gravity*dt*.28; p.vx += lean*95*dt;
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    const dx=p.x-ax, dy=p.y-ay, d=Math.hypot(dx,dy)||1;
+    if(d>p.rope){ const pull=(d-p.rope)/d; p.x-=dx*pull; p.y-=dy*pull; const dot=(p.vx*dx+p.vy*dy)/(d*d); p.vx-=dot*dx; p.vy-=dot*dy; }
+    if(p.anchor.crumble){ p.anchor.life-=dt*(.5+diff*.1); if(p.anchor.life<=0){ p.grab=false; p.anchor.used=true; p.anchor=null; tone(220,.08,'square',.04); }}
+  } else {
+    p.vx += (160 + diff*22 - p.vx)*dt*.8;
+    p.vx += lean*85*dt;
+    p.vy += gravity*dt;
+    p.x += p.vx*dt; p.y += p.vy*dt;
+  }
+
+  world += Math.max(0,p.vx)*dt*.58;
+  regen(world+1600);
+  p.x = Math.max(120, Math.min(420, p.x));
+  if(p.y>waterY) loseLife();
+  if(p.y>floorY-p.r){ p.y=floorY-p.r; p.vy=Math.min(0,p.vy)*-.25; if(Math.abs(p.vy)>210) loseLife(); }
+
+  hazards.forEach(h=>{
+    if(h.t==='bird'){ h.y += Math.sin((world+h.x)*.01)*40*dt*3; }
+    const sx=h.x-world; if(sx<-80||sx>1030) return;
+    if(Math.hypot(p.x-sx,p.y-h.y)<p.r+h.r-4) loseLife();
+  });
+  loot.forEach(g=>{ if(g.hit) return; const sx=g.x-world; if(Math.hypot(p.x-sx,p.y-g.y)<20){ g.hit=true; p.score+=35; p.vx+=16; tone(1080,.04,'triangle',.03);} });
+
+  p.score += dt*(8 + p.combo*2 + diff);
+  UI.distance.textContent=`Distance ${Math.round(world/10)}m`; UI.combo.textContent=`Combo x${p.combo}`; UI.score.textContent=`Score ${Math.round(p.score)}`; UI.lives.textContent=`Lives ${p.lives}`;
+}
+
+function draw(){
+  ctx.clearRect(0,0,960,540);
+  // parallax jungle layers
+  for(let i=0;i<3;i++){ ctx.fillStyle=['#1f5f35','#2f7d43','#3ea653'][i]; const sp=(i+1)*.12; for(let n=0;n<14;n++){ const bx=((n*180 - world*sp)%1200)-100; const h=90+i*40+Math.sin((n+world*0.01)*1.2)*16; ctx.fillRect(bx,260-h,60,h+190);} }
+  ctx.fillStyle='#3b8e47'; ctx.fillRect(0,floorY,960,90);
+  ctx.fillStyle='#2669a8'; ctx.fillRect(0,waterY,960,70);
+
+  anchors.forEach(a=>{ const sx=a.x-world; if(sx<-100||sx>1060) return; ctx.strokeStyle=a.crumble?'#f5d98f':'#c7ffd9'; ctx.beginPath(); ctx.moveTo(sx,a.y-80); ctx.lineTo(sx,a.y); ctx.stroke(); ctx.fillStyle='#8b5e34'; ctx.beginPath(); ctx.arc(sx,a.y,7,0,7); ctx.fill();});
+  hazards.forEach(h=>{const sx=h.x-world; if(sx<-80||sx>1030) return; ctx.fillStyle=h.t==='thorn'?'#a93636':h.t==='log'?'#85552b':'#ffde59'; ctx.beginPath(); ctx.arc(sx,h.y,h.r,0,7); ctx.fill();});
+  loot.forEach(g=>{if(g.hit)return; const sx=g.x-world; if(sx<-40||sx>1000) return; ctx.fillStyle='#5df2ff'; ctx.fillRect(sx-5,g.y-7,10,10);});
+
+  // rope + explorer
+  if(p.grab&&p.anchor){ const ax=p.anchor.x-world; ctx.strokeStyle='#e9f6ff'; ctx.beginPath(); ctx.moveTo(ax,p.anchor.y); ctx.lineTo(p.x,p.y); ctx.stroke(); }
+  ctx.fillStyle='#ffe09e'; ctx.beginPath(); ctx.arc(p.x,p.y-8,8,0,7); ctx.fill();
+  ctx.fillStyle='#35a5ff'; ctx.fillRect(p.x-9,p.y,18,20); ctx.fillStyle='#ff6b6b'; ctx.fillRect(p.x-13,p.y+5,5,12); ctx.fillRect(p.x+8,p.y+5,5,12);
+
+  // warning text + pause
+  if(state==='pause'){ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(0,0,960,540);ctx.fillStyle='#fff';ctx.font='700 52px sans-serif';ctx.textAlign='center';ctx.fillText('Paused',480,275);} 
+}
+
+let last=performance.now();
+(function loop(t){const dt=Math.min(.033,(t-last)/1000); last=t; step(dt); draw(); requestAnimationFrame(loop);})(last);
+
+play.onclick=()=>{if(AC&&AC.state==='suspended')AC.resume(); start.style.display='none'; end.style.display='none'; reset();};
+how.onclick=()=>help.style.display='flex'; closeHelp.onclick=()=>help.style.display='none'; restart.onclick=()=>{end.style.display='none'; reset();};
+})();
+</script>
+</body>
+</html>

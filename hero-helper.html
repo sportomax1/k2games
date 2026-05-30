@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hero Helper: City Lift</title>
+<style>
+:root{--bg:#0b1630;--panel:#13284b;--text:#f0f6ff;--accent:#ffd166;--ok:#6ef5c4;--bad:#ff6b88}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#21467a,#0b1630 60%);color:var(--text);font-family:Segoe UI,system-ui,sans-serif;display:flex;justify-content:center}
+#root{width:min(980px,100vw);padding:10px}#hud{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}#hud span{padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(9,20,40,.75);font-weight:700}
+#cv{width:100%;aspect-ratio:16/9;background:#7ac8ff;border:2px solid rgba(255,255,255,.23);border-radius:12px;display:block}
+.overlay{position:fixed;inset:0;background:rgba(4,10,20,.84);display:flex;align-items:center;justify-content:center;padding:12px}.panel{width:min(580px,100%);background:#12284a;border:1px solid rgba(255,255,255,.22);border-radius:16px;padding:18px}
+button{border:0;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer;background:var(--accent);color:#302101}.alt{background:#3f628f;color:#f0f6ff}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+#mobile{position:fixed;left:8px;right:8px;bottom:8px;display:none;justify-content:space-between;pointer-events:none}.pad,.actions{pointer-events:auto;display:grid;gap:4px}.pad{grid-template-columns:repeat(3,56px)}.actions{grid-template-columns:repeat(2,56px)}
+#mobile button{width:56px;height:56px;border-radius:12px;background:rgba(10,22,42,.88);color:#fff;border:1px solid rgba(255,255,255,.2)}
+@media(max-width:860px){#mobile{display:flex}}
+</style>
+</head>
+<body>
+<div id="root"><div id="hud"><span id="mode">Mode: Mission</span><span id="objective">Objective</span><span id="rescues">Rescues 0</span><span id="clear">Cleared 0</span><span id="stam">Stamina 100</span><span id="timer">120s</span><span id="hs">High 0</span></div><canvas id="cv" width="960" height="540"></canvas></div>
+<div id="start" class="overlay"><div class="panel"><h1>Hero Helper: City Lift</h1><p>Use strength and speed to clear debris, rescue civilians, and keep emergency routes open.</p><p><b>Desktop:</b> WASD/Arrows move, Space lift/drop, E interact, Shift dash, P pause.<br><b>Mobile:</b> move pad + lift, interact, dash.</p><div class="row"><button data-mode="Mission">Mission Mode</button><button data-mode="Endless" class="alt">Endless Mode</button></div></div></div>
+<div id="end" class="overlay" style="display:none"><div class="panel"><h2 id="endTitle"></h2><p id="endText"></p><button id="again">Restart</button></div></div>
+<div id="mobile"><div class="pad"><button data-k="left">◀</button><button data-k="up">▲</button><button data-k="right">▶</button><button data-k="down">▼</button><button data-k="dash">DS</button><button data-k="pause">II</button></div><div class="actions"><button data-k="lift">LFT</button><button data-k="use">INT</button></div></div>
+<script>
+(()=>{
+const c=cv,ctx=c.getContext('2d'); const UI={mode,objective,rescues,clear,stam,timer,hs};
+const KEY='hero_helper_high_v1'; let high=+localStorage.getItem(KEY)||0; UI.hs.textContent=`High ${high}`;
+const AC=window.AudioContext?new AudioContext():null; const fx=(f=520,d=.07,t='square',v=.03)=>{if(!AC)return;const o=AC.createOscillator(),g=AC.createGain();o.type=t;o.frequency.value=f;o.connect(g);g.connect(AC.destination);g.gain.value=v;o.start();o.stop(AC.currentTime+d);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+d)};
+
+let gameMode='Mission', state='menu', time=120, diff=1;
+const roads=[{x:40,y:240,w:880,h:60},{x:280,y:50,w:70,h:440},{x:620,y:50,w:70,h:440}];
+let obstacles=[], civilians=[], hazards=[], vehicles=[];
+const p={x:120,y:260,r:15,vx:0,vy:0,speed:180,stam:100,carry:null,dash:0,rescued:0,cleared:0,score:0};
+const keys={};
+const missionList=['Clear 10 obstacles','Rescue 5 civilians','Guide ambulance','Repair bridge path','Stop runaway cart'];
+let missionStep=0, ambulanceGuided=false, bridgeFixed=false, cartStopped=false;
+
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true; if(e.key===' ') keys.space=true;});
+addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false; if(e.key===' ') keys.space=false;});
+document.querySelectorAll('#mobile button').forEach(b=>{const k=b.dataset.k; const set=v=>{if(['left','right','up','down','dash'].includes(k))keys[k]=v; if(k==='lift')keys.space=v; if(k==='use')keys.e=v;}; ['touchstart','mousedown'].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();set(true); if(k==='pause'&&state==='play')state='pause'; else if(k==='pause'&&state==='pause')state='play';})); ['touchend','touchcancel','mouseup','mouseleave'].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();set(false);}));});
+
+function spawnWorld(){
+  obstacles = Array.from({length:18},(_,i)=>({x:120+Math.random()*740,y:90+Math.random()*360,r:14+Math.random()*16,w:1+Math.floor(Math.random()*4),kind:['debris','sign','rock','cone'][i%4],active:true}));
+  civilians = Array.from({length:8},()=>({x:80+Math.random()*800,y:80+Math.random()*380,r:11,need:true,safe:false}));
+  hazards = [{x:470,y:250,r:20,type:'spark',active:true},{x:720,y:240,r:18,type:'oil',active:true}];
+  vehicles = [{x:40,y:268,w:34,h:18,type:'ambulance',target:910,active:true,speed:58},{x:880,y:280,w:30,h:16,type:'cart',target:50,active:true,speed:74}];
+}
+function reset(){ Object.assign(p,{x:120,y:260,vx:0,vy:0,stam:100,carry:null,dash:0,rescued:0,cleared:0,score:0}); spawnWorld(); time=gameMode==='Mission'?140:120; diff=1; missionStep=0; ambulanceGuided=false; bridgeFixed=false; cartStopped=false; state='play'; }
+function near(obj,d=26){ return Math.hypot(p.x-obj.x,p.y-obj.y)<d; }
+function roadBlocked(v){ return obstacles.some(o=>o.active&&Math.abs(o.x-v.x)<36&&Math.abs(o.y-v.y)<28); }
+function updateObjective(){
+  if(gameMode==='Endless'){ UI.objective.textContent='Objective: Rescue & clear endlessly'; return; }
+  if(p.cleared>=10) missionStep=Math.max(missionStep,1);
+  if(p.rescued>=5) missionStep=Math.max(missionStep,2);
+  if(ambulanceGuided) missionStep=Math.max(missionStep,3);
+  if(bridgeFixed) missionStep=Math.max(missionStep,4);
+  if(cartStopped) missionStep=Math.max(missionStep,5);
+  UI.objective.textContent=`Objective: ${missionList[Math.min(missionStep,4)]}${missionStep>=5?' ✓':''}`;
+}
+
+function interact(){
+  const civ=civilians.find(c=>c.need&&!c.safe&&near(c,22));
+  if(civ){civ.safe=true;civ.need=false;p.rescued++;p.score+=120;fx(840,.08,'triangle',.04);return;}
+  const hz=hazards.find(h=>h.active&&near(h,30));
+  if(hz){hz.active=false;p.score+=90; if(hz.type==='spark') bridgeFixed=true; fx(730,.08,'square',.04); return;}
+  const veh=vehicles.find(v=>v.active&&near(v,34));
+  if(veh&&veh.type==='cart'){veh.active=false;cartStopped=true;p.score+=150;fx(460,.1,'sawtooth',.05);}
+}
+function liftDrop(){
+  if(p.carry){ p.carry.x=p.x+Math.random()*26-13; p.carry.y=p.y+Math.random()*26-13; p.carry.active=false; p.carry=null; fx(320,.08,'square',.03); return; }
+  const obj=obstacles.find(o=>o.active&&near(o,26));
+  if(obj){ p.carry=obj; fx(620,.08,'triangle',.04); }
+}
+
+function step(dt){
+  if(state!=='play') return;
+  diff += dt*.05; time-=dt; if(time<=0) return finish();
+
+  if((keys.p||keys.pause)&&state==='play'){state='pause';keys.p=keys.pause=false;return;}
+  const mx=(keys.a||keys.arrowleft||keys.left?-1:0)+(keys.d||keys.arrowright||keys.right?1:0);
+  const my=(keys.w||keys.arrowup||keys.up?-1:0)+(keys.s||keys.arrowdown||keys.down?1:0);
+  if((keys.e||keys.use)){interact(); keys.e=keys.use=false;}
+  if(keys.space){liftDrop(); keys.space=false;}
+
+  if((keys.shift||keys.dash) && p.stam>22){ p.dash=.25; p.stam-=24*dt; }
+  if(p.dash>0) p.dash-=dt; else p.stam=Math.min(100,p.stam+13*dt);
+
+  const carryWeight = p.carry ? p.carry.w*14 : 0;
+  const sp=(p.speed + p.dash*280 - carryWeight) * (1 - Math.max(0,100-p.stam)/420);
+  p.x=Math.max(20,Math.min(940,p.x+mx*sp*dt)); p.y=Math.max(20,Math.min(520,p.y+my*sp*dt));
+  if(p.carry){ p.carry.x=p.x; p.carry.y=p.y-22; p.carry.active=true; p.score += dt*3; }
+
+  vehicles.forEach(v=>{
+    if(!v.active) return;
+    const dir=Math.sign(v.target-v.x); v.x += dir*(v.speed+diff*5)*dt;
+    if(roadBlocked(v)){v.x -= dir*(v.speed+diff*5)*dt*1.2; p.score -= 9*dt; }
+    if(v.type==='ambulance'&&v.x>900){ambulanceGuided=true; v.active=false; p.score+=180; fx(900,.1,'triangle',.04);}
+    if(v.type==='cart'&&v.x<60&&!cartStopped){ p.score-=120; cartStopped=true; v.active=false; }
+  });
+
+  // Random spawn scaling
+  if(Math.random()<.01*diff){ obstacles.push({x:100+Math.random()*760,y:90+Math.random()*360,r:14+Math.random()*14,w:1+Math.floor(Math.random()*4),kind:'debris',active:true}); }
+  if(Math.random()<.005*diff){ civilians.push({x:80+Math.random()*800,y:80+Math.random()*380,r:11,need:true,safe:false}); }
+
+  // Hazard penalties
+  hazards.forEach(h=>{ if(h.active&&near(h,28)){ p.stam=Math.max(0,p.stam-28*dt); p.score-=12*dt; }});
+  civilians.forEach(c=>{ if(c.need&&!c.safe&&Math.random()<.0006*diff){ c.need=true; } });
+
+  updateObjective();
+  if(gameMode==='Mission' && missionStep>=5) finish(true);
+
+  UI.mode.textContent=`Mode: ${gameMode}`;
+  UI.rescues.textContent=`Rescues ${p.rescued}`;
+  UI.clear.textContent=`Cleared ${p.cleared}`;
+  UI.stam.textContent=`Stamina ${Math.round(p.stam)}`;
+  UI.timer.textContent=`${time.toFixed(0)}s`;
+
+  // Count cleared obstacles when dropped away from roads
+  obstacles.forEach(o=>{ if(!o.active && o.counted!==true){ o.counted=true; p.cleared++; p.score+=60; }});
+}
+
+function finish(win=false){
+  state='end';
+  const bonus=Math.round(p.score + p.rescued*90 + p.cleared*70 + p.stam*2 + (win?300:0));
+  if(bonus>high){high=bonus;localStorage.setItem(KEY,high);} UI.hs.textContent=`High ${high}`;
+  endTitle.textContent = win ? 'City Saved!' : 'Shift Complete';
+  endText.textContent = `Score ${bonus} • Rescues ${p.rescued} • Cleared ${p.cleared} • High ${high}`;
+  end.style.display='flex';
+}
+
+function draw(){
+  ctx.clearRect(0,0,960,540);
+  ctx.fillStyle='#6dc6ff'; ctx.fillRect(0,0,960,540);
+  // city blocks
+  for(let i=0;i<12;i++){ ctx.fillStyle=i%2?'#c5d8eb':'#b3cadf'; ctx.fillRect((i*170)%1000-40,40+((i*70)%420),120,80); }
+  roads.forEach(r=>{ctx.fillStyle='#56697f'; ctx.fillRect(r.x,r.y,r.w,r.h); ctx.fillStyle='rgba(255,255,255,.5)'; for(let n=0;n<r.w;n+=40){ctx.fillRect(r.x+n,r.y+r.h/2-2,22,4);} });
+
+  civilians.forEach(c=>{ctx.fillStyle=c.safe?'#8ff7c5':'#ffe7a6'; ctx.beginPath(); ctx.arc(c.x,c.y,c.r,0,7); ctx.fill();});
+  hazards.forEach(h=>{if(!h.active)return; ctx.fillStyle=h.type==='spark'?'#ffbd59':'#5f4f3b'; ctx.beginPath(); ctx.arc(h.x,h.y,h.r,0,7); ctx.fill();});
+  obstacles.forEach(o=>{if(!o.active&&p.carry!==o) return; ctx.fillStyle=o.kind==='cone'?'#ff8c42':o.kind==='rock'?'#7f8c9e':o.kind==='sign'?'#f9ed69':'#9ba7b7'; ctx.beginPath(); ctx.arc(o.x,o.y,o.r,0,7); ctx.fill(); if(p.carry===o){ctx.strokeStyle='#fff';ctx.stroke();}});
+
+  vehicles.forEach(v=>{if(!v.active)return; ctx.fillStyle=v.type==='ambulance'?'#ffffff':'#ff6b88'; ctx.fillRect(v.x-v.w/2,v.y-v.h/2,v.w,v.h); ctx.strokeStyle=v.type==='ambulance'?'#e63946':'#2d2d2d'; ctx.strokeRect(v.x-v.w/2,v.y-v.h/2,v.w,v.h);});
+
+  // hero
+  ctx.fillStyle='#ffd9a3'; ctx.beginPath(); ctx.arc(p.x,p.y-10,8,0,7); ctx.fill();
+  ctx.fillStyle='#3f70ff'; ctx.fillRect(p.x-10,p.y,20,22); ctx.fillStyle='#ff5f6d'; ctx.beginPath(); ctx.moveTo(p.x+2,p.y+4); ctx.lineTo(p.x+22,p.y+16); ctx.lineTo(p.x+5,p.y+25); ctx.fill();
+  if(p.dash>0){ctx.strokeStyle='rgba(255,255,255,.7)';ctx.beginPath();ctx.arc(p.x,p.y,22,0,7);ctx.stroke();}
+
+  // mini map
+  ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(806,10,144,100); ctx.strokeStyle='rgba(255,255,255,.3)'; ctx.strokeRect(806,10,144,100);
+  const mini=(x0,y0,col)=>{ctx.fillStyle=col;ctx.fillRect(806+x0/960*144,10+y0/540*100,4,4)}; mini(p.x,p.y,'#ffd166'); civilians.filter(c=>!c.safe).forEach(c=>mini(c.x,c.y,'#eaffa6')); obstacles.filter(o=>o.active).forEach(o=>mini(o.x,o.y,'#ff8c42'));
+
+  if(state==='pause'){ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(0,0,960,540);ctx.fillStyle='#fff';ctx.font='700 52px sans-serif';ctx.textAlign='center';ctx.fillText('Paused',480,275);} 
+}
+
+let last=performance.now();
+(function frame(t){const dt=Math.min(.033,(t-last)/1000); last=t; step(dt); draw(); requestAnimationFrame(frame);})(last);
+
+document.querySelectorAll('#start button[data-mode]').forEach(b=>b.onclick=()=>{if(AC&&AC.state==='suspended')AC.resume(); gameMode=b.dataset.mode; start.style.display='none'; end.style.display='none'; reset();});
+again.onclick=()=>{end.style.display='none'; reset();};
+})();
+</script>
+</body>
+</html>
