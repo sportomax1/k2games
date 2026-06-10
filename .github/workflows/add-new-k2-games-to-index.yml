@@ -1,0 +1,53 @@
+name: Add new K2 games to index
+
+on:
+  push:
+    paths:
+      - '.github/workflows/add-new-k2-games-to-index.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  add-games:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Insert new games into index.html
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          entries = [
+              "            { f: 'court-vision-ai.html', t: 'Court Vision AI', i: '🏀', c: '2026-06-09T00:00:00', u: '2026-06-09T00:00:00', cl: false },",
+              "            { f: 'quantum-dungeon-director.html', t: 'Quantum Dungeon Director', i: '🧠', c: '2026-06-09T00:00:00', u: '2026-06-09T00:00:00', cl: false },",
+          ]
+          changed = False
+          anchor = '        const games = [\n'
+          if anchor not in text:
+              raise SystemExit('Could not find games array anchor')
+          insert = ''
+          for entry in entries:
+              filename = entry.split("f: '")[1].split("'")[0]
+              if filename not in text:
+                  insert += entry + '\n'
+                  changed = True
+          if changed:
+              text = text.replace(anchor, anchor + insert, 1)
+              path.write_text(text, encoding='utf-8')
+          else:
+              print('Index already contains both new games')
+          PY
+      - name: Commit index update
+        run: |
+          if git diff --quiet; then
+            echo "No index changes needed"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add index.html
+            git commit -m "Add new games to K2 index"
+            git push
+          fi
