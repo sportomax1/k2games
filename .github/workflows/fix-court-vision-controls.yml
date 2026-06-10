@@ -1,0 +1,42 @@
+name: Fix Court Vision AI controls
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-court-vision-controls.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-controls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch mobile button bindings
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('court-vision-ai.html')
+          text = path.read_text(encoding='utf-8')
+          old = "pass.onclick=pass;cross.onclick=cross;"
+          new = "document.getElementById('pass').onclick=pass;document.getElementById('cross').onclick=cross;"
+          if old in text:
+              text = text.replace(old, new, 1)
+              path.write_text(text, encoding='utf-8')
+              print('Patched button bindings')
+          else:
+              print('Button binding patch already present or source pattern changed')
+          PY
+      - name: Commit control fix
+        run: |
+          if git diff --quiet; then
+            echo "No control changes needed"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add court-vision-ai.html
+            git commit -m "Fix Court Vision AI mobile controls"
+            git push
+          fi
