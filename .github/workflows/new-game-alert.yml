@@ -1,0 +1,66 @@
+name: New Game Alert
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify-new-games:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find newly added game files
+        id: changes
+        shell: bash
+        run: |
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="HEAD~1"
+          fi
+
+          mapfile -t NEW_GAMES < <(
+            git diff --name-status "$BEFORE" "$AFTER" |
+              awk '$1 == "A" {print $2}' |
+              grep -E '\.html$' |
+              grep -Ev '(^|/)index\.html$' |
+              grep -Ev '(^|/)(test|demo|admin|template|utility|debug|scratch)[^/]*\.html$' || true
+          )
+
+          if [ "${#NEW_GAMES[@]}" -eq 0 ]; then
+            echo "has_new_games=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "has_new_games=true" >> "$GITHUB_OUTPUT"
+          {
+            echo 'game_list<<EOF'
+            for file in "${NEW_GAMES[@]}"; do
+              title=$(basename "$file" .html | sed 's/-/ /g' | sed 's/\b\w/\U&/g')
+              echo "🎮 **$title** — <https://sportomax1.github.io/k2games/$file>"
+            done
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send Discord new game alert
+        if: steps.changes.outputs.has_new_games == 'true'
+        uses: tsickert/discord-webhook@v7.0.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
+          content: |
+            🕹️ **New K2 game added!**
+
+            ${{ steps.changes.outputs.game_list }}
+
+            🌐 **K2 Games:** <https://sportomax1.github.io/k2games/index.html>
+            🔗 **Commit:** <${{ github.event.head_commit.url }}>
