@@ -1,0 +1,123 @@
+name: Weekly K2 Report
+
+on:
+  schedule:
+    # Friday 5 PM Mountain during daylight time = Friday 23:00 UTC
+    - cron: "0 23 * * 5"
+    # Friday 5 PM Mountain during standard time = Saturday 00:00 UTC
+    - cron: "0 0 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  weekly-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check Mountain time
+        id: mt
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run_report=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          MT_DAY=$(TZ=America/Denver date +%u)
+          MT_HOUR=$(TZ=America/Denver date +%H)
+
+          if [ "$MT_DAY" = "5" ] && [ "$MT_HOUR" = "17" ]; then
+            echo "run_report=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_report=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repo
+        if: steps.mt.outputs.run_report == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build weekly change summary
+        if: steps.mt.outputs.run_report == 'true'
+        id: summary
+        shell: bash
+        run: |
+          BASE=$(git rev-list -n 1 --before="7 days ago" HEAD || true)
+          if [ -z "$BASE" ]; then
+            BASE=$(git rev-list --max-parents=0 HEAD)
+          fi
+
+          CHANGES=$(git diff --name-status "$BASE" HEAD || true)
+
+          ADDED_GAMES=$(echo "$CHANGES" |
+            awk '$1 == "A" {print $2}' |
+            grep -E '\.html$' |
+            grep -Ev '(^|/)index\.html$' |
+            grep -Ev '(^|/)(test|demo|admin|template|utility|debug|scratch)[^/]*\.html$' || true)
+
+          CHANGED_GAMES=$(echo "$CHANGES" |
+            awk '$1 ~ /^M/ {print $2}' |
+            grep -E '\.html$' |
+            grep -Ev '(^|/)index\.html$' |
+            grep -Ev '(^|/)(test|demo|admin|template|utility|debug|scratch)[^/]*\.html$' || true)
+
+          OTHER_CHANGES=$(echo "$CHANGES" |
+            awk '$1 ~ /^(A|M|R|D)/ {print $1 " " $2}' |
+            grep -Ev '\.html$' |
+            grep -Ev '^. \.github/workflows/' || true)
+
+          if [ -z "$ADDED_GAMES" ] && [ -z "$CHANGED_GAMES" ] && [ -z "$OTHER_CHANGES" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          {
+            echo 'report<<EOF'
+            echo "📅 **Weekly K2 Games update**"
+            echo ""
+
+            if [ -n "$ADDED_GAMES" ]; then
+              echo "🆕 **New games added:**"
+              echo "$ADDED_GAMES" | head -25 | while read -r file; do
+                title=$(basename "$file" .html | sed 's/-/ /g' | sed 's/\b\w/\U&/g')
+                echo "• **$title** — <https://sportomax1.github.io/k2games/$file>"
+              done
+              echo ""
+            fi
+
+            if [ -n "$CHANGED_GAMES" ]; then
+              echo "🔧 **Game files updated:**"
+              echo "$CHANGED_GAMES" | head -25 | while read -r file; do
+                title=$(basename "$file" .html | sed 's/-/ /g' | sed 's/\b\w/\U&/g')
+                echo "• $title — \`$file\`"
+              done
+              echo ""
+            fi
+
+            if [ -n "$OTHER_CHANGES" ]; then
+              echo "📁 **Other repo changes:**"
+              echo "$OTHER_CHANGES" | head -25 | while read -r line; do
+                echo "• \`$line\`"
+              done
+              echo ""
+            fi
+
+            echo "🌐 **K2 Games:** <https://sportomax1.github.io/k2games/index.html>"
+            echo "🔎 **Compare:** <https://github.com/sportomax1/k2games/compare/$BASE...HEAD>"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send weekly Discord report
+        if: steps.mt.outputs.run_report == 'true' && steps.summary.outputs.has_changes == 'true'
+        uses: tsickert/discord-webhook@v7.0.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
+          content: ${{ steps.summary.outputs.report }}
+
+      - name: Skip if no changes
+        if: steps.mt.outputs.run_report == 'true' && steps.summary.outputs.has_changes != 'true'
+        run: echo "No weekly K2 changes to report."
