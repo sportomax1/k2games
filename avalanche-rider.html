@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Avalanche Rider - K2 Games</title>
+<meta name="theme-color" content="#0f172a" />
+<style>
+  :root{--bg:#07111f;--panel:#101b2f;--ice:#bff3ff;--snow:#f8fbff;--warn:#ff4d4d;--gold:#ffd166;--green:#39d353;}
+  *{box-sizing:border-box;touch-action:none;user-select:none;-webkit-user-select:none}
+  html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% 0,#223b62 0,#07111f 55%,#020611 100%);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--snow)}
+  #wrap{position:fixed;inset:0;display:grid;place-items:center;padding:10px}
+  canvas{width:min(100vw,760px);height:min(100vh,1040px);max-height:100vh;image-rendering:pixelated;border:4px solid #e9fbff;border-radius:18px;background:#9edfff;box-shadow:0 24px 80px rgba(0,0,0,.55)}
+  .hud{position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(96vw,720px);display:flex;gap:8px;justify-content:space-between;align-items:center;pointer-events:none;font-weight:800;text-shadow:0 2px 0 #00172a;font-size:14px}
+  .pill{background:rgba(6,13,28,.68);border:2px solid rgba(255,255,255,.22);border-radius:999px;padding:8px 12px;backdrop-filter:blur(6px)}
+  .overlay{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(rgba(2,6,17,.15),rgba(2,6,17,.72));padding:24px}
+  .card{width:min(92vw,520px);background:rgba(8,16,34,.92);border:3px solid #e9fbff;border-radius:22px;padding:24px;text-align:center;box-shadow:0 18px 70px rgba(0,0,0,.62)}
+  h1{margin:0 0 8px;font-size:clamp(32px,8vw,58px);letter-spacing:-2px;line-height:.9}.sub{opacity:.9;line-height:1.45}.btn{display:inline-block;margin-top:16px;background:linear-gradient(#fff,#a8efff);color:#07111f;border:0;border-bottom:5px solid #4ab3d1;border-radius:14px;padding:14px 22px;font-weight:950;font-size:18px;cursor:pointer}.small{font-size:13px;opacity:.8;margin-top:12px}.controls{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);width:min(96vw,720px);display:flex;justify-content:space-between;align-items:end;gap:12px}.pad{display:flex;gap:10px}.cbtn{width:68px;height:58px;border-radius:18px;border:2px solid rgba(255,255,255,.35);background:rgba(8,16,34,.6);color:white;font-weight:950;font-size:26px;box-shadow:0 8px 0 rgba(0,0,0,.25)}@media (pointer:fine){.controls{display:none}}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="game" width="480" height="720"></canvas></div>
+<div class="hud"><div class="pill">🏂 <span id="dist">0</span>m</div><div class="pill">⚡ <span id="speed">1.0</span>x</div><div class="pill">🏆 <span id="best">0</span>m</div></div>
+<div class="controls"><div class="pad"><button class="cbtn" id="left">◀</button><button class="cbtn" id="right">▶</button></div><button class="cbtn" id="jump">⤴</button></div>
+<div class="overlay" id="overlay"><div class="card"><h1>AVALANCHE<br>RIDER</h1><div class="sub">Top-down reverse drone snowboarding. Carve through trees and rocks, hit jumps, and outrun the 8-bit avalanche chewing up the mountain behind you.</div><button class="btn" id="start">START RUN</button><div class="small">Keyboard: ← → or A/D to carve, Space/W/↑ to jump. Mobile: buttons or drag.</div></div></div>
+<script>
+(() => {
+  const canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const ui = {dist:document.getElementById('dist'), speed:document.getElementById('speed'), best:document.getElementById('best'), overlay:document.getElementById('overlay')};
+  let best = Number(localStorage.getItem('avalancheRiderBest')||0); ui.best.textContent = best;
+  const keys = {}, rnd = (a,b)=>a+Math.random()*(b-a), clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  let running=false, over=false, t=0, dist=0, speed=1, shake=0, spawn=0, snow=0;
+  const player={x:W/2,y:H*.66,vx:0,air:0,spin:0,ghost:0};
+  let obs=[], flakes=[];
+  function reset(){running=true;over=false;t=0;dist=0;speed=1;shake=0;spawn=0;snow=0;obs=[];flakes=[];player.x=W/2;player.vx=0;player.air=0;player.ghost=0;for(let i=0;i<120;i++)flakes.push({x:rnd(0,W),y:rnd(0,H),s:rnd(1,3),z:rnd(.4,1.8)});ui.overlay.style.display='none';}
+  function addObs(){const lane=rnd(55,W-55), r=Math.random();obs.push({x:lane,y:-40,type:r<.48?'tree':r<.78?'rock':r<.92?'jump':'flag',w:r<.48?36:r<.78?34:56,h:r<.48?54:r<.78?30:22,hit:false});}
+  function drawPixelRect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h));}
+  function mountainBg(){ctx.save();ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);ctx.fillStyle='#9fe8ff';ctx.fillRect(0,0,W,H);for(let y=-40;y<H;y+=42){let k=(y+t*speed*18)%42;ctx.fillStyle=y%84?'rgba(255,255,255,.16)':'rgba(62,127,169,.10)';ctx.fillRect(0,k,W,18)}ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=4;for(let i=-3;i<8;i++){ctx.beginPath();ctx.moveTo(W*.18+i*90,(t*50*speed+i*33)%H);ctx.lineTo(W*.05+i*90,H);ctx.stroke();}ctx.restore();}
+  function drawAvalanche(){snow = Math.min(H*.34, snow + .012*speed); const y=H-snow; ctx.fillStyle='rgba(255,255,255,.92)'; ctx.fillRect(0,y,W,H-y); for(let i=0;i<22;i++){ctx.fillStyle=i%2?'#d8f7ff':'#fff';ctx.fillRect((i*31+t*80)%W,y-16-Math.sin(t*3+i)*12,26,22)}ctx.fillStyle='rgba(30,50,70,.22)';ctx.fillRect(0,y+20,W,10);}
+  function drawPlayer(){const px=player.x, py=player.y-player.air;ctx.save();ctx.translate(px,py);ctx.rotate(player.vx*.025+player.spin);drawPixelRect(-18,15,36,7,'#2d3748');drawPixelRect(-14,8,28,7,'#f8fafc');drawPixelRect(-9,-12,18,25,'#ef4444');drawPixelRect(-8,-25,16,13,'#111827');drawPixelRect(-4,-30,8,5,'#facc15');drawPixelRect(-16,-2,8,15,'#1e3a8a');drawPixelRect(8,-2,8,15,'#1e3a8a');ctx.restore(); if(player.air>0){ctx.fillStyle='rgba(0,0,0,.16)';ctx.fillRect(px-20,player.y+26,40,8)}}
+  function drawObs(o){if(o.type==='tree'){drawPixelRect(o.x-8,o.y+16,16,30,'#6b3f20');drawPixelRect(o.x-24,o.y-12,48,38,'#166534');drawPixelRect(o.x-18,o.y-30,36,32,'#15803d');drawPixelRect(o.x-10,o.y-44,20,24,'#22c55e');drawPixelRect(o.x-16,o.y-34,10,8,'#f8fbff')}else if(o.type==='rock'){drawPixelRect(o.x-18,o.y-8,36,22,'#475569');drawPixelRect(o.x-10,o.y-18,24,18,'#64748b');drawPixelRect(o.x+4,o.y-4,12,8,'#1e293b')}else if(o.type==='jump'){drawPixelRect(o.x-30,o.y-8,60,18,'#8b5a2b');drawPixelRect(o.x-24,o.y-18,48,12,'#f8fbff');drawPixelRect(o.x-18,o.y-25,36,8,'#bae6fd')}else{drawPixelRect(o.x-26,o.y-18,8,34,'#111827');drawPixelRect(o.x-18,o.y-18,44,20,'#facc15');drawPixelRect(o.x-12,o.y-12,10,8,'#111827');drawPixelRect(o.x+8,o.y-12,10,8,'#111827')}}
+  function collide(o){if(player.air>12||player.ghost>0||o.hit)return false; const dx=Math.abs(player.x-o.x), dy=Math.abs(player.y-o.y); if(o.type==='flag'){if(dx<34&&dy<30){o.hit=true;dist+=50;player.ghost=30;}return false} if(o.type==='jump'){if(dx<42&&dy<26){o.hit=true;player.air=58;player.spin=.35;dist+=20;}return false} return dx<28&&dy<36;}
+  function end(){running=false;over=true;shake=18;best=Math.max(best,Math.floor(dist));localStorage.setItem('avalancheRiderBest',best);ui.best.textContent=best;ui.overlay.style.display='grid';ui.overlay.querySelector('h1').innerHTML='WIPEOUT<br>'+Math.floor(dist)+'m';ui.overlay.querySelector('.sub').textContent='The avalanche caught you. Tap start for another run — powder panic waits for no one.';ui.overlay.querySelector('.btn').textContent='RIDE AGAIN';}
+  function update(){if(!running)return; t+=1/60; speed=1+dist/1600; dist += speed*.9; spawn-=speed; if(spawn<=0){addObs();spawn=rnd(32,70)-Math.min(28,dist/80)} let steer=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0);player.vx=player.vx*.84+steer*1.55;player.x=clamp(player.x+player.vx*4,32,W-32); if((keys[' ']||keys.ArrowUp||keys.w)&&player.air<=0){player.air=50;player.spin=.28} if(player.air>0){player.air-=1.9;player.spin*=.93;if(player.air<0){player.air=0;player.spin=0}} if(player.ghost>0)player.ghost--; obs.forEach(o=>{o.y+=3.2*speed;if(collide(o))end();});obs=obs.filter(o=>o.y<H+70); flakes.forEach(f=>{f.y+=speed*f.z*4;f.x+=Math.sin(t*2+f.y)*.8;if(f.y>H){f.y=-5;f.x=rnd(0,W)}}); if(player.y>H-snow-12)end(); ui.dist.textContent=Math.floor(dist);ui.speed.textContent=speed.toFixed(1);shake=Math.max(0,shake*.9)}
+  function draw(){mountainBg();obs.slice().sort((a,b)=>a.y-b.y).forEach(drawObs);flakes.forEach(f=>{ctx.fillStyle='rgba(255,255,255,.78)';ctx.fillRect(f.x,f.y,f.s,f.s)});drawPlayer();drawAvalanche();ctx.fillStyle='rgba(2,6,17,.20)';ctx.fillRect(0,0,W,28);}
+  function loop(){update();draw();requestAnimationFrame(loop)}
+  document.getElementById('start').onclick=reset; addEventListener('keydown',e=>{keys[e.key]=true;if(['ArrowLeft','ArrowRight','ArrowUp',' '].includes(e.key))e.preventDefault()}); addEventListener('keyup',e=>keys[e.key]=false);
+  const bind=(id,key)=>{const b=document.getElementById(id);b.onpointerdown=()=>keys[key]=true;b.onpointerup=b.onpointercancel=()=>keys[key]=false}; bind('left','ArrowLeft');bind('right','ArrowRight');bind('jump',' ');
+  let dragging=false;canvas.onpointerdown=e=>{dragging=true;canvas.setPointerCapture(e.pointerId)};canvas.onpointermove=e=>{if(!dragging)return;const r=canvas.getBoundingClientRect(),x=e.clientX-r.left;keys.ArrowLeft=x<r.width*.42;keys.ArrowRight=x>r.width*.58};canvas.onpointerup=canvas.onpointercancel=()=>{dragging=false;keys.ArrowLeft=keys.ArrowRight=false};
+  loop();
+})();
+</script>
+</body>
+</html>
