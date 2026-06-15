@@ -12,7 +12,7 @@
  * - Clients notified when SW updates so they can optionally refresh
  */
 
-var CACHE_NAME = 'k2-games-v10';
+var CACHE_NAME = 'k2-games-shell-reset-2026-06';
 
 // Core app shell and key files to precache
 var CORE_ASSETS = [
@@ -59,7 +59,7 @@ function isHtmlRequest(request) {
 
 function isLiveDataRequest(request) {
   var url = new URL(request.url);
-  return url.pathname.endsWith('/games-data.js') || url.pathname === '/games-data.js';
+  return url.pathname.endsWith('/games.js') || url.pathname === '/games.js';
 }
 
 /**

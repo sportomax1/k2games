@@ -85,5 +85,5 @@ for filename, title, icon, created, updated, classic in entries:
     title = title.replace("\\", "\\\\").replace("'", "\\'")
     lines.append(f"  {{ f: '{filename}', t: '{title}', i: '{icon}', c: '{created}', u: '{updated}', cl: {str(classic).lower()} }},")
 lines.append("];\n")
-(root / "games-data.js").write_text("\n".join(lines), encoding="utf-8")
-print(f"Wrote games-data.js with {len(entries)} entries")
+(root / "games.js").write_text("\n".join(lines), encoding="utf-8")
+print(f"Wrote games.js with {len(entries)} entries")
