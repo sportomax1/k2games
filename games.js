@@ -1,4 +1,6 @@
 window.K2_GAMES = [
+  { f: 'tool-trouble.html', t: 'Tool Trouble', i: '🔨', c: '2026-06-15T00:00:00', u: '2026-06-15T00:00:00', cl: false },
+  { f: 'delivery-dash.html', t: 'Delivery Dash', i: '📦', c: '2026-06-15T00:00:00', u: '2026-06-15T00:00:00', cl: false },
   { f: 'lasso-legends.html', t: 'Lasso Legends', i: '🪢', c: '2026-06-15T00:00:00', u: '2026-06-15T00:00:00', cl: false },
   { f: 'ride-or-fly.html', t: 'Ride or Fly', i: '🐂', c: '2026-06-15T00:00:00', u: '2026-06-15T00:00:00', cl: false },
   { f: 'hog-hustle.html', t: 'Hog Hustle', i: '🐖', c: '2026-06-15T00:00:00', u: '2026-06-15T00:00:00', cl: false },
