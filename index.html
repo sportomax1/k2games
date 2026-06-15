@@ -70,10 +70,9 @@
 <script src="./games.js"></script>
 <script>
 let games = window.K2_GAMES || [];
-const HARD_RESET_VERSION = '2026-06-emergency-1';
-const HARD_RESET_DONE_KEY = 'k2-hard-reset-done-' + HARD_RESET_VERSION;
-const HARD_RESET_RELOAD_KEY = 'k2-hard-reset-reload-' + HARD_RESET_VERSION;
-
+const CLEANUP_VERSION = '2026-06-cleanup-only-1';
+const CLEANUP_DONE_KEY = 'k2-cleanup-done-' + CLEANUP_VERSION;
+const CLEANUP_RELOAD_KEY = 'k2-cleanup-reload-' + CLEANUP_VERSION;
 const search = document.getElementById('search');
 const sort = document.getElementById('sort');
 const filter = document.getElementById('filter');
@@ -92,34 +91,23 @@ function render(){const query=search.value.toLowerCase();const sortMode=sort.val
 function parseGamesDataScript(source){try{return(new Function('window',source+'; return window.K2_GAMES;'))({})||[]}catch{return[]}}
 function fetchLiveGamesNoStore(){return fetch('./games.js',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('bad response');return r.text()}).then(parseGamesDataScript).catch(()=>[])}
 function refreshGamesDataFromNetwork(){return fetchLiveGamesNoStore().then(fresh=>{if(Array.isArray(fresh)&&fresh.length){games=fresh;populateAppFilter();render()}}).catch(()=>{})}
-function emergencyHardResetIfStale(){
-  if(localStorage.getItem(HARD_RESET_DONE_KEY)==='1')return Promise.resolve();
-  if(sessionStorage.getItem(HARD_RESET_RELOAD_KEY)==='1'){localStorage.setItem(HARD_RESET_DONE_KEY,'1');return Promise.resolve()}
-  return fetchLiveGamesNoStore().then(function(fresh){
-    if(!Array.isArray(fresh)||!fresh.length)return;
-    if(fresh.length<=games.length){localStorage.setItem(HARD_RESET_DONE_KEY,'1');return}
-    return Promise.resolve().then(function(){
-      if(!('caches' in window))return;
-      return caches.keys().then(function(keys){return Promise.all(keys.map(function(key){return caches.delete(key)}))})
-    }).then(function(){
-      if(!('serviceWorker' in navigator))return;
-      return navigator.serviceWorker.getRegistrations().then(function(regs){return Promise.all(regs.map(function(reg){return reg.unregister()}))})
-    }).then(function(){
-      if(!('serviceWorker' in navigator))return;
-      return navigator.serviceWorker.register('./service-worker.js?reset='+encodeURIComponent(HARD_RESET_VERSION),{updateViaCache:'none'})
-    }).catch(function(){}).then(function(){
-      localStorage.setItem(HARD_RESET_DONE_KEY,'1');
-      sessionStorage.setItem(HARD_RESET_RELOAD_KEY,'1');
-      location.reload()
-    })
-  }).catch(function(){})
+function startCleanupWorkerIfNeeded(){
+  if(localStorage.getItem(CLEANUP_DONE_KEY)==='1')return Promise.resolve();
+  if(sessionStorage.getItem(CLEANUP_RELOAD_KEY)==='1'){localStorage.setItem(CLEANUP_DONE_KEY,'1');return Promise.resolve()}
+  if(!('serviceWorker'in navigator))return Promise.resolve();
+  return navigator.serviceWorker.register('./service-worker.js?cleanup='+encodeURIComponent(CLEANUP_VERSION),{updateViaCache:'none'}).then(function(reg){
+    if(reg&&reg.update)reg.update();
+    return navigator.serviceWorker.ready;
+  }).then(function(){
+    sessionStorage.setItem(CLEANUP_RELOAD_KEY,'1');
+  }).catch(function(){});
 }
 grid.addEventListener('click',event=>{const button=event.target.closest('.favorite-toggle');if(!button)return;event.preventDefault();event.stopPropagation();const file=button.dataset.file;if(!file)return;if(favorites.has(file))favorites.delete(file);else favorites.add(file);saveFavorites();render()});
 grid.addEventListener('keydown',event=>{if(event.key!=='Enter'&&event.key!==' ')return;const button=event.target.closest('.favorite-toggle');if(!button)return;event.preventDefault();button.click()});
 search.addEventListener('input',render);sort.addEventListener('change',render);filter.addEventListener('change',render);appFilter.addEventListener('change',render);populateAppFilter();render();
 window.addEventListener('online',refreshGamesDataFromNetwork);
 refreshGamesDataFromNetwork();
-window.addEventListener('load',emergencyHardResetIfStale,{once:true});
+window.addEventListener('load',function(){startCleanupWorkerIfNeeded().then(function(){if(sessionStorage.getItem(CLEANUP_RELOAD_KEY)==='1'&&localStorage.getItem(CLEANUP_DONE_KEY)!=='1'){localStorage.setItem(CLEANUP_DONE_KEY,'1');location.reload()}})},{once:true});
 const randomBtn=document.getElementById('random-btn'),launcher=document.getElementById('launcher'),lIcon=document.getElementById('l-icon'),lTitle=document.getElementById('l-title');
 randomBtn.addEventListener('click',()=>{if(filteredGames.length===0)return;const game=filteredGames[Math.floor(Math.random()*filteredGames.length)];launcher.classList.add('active');let spinCount=0;const icons=[...new Set(games.map(g=>g.i))];const interval=setInterval(()=>{lIcon.textContent=icons[spinCount%icons.length];spinCount++},100);setTimeout(()=>{clearInterval(interval);lIcon.textContent=game.i;lTitle.textContent=game.t;setTimeout(()=>{window.location.href=game.f},1000)},1500)});
 </script>
@@ -149,30 +137,17 @@ randomBtn.addEventListener('click',()=>{if(filteredGames.length===0)return;const
   window.addEventListener('online',checkOfflineReady);
   window.addEventListener('offline',()=>updateStatus('📴 You are offline. Cached games remain playable.','offline-status--offline'));
   
-  if(!('serviceWorker'in navigator)){
-    updateStatus('⚠️ Service worker is not supported in this browser.','offline-status--offline');
-    return
-  }
-  
-  window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./service-worker.js?reset='+encodeURIComponent(HARD_RESET_VERSION),{updateViaCache:'none'}).then(reg=>{if(reg&&reg.update)reg.update();return checkOfflineReady()}).catch(()=>updateStatus('⚠️ Offline setup failed. Reload while online.','offline-status--offline'))
-  });
-  
   if(navigator.serviceWorker){
-    navigator.serviceWorker.addEventListener('message',event=>{
+    navigator.serviceWorker.addEventListener('message',function(event){
       if(!event.data)return;
-      if(event.data.type==='PRECACHE_COMPLETE'){
-        updateStatus('✅ Offline ready: all games are cached for Home Screen play.','offline-status--ready')
+      if(event.data.type==='SW_CLEANUP_RELOAD'&&sessionStorage.getItem(CLEANUP_RELOAD_KEY)!=='1'){
+        sessionStorage.setItem(CLEANUP_RELOAD_KEY,'1');
+        location.reload();
       }
-      else if(event.data.type==='SW_UPDATED'){
-        var newVersion=event.data.cache;
-        try{sessionStorage.setItem('k2-sw-version',newVersion)}catch(e){}
-        if(lastSeenVersion&&lastSeenVersion!==newVersion){
-          updateStatus('🔄 New game version available. '+event.data.message+' (Refresh page)','offline-status--ready')
-        }
-        lastSeenVersion=newVersion
+      if(event.data.type==='SW_CLEANUP_READY'){
+        localStorage.setItem(CLEANUP_DONE_KEY,'1');
       }
-    })
+    });
   }
 })();
 </script>
