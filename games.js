@@ -1,4 +1,8 @@
 window.K2_GAMES = [
+  { f: 'lasso-legends.html', t: 'Lasso Legends', i: '🪢', c: '2026-06-15T00:00:00', u: '2026-06-15T00:00:00', cl: false },
+  { f: 'ride-or-fly.html', t: 'Ride or Fly', i: '🐂', c: '2026-06-15T00:00:00', u: '2026-06-15T00:00:00', cl: false },
+  { f: 'hog-hustle.html', t: 'Hog Hustle', i: '🐖', c: '2026-06-15T00:00:00', u: '2026-06-15T00:00:00', cl: false },
+  { f: 'quick-draw.html', t: 'Quick Draw', i: '🤠', c: '2026-06-15T00:00:00', u: '2026-06-15T00:00:00', cl: false },
   { f: 'pixel-and-slide.html', t: 'Photo Puzzle Arcade', i: '🧩', c: '2026-06-15T11:31:51-06:00', u: '2026-06-15T11:42:24-06:00', cl: false },
   { f: 'mower-mayhem.html', t: 'Mower Mayhem', i: '🚜', c: '2026-06-14T00:00:00', u: '2026-06-14T00:00:00', cl: false },
   { f: 'cow-tipping-drone.html', t: 'Cow Tipping Drone', i: '🏆', c: '2026-06-13T08:42:56-06:00', u: '2026-06-13T08:42:56-06:00', cl: false },
