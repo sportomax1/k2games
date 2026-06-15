@@ -13,6 +13,7 @@
  */
 
 var CACHE_NAME = 'k2-games-shell-reset-2026-06';
+var HARD_RESET_VERSION = '2026-06-emergency-1';
 
 // Core app shell and key files to precache
 var CORE_ASSETS = [
@@ -111,6 +112,18 @@ self.addEventListener('activate', function (event) {
       );
     })
       .then(function () {
+        // Prewarm live catalog data from network when online.
+        return fetch('./games.js', { cache: 'no-store' }).then(function (response) {
+          if (response && response.status === 200) {
+            return caches.open(CACHE_NAME).then(function (cache) {
+              return cache.put('./games.js', response.clone());
+            });
+          }
+        }).catch(function () {
+          return null;
+        });
+      })
+      .then(function () {
         return self.clients.claim();
       })
       .then(function () {
@@ -118,6 +131,7 @@ self.addEventListener('activate', function (event) {
         return notifyClients({ 
           type: 'SW_UPDATED', 
           cache: CACHE_NAME,
+          resetVersion: HARD_RESET_VERSION,
           message: 'Service Worker updated. Games will load fresh versions.'
         });
       })

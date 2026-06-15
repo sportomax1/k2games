@@ -70,6 +70,9 @@
 <script src="./games.js"></script>
 <script>
 let games = window.K2_GAMES || [];
+const HARD_RESET_VERSION = '2026-06-emergency-1';
+const HARD_RESET_DONE_KEY = 'k2-hard-reset-done-' + HARD_RESET_VERSION;
+const HARD_RESET_RELOAD_KEY = 'k2-hard-reset-reload-' + HARD_RESET_VERSION;
 
 const search = document.getElementById('search');
 const sort = document.getElementById('sort');
@@ -87,12 +90,36 @@ function populateAppFilter(){const previous=appFilter.value||'all';appFilter.inn
 function formatDate(value){return new Date(value).toLocaleDateString()}
 function render(){const query=search.value.toLowerCase();const sortMode=sort.value;const filterMode=filter.value;const appMode=appFilter.value;filteredGames=games.filter(g=>{const matchesSearch=g.t.toLowerCase().includes(query)||g.f.toLowerCase().includes(query);const matchesFilter=filterMode==='all'||(filterMode==='classics'&&g.cl)||(filterMode==='originals'&&!g.cl)||(filterMode==='favorites'&&isFavorite(g.f));const matchesApp=appMode==='all'||g.i===appMode;return matchesSearch&&matchesFilter&&matchesApp});filteredGames.sort((a,b)=>{if(sortMode==='alpha')return a.t.localeCompare(b.t);if(sortMode==='updated')return new Date(b.u)-new Date(a.u);if(sortMode==='newest')return new Date(b.c)-new Date(a.c);return 0});grid.innerHTML=filteredGames.map((g,idx)=>{const favoriteState=isFavorite(g.f);return `<a href="${g.f}" class="card"><div class="game-idx">${idx+1}</div>${g.cl?'<div class="classic-tag">CLASSIC</div>':''}<span class="favorite-toggle ${favoriteState?'active':''}" role="button" tabindex="0" aria-label="${favoriteState?'Remove from favorites':'Save to favorites'}" data-file="${g.f}">${favoriteState?'❤️':'🤍'}</span><div class="icon">${g.i}</div><div class="title">${g.t}</div><div class="date">Added ${formatDate(g.c)} · Updated ${formatDate(g.u)}</div></a>`}).join('');count.textContent=filteredGames.length}
 function parseGamesDataScript(source){try{return(new Function('window',source+'; return window.K2_GAMES;'))({})||[]}catch{return[]}}
-function refreshGamesDataFromNetwork(){return fetch('./games.js',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('bad response');return r.text()}).then(text=>{const fresh=parseGamesDataScript(text);if(Array.isArray(fresh)&&fresh.length){games=fresh;populateAppFilter();render()}}).catch(()=>{})}
+function fetchLiveGamesNoStore(){return fetch('./games.js',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('bad response');return r.text()}).then(parseGamesDataScript).catch(()=>[])}
+function refreshGamesDataFromNetwork(){return fetchLiveGamesNoStore().then(fresh=>{if(Array.isArray(fresh)&&fresh.length){games=fresh;populateAppFilter();render()}}).catch(()=>{})}
+function emergencyHardResetIfStale(){
+  if(localStorage.getItem(HARD_RESET_DONE_KEY)==='1')return Promise.resolve();
+  if(sessionStorage.getItem(HARD_RESET_RELOAD_KEY)==='1'){localStorage.setItem(HARD_RESET_DONE_KEY,'1');return Promise.resolve()}
+  return fetchLiveGamesNoStore().then(function(fresh){
+    if(!Array.isArray(fresh)||!fresh.length)return;
+    if(fresh.length<=games.length){localStorage.setItem(HARD_RESET_DONE_KEY,'1');return}
+    return Promise.resolve().then(function(){
+      if(!('caches' in window))return;
+      return caches.keys().then(function(keys){return Promise.all(keys.map(function(key){return caches.delete(key)}))})
+    }).then(function(){
+      if(!('serviceWorker' in navigator))return;
+      return navigator.serviceWorker.getRegistrations().then(function(regs){return Promise.all(regs.map(function(reg){return reg.unregister()}))})
+    }).then(function(){
+      if(!('serviceWorker' in navigator))return;
+      return navigator.serviceWorker.register('./service-worker.js?reset='+encodeURIComponent(HARD_RESET_VERSION),{updateViaCache:'none'})
+    }).catch(function(){}).then(function(){
+      localStorage.setItem(HARD_RESET_DONE_KEY,'1');
+      sessionStorage.setItem(HARD_RESET_RELOAD_KEY,'1');
+      location.reload()
+    })
+  }).catch(function(){})
+}
 grid.addEventListener('click',event=>{const button=event.target.closest('.favorite-toggle');if(!button)return;event.preventDefault();event.stopPropagation();const file=button.dataset.file;if(!file)return;if(favorites.has(file))favorites.delete(file);else favorites.add(file);saveFavorites();render()});
 grid.addEventListener('keydown',event=>{if(event.key!=='Enter'&&event.key!==' ')return;const button=event.target.closest('.favorite-toggle');if(!button)return;event.preventDefault();button.click()});
 search.addEventListener('input',render);sort.addEventListener('change',render);filter.addEventListener('change',render);appFilter.addEventListener('change',render);populateAppFilter();render();
 window.addEventListener('online',refreshGamesDataFromNetwork);
 refreshGamesDataFromNetwork();
+window.addEventListener('load',emergencyHardResetIfStale,{once:true});
 const randomBtn=document.getElementById('random-btn'),launcher=document.getElementById('launcher'),lIcon=document.getElementById('l-icon'),lTitle=document.getElementById('l-title');
 randomBtn.addEventListener('click',()=>{if(filteredGames.length===0)return;const game=filteredGames[Math.floor(Math.random()*filteredGames.length)];launcher.classList.add('active');let spinCount=0;const icons=[...new Set(games.map(g=>g.i))];const interval=setInterval(()=>{lIcon.textContent=icons[spinCount%icons.length];spinCount++},100);setTimeout(()=>{clearInterval(interval);lIcon.textContent=game.i;lTitle.textContent=game.t;setTimeout(()=>{window.location.href=game.f},1000)},1500)});
 </script>
@@ -128,7 +155,7 @@ randomBtn.addEventListener('click',()=>{if(filteredGames.length===0)return;const
   }
   
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./service-worker.js').then(checkOfflineReady).catch(()=>updateStatus('⚠️ Offline setup failed. Reload while online.','offline-status--offline'))
+    navigator.serviceWorker.register('./service-worker.js?reset='+encodeURIComponent(HARD_RESET_VERSION),{updateViaCache:'none'}).then(reg=>{if(reg&&reg.update)reg.update();return checkOfflineReady()}).catch(()=>updateStatus('⚠️ Offline setup failed. Reload while online.','offline-status--offline'))
   });
   
   if(navigator.serviceWorker){
