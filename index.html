@@ -69,7 +69,7 @@
 </div>
 <script src="./games-data.js"></script>
 <script>
-const games = window.K2_GAMES || [];
+let games = window.K2_GAMES || [];
 
 const search = document.getElementById('search');
 const sort = document.getElementById('sort');
@@ -83,19 +83,23 @@ const favorites = loadFavorites();
 function loadFavorites(){try{const raw=localStorage.getItem(FAVORITES_STORAGE_KEY);const parsed=raw?JSON.parse(raw):[];return new Set(Array.isArray(parsed)?parsed:[])}catch{return new Set()}}
 function saveFavorites(){localStorage.setItem(FAVORITES_STORAGE_KEY,JSON.stringify([...favorites]))}
 function isFavorite(file){return favorites.has(file)}
-function populateAppFilter(){const counts=games.reduce((acc,game)=>{acc[game.i]=(acc[game.i]||0)+1;return acc},{});Object.entries(counts).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).forEach(([icon,total])=>appFilter.add(new Option(`${icon} ${total} app${total===1?'':'s'}`,icon)))}
+function populateAppFilter(){const previous=appFilter.value||'all';appFilter.innerHTML='<option value="all">All App Icons</option>';const counts=games.reduce((acc,game)=>{acc[game.i]=(acc[game.i]||0)+1;return acc},{});Object.entries(counts).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).forEach(([icon,total])=>appFilter.add(new Option(`${icon} ${total} app${total===1?'':'s'}`,icon)));appFilter.value=[...appFilter.options].some(opt=>opt.value===previous)?previous:'all'}
 function formatDate(value){return new Date(value).toLocaleDateString()}
 function render(){const query=search.value.toLowerCase();const sortMode=sort.value;const filterMode=filter.value;const appMode=appFilter.value;filteredGames=games.filter(g=>{const matchesSearch=g.t.toLowerCase().includes(query)||g.f.toLowerCase().includes(query);const matchesFilter=filterMode==='all'||(filterMode==='classics'&&g.cl)||(filterMode==='originals'&&!g.cl)||(filterMode==='favorites'&&isFavorite(g.f));const matchesApp=appMode==='all'||g.i===appMode;return matchesSearch&&matchesFilter&&matchesApp});filteredGames.sort((a,b)=>{if(sortMode==='alpha')return a.t.localeCompare(b.t);if(sortMode==='updated')return new Date(b.u)-new Date(a.u);if(sortMode==='newest')return new Date(b.c)-new Date(a.c);return 0});grid.innerHTML=filteredGames.map((g,idx)=>{const favoriteState=isFavorite(g.f);return `<a href="${g.f}" class="card"><div class="game-idx">${idx+1}</div>${g.cl?'<div class="classic-tag">CLASSIC</div>':''}<span class="favorite-toggle ${favoriteState?'active':''}" role="button" tabindex="0" aria-label="${favoriteState?'Remove from favorites':'Save to favorites'}" data-file="${g.f}">${favoriteState?'❤️':'🤍'}</span><div class="icon">${g.i}</div><div class="title">${g.t}</div><div class="date">Added ${formatDate(g.c)} · Updated ${formatDate(g.u)}</div></a>`}).join('');count.textContent=filteredGames.length}
+function parseGamesDataScript(source){try{return(new Function('window',source+'; return window.K2_GAMES;'))({})||[]}catch{return[]}}
+function refreshGamesDataFromNetwork(){return fetch('./games-data.js',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('bad response');return r.text()}).then(text=>{const fresh=parseGamesDataScript(text);if(Array.isArray(fresh)&&fresh.length){games=fresh;populateAppFilter();render()}}).catch(()=>{})}
 grid.addEventListener('click',event=>{const button=event.target.closest('.favorite-toggle');if(!button)return;event.preventDefault();event.stopPropagation();const file=button.dataset.file;if(!file)return;if(favorites.has(file))favorites.delete(file);else favorites.add(file);saveFavorites();render()});
 grid.addEventListener('keydown',event=>{if(event.key!=='Enter'&&event.key!==' ')return;const button=event.target.closest('.favorite-toggle');if(!button)return;event.preventDefault();button.click()});
 search.addEventListener('input',render);sort.addEventListener('change',render);filter.addEventListener('change',render);appFilter.addEventListener('change',render);populateAppFilter();render();
+window.addEventListener('online',refreshGamesDataFromNetwork);
+refreshGamesDataFromNetwork();
 const randomBtn=document.getElementById('random-btn'),launcher=document.getElementById('launcher'),lIcon=document.getElementById('l-icon'),lTitle=document.getElementById('l-title');
 randomBtn.addEventListener('click',()=>{if(filteredGames.length===0)return;const game=filteredGames[Math.floor(Math.random()*filteredGames.length)];launcher.classList.add('active');let spinCount=0;const icons=[...new Set(games.map(g=>g.i))];const interval=setInterval(()=>{lIcon.textContent=icons[spinCount%icons.length];spinCount++},100);setTimeout(()=>{clearInterval(interval);lIcon.textContent=game.i;lTitle.textContent=game.t;setTimeout(()=>{window.location.href=game.f},1000)},1500)});
 </script>
 <script>
 (function(){
   var statusEl=document.getElementById('offline-status');
-  var cacheName='k2-games-v9';
+  var cacheName='k2-games-v10';
   var lastSeenVersion='';
   
   // Load last seen SW version from session storage

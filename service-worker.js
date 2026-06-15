@@ -12,7 +12,7 @@
  * - Clients notified when SW updates so they can optionally refresh
  */
 
-var CACHE_NAME = 'k2-games-v9';
+var CACHE_NAME = 'k2-games-v10';
 
 // Core app shell and key files to precache
 var CORE_ASSETS = [
@@ -27,8 +27,7 @@ var STATIC_ASSETS = [
   './football-desktop.png',
   './cul-de-sac-sluggers-mobile.png',
   './cul-de-sac-sluggers-desktop.png',
-  './manifest.json',
-  './games-data.js'
+  './manifest.json'
 ];
 
 var PRECACHE_URLS = CORE_ASSETS.concat(STATIC_ASSETS);
@@ -56,6 +55,11 @@ function isHtmlRequest(request) {
          pathname.endsWith('.html') || 
          pathname === '/' || 
          pathname.endsWith('/');
+}
+
+function isLiveDataRequest(request) {
+  var url = new URL(request.url);
+  return url.pathname.endsWith('/games-data.js') || url.pathname === '/games-data.js';
 }
 
 /**
@@ -176,6 +180,26 @@ self.addEventListener('fetch', function (event) {
                 { headers: { 'Content-Type': 'text/html' } }
               );
             });
+        })
+    );
+    return;
+  }
+
+  // ======== NETWORK-FIRST FOR LIVE DATA ========
+  if (isLiveDataRequest(request)) {
+    event.respondWith(
+      fetch(request, { cache: 'no-store' })
+        .then(function (networkResponse) {
+          if (networkResponse && networkResponse.status === 200) {
+            var responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then(function (cache) {
+              cache.put(request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(function () {
+          return caches.match(request);
         })
     );
     return;
