@@ -1,4 +1,5 @@
 window.K2_GAMES = [
+  { f: 'peak-freak.html', t: 'Peak Freak', i: '🏆', c: '2026-06-18T10:00:03-06:00', u: '2026-06-18T10:00:03-06:00', cl: false },
   { f: 'delivery-dash.html', t: 'Delivery Dash', i: '🏙️', c: '2026-06-15T16:16:23-06:00', u: '2026-06-15T16:16:23-06:00', cl: false },
   { f: 'tool-trouble.html', t: 'Tool Trouble', i: '🎮', c: '2026-06-15T16:15:33-06:00', u: '2026-06-15T16:15:33-06:00', cl: false },
   { f: 'quick-draw.html', t: 'Quick Draw', i: '🎨', c: '2026-06-15T16:03:49-06:00', u: '2026-06-15T16:10:41-06:00', cl: false },
