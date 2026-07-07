@@ -71,6 +71,7 @@
 <script>
 let games = window.K2_GAMES || [];
 const INDEX_GAME_OVERRIDES = [
+  { f: 'range-ranger.html', t: 'Range Ranger', i: '🏆', c: '2026-07-07T08:00:00-04:00', u: '2026-07-07T08:00:00-04:00', cl: false },
   { f: 'peak-freak.html', t: 'Peak Freak', i: '🏆', c: '2026-06-18T10:00:03-06:00', u: '2026-06-18T10:00:03-06:00', cl: false }
 ];
 INDEX_GAME_OVERRIDES.forEach(game => {
@@ -96,7 +97,7 @@ function formatDate(value){return new Date(value).toLocaleDateString()}
 function render(){const query=search.value.toLowerCase();const sortMode=sort.value;const filterMode=filter.value;const appMode=appFilter.value;filteredGames=games.filter(g=>{const matchesSearch=g.t.toLowerCase().includes(query)||g.f.toLowerCase().includes(query);const matchesFilter=filterMode==='all'||(filterMode==='classics'&&g.cl)||(filterMode==='originals'&&!g.cl)||(filterMode==='favorites'&&isFavorite(g.f));const matchesApp=appMode==='all'||g.i===appMode;return matchesSearch&&matchesFilter&&matchesApp});filteredGames.sort((a,b)=>{if(sortMode==='alpha')return a.t.localeCompare(b.t);if(sortMode==='updated')return new Date(b.u)-new Date(a.u);if(sortMode==='newest')return new Date(b.c)-new Date(a.c);return 0});grid.innerHTML=filteredGames.map((g,idx)=>{const favoriteState=isFavorite(g.f);return `<a href="${g.f}" class="card"><div class="game-idx">${idx+1}</div>${g.cl?'<div class="classic-tag">CLASSIC</div>':''}<span class="favorite-toggle ${favoriteState?'active':''}" role="button" tabindex="0" aria-label="${favoriteState?'Remove from favorites':'Save to favorites'}" data-file="${g.f}">${favoriteState?'❤️':'🤍'}</span><div class="icon">${g.i}</div><div class="title">${g.t}</div><div class="date">Added ${formatDate(g.c)} · Updated ${formatDate(g.u)}</div></a>`}).join('');count.textContent=filteredGames.length}
 function parseGamesDataScript(source){try{return(new Function('window',source+'; return window.K2_GAMES;'))({})||[]}catch{return[]}}
 function fetchLiveGamesNoStore(){return fetch('./games.js',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('bad response');return r.text()}).then(parseGamesDataScript).catch(()=>[])}
-function refreshGamesDataFromNetwork(){return fetchLiveGamesNoStore().then(fresh=>{if(Array.isArray(fresh)&&fresh.length){games=fresh;populateAppFilter();render()}}).catch(()=>{})}
+function refreshGamesDataFromNetwork(){return fetchLiveGamesNoStore().then(fresh=>{if(Array.isArray(fresh)&&fresh.length){games=fresh;INDEX_GAME_OVERRIDES.forEach(game=>{if(!games.some(existing=>existing.f===game.f))games.unshift(game)});populateAppFilter();render()}}).catch(()=>{})}
 function startCleanupWorkerIfNeeded(){
   if(localStorage.getItem(CLEANUP_DONE_KEY)==='1')return Promise.resolve();
   if(sessionStorage.getItem(CLEANUP_RELOAD_KEY)==='1'){localStorage.setItem(CLEANUP_DONE_KEY,'1');return Promise.resolve()}
@@ -122,16 +123,12 @@ randomBtn.addEventListener('click',()=>{if(filteredGames.length===0)return;const
   var statusEl=document.getElementById('offline-status');
   var cacheName='k2-games-shell-reset-2026-06';
   var lastSeenVersion='';
-  
-  // Load last seen SW version from session storage
   try{lastSeenVersion=sessionStorage.getItem('k2-sw-version')||''}catch(e){}
-  
   function updateStatus(message,className){
     if(!statusEl)return;
     statusEl.textContent=message;
     statusEl.className='offline-status '+className
   }
-  
   function checkOfflineReady(){
     if(!('caches'in window))return;
     caches.open(cacheName).then(cache=>cache.keys()).then(keys=>{
@@ -139,10 +136,8 @@ randomBtn.addEventListener('click',()=>{if(filteredGames.length===0)return;const
       else updateStatus('⏳ Caching games for offline play. Keep this page open briefly.','offline-status--loading')
     }).catch(()=>updateStatus('⚠️ Offline cache check failed. Reload while online to retry.','offline-status--offline'))
   }
-  
   window.addEventListener('online',checkOfflineReady);
   window.addEventListener('offline',()=>updateStatus('📴 You are offline. Cached games remain playable.','offline-status--offline'));
-  
   if(navigator.serviceWorker){
     navigator.serviceWorker.addEventListener('message',function(event){
       if(!event.data)return;
