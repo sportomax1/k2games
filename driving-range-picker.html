@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Driving Range Picker - K2 Games</title>
+  <style>
+    :root{--bg:#071b12;--panel:rgba(5,18,13,.86);--line:rgba(255,255,255,.14);--accent:#facc15;--green:#16a34a;--blue:#38bdf8;--red:#fb7185;--text:#f8fafc;--muted:#a7f3d0}
+    *{box-sizing:border-box}body{margin:0;overflow:hidden;background:radial-gradient(circle at 50% 20%,#166534,#052e16 50%,#020617);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text);touch-action:none;user-select:none}
+    canvas{display:block;width:100vw;height:100vh}
+    .back-link{position:fixed;top:14px;left:14px;z-index:10;color:white;text-decoration:none;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:999px;padding:9px 14px;font-weight:800;backdrop-filter:blur(8px)}
+    #hud{position:fixed;inset:0;pointer-events:none;padding:16px;display:flex;flex-direction:column;justify-content:space-between;z-index:5}
+    .top{display:flex;gap:10px;justify-content:flex-end;align-items:flex-start;flex-wrap:wrap;margin-left:80px}.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:10px 14px;min-width:92px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.24);backdrop-filter:blur(10px)}.label{font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:800}.val{font-size:1.25rem;font-weight:950;color:var(--accent)}
+    .bottom{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:end}.help,.mission{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:12px 14px;max-width:380px;line-height:1.35}.help b,.mission b{color:var(--accent)}.controls{pointer-events:auto;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap}.btn{border:0;border-radius:999px;padding:13px 18px;font-weight:950;color:#03150c;background:white;box-shadow:0 7px 0 rgba(0,0,0,.28);cursor:pointer}.btn:active{transform:translateY(4px);box-shadow:0 3px 0 rgba(0,0,0,.28)}.btn.gold{background:var(--accent)}.btn.blue{background:var(--blue)}.btn.green{background:#86efac}.btn.red{background:var(--red);color:white}
+    #overlay{position:fixed;inset:0;z-index:20;background:linear-gradient(180deg,rgba(2,6,23,.92),rgba(5,46,22,.94));display:flex;align-items:center;justify-content:center;text-align:center;padding:28px}.box{max-width:760px;background:rgba(15,23,42,.8);border:1px solid var(--line);border-radius:28px;padding:28px;box-shadow:0 30px 80px rgba(0,0,0,.45)}h1{font-size:clamp(2.4rem,8vw,5rem);line-height:.9;margin:0;color:var(--accent);font-style:italic}p{color:#d1fae5;font-weight:650}.modegrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0}.mode{background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:18px;padding:14px;text-align:left}.mode h2{margin:.1rem 0;color:white}.mode small{color:#a7f3d0;font-weight:700}@media(max-width:720px){.bottom{grid-template-columns:1fr}.help,.mission{max-width:none}.top{justify-content:center;margin-left:0;padding-top:46px}.modegrid{grid-template-columns:1fr}.card{min-width:78px}.btn{padding:12px 14px}}
+  </style>
+</head>
+<body>
+  <a class="back-link" href="index.html">← HUB</a>
+  <canvas id="game"></canvas>
+  <div id="hud">
+    <div class="top">
+      <div class="card"><div class="label">Mode</div><div class="val" id="modeVal">Range</div></div>
+      <div class="card"><div class="label">Score</div><div class="val" id="scoreVal">0</div></div>
+      <div class="card"><div class="label">Time</div><div class="val" id="timeVal">90</div></div>
+      <div class="card"><div class="label">Mission</div><div class="val" id="missionVal">0%</div></div>
+    </div>
+    <div class="bottom">
+      <div class="mission" id="missionText"><b>Range Mission:</b> Hit glowing Topgolf-style targets. Bullseyes build combo. Misses still seed balls for pickup mode.</div>
+      <div class="controls">
+        <button class="btn gold" id="swingBtn">SWING / VACUUM</button>
+        <button class="btn blue" id="modeBtn">SWITCH MODE</button>
+        <button class="btn green" id="restartBtn">RESTART</button>
+      </div>
+      <div class="help"><b>Controls:</b> Range: drag/move to aim, hold Swing for power, release to shoot. Picker: WASD/arrows or drag to steer. Collect balls, avoid incoming shots, finish missions.</div>
+    </div>
+  </div>
+  <div id="overlay">
+    <div class="box">
+      <h1>DRIVING RANGE<br>PICKER</h1>
+      <p>Two-mode arcade prototype: blast golf balls at Topgolf-style targets, then become the ball pickup machine and clean up the exact mess.</p>
+      <div class="modegrid">
+        <div class="mode"><h2>🏌️ Range Mode</h2><small>Accuracy, distance, bullseyes, combo shots, bonus targets.</small></div>
+        <div class="mode"><h2>🚜 Picker Mode</h2><small>Vacuum balls, dodge incoming shots, manage route efficiency.</small></div>
+      </div>
+      <button class="btn gold" id="startBtn">START GAME</button>
+    </div>
+  </div>
+<script>
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const $=id=>document.getElementById(id);let W=0,H=0,DPR=1;
+function resize(){DPR=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;canvas.width=W*DPR;canvas.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}addEventListener('resize',resize);resize();
+const state={mode:'range',score:0,time:90,combo:1,aimX:0,aimY:0,charging:false,power:0,balls:[],shots:[],sparks:[],targets:[],keys:{},picker:{x:0,y:0,vx:0,vy:0,cap:0,hits:0},started:false,last:0};
+function reset(){state.mode='range';state.score=0;state.time=90;state.combo=1;state.aimX=W/2;state.aimY=H*.35;state.charging=false;state.power=0;state.balls=[];state.shots=[];state.sparks=[];state.targets=[];state.picker={x:W/2,y:H*.78,vx:0,vy:0,cap:0,hits:0};for(let i=0;i<9;i++)state.targets.push({x:W*(.18+.08*(i%3)+.22*Math.floor(i/3)),y:H*(.18+.1*(i%3)),r:28+i%3*9,phase:Math.random()*9,hit:0});for(let i=0;i<65;i++)seedBall(Math.random()*W,H*(.35+Math.random()*.5));updateHud()}reset();
+function seedBall(x,y){state.balls.push({x,y,r:3+Math.random()*2,rare:Math.random()<.08})}
+function addSpark(x,y,text,color='white'){state.sparks.push({x,y,text,color,life:1})}
+function updateHud(){modeVal.textContent=state.mode==='range'?'Range':'Picker';scoreVal.textContent=Math.floor(state.score);timeVal.textContent=Math.max(0,Math.ceil(state.time));if(state.mode==='range'){missionVal.textContent=Math.min(100,Math.floor(state.score/250))+'%';missionText.innerHTML='<b>Range Mission:</b> Score 25,000 by hitting glowing targets. Bullseyes multiply combo; every shot becomes pickup work later.'}else{const pct=Math.floor(100*(1-state.balls.length/120));missionVal.textContent=Math.max(0,Math.min(100,pct))+'%';missionText.innerHTML='<b>Picker Mission:</b> Clean the range before sunset. Rare gold balls are worth more. Incoming range shots damage the cart.'}}
+function switchMode(){state.mode=state.mode==='range'?'picker':'range';state.combo=1;updateHud()}modeBtn.onclick=switchMode;restartBtn.onclick=()=>{reset();state.started=true;overlay.style.display='none'};startBtn.onclick=()=>{state.started=true;overlay.style.display='none'};
+addEventListener('keydown',e=>{state.keys[e.key.toLowerCase()]=true;if(e.key===' ')state.charging=true;if(e.key.toLowerCase()==='m')switchMode()});addEventListener('keyup',e=>{state.keys[e.key.toLowerCase()]=false;if(e.key===' ')shoot()});
+canvas.addEventListener('pointermove',e=>{state.aimX=e.clientX;state.aimY=e.clientY;if(state.mode==='picker'&&e.buttons){state.picker.x+=(e.movementX||0);state.picker.y+=(e.movementY||0)}});canvas.addEventListener('pointerdown',e=>{state.aimX=e.clientX;state.aimY=e.clientY;state.charging=true});canvas.addEventListener('pointerup',shoot);swingBtn.onpointerdown=()=>state.charging=true;swingBtn.onpointerup=shoot;
+function shoot(){if(!state.charging)return;state.charging=false;if(state.mode==='picker'){vacuum();return}const baseX=W/2,baseY=H*.88,dx=(state.aimX-baseX),dy=(state.aimY-baseY),len=Math.hypot(dx,dy)||1,p=20+state.power*120;state.shots.push({x:baseX,y:baseY,vx:dx/len*p*3.2,vy:dy/len*p*3.2,r:7,life:3,landed:false});state.power=0}
+function vacuum(){let got=0;for(let i=state.balls.length-1;i>=0;i--){const b=state.balls[i],d=Math.hypot(b.x-state.picker.x,b.y-state.picker.y);if(d<70){got++;state.score+=b.rare?150:25;state.balls.splice(i,1)}}if(got)addSpark(state.picker.x,state.picker.y,'+'+got+' BALLS','#86efac')}
+function update(dt){if(!state.started)return;state.time-=dt;if(state.time<=0){state.started=false;overlay.style.display='flex';overlay.querySelector('p').textContent='Final score: '+Math.floor(state.score)+'. Restart to try a cleaner range run.'}if(state.charging)state.power=(state.power+dt*.75)%1;state.targets.forEach(t=>{t.phase+=dt;t.x+=Math.sin(t.phase)*18*dt;t.hit=Math.max(0,t.hit-dt)});for(let i=state.shots.length-1;i>=0;i--){const s=state.shots[i];s.life-=dt;s.vy+=260*dt;s.x+=s.vx*dt;s.y+=s.vy*dt;if(state.mode==='picker'&&Math.hypot(s.x-state.picker.x,s.y-state.picker.y)<28){state.picker.hits++;state.score=Math.max(0,state.score-500);addSpark(state.picker.x,state.picker.y,'BONK!','var(--red)');state.shots.splice(i,1);continue}for(const t of state.targets){const d=Math.hypot(s.x-t.x,s.y-t.y);if(d<t.r+s.r){const bull=d<t.r*.35,pts=(bull?1200:350)*state.combo;state.score+=pts;state.combo=Math.min(9,state.combo+(bull?1:.25));t.hit=.5;addSpark(t.x,t.y,(bull?'BULLSEYE ':'HIT ')+Math.floor(pts),'#facc15');seedBall(s.x,s.y);state.shots.splice(i,1);break}}if(s.y>H*.32&&!s.landed&&Math.random()<.12){seedBall(s.x,s.y);s.landed=true}if(s.life<=0||s.x<-50||s.x>W+50||s.y>H+50)state.shots.splice(i,1)}if(state.mode==='picker'){let ax=0,ay=0;if(state.keys.a||state.keys.arrowleft)ax=-1;if(state.keys.d||state.keys.arrowright)ax=1;if(state.keys.w||state.keys.arrowup)ay=-1;if(state.keys.s||state.keys.arrowdown)ay=1;state.picker.vx=(state.picker.vx+ax*520*dt)*.88;state.picker.vy=(state.picker.vy+ay*520*dt)*.88;state.picker.x=Math.max(20,Math.min(W-20,state.picker.x+state.picker.vx*dt));state.picker.y=Math.max(H*.3,Math.min(H-25,state.picker.y+state.picker.vy*dt));for(let i=state.balls.length-1;i>=0;i--){const b=state.balls[i],d=Math.hypot(b.x-state.picker.x,b.y-state.picker.y);if(d<34){state.score+=b.rare?90:15;state.balls.splice(i,1)}}if(Math.random()<dt*.9)state.shots.push({x:Math.random()*W,y:-10,vx:(Math.random()-.5)*120,vy:180+Math.random()*140,r:5,life:5})}for(let i=state.sparks.length-1;i>=0;i--){state.sparks[i].life-=dt;if(state.sparks[i].life<=0)state.sparks.splice(i,1)}updateHud()}
+function draw(){ctx.clearRect(0,0,W,H);ctx.fillStyle='#052e16';ctx.fillRect(0,0,W,H);for(let i=0;i<18;i++){ctx.strokeStyle=i%2?'rgba(255,255,255,.04)':'rgba(250,204,21,.05)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(W/2,H*.9);ctx.lineTo(i/17*W,H*.05);ctx.stroke()}ctx.fillStyle='rgba(14,165,233,.45)';ctx.beginPath();ctx.ellipse(W*.85,H*.55,90,34,.2,0,Math.PI*2);ctx.fill();for(const t of state.targets){ctx.save();ctx.translate(t.x,t.y);ctx.fillStyle=t.hit>0?'#fde047':'rgba(15,23,42,.8)';ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,t.r,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#ef4444';ctx.beginPath();ctx.arc(0,0,t.r*.62,0,Math.PI*2);ctx.fill();ctx.fillStyle='#f8fafc';ctx.beginPath();ctx.arc(0,0,t.r*.38,0,Math.PI*2);ctx.fill();ctx.fillStyle='#22c55e';ctx.beginPath();ctx.arc(0,0,t.r*.18,0,Math.PI*2);ctx.fill();ctx.restore()}for(const b of state.balls){ctx.fillStyle=b.rare?'#facc15':'#f8fafc';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill()}for(const s of state.shots){ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.35)';ctx.beginPath();ctx.moveTo(s.x-s.vx*.04,s.y-s.vy*.04);ctx.lineTo(s.x,s.y);ctx.stroke()}if(state.mode==='range'){ctx.strokeStyle='#facc15';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(W/2,H*.88);ctx.lineTo(state.aimX,state.aimY);ctx.stroke();ctx.fillStyle='rgba(250,204,21,.25)';ctx.fillRect(W/2-80,H*.92,160*state.power,12);ctx.strokeStyle='#fff';ctx.strokeRect(W/2-80,H*.92,160,12);ctx.fillStyle='#ddd';ctx.beginPath();ctx.arc(W/2,H*.88,8,0,Math.PI*2);ctx.fill()}else{ctx.save();ctx.translate(state.picker.x,state.picker.y);ctx.fillStyle='#f97316';ctx.fillRect(-24,-15,48,30);ctx.fillStyle='#64748b';ctx.fillRect(-30,8,60,9);ctx.fillStyle='#111827';ctx.beginPath();ctx.arc(-18,18,8,0,Math.PI*2);ctx.arc(18,18,8,0,Math.PI*2);ctx.fill();ctx.fillStyle='rgba(134,239,172,.22)';ctx.beginPath();ctx.arc(0,0,70,0,Math.PI*2);ctx.fill();ctx.restore()}for(const p of state.sparks){ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.color;ctx.font='900 24px system-ui';ctx.textAlign='center';ctx.fillText(p.text,p.x,p.y-(1-p.life)*45);ctx.globalAlpha=1}ctx.fillStyle='rgba(255,255,255,.08)';ctx.fillRect(0,H*.9,W,H*.1)}
+function loop(ts){const dt=Math.min(.033,(ts-state.last)/1000||0);state.last=ts;update(dt);draw();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+</script>
+</body>
+</html>
