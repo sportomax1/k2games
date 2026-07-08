@@ -44,7 +44,7 @@ window.K2_GAMES = [
   { f: 'rail-forge.html', t: 'Rail Forge', i: '🎮', c: '2026-05-04T10:47:02-06:00', u: '2026-05-04T17:09:26-06:00', cl: false },
   { f: 'halfpipe.html', t: 'PowderPipe Pro 3D', i: '🎮', c: '2026-02-28T11:40:48-07:00', u: '2026-05-04T17:09:26-06:00', cl: false },
   { f: 'marble-race.html', t: 'Marble Rush Lab 2D', i: '🏆', c: '2026-03-27T21:12:56-06:00', u: '2026-05-04T17:09:26-06:00', cl: false },
-  { f: 'jet-ski.html', t: 'HydroStorm Rush 3D', i: '🏆', c: '2026-03-01T21:40:46-07:00', u: '2026-05-04T17:09:26-06:00', cl: false },
+  { f: 'jet-ski.html', t: 'Wave Rush', i: '🏆', c: '2026-03-01T21:40:46-07:00', u: '2026-07-08T00:00:00-06:00', cl: false },
   { f: 'neck-stretch.html', t: 'Giraffe Grove 3D', i: '🎮', c: '2026-03-31T14:26:49-06:00', u: '2026-05-04T17:09:26-06:00', cl: false },
   { f: 'playfootball.html', t: 'Football Master: Pro Edition', i: '🏆', c: '2026-02-28T11:40:48-07:00', u: '2026-05-04T17:09:26-06:00', cl: true },
   { f: 'bobsled.html', t: 'Bobsled Driver 3D', i: '🏆', c: '2026-02-28T11:40:48-07:00', u: '2026-05-04T17:09:26-06:00', cl: false },
