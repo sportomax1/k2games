@@ -1,3 +1,3 @@
 // Catalog wrapper: load the preserved game list, then hide removed titles.
 document.write('<script src="./games-source.js"><\/script>');
-document.write('<script>(function(){const removed=new Set(["play-and-score.html","flavor-flux.html","call-the-card.html","suit-sync.html","turn-of-the-wild.html"]);window.K2_GAMES=(window.K2_GAMES||[]).filter(g=>!removed.has(g.f));})();<\/script>');
+document.write('<script>(function(){const removed=new Set(["play-and-score.html","flavor-flux.html","call-the-card.html","suit-sync.html","turn-of-the-wild.html"]);window.K2_GAMES=(window.K2_GAMES||[]).filter(g=>!removed.has(g.f));const mindTrace={f:"mind-trace.html",t:"Mind Trace",i:"🧠",c:"2026-07-16T06:00:00-06:00",u:"2026-07-16T06:00:00-06:00",cl:false};const existing=window.K2_GAMES.find(g=>g.f===mindTrace.f);if(existing)Object.assign(existing,mindTrace);else window.K2_GAMES.unshift(mindTrace);})();<\/script>');
