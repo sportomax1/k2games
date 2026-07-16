@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111f">
+<title>Weather Whiz</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07111f}iframe{display:block;width:100%;height:100%;border:0;background:#07111f}
+</style>
+</head>
+<body>
+<iframe id="game" src="weather-whiz.html?v=2" title="Weather Whiz"></iframe>
+<script>
+const frame=document.getElementById('game');
+frame.addEventListener('load',()=>{
+ const w=frame.contentWindow,d=frame.contentDocument;
+ const patch=d.createElement('script');
+ patch.textContent=`
+ (function(){
+   if(window.__weatherWhizRandomPatch)return;
+   window.__weatherWhizRandomPatch=true;
+   const RANDOM=['temperature','time','condition','feels','wind','humidity','rain','hotter','later','coldest','ranking','world','retro'];
+   if(!MODES.some(m=>m[0]==='random'))MODES.unshift(['random','🎲 Random Mix']);
+   S.selectedTab=S.selectedTab||S.mode;
+   S.randomEnabled=S.selectedTab==='random';
+   const originalPrepare=prepare;
+   const originalNewGame=newGame;
+   const originalTabs=tabs;
+   function chooseRandom(){S.mode=RANDOM[Math.floor(Math.random()*RANDOM.length)]}
+   window.prepare=async function(){
+     if(S.randomEnabled)chooseRandom();
+     await originalPrepare();
+     if(S.randomEnabled){
+       const label=MODES.find(m=>m[0]===S.mode)?.[1]||S.mode;
+       const rt=document.getElementById('roundText');
+       if(rt)rt.textContent+=' • '+label;
+     }
+   };
+   window.newGame=async function(){
+     S.selectedTab=S.selectedTab||S.mode;
+     S.randomEnabled=S.selectedTab==='random';
+     await originalNewGame();
+   };
+   window.tabs=function(){
+     const tabsEl=document.getElementById('tabs');
+     tabsEl.innerHTML=MODES.map(m=>'<button class="tab '+(S.selectedTab===m[0]?'active':'')+'" data-mode="'+m[0]+'">'+m[1]+'</button>').join('');
+     document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=async()=>{
+       S.selectedTab=b.dataset.mode;
+       S.randomEnabled=S.selectedTab==='random';
+       if(!S.randomEnabled)S.mode=S.selectedTab;
+       S.pi=0;
+       S.phase='guess';
+       document.getElementById('retroSettings').classList.toggle('hidden',S.selectedTab!=='retro');
+       tabs();
+       await prepare();
+     });
+   };
+   tabs();
+   document.getElementById('retroSettings').classList.toggle('hidden',S.selectedTab!=='retro');
+ })();`;
+ d.body.appendChild(patch);
+});
+</script>
+</body>
+</html>
