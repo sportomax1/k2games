@@ -1,8 +1,11 @@
 name: New Game Alert
 
 on:
-  push:
-    branches: ["main"]
+  schedule:
+    # Friday 9 AM Mountain during daylight time = Friday 15:00 UTC
+    - cron: "0 15 * * 5"
+    # Friday 9 AM Mountain during standard time = Friday 16:00 UTC
+    - cron: "0 16 * * 5"
   workflow_dispatch:
 
 permissions:
@@ -13,24 +16,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check Mountain time
+        id: mt
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run_alert=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          MT_DAY=$(TZ=America/Denver date +%u)
+          MT_HOUR=$(TZ=America/Denver date +%H)
+
+          if [ "$MT_DAY" = "5" ] && [ "$MT_HOUR" = "09" ]; then
+            echo "run_alert=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_alert=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout repo
+        if: steps.mt.outputs.run_alert == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Find newly added game files
+        if: steps.mt.outputs.run_alert == 'true'
         id: changes
         shell: bash
         run: |
-          BEFORE="${{ github.event.before }}"
-          AFTER="${{ github.sha }}"
-
-          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-            BEFORE="HEAD~1"
+          BASE=$(git rev-list -n 1 --before="7 days ago" HEAD || true)
+          if [ -z "$BASE" ]; then
+            BASE=$(git rev-list --max-parents=0 HEAD)
           fi
 
           mapfile -t NEW_GAMES < <(
-            git diff --name-status "$BEFORE" "$AFTER" |
+            git diff --name-status "$BASE" HEAD |
               awk '$1 == "A" {print $2}' |
               grep -E '\.html$' |
               grep -Ev '(^|/)index\.html$' |
@@ -43,6 +64,7 @@ jobs:
           fi
 
           echo "has_new_games=true" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
           {
             echo 'game_list<<EOF'
             for file in "${NEW_GAMES[@]}"; do
@@ -53,14 +75,18 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Send Discord new game alert
-        if: steps.changes.outputs.has_new_games == 'true'
+        if: steps.mt.outputs.run_alert == 'true' && steps.changes.outputs.has_new_games == 'true'
         uses: tsickert/discord-webhook@v7.0.0
         with:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
           content: |
-            🕹️ **New K2 game added!**
+            🕹️ **New K2 games added this week!**
 
             ${{ steps.changes.outputs.game_list }}
 
             🌐 **K2 Games:** <https://sportomax1.github.io/k2games/index.html>
-            🔗 **Commit:** <${{ github.event.head_commit.url }}>
+            🔎 **Weekly changes:** <https://github.com/sportomax1/k2games/compare/${{ steps.changes.outputs.base }}...${{ github.sha }}>
+
+      - name: Skip if no new games
+        if: steps.mt.outputs.run_alert == 'true' && steps.changes.outputs.has_new_games != 'true'
+        run: echo "No new K2 games were added in the last seven days."
