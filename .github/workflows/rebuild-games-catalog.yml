@@ -1,0 +1,71 @@
+name: Rebuild Games Catalog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*.html'
+      - '_generate_games_data.py'
+      - 'games.js'
+      - 'games-source.js'
+      - '.github/workflows/rebuild-games-catalog.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rebuild-games-catalog
+  cancel-in-progress: true
+
+jobs:
+  rebuild:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate complete games.js
+        run: python3 _generate_games_data.py
+
+      - name: Validate generated JavaScript
+        run: node --check games.js
+
+      - name: Verify every active HTML game is listed
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          root = Path('.')
+          excluded = {'index.html', 'back-it-up.html', 'rig-master-articulated-precision.html'}
+          html_files = {p.name for p in root.glob('*.html') if p.name not in excluded}
+          catalog = (root / 'games.js').read_text(encoding='utf-8')
+          listed = set(re.findall(r"f:\s*'([^']+\.html)'", catalog))
+
+          missing = sorted(html_files - listed)
+          stale = sorted(listed - html_files)
+          duplicates = sorted(name for name in listed if catalog.count(f"f: '{name}'") > 1)
+
+          if missing or stale or duplicates:
+              raise SystemExit(
+                  f'Catalog validation failed. Missing={missing}; stale={stale}; duplicates={duplicates}'
+              )
+
+          print(f'Validated {len(listed)} game HTML files in games.js')
+          PY
+
+      - name: Commit generated catalog
+        run: |
+          if git diff --quiet -- games.js games-source.js; then
+            echo "Catalog already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A games.js games-source.js
+          git commit -m "Rebuild single games catalog"
+          git push
