@@ -16,11 +16,10 @@ permissions:
 
 concurrency:
   group: rebuild-games-catalog
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   rebuild:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -34,7 +33,7 @@ jobs:
       - name: Validate generated JavaScript
         run: node --check games.js
 
-      - name: Verify every active HTML game is listed
+      - name: Verify every active HTML game is listed exactly once
         run: |
           python3 - <<'PY'
           import re
@@ -44,18 +43,19 @@ jobs:
           excluded = {'index.html', 'back-it-up.html', 'rig-master-articulated-precision.html'}
           html_files = {p.name for p in root.glob('*.html') if p.name not in excluded}
           catalog = (root / 'games.js').read_text(encoding='utf-8')
-          listed = set(re.findall(r"f:\s*'([^']+\.html)'", catalog))
+          catalog_entries = re.findall(r"f:\s*'([^']+\.html)'", catalog)
+          listed = set(catalog_entries)
 
           missing = sorted(html_files - listed)
           stale = sorted(listed - html_files)
-          duplicates = sorted(name for name in listed if catalog.count(f"f: '{name}'") > 1)
+          duplicates = sorted(name for name in listed if catalog_entries.count(name) > 1)
 
           if missing or stale or duplicates:
               raise SystemExit(
                   f'Catalog validation failed. Missing={missing}; stale={stale}; duplicates={duplicates}'
               )
 
-          print(f'Validated {len(listed)} game HTML files in games.js')
+          print(f'Validated {len(listed)} active HTML games in games.js')
           PY
 
       - name: Commit generated catalog
@@ -67,5 +67,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A games.js games-source.js
-          git commit -m "Rebuild single games catalog"
-          git push
+          git commit -m "Rebuild complete games catalog"
+          git pull --rebase origin main
+          git push origin HEAD:main
