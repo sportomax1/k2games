@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10131a">
+<title>K2 Key Smash</title>
+<style>
+:root{
+  --bg:#10131a;--panel:#1a2030;--panel2:#222a3d;--text:#f4f7fb;--muted:#aab4c8;
+  --accent:#6ea8fe;--good:#57d68d;--bad:#ff6b6b;--warn:#ffd166;--line:#ffffff12
+}
+*{box-sizing:border-box}
+body{
+  margin:0;min-height:100vh;padding:18px;display:grid;place-items:center;
+  background:linear-gradient(180deg,#0d1118,#151a25);color:var(--text);
+  font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif
+}
+.app{
+  width:min(920px,100%);overflow:hidden;border:1px solid var(--line);border-radius:24px;
+  background:rgba(26,32,48,.97);box-shadow:0 24px 70px #0006
+}
+header{
+  display:flex;justify-content:space-between;align-items:center;gap:14px;
+  padding:18px 22px;background:var(--panel2);border-bottom:1px solid var(--line)
+}
+h1{margin:0;font-size:clamp(25px,5vw,40px)}
+.sub{margin-top:3px;color:var(--muted);font-size:13px}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap}
+button,select{
+  border:1px solid var(--line);border-radius:12px;background:#303a50;color:var(--text);
+  padding:11px 14px;font:inherit;font-weight:800;cursor:pointer
+}
+button.primary{background:var(--accent);color:#08111f}
+button:disabled{opacity:.45;cursor:not-allowed}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;padding:14px 22px 0}
+.stat{padding:10px;text-align:center;background:#131925;border-radius:13px}
+.stat b{display:block;font-size:20px}.stat span{font-size:11px;color:var(--muted)}
+main{padding:22px}
+.mode-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.mode{
+  border:1px solid var(--line);border-radius:14px;background:#151b28;padding:12px;text-align:left
+}
+.mode.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.mode strong{display:block}.mode small{color:var(--muted)}
+.target-wrap{
+  position:relative;text-align:center;background:#0e1420;border:1px solid var(--line);
+  border-radius:20px;padding:26px 18px;margin-bottom:15px;overflow:hidden
+}
+.special{
+  position:absolute;top:10px;right:12px;padding:5px 9px;border-radius:999px;
+  background:#ffffff0d;color:var(--warn);font-size:11px;font-weight:900;letter-spacing:.06em
+}
+.label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
+.target{
+  margin-top:8px;min-height:70px;display:grid;place-items:center;
+  font:800 clamp(30px,7vw,60px) ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  letter-spacing:.04em;word-break:break-all
+}
+.target .done{color:var(--good)}.target .current{background:var(--accent);color:#08111f;border-radius:5px;padding:0 2px}
+.target .rest{color:#dbe5f6}.target.hidden{filter:blur(11px);opacity:.16}
+.input{
+  width:100%;padding:16px;text-align:center;background:#0e1420;color:var(--text);
+  border:2px solid transparent;border-radius:15px;outline:none;
+  font:700 23px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace
+}
+.input:focus{border-color:var(--accent)}.input.bad{border-color:var(--bad);animation:shake .16s linear 2}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.meter{height:11px;margin:15px 0;background:#0d121c;border-radius:999px;overflow:hidden}
+.meter>div{height:100%;width:100%;background:linear-gradient(90deg,var(--good),var(--warn),var(--bad));transform-origin:left}
+.feedback{min-height:26px;text-align:center;font-weight:900}
+.controls{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.summary{
+  display:none;margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:16px;background:#151b28
+}
+.summary.show{display:block}.summary h2{margin:0 0 12px}
+.summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.summary-grid div{background:#0f1521;border-radius:12px;padding:10px;text-align:center}
+.summary-grid b{display:block;font-size:18px}.summary-grid span{font-size:11px;color:var(--muted)}
+.help{margin-top:16px;color:var(--muted);font-size:13px;line-height:1.45}
+.flash-good{animation:goodflash .23s}.flash-bad{animation:badflash .23s}
+@keyframes goodflash{50%{box-shadow:inset 0 0 0 9999px #57d68d18}}
+@keyframes badflash{50%{box-shadow:inset 0 0 0 9999px #ff6b6b16}}
+@media(max-width:700px){
+  header{align-items:flex-start;flex-direction:column}.stats{grid-template-columns:repeat(2,1fr)}
+  .stats .stat:last-child{grid-column:1/-1}.mode-row{grid-template-columns:1fr}.summary-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+<header>
+  <div>
+    <h1>K2 Key Smash</h1>
+    <div class="sub">Fast typing. Bad strings. Increasing panic.</div>
+  </div>
+  <div class="header-actions">
+    <button id="soundBtn">🔊 Sound</button>
+    <button id="startBtn" class="primary">Start</button>
+  </div>
+</header>
+
+<section class="stats">
+  <div class="stat"><b id="score">0</b><span>Score</span></div>
+  <div class="stat"><b id="level">1</b><span>Level</span></div>
+  <div class="stat"><b id="streak">0</b><span>Streak</span></div>
+  <div class="stat"><b id="accuracy">100%</b><span>Accuracy</span></div>
+  <div class="stat"><b id="modeStat">Classic</b><span>Mode</span></div>
+</section>
+
+<main>
+  <div class="mode-row" id="modeRow">
+    <button class="mode active" data-mode="classic"><strong>Classic</strong><small>Longer strings, less time.</small></button>
+    <button class="mode" data-mode="survival"><strong>Survival</strong><small>3 lives. Mistakes hurt.</small></button>
+    <button class="mode" data-mode="rush"><strong>30s Rush</strong><small>Score as much as possible.</small></button>
+  </div>
+
+  <div class="target-wrap" id="targetWrap">
+    <div class="special" id="special">NORMAL</div>
+    <div class="label">Type this</div>
+    <div class="target" id="target">asdf</div>
+  </div>
+
+  <input id="input" class="input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Press Start or Enter…" disabled>
+
+  <div class="meter"><div id="timeBar"></div></div>
+  <div class="feedback" id="feedback"></div>
+
+  <div class="controls">
+    <button id="skipBtn" disabled>Skip (-50)</button>
+    <button id="restartBtn">Restart</button>
+  </div>
+
+  <section class="summary" id="summary">
+    <h2>Run Summary</h2>
+    <div class="summary-grid">
+      <div><b id="sumScore">0</b><span>Score</span></div>
+      <div><b id="sumAccuracy">100%</b><span>Accuracy</span></div>
+      <div><b id="sumStreak">0</b><span>Best Streak</span></div>
+      <div><b id="sumCps">0.0</b><span>Chars / Sec</span></div>
+      <div><b id="sumLevel">1</b><span>Highest Level</span></div>
+    </div>
+  </section>
+
+  <div class="help">
+    Enter starts/restarts. Correct streaks increase your multiplier. Special rounds can reverse the prompt,
+    hide it after a moment, or award double points. Best scores and lifetime stats are saved locally.
+  </div>
+</main>
+</div>
+
+<script>
+(()=>{
+'use strict';
+
+const $=id=>document.getElementById(id);
+const app=$('app'), targetEl=$('target'), input=$('input'), scoreEl=$('score'), levelEl=$('level'),
+streakEl=$('streak'), accuracyEl=$('accuracy'), modeStat=$('modeStat'), timeBar=$('timeBar'),
+feedback=$('feedback'), startBtn=$('startBtn'), restartBtn=$('restartBtn'), skipBtn=$('skipBtn'),
+modeRow=$('modeRow'), summary=$('summary'), specialEl=$('special'), targetWrap=$('targetWrap'),
+soundBtn=$('soundBtn');
+
+const rows=['asdfghjkl','qwertyuiop','zxcvbnm'];
+const patterns=['asdf','jkl','qwer','uiop','zxcv','bnm','asdfgh','hjkl','qwert','yuiop','zxcvb'];
+const allChars='asdfjklqwertyuiopzxcvbnm';
+const saved=JSON.parse(localStorage.getItem('k2-key-smash-stats')||'{}');
+
+let mode='classic',running=false,timer=null,target='',displayTarget='',timeLeft=0,maxTime=1,score=0,level=1,streak=0,
+bestStreak=0,totalKeys=0,correctKeys=0,completedChars=0,startMs=0,lives=3,rushLeft=30,special='normal',
+sound=saved.sound!==false,hideTimeout=null;
+
+function beep(freq=500,dur=.05){
+  if(!sound)return;
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.frequency.value=freq;o.connect(g);g.connect(ctx.destination);g.gain.value=.035;
+    o.start();g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+dur);o.stop(ctx.currentTime+dur);
+  }catch{}
+}
+function flash(kind){
+  app.classList.remove('flash-good','flash-bad');void app.offsetWidth;
+  app.classList.add(kind==='good'?'flash-good':'flash-bad');
+}
+function saveStats(){
+  saved.sound=sound;
+  saved.games=(saved.games||0)+1;
+  saved.bestByMode=saved.bestByMode||{};
+  saved.bestByMode[mode]=Math.max(saved.bestByMode[mode]||0,score);
+  saved.bestStreak=Math.max(saved.bestStreak||0,bestStreak);
+  localStorage.setItem('k2-key-smash-stats',JSON.stringify(saved));
+}
+function accuracy(){return totalKeys?Math.round(correctKeys/totalKeys*100):100}
+function updateStats(){
+  scoreEl.textContent=score;levelEl.textContent=level;streakEl.textContent=streak;
+  accuracyEl.textContent=accuracy()+'%';
+  modeStat.textContent=mode==='rush'?'30s Rush':mode[0].toUpperCase()+mode.slice(1);
+}
+function makeString(len){
+  if(level<4 && Math.random()<.45){
+    const p=patterns[Math.floor(Math.random()*patterns.length)];
+    return p.slice(0,Math.min(len,p.length)).padEnd(len,p[p.length-1]);
+  }
+  if(Math.random()<.35){
+    const row=rows[Math.floor(Math.random()*rows.length)];
+    let out='',i=Math.floor(Math.random()*row.length),dir=Math.random()<.5?1:-1;
+    for(let n=0;n<len;n++){out+=row[(i+row.length)%row.length];i+=dir}
+    return out;
+  }
+  let out='';
+  while(out.length<len)out+=allChars[Math.floor(Math.random()*allChars.length)];
+  return out;
+}
+function chooseSpecial(){
+  const r=Math.random();
+  if(level>=4 && r<.12)return 'reverse';
+  if(level>=6 && r<.22)return 'memory';
+  if(r<.34)return 'double';
+  return 'normal';
+}
+function renderTarget(){
+  const typed=input.value;
+  const done=displayTarget.slice(0,typed.length);
+  const current=displayTarget[typed.length]||'';
+  const rest=displayTarget.slice(typed.length+(current?1:0));
+  targetEl.innerHTML=`<span class="done">${done}</span>${current?`<span class="current">${current}</span>`:''}<span class="rest">${rest}</span>`;
+}
+function beginRound(){
+  clearTimeout(hideTimeout);
+  input.value=''; input.classList.remove('bad'); targetEl.classList.remove('hidden');
+  const len=Math.min(4+Math.floor((level-1)*.8),18);
+  target=makeString(len);
+  special=chooseSpecial();
+  displayTarget=special==='reverse'?target.split('').reverse().join(''):target;
+  if(special==='reverse')target=displayTarget;
+  specialEl.textContent=special==='normal'?'NORMAL':special.toUpperCase();
+  specialEl.style.color=special==='double'?'var(--good)':'var(--warn)';
+  if(mode==='rush'){maxTime=6;timeLeft=6}
+  else{maxTime=Math.max(2.2,6-(level-1)*.17)+len*.14;timeLeft=maxTime}
+  if(special==='memory')hideTimeout=setTimeout(()=>targetEl.classList.add('hidden'),1100);
+  feedback.textContent='';renderTarget();input.focus();
+}
+function rewardRound(){
+  streak++;bestStreak=Math.max(bestStreak,streak);
+  const mult=1+Math.min(streak,10)*.1;
+  const bonus=special==='double'?2:1;
+  const points=Math.round((100+(mode==='rush'?35:timeLeft*20))*mult*bonus);
+  score+=points;completedChars+=target.length;
+  level=1+Math.floor(score/700);
+  feedback.textContent=`+${points}${special==='double'?' ×2':''}  🔥 ${streak}`;
+  feedback.style.color='var(--good)';beep(720,.06);flash('good');updateStats();
+  setTimeout(()=>running&&beginRound(),120);
+}
+function penalize(){
+  streak=0;
+  if(mode==='survival'){
+    lives--;
+    feedback.textContent=`Wrong key — ${lives} ${lives===1?'life':'lives'} left`;
+    if(lives<=0){endGame('Out of lives');return}
+  }else if(mode==='classic'){
+    timeLeft=Math.max(0,timeLeft-.5);
+    feedback.textContent='Wrong key — time penalty';
+  }else{
+    score=Math.max(0,score-20);
+    feedback.textContent='Wrong key — 20 points';
+  }
+  feedback.style.color='var(--bad)';beep(180,.08);flash('bad');updateStats();
+}
+function tick(){
+  if(!running)return;
+  if(mode==='rush'){
+    rushLeft-=.05;
+    timeBar.style.transform=`scaleX(${Math.max(0,rushLeft/30)})`;
+    if(rushLeft<=0)endGame('Time');
+  }else{
+    timeLeft-=.05;
+    timeBar.style.transform=`scaleX(${Math.max(0,timeLeft/maxTime)})`;
+    if(timeLeft<=0){
+      if(mode==='survival'){
+        lives--;streak=0;
+        if(lives<=0)endGame('Out of lives');
+        else{feedback.textContent=`Too slow — ${lives} lives left`;feedback.style.color='var(--bad)';beginRound()}
+      }else endGame('Time');
+    }
+  }
+}
+function startGame(){
+  clearInterval(timer);clearTimeout(hideTimeout);
+  score=0;level=1;streak=0;bestStreak=0;totalKeys=0;correctKeys=0;completedChars=0;lives=3;rushLeft=30;
+  startMs=performance.now();running=true;summary.classList.remove('show');
+  input.disabled=false;skipBtn.disabled=false;startBtn.textContent='Restart';
+  [...modeRow.querySelectorAll('.mode')].forEach(b=>b.disabled=true);
+  updateStats();beginRound();timer=setInterval(tick,50);
+}
+function endGame(reason){
+  if(!running)return;
+  running=false;clearInterval(timer);clearTimeout(hideTimeout);timer=null;
+  input.disabled=true;skipBtn.disabled=true;startBtn.textContent='Play Again';
+  [...modeRow.querySelectorAll('.mode')].forEach(b=>b.disabled=false);
+  feedback.textContent=`${reason} — final score ${score}`;feedback.style.color='var(--bad)';
+  const elapsed=Math.max(1,(performance.now()-startMs)/1000);
+  $('sumScore').textContent=score;$('sumAccuracy').textContent=accuracy()+'%';
+  $('sumStreak').textContent=bestStreak;$('sumCps').textContent=(completedChars/elapsed).toFixed(1);
+  $('sumLevel').textContent=level;summary.classList.add('show');saveStats();
+}
+input.addEventListener('input',()=>{
+  if(!running)return;
+  totalKeys++;
+  const typed=input.value;
+  if(!target.startsWith(typed)){
+    input.value=typed.slice(0,-1);input.classList.add('bad');setTimeout(()=>input.classList.remove('bad'),160);
+    penalize();renderTarget();return;
+  }
+  correctKeys++;renderTarget();updateStats();
+  if(input.value===target)rewardRound();
+});
+skipBtn.addEventListener('click',()=>{
+  if(!running)return;
+  score=Math.max(0,score-50);streak=0;updateStats();beginRound();
+});
+modeRow.addEventListener('click',e=>{
+  const b=e.target.closest('[data-mode]');if(!b||running)return;
+  mode=b.dataset.mode;
+  [...modeRow.querySelectorAll('.mode')].forEach(x=>x.classList.toggle('active',x===b));
+  updateStats();
+});
+soundBtn.addEventListener('click',()=>{
+  sound=!sound;soundBtn.textContent=sound?'🔊 Sound':'🔇 Muted';saved.sound=sound;
+  localStorage.setItem('k2-key-smash-stats',JSON.stringify(saved));
+});
+startBtn.addEventListener('click',startGame);restartBtn.addEventListener('click',startGame);
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!running){e.preventDefault();startGame()}
+});
+soundBtn.textContent=sound?'🔊 Sound':'🔇 Muted';
+updateStats();targetEl.textContent='asdf';
+})();
+</script>
+</body>
+</html>
