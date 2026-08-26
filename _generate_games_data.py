@@ -4,7 +4,6 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parent
 
-# These are intentionally retired/merged pages and should not appear in the launcher.
 EXCLUDED_FILES = {
     "index.html",
     "back-it-up.html",
@@ -16,7 +15,6 @@ icon_rules = [
     (re.compile(r"hog|pig", re.I), "🐷"),
     (re.compile(r"lasso|frontier|cowboy|bull|rodeo", re.I), "🤠"),
     (re.compile(r"truck|parking|back[- ]?it[- ]?up|rig|road|drive|traffic|street|route|subway|train|rail|bus|taxi|delivery|courier", re.I), "🚚"),
-    (re.compile(r"rail|train|switchyard|station", re.I), "🚂"),
     (re.compile(r"basket|hoops|dunk|rim|court|nashball|half[- ]?court", re.I), "🏀"),
     (re.compile(r"baseball|slugger|home[- ]?run|hits?[- ]?and[- ]?outs|duel[- ]?at[- ]?the[- ]?plate", re.I), "⚾"),
     (re.compile(r"football|gridiron|fieldgoal|touchdown", re.I), "🏈"),
@@ -40,35 +38,22 @@ icon_rules = [
     (re.compile(r"emoji|would[- ]?you[- ]?rather|mad[- ]?lips|timeline|inception|impulse|three[- ]?steps|swipe|sort|play[- ]?and[- ]?score|pair[- ]?and[- ]?conquer|red[- ]?light|green[- ]?light|simon|echo", re.I), "🎲"),
 ]
 
-classic_rules = re.compile(
-    r"(classic|retro|8-bit|8bit|mahjong|checkers|chess|2048|tic tac toe|tictactoe|snake|slots|blackjack|golf|war|reversi|memory|word search|crossword|fixed fate|turn of the wild|route masters|pack attack|word master|sudoku|shutthebox|backgammon|life|hoops|foursquare|fruit slice|football|hockey|pong)",
-    re.I,
-)
+classic_rules = re.compile(r"(classic|retro|8-bit|8bit|mahjong|checkers|chess|2048|tic tac toe|tictactoe|snake|slots|blackjack|golf|war|reversi|memory|word search|crossword|fixed fate|turn of the wild|route masters|pack attack|word master|sudoku|shutthebox|backgammon|life|hoops|foursquare|fruit slice|football|hockey|pong)", re.I)
 
 
 def parse_existing_catalog(path: Path) -> dict[str, dict]:
     if not path.exists():
         return {}
-
     source = path.read_text(encoding="utf-8", errors="ignore")
     found: dict[str, dict] = {}
-    patterns = [
-        re.compile(
-            r"\{\s*f:\s*'([^']+)'\s*,\s*t:\s*'((?:\\'|[^'])*)'\s*,\s*i:\s*'([^']+)'\s*,\s*c:\s*'([^']+)'\s*,\s*u:\s*'([^']+)'\s*,\s*cl:\s*(true|false)\s*\}"
-        ),
-        re.compile(
-            r'\{\s*f:\s*"([^"]+)"\s*,\s*t:\s*"((?:\\"|[^"])*)"\s*,\s*i:\s*"([^"]+)"\s*,\s*c:\s*"([^"]+)"\s*,\s*u:\s*"([^"]+)"\s*,\s*cl:\s*(true|false)\s*\}'
-        ),
-    ]
-    for pattern in patterns:
-        for item in pattern.finditer(source):
-            found[item.group(1)] = {
-                "t": item.group(2).replace("\\'", "'").replace('\\"', '"'),
-                "i": item.group(3),
-                "c": item.group(4),
-                "u": item.group(5),
-                "cl": item.group(6) == "true",
-            }
+    pattern = re.compile(r"\{\s*f:\s*'([^']+)'\s*,\s*t:\s*'((?:\\'|[^'])*)'\s*,\s*i:\s*'([^']+)'\s*,\s*c:\s*'([^']+)'\s*,\s*u:\s*'([^']+)'\s*,\s*cl:\s*(true|false)\s*\}")
+    for item in pattern.finditer(source):
+        found[item.group(1)] = {
+            "t": item.group(2).replace("\\'", "'"),
+            "i": item.group(3),
+            "c": item.group(4),
+            "cl": item.group(6) == "true",
+        }
     return found
 
 
@@ -78,9 +63,7 @@ def strip_title(title: str) -> str:
     return title.strip()
 
 
-def title_from_file(path: Path, fallback: str | None = None) -> str:
-    if fallback:
-        return fallback
+def html_title(path: Path) -> str:
     text = path.read_text(encoding="utf-8", errors="ignore")
     match = re.search(r"<title>([^<]+)</title>", text, re.I)
     return strip_title(match.group(1)) if match else path.stem.replace("-", " ").title()
@@ -101,45 +84,32 @@ def git_date(file_path: Path, first: bool) -> str:
     return dates[0] if dates else "1970-01-01T00:00:00Z"
 
 
-# Preserve curated titles/icons/dates from the old full catalog, then apply newer
-# additions from games.js over the top.
-overrides: dict[str, dict] = {}
-overrides.update(parse_existing_catalog(root / "games-source.js"))
-overrides.update(parse_existing_catalog(root / "games.js"))
-
-files = sorted(
-    [path for path in root.glob("*.html") if path.name not in EXCLUDED_FILES],
-    key=lambda path: path.name.lower(),
-)
-
+existing = parse_existing_catalog(root / "games.js")
+files = sorted([p for p in root.glob("*.html") if p.name not in EXCLUDED_FILES], key=lambda p: p.name.lower())
 entries = []
+
 for path in files:
-    existing = overrides.get(path.name)
-    title = title_from_file(path, existing["t"] if existing else None)
-    created = existing["c"] if existing else git_date(path, True)
-    updated = existing["u"] if existing else git_date(path, False)
-    icon = existing["i"] if existing else icon_for(title, path.name)
-    classic = existing["cl"] if existing else bool(classic_rules.search(f"{title} {path.stem}"))
+    old = existing.get(path.name)
+    detected_title = html_title(path)
+    # Preserve curated catalog titles/icons when present, but every file is always included.
+    title = old["t"] if old and old.get("t") else detected_title
+    icon = old["i"] if old and old.get("i") else icon_for(detected_title, path.name)
+    created = old["c"] if old and old.get("c") else git_date(path, True)
+    # IMPORTANT: last-updated is always recalculated from Git so edits never stay stale.
+    updated = git_date(path, False)
+    classic = old["cl"] if old and "cl" in old else bool(classic_rules.search(f"{title} {path.stem}"))
     entries.append((path.name, title, icon, created, updated, classic))
 
 entries.sort(key=lambda item: (item[4], item[1]), reverse=True)
 
 lines = [
-    "// AUTO-GENERATED by _generate_games_data.py.",
-    "// Edit an HTML <title> or the generator rules, then regenerate this file.",
+    "// AUTO-GENERATED by _generate_games_data.py. DO NOT HAND-EDIT.",
+    "// Every active root-level HTML game must appear exactly once.",
     "window.K2_GAMES = [",
 ]
 for filename, title, icon, created, updated, classic in entries:
     safe_title = title.replace("\\", "\\\\").replace("'", "\\'")
-    lines.append(
-        f"  {{ f: '{filename}', t: '{safe_title}', i: '{icon}', c: '{created}', u: '{updated}', cl: {str(classic).lower()} }},"
-    )
+    lines.append(f"  {{ f: '{filename}', t: '{safe_title}', i: '{icon}', c: '{created}', u: '{updated}', cl: {str(classic).lower()} }},")
 lines.append("];" )
-
 (root / "games.js").write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-legacy_catalog = root / "games-source.js"
-if legacy_catalog.exists():
-    legacy_catalog.unlink()
-
-print(f"Wrote games.js with {len(entries)} entries; one catalog file remains.")
+print(f"Wrote games.js with {len(entries)} entries from {len(files)} active HTML files.")
