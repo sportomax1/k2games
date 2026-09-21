@@ -94,7 +94,7 @@
             background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px; z-index: 200;
             font-weight: bold; font-size: 0.8rem; border: 1px solid rgba(255,255,255,0.1);
         }
-    </style>
+    .pause-btn{position:absolute;top:14px;right:16px;z-index:120;padding:9px 15px;background:#15283c;border:1px solid #5ce8f4;color:#dffaff;border-radius:10px;cursor:pointer}.hud{top:68px;left:18px;right:18px;font-size:clamp(12px,2vw,20px);display:flex;flex-wrap:wrap;gap:8px}.overlay{position:absolute;inset:0;z-index:110;display:grid;place-items:center;background:#030b1bdc;backdrop-filter:blur(3px);padding:16px;text-align:center}.overlay[hidden]{display:none}.panel{max-width:460px;padding:22px;border:1px solid #5ce8f4;border-radius:16px;background:#12243a;color:#e7faff;box-shadow:0 0 35px #00ddff22}.panel h1{font-size:clamp(25px,5vw,40px);letter-spacing:.1em;color:#5ce8f4}.panel p{margin:16px 0}.panel button{background:#19617a;color:white;border:1px solid #8bf6ff;border-radius:9px;padding:10px 25px;font-weight:800;cursor:pointer}.hint{font-size:12px;color:#a7bed1}.back-link{top:14px;left:14px}@media(max-width:760px){.hud{top:56px;font-size:12px}.pause-btn{padding:7px}.ctrl-btn{width:60px;height:60px}.fire-btn{width:75px;height:75px}#controls{bottom:15px;padding:0 12px}}@media(prefers-reduced-motion:reduce){.overlay{backdrop-filter:none}}</style>
     <!-- Google Analytics -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-CCZ9JJGEDP"></script>
     <script>
@@ -106,7 +106,7 @@
 </head>
 <body>
     <a href="index.html" class="back-link">← HUB</a>
-    <div class="hud">SCORE: <span id="score">0</span></div>
+    <div class="hud">SCORE <span id="score">0</span> · BEST <span id="best">0</span> · WAVE <span id="wave">1</span> · LIVES <span id="lives">♥ ♥ ♥</span></div><button id="pause" class="pause-btn" type="button">Pause</button><div id="overlay" class="overlay"><div class="panel"><h1 id="title">SPACE DEBRIS</h1><p id="message">Destroy asteroids, clear waves, and survive.</p><button id="start" type="button">START GAME</button><p class="hint">← → / A D turn · ↑ / W thrust · Space fire · P pause · R restart</p></div></div>
     
     <canvas id="game"></canvas>
 
@@ -122,185 +122,49 @@
     </div>
 
     <script>
-        const canvas = document.getElementById('game');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 1000; canvas.height = 750;
-
-        let score = 0;
-        let ship = { x: 500, y: 375, a: -Math.PI/2, v: {x:0, y:0}, thrust: false, dead: false };
-        let asteroids = [];
-        let bullets = [];
-        let particles = [];
-        let keys = {};
-
-        function spawnAsteroid(x, y, r) {
-            asteroids.push({
-                x: x || Math.random()*canvas.width,
-                y: y || Math.random()*canvas.height,
-                r: r || 50,
-                v: {x: (Math.random()-0.5)*3, y: (Math.random()-0.5)*3},
-                verts: Math.floor(Math.random()*5)+8,
-                offsets: Array.from({length: 12}, () => 0.8 + Math.random()*0.4)
-            });
-        }
-
-        function init() {
-            for(let i=0; i<6; i++) spawnAsteroid();
-            setupControls();
-            loop();
-        }
-
-        function setupControls() {
-            const bind = (id, key) => {
-                const el = document.getElementById(id);
-                el.ontouchstart = (e) => { e.preventDefault(); keys[key] = true; if(key === ' ') shoot(); };
-                el.ontouchend = () => keys[key] = false;
-            };
-            bind('btn-left', 'ArrowLeft');
-            bind('btn-right', 'ArrowRight');
-            bind('btn-thrust', 'ArrowUp');
-            bind('btn-fire', ' ');
-
-            window.onkeydown = e => { keys[e.key] = true; if(e.key === ' ') shoot(); };
-            window.onkeyup = e => keys[e.key] = false;
-        }
-
-        function shoot() {
-            if(ship.dead) return;
-            bullets.push({
-                x: ship.x + Math.cos(ship.a)*20, 
-                y: ship.y + Math.sin(ship.a)*20, 
-                v: { x: ship.v.x + Math.cos(ship.a)*10, y: ship.v.y + Math.sin(ship.a)*10 }, 
-                life: 60
-            });
-        }
-
-        function explode(x, y, color, count) {
-            for(let i=0; i<count; i++) {
-                particles.push({x, y, v:{x:(Math.random()-0.5)*8, y:(Math.random()-0.5)*8}, life: 40, color});
-            }
-        }
-
-        function update() {
-            // Gamepad polling
-            const pads = navigator.getGamepads();
-            if (pads[0]) {
-                const p = pads[0];
-                if (Math.abs(p.axes[0]) > 0.1) ship.a += p.axes[0] * 0.07;
-                keys['ArrowUp'] = p.buttons[0].pressed || p.buttons[7].pressed;
-                if (p.buttons[2].pressed && !this.lastB2) { shoot(); this.lastB2 = true; } else if(!p.buttons[2].pressed) this.lastB2 = false;
-            }
-
-            if(!ship.dead) {
-                if(keys['ArrowLeft'] || keys['a']) ship.a -= 0.07;
-                if(keys['ArrowRight'] || keys['d']) ship.a += 0.07;
-                if(keys['ArrowUp'] || keys['w']) {
-                    ship.v.x += Math.cos(ship.a) * 0.25;
-                    ship.v.y += Math.sin(ship.a) * 0.25;
-                }
-                ship.x += ship.v.x; ship.y += ship.v.y;
-                ship.v.x *= 0.985; ship.v.y *= 0.985;
-                
-                if(ship.x < 0) ship.x = canvas.width; if(ship.x > canvas.width) ship.x = 0;
-                if(ship.y < 0) ship.y = canvas.height; if(ship.y > canvas.height) ship.y = 0;
-            }
-
-            bullets.forEach((b, i) => {
-                b.x += b.v.x; b.y += b.v.y; b.life--;
-                if(b.life <= 0) bullets.splice(i, 1);
-                if(b.x < 0) b.x = canvas.width; if(b.x > canvas.width) b.x = 0;
-                if(b.y < 0) b.y = canvas.height; if(b.y > canvas.height) b.y = 0;
-            });
-
-            asteroids.forEach((a, ai) => {
-                a.x += a.v.x; a.y += a.v.y;
-                if(a.x < -a.r) a.x = canvas.width+a.r; if(a.x > canvas.width+a.r) a.x = -a.r;
-                if(a.y < -a.r) a.y = canvas.height+a.r; if(a.y > canvas.height+a.r) a.y = -a.r;
-
-                if(!ship.dead && Math.hypot(ship.x - a.x, ship.y - a.y) < a.r + 5) {
-                    ship.dead = true;
-                    explode(ship.x, ship.y, '#00f2ff', 30);
-                    setTimeout(() => location.reload(), 2000);
-                }
-
-                bullets.forEach((b, bi) => {
-                    if(Math.hypot(b.x - a.x, b.y - a.y) < a.r) {
-                        bullets.splice(bi, 1);
-                        explode(a.x, a.y, '#00f2ff', 15);
-                        if(a.r > 20) {
-                            spawnAsteroid(a.x, a.y, a.r/2);
-                            spawnAsteroid(a.x, a.y, a.r/2);
-                        }
-                        asteroids.splice(ai, 1);
-                        score += 100;
-                        document.getElementById('score').innerText = score;
-                        if(asteroids.length < 4) spawnAsteroid();
-                    }
-                });
-            });
-
-            particles.forEach((p, i) => {
-                p.x += p.v.x; p.y += p.v.y; p.life--;
-                if(p.life <= 0) particles.splice(i, 1);
-            });
-        }
-
-        function draw() {
-            ctx.fillStyle = 'black'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Draw Stars
-            ctx.fillStyle = 'white';
-            for(let i=0; i<50; i++) {
-                const x = (Math.sin(i*123)*0.5+0.5)*canvas.width;
-                const y = (Math.cos(i*456)*0.5+0.5)*canvas.height;
-                ctx.globalAlpha = 0.2 + Math.random()*0.3;
-                ctx.fillRect(x, y, 2, 2);
-            }
-            ctx.globalAlpha = 1;
-
-            if(!ship.dead) {
-                ctx.strokeStyle = '#00f2ff'; ctx.lineWidth = 3;
-                ctx.shadowBlur = 10; ctx.shadowColor = '#00f2ff';
-                ctx.beginPath();
-                ctx.moveTo(ship.x + Math.cos(ship.a)*20, ship.y + Math.sin(ship.a)*20);
-                ctx.lineTo(ship.x + Math.cos(ship.a+2.6)*15, ship.y + Math.sin(ship.a+2.6)*15);
-                ctx.lineTo(ship.x + Math.cos(ship.a-2.6)*15, ship.y + Math.sin(ship.a-2.6)*15);
-                ctx.closePath(); ctx.stroke();
-                
-                if(keys['ArrowUp'] || keys['w']) {
-                    ctx.strokeStyle = '#ff4757'; ctx.shadowColor = '#ff4757';
-                    ctx.beginPath();
-                    ctx.moveTo(ship.x + Math.cos(ship.a+Math.PI)*12, ship.y + Math.sin(ship.a+Math.PI)*12);
-                    ctx.lineTo(ship.x + Math.cos(ship.a+Math.PI+0.5)*20, ship.y + Math.sin(ship.a+Math.PI+0.5)*20);
-                    ctx.lineTo(ship.x + Math.cos(ship.a+Math.PI-0.5)*20, ship.y + Math.sin(ship.a+Math.PI-0.5)*20);
-                    ctx.stroke();
-                }
-                ctx.shadowBlur = 0;
-            }
-
-            ctx.strokeStyle = '#00f2ff'; ctx.lineWidth = 2;
-            asteroids.forEach(a => {
-                ctx.beginPath();
-                for(let i=0; i<a.verts; i++) {
-                    const ang = (i/a.verts)*Math.PI*2;
-                    const r = a.r * a.offsets[i % 12];
-                    ctx[i===0?'moveTo':'lineTo'](a.x + Math.cos(ang)*r, a.y + Math.sin(ang)*r);
-                }
-                ctx.closePath(); ctx.stroke();
-            });
-
-            ctx.fillStyle = 'white';
-            bullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI*2); ctx.fill(); });
-
-            particles.forEach(p => {
-                ctx.fillStyle = p.color; ctx.globalAlpha = p.life/40;
-                ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill();
-            });
-            ctx.globalAlpha = 1;
-        }
-
-        function loop() { update(); draw(); requestAnimationFrame(loop); }
-        init();
-    </script>
-</body>
+(()=>{
+"use strict";
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d"),W=1000,H=750,TAU=Math.PI*2,$=id=>document.getElementById(id),random=(a,b)=>a+Math.random()*(b-a),wrap=(v,max)=>(v%max+max)%max;
+canvas.width=W;canvas.height=H;
+const hud={score:$("score"),best:$("best"),wave:$("wave"),lives:$("lives")},overlay=$("overlay"),pause=$("pause"),start=$("start");let best=0;try{best=Number(localStorage.getItem("k2-space-debris-best"))||0}catch{}
+let state="menu",score=0,wave=1,lives=3,ship,rocks=[],bullets=[],particles=[],keys={left:false,right:false,up:false,fire:false},stars=Array.from({length:115},()=>({x:random(0,W),y:random(0,H),a:random(.2,.8),p:random(0,TAU)})),time=0,last=0,shotDelay=0,respawn=0,waveDelay=-1,shake=0;
+const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const distance=(a,b)=>Math.hypot(Math.min(Math.abs(a.x-b.x),W-Math.abs(a.x-b.x)),Math.min(Math.abs(a.y-b.y),H-Math.abs(a.y-b.y)));
+function sync(){hud.score.textContent=score.toLocaleString();hud.best.textContent=best.toLocaleString();hud.wave.textContent=wave;hud.lives.textContent="♥ ".repeat(lives).trim()||"—"}
+function show(title,message,label){$("title").textContent=title;$("message").textContent=message;start.textContent=label;overlay.hidden=false}
+function newShip(){return{x:W/2,y:H/2,a:-Math.PI/2,vx:0,vy:0,inv:2.4,thrust:false}}
+function rock(x,y,r){const a=random(0,TAU),n=Math.floor(random(9,14));rocks.push({x,y,r,vx:Math.cos(a)*random(.7,2)+random(-.3,.3),vy:Math.sin(a)*random(.7,2)+random(-.3,.3),angle:random(0,TAU),spin:random(-.018,.018),edges:Array.from({length:n},()=>random(.72,1.15))})}
+function spawnWave(){for(let i=0;i<Math.min(5+wave,16);i++){let x,y,t=0;do{x=random(0,W);y=random(0,H);t++}while(distance({x,y},ship)<220&&t<50);rock(x,y,random(40,58))}waveDelay=-1;ship.inv=Math.max(ship.inv,1.5)}
+function reset(){score=0;lives=3;wave=1;time=0;shotDelay=0;respawn=0;shake=0;rocks=[];bullets=[];particles=[];ship=newShip();for(const k in keys)keys[k]=false;spawnWave();state="playing";overlay.hidden=true;pause.textContent="Pause";sync()}
+function togglePause(){if(state==="playing"){state="paused";show("PAUSED","Your game is paused.","RESUME");pause.textContent="Resume"}else if(state==="paused"){state="playing";overlay.hidden=true;pause.textContent="Pause";last=performance.now()}}
+function burst(x,y,color,count,power=1){for(let i=0;i<(reduced?Math.ceil(count/3):count);i++){const a=random(0,TAU),s=random(.6,5)*power,life=random(14,37);particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life,max:life,color})}if(particles.length>500)particles.splice(0,particles.length-500)}
+function shoot(){if(state!=="playing"||respawn>0||shotDelay>0)return;shotDelay=.14;const dx=Math.cos(ship.a),dy=Math.sin(ship.a);bullets.push({x:wrap(ship.x+dx*20,W),y:wrap(ship.y+dy*20,H),vx:ship.vx+dx*11,vy:ship.vy+dy*11,life:.95});if(bullets.length>40)bullets.shift();burst(ship.x+dx*22,ship.y+dy*22,"#fff0a2",3,.35)}
+function destroy(i){const a=rocks[i];rocks.splice(i,1);score+=a.r>34?20:a.r>19?50:100;if(score>best){best=score;try{localStorage.setItem("k2-space-debris-best",String(best))}catch{}}burst(a.x,a.y,"#8feafa",Math.round(a.r*.8),a.r/26);shake=Math.min(9,shake+a.r/18);if(a.r>19){for(let j=0;j<2;j++){rock(a.x,a.y,a.r*.55);const b=rocks[rocks.length-1],theta=j*Math.PI+random(-.4,.4);b.vx+=Math.cos(theta)*1.4;b.vy+=Math.sin(theta)*1.4}}sync()}
+function hit(){if(ship.inv>0||respawn>0)return;lives--;burst(ship.x,ship.y,"#63eaff",55,2);shake=12;sync();if(!lives){state="over";show("GAME OVER","Score: "+score.toLocaleString()+" · Wave "+wave+" · Best: "+best.toLocaleString(),"PLAY AGAIN");pause.textContent="Pause"}else{ship=newShip();respawn=1.25;ship.inv=3.3}}
+function gamepad(){const p=navigator.getGamepads?.()?.find(Boolean);if(!p)return 0;const a=Math.abs(p.axes[0]||0)>.17?p.axes[0]:0;return a}
+function tick(dt){const step=dt*60;time+=dt;shotDelay=Math.max(0,shotDelay-dt);respawn=Math.max(0,respawn-dt);ship.inv=Math.max(0,ship.inv-dt);shake*=Math.pow(.85,step);const p=navigator.getGamepads?.()?.find(Boolean),turn=(keys.right?1:0)-(keys.left?1:0)+gamepad();ship.a+=turn*.075*step;if(keys.fire||p?.buttons[2]?.pressed||p?.buttons[1]?.pressed)shoot();ship.thrust=keys.up||!!p?.buttons[0]?.pressed||!!p?.buttons[7]?.pressed;
+if(!respawn){if(ship.thrust){ship.vx+=Math.cos(ship.a)*.24*step;ship.vy+=Math.sin(ship.a)*.24*step;if(Math.random()<Math.min(1,step))burst(ship.x-Math.cos(ship.a)*17,ship.y-Math.sin(ship.a)*17,"#ffac69",2,.55)}const drag=Math.pow(.991,step);ship.vx*=drag;ship.vy*=drag;const speed=Math.hypot(ship.vx,ship.vy);if(speed>8){ship.vx*=8/speed;ship.vy*=8/speed}ship.x=wrap(ship.x+ship.vx*step,W);ship.y=wrap(ship.y+ship.vy*step,H)}
+for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx*step;p.y+=p.vy*step;p.life-=step;if(p.life<=0)particles.splice(i,1)}
+for(let i=bullets.length-1;i>=0;i--){const b=bullets[i];b.x=wrap(b.x+b.vx*step,W);b.y=wrap(b.y+b.vy*step,H);b.life-=dt;if(b.life<=0)bullets.splice(i,1)}
+for(const a of rocks){a.x=wrap(a.x+a.vx*step,W);a.y=wrap(a.y+a.vy*step,H);a.angle+=a.spin*step}
+for(let i=bullets.length-1;i>=0;i--){const b=bullets[i];if(!b)continue;for(let j=rocks.length-1;j>=0;j--)if(distance(b,rocks[j])<rocks[j].r*.85){bullets.splice(i,1);destroy(j);break}}
+if(!respawn&&ship.inv<=0)for(const a of rocks)if(distance(ship,a)<a.r*.78+10){hit();break}
+if(rocks.length===0&&waveDelay<0)waveDelay=1.5;if(waveDelay>=0){waveDelay-=dt;if(waveDelay<0){wave++;spawnWave();sync()}}
+}
+function clones(obj,r,fn){for(const ox of [-W,0,W])for(const oy of [-H,0,H]){const x=obj.x+ox,y=obj.y+oy;if(x>=-r&&x<=W+r&&y>=-r&&y<=H+r)fn(x,y)}}
+function draw(){ctx.fillStyle="#020713";ctx.fillRect(0,0,W,H);for(const s of stars){ctx.globalAlpha=s.a*(.8+.2*Math.sin(time*1.7+s.p));ctx.fillStyle="white";ctx.fillRect(s.x,s.y,1.5,1.5)}ctx.globalAlpha=1;ctx.save();if(!reduced&&shake>.2)ctx.translate(random(-shake,shake),random(-shake,shake));ctx.lineJoin="round";
+for(const a of rocks){ctx.strokeStyle=a.r>20?"#8de5f4":"#c4eaff";ctx.lineWidth=2;ctx.shadowColor="#4acfff";ctx.shadowBlur=reduced?0:8;clones(a,a.r,(x,y)=>{ctx.beginPath();for(let i=0;i<a.edges.length;i++){const ang=i/a.edges.length*TAU+a.angle,r=a.r*a.edges[i],px=x+Math.cos(ang)*r,py=y+Math.sin(ang)*r;if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py)}ctx.closePath();ctx.stroke()})}
+ctx.shadowBlur=0;ctx.fillStyle="#fff4ae";for(const b of bullets)clones(b,5,(x,y)=>{ctx.beginPath();ctx.arc(x,y,3,0,TAU);ctx.fill()});
+for(const p of particles){ctx.globalAlpha=Math.max(0,p.life/p.max);ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,2.5,2.5)}ctx.globalAlpha=1;
+if(!respawn&&(ship.inv<=0||Math.floor(time*9)%2===0)){ctx.strokeStyle="#5de9f4";ctx.lineWidth=3;ctx.shadowBlur=reduced?0:14;ctx.shadowColor="#5de9f4";clones(ship,28,(x,y)=>{ctx.save();ctx.translate(x,y);ctx.rotate(ship.a);ctx.beginPath();ctx.moveTo(22,0);ctx.lineTo(-15,-13);ctx.lineTo(-9,0);ctx.lineTo(-15,13);ctx.closePath();ctx.stroke();if(ship.thrust){ctx.strokeStyle="#ffba6f";ctx.beginPath();ctx.moveTo(-13,-7);ctx.lineTo(-random(25,40),0);ctx.lineTo(-13,7);ctx.stroke()}ctx.restore()})}ctx.restore();
+if(state==="playing"&&waveDelay>=0){ctx.fillStyle="#e6faff";ctx.textAlign="center";ctx.font="bold 36px system-ui";ctx.fillText("WAVE "+(wave+1),W/2,150);ctx.textAlign="left"}}
+function loop(now){const dt=Math.min((now-last)/1000||0,.04);last=now;if(state==="playing")tick(dt);draw();requestAnimationFrame(loop)}
+const map={ArrowLeft:"left",a:"left",A:"left",ArrowRight:"right",d:"right",D:"right",ArrowUp:"up",w:"up",W:"up"," ":"fire"};
+window.addEventListener("keydown",e=>{if(map[e.key]){e.preventDefault();keys[map[e.key]]=true}if(e.repeat)return;if(e.key==="p"||e.key==="P"||e.key==="Escape"){e.preventDefault();togglePause()}if(e.key==="r"||e.key==="R"){e.preventDefault();reset()}if(e.key==="Enter"&&state!=="playing")start.click()});
+window.addEventListener("keyup",e=>{if(map[e.key]){e.preventDefault();keys[map[e.key]]=false}});
+window.addEventListener("blur",()=>{for(const k in keys)keys[k]=false;if(state==="playing")togglePause()});document.addEventListener("visibilitychange",()=>{if(document.hidden&&state==="playing")togglePause()});
+for(const [id,key] of [["btn-left","left"],["btn-right","right"],["btn-thrust","up"],["btn-fire","fire"]]){const el=$(id);el.addEventListener("pointerdown",e=>{e.preventDefault();el.setPointerCapture(e.pointerId);keys[key]=true});for(const ev of ["pointerup","pointercancel","lostpointercapture"])el.addEventListener(ev,()=>keys[key]=false);el.addEventListener("contextmenu",e=>e.preventDefault())}
+start.addEventListener("click",()=>state==="paused"?togglePause():reset());pause.addEventListener("click",togglePause);sync();last=performance.now();requestAnimationFrame(loop);
+})();
+</script></body>
 </html>
