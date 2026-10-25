@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f5f7fa" />
+  <meta name="description" content="Solo timed logo matching with NFL, NBA, MLB, NHL, CFB, and CBB." />
+  <title>Logo Match — Sports Spot-It Challenge</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fa; --panel: #fff; --ink: #17243a; --muted: #64738a;
+      --line: #dfe5ec; --accent: #204d75; --accent-dark: #123755;
+      --success: #277452; --danger: #b34242; --warn: #a16a22;
+      --shadow: 0 8px 28px rgba(26,49,79,.06);
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+      font: 15px/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    button, select, input { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .58; }
+    button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible {
+      outline: 3px solid #4b7eac; outline-offset: 3px;
+    }
+    .shell { max-width: 1150px; margin: 0 auto; padding: 16px 20px 35px; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 15px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark { position:relative; width: 40px; height: 39px; flex:none; }
+    .brand-mark:before,.brand-mark:after { content:""; position:absolute; width: 30px; height: 30px; border: 2px solid #39638a;
+      background: #fff; border-radius: 50%; box-shadow: 0 2px 5px #25446120; }
+    .brand-mark:before { top:1px;left:1px; }
+    .brand-mark:after { bottom:0;right:0; background:#ecf3f9; }
+    .brand-mark b { position:absolute; z-index:1; top:13px; left:16px; width:9px;height:9px;background:#204d75;border-radius:50%; }
+    h1,h2,h3,p { margin: 0; }
+    h1 { font-weight: 780; letter-spacing: -.055em; font-size: clamp(23px,3.2vw,31px); line-height:1.08; }
+    .eyebrow { font-size:10px; letter-spacing:.13em; font-weight:850; text-transform:uppercase; color: var(--muted); }
+    .tagline { font-size:12px; color:var(--muted); margin-top: 4px; }
+    .top-actions { display:flex; gap:8px; align-items:center; }
+    .mini-btn, .outline-btn { border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:9px;
+      padding:9px 12px; font-weight:700; font-size:12px; white-space:nowrap; }
+    .mini-btn:hover,.outline-btn:hover { border-color:#94a8bd; background:#f8fbfd; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); }
+    .settings { display:grid; grid-template-columns:minmax(0, 1.6fr) minmax(120px,.55fr) minmax(110px,.45fr) auto;
+      gap:15px; padding:15px; align-items:end; margin-bottom:12px; }
+    .group-label { display:block; margin:0 0 7px; font-size:10px; line-height:1; color:var(--muted);
+      text-transform:uppercase; font-weight:850; letter-spacing:.1em; }
+    .league-tabs { display:flex; gap:5px; flex-wrap:wrap; }
+    .league-tab { flex:1; min-width:48px; padding:9px 9px; border:1px solid var(--line); background:#f8fafc;
+      border-radius:8px; font-size:12px; font-weight:850; color:#516078; }
+    .league-tab[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .league-tab:hover:not([aria-pressed="true"]):not(:disabled) { background:#eaf1f7; }
+    select { width:100%; border:1px solid var(--line); color:var(--ink); background:#f8fafc;
+      padding:9px 12px; border-radius:8px; height:39px; font-size:12px; font-weight:700; }
+    .primary { border:0; padding:10px 22px; height:39px; background:var(--accent); color:white;
+      border-radius:9px; font-weight:850; font-size:13px; white-space:nowrap; }
+    .primary:hover:not(:disabled) { background:var(--accent-dark); }
+    .stats { display:grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+    .stat { padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:6px; }
+    .stat-value { font-size:clamp(23px,3vw,32px); font-weight:850; line-height:1; letter-spacing:-.045em; font-variant-numeric:tabular-nums; }
+    .stat-value.low { color:var(--danger); }
+    .stat .eyebrow { margin-bottom:3px; }
+    .stat-note { font-size:11px; color:var(--muted); text-align:right; }
+    .stat-icon { color:#8fa0b2; font-size:20px; }
+    .timer-rail { margin:-3px 0 12px; width:100%; height:5px; background:#e4e9ef; overflow:hidden; border-radius:10px; }
+    .timer-fill { height:100%; width:100%; background:#345e82; border-radius:10px; transition:width .12s linear, background .2s; }
+    .timer-fill.low { background:var(--danger); }
+    .arena { overflow:hidden; }
+    .arena-head { padding:12px 18px; display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--line); }
+    .arena-title { display:flex; align-items:center; gap:10px; }
+    .round-badge { background:#edf2f7; color:#355777; border-radius:6px; padding:5px 8px; font-size:11px; font-weight:850; white-space:nowrap; }
+    .instruction { font-size:13px; font-weight:750; }
+    .sub-instruction { color:var(--muted); font-size:11px; margin-top:2px; }
+    .arena-actions { display:flex; align-items:center; gap:8px; }
+    .arena-actions button { padding:7px 12px; }
+    .card-stage { display:flex; align-items:center; justify-content:space-evenly; gap:clamp(10px,2.5vw,38px);
+      padding:clamp(18px,3.5vw,33px) 23px; min-height:435px; position:relative;
+      background: radial-gradient(ellipse at 50% 40%,#fff 5%,#f8fafc 97%); }
+    .play-card { --card-size:clamp(245px,37vw,405px); width:var(--card-size);height:var(--card-size);
+      flex:0 1 var(--card-size); border:3px solid #d1dce7; border-radius:50%;position:relative;
+      background:radial-gradient(circle at 42% 32%,#fff 10%,#f8fafc 78%,#eef3f7 100%);
+      box-shadow:0 5px 19px #38567414,inset 0 0 0 8px #fff; overflow:hidden;
+      transition: border-color .18s, box-shadow .18s; }
+    .play-card.match { border-color:#4b9072; box-shadow:0 0 0 6px #e4f2e9; }
+    .symbol { position:absolute; display:flex; align-items:center; justify-content:center;flex-direction:column;gap:0;
+      padding:3px; border:2px solid transparent; border-radius:50%; background:transparent;
+      transform:translate(-50%,-50%) rotate(var(--rot)); transition:background .12s,border-color .12s,scale .12s;
+      min-width: 36px; min-height:36px; touch-action:manipulation; }
+    .symbol img { width:88%;height:88%; max-height:100%; object-fit:contain; pointer-events:none;
+      filter:drop-shadow(0 2px 1px #00000012); }
+    .symbol:hover:not(:disabled) { background:#edf3f9; border-color:#b6cbdc; scale:1.07; z-index:2; }
+    .symbol.miss { background:#fce9e7; border-color:#d69a94; }
+    .symbol.found { background:#e4f1e8;border-color:#71a58a;scale:1.09; z-index:3; }
+    .symbol .fallback { display:flex; flex-direction:column;align-items:center;justify-content:center;
+      height:84%;width:85%;font-size:clamp(11px,1.5vw,17px);font-weight:950;
+      letter-spacing:-.05em; color:var(--accent-dark); line-height:1; }
+    .symbol .fallback em { font-style:normal; color:var(--muted); font-size:9px; margin-top:3px; }
+    .symbol .label-text { position:absolute;bottom:-1px; left:0; right:0; color:#263a51;
+      font-size:clamp(8px, .93vw, 11px); font-weight:900; line-height:1;text-align:center;
+      background:#ffffffed; border-radius:4px; padding:1px; letter-spacing:-.015em; }
+    .symbol[data-label="false"] .label-text { display:none; }
+    .vs { z-index:1; flex:0 0 auto; display:flex;align-items:center;justify-content:center;
+      width:39px;height:39px;border:1px solid var(--line);border-radius:50%; background:white;
+      font-size:11px; color:var(--muted); font-weight:900; box-shadow:0 2px 8px #112d4b12; }
+    .stage-shade { position:absolute; inset:0; z-index:6; background:#f8fafce8; display:flex;
+      flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:10px; padding:20px; }
+    .stage-shade[hidden] { display:none; }
+    .shade-icon { font-size:38px; line-height:1; }
+    .stage-shade h2 { font-size:clamp(25px,5vw,37px); font-weight:850; letter-spacing:-.045em; }
+    .stage-shade p { color:var(--muted); max-width:390px; font-size:13px; }
+    .stage-shade .primary { margin-top:5px; }
+    .load-spinner { width:36px;height:36px;border:3px solid #d3dfeb;border-top-color:#28567c;border-radius:50%;animation:spin .7s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .result-extra { display:flex;gap:14px;flex-wrap:wrap;justify-content:center;color:var(--muted);font-size:12px; }
+    .result-extra b { color:var(--ink); }
+    .arena-foot { border-top:1px solid var(--line); padding:10px 17px; display:flex;align-items:center;justify-content:space-between;gap:12px; flex-wrap:wrap; }
+    .foot-message { color:var(--muted); font-size:12px; font-weight:650; }
+    .foot-message.good { color:var(--success); }
+    .foot-message.bad { color:var(--danger); }
+    .foot-controls { display:flex;gap:12px;align-items:center;flex-wrap:wrap; }
+    .check { display:flex; align-items:center; gap:6px; color:var(--muted);font-size:11px;font-weight:700;white-space:nowrap; }
+    .check input { accent-color:var(--accent); }
+    .footer-note { display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;
+      color:#8793a4;font-size:11px;flex-wrap:wrap; }
+    dialog { border:1px solid var(--line);padding:0;border-radius:16px;box-shadow:0 20px 60px #10263d45;
+      width:min(94vw,490px); max-height:80vh; color:var(--ink); }
+    dialog::backdrop { background:#14243980; }
+    .dialog-body { padding:24px; }
+    .dialog-body h2 { font-size:24px;letter-spacing:-.035em;margin-bottom:12px; }
+    .dialog-body p { margin:10px 0;color:#475870;font-size:14px; }
+    .dialog-body ul { padding-left:20px; color:#475870; }
+    .dialog-body li { margin:9px 0; }
+    .dialog-foot { display:flex;justify-content:flex-end;margin-top:20px; }
+    .sr-only { position:absolute; width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
+    @media(max-width:960px) {
+      .settings { grid-template-columns: 1fr 1fr 1fr; }
+      .settings .league-group { grid-column:1/-1; }
+      .settings .start-group { display:flex;align-items:flex-end; }
+      .settings .start-group .primary { width:100%; }
+      .play-card { --card-size: min(39.5vw,360px); }
+      .card-stage { min-height:360px; gap:15px; }
+    }
+    @media(max-width:660px) {
+      .shell { padding:12px 10px 26px; }
+      .topbar { padding:0 4px; }
+      .brand { gap:8px; }
+      .brand-mark { width:32px;height:32px; }
+      .brand-mark:before,.brand-mark:after { width:26px;height:26px; }
+      .brand-mark b {top:12px;left:13px;width:7px;height:7px;}
+      h1 { font-size:24px; }
+      .tagline { font-size:10px; }
+      .top-actions { gap:5px; }
+      .top-actions .mini-btn { padding:7px 8px; font-size:11px; }
+      .settings { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; padding:10px; }
+      .settings .league-group { grid-column:1/-1; }
+      .settings .start-group { grid-column:3; }
+      .league-tab {padding:8px 4px; font-size:11px;}
+      .settings select,.settings .primary { padding:7px 5px;font-size:11px; }
+      .stats { gap:5px; }
+      .stat { display:block; padding:10px 7px; text-align:center; }
+      .stat .eyebrow { font-size:9px; }
+      .stat-value {font-size:24px;}
+      .stat-note {display:none;}
+      .arena-head { padding:9px 12px; }
+      .instruction {font-size:12px;}
+      .sub-instruction {font-size:10px;}
+      .arena-actions {gap:4px;}
+      .arena-actions button {padding:7px 9px;font-size:11px;}
+      .card-stage { flex-direction:column; min-height:0; gap:7px; padding:12px 8px; }
+      .play-card { --card-size:min(83vw,315px); flex:0 0 var(--card-size); }
+      .vs {width:24px;height:24px;font-size:9px; margin:-2px 0;}
+      .arena-foot { padding:9px 10px; }
+      .footer-note { padding:0 4px; }
+      body.in-game .shell { padding-top:5px; }
+      body.in-game .topbar, body.in-game .settings, body.in-game .footer-note { display:none; }
+      body.in-game .stats { margin-bottom:6px; }
+      body.in-game .stat { padding:7px 5px; }
+      body.in-game .timer-rail {margin-bottom:6px;}
+      body.in-game .card-stage { padding:6px 8px;gap:3px; }
+      body.in-game .play-card { --card-size:min(68vw,266px); }
+      body.in-game .vs { width:18px;height:18px; margin:0; }
+      body.in-game .arena-foot { padding:7px 10px; }
+    }
+    @media(prefers-reduced-motion:reduce) {*,*::before,*::after {animation-duration:.01ms!important;transition-duration:.01ms!important;} }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark" aria-hidden="true"><b></b></div>
+      <div><div class="eyebrow">Sports arcade</div><h1>Logo Match</h1>
+        <div class="tagline">Spot the one team logo on both cards.</div></div>
+    </div>
+    <div class="top-actions">
+      <button class="mini-btn" id="rulesBtn" type="button">How to play</button>
+      <button class="mini-btn" id="soundBtn" type="button" aria-pressed="false" aria-label="Turn sound on">Sound off</button>
+    </div>
+  </header>
+
+  <section class="settings panel" aria-label="Game settings">
+    <div class="league-group">
+      <span class="group-label">League</span>
+      <div class="league-tabs" role="group" aria-label="Choose a league">
+        <button type="button" class="league-tab" data-league="ALL" aria-pressed="true">ALL 6</button>
+        <button type="button" class="league-tab" data-league="PRO" aria-pressed="false">CORE 4</button>
+        <button type="button" class="league-tab" data-league="NFL" aria-pressed="false">NFL</button>
+        <button type="button" class="league-tab" data-league="NBA" aria-pressed="false">NBA</button>
+        <button type="button" class="league-tab" data-league="MLB" aria-pressed="false">MLB</button>
+        <button type="button" class="league-tab" data-league="NHL" aria-pressed="false">NHL</button>
+        <button type="button" class="league-tab" data-league="CFB" aria-pressed="false">CFB</button>
+        <button type="button" class="league-tab" data-league="CBB" aria-pressed="false">CBB</button>
+      </div>
+    </div>
+    <div>
+      <label class="group-label" for="difficulty">Logos / card</label>
+      <select id="difficulty">
+        <option value="4">4 · Rookie</option>
+        <option value="6" selected>6 · Pro</option>
+        <option value="8">8 · All-Star</option>
+      </select>
+    </div>
+    <div>
+      <label class="group-label" for="duration">Timer</label>
+      <select id="duration">
+        <option value="30">30 seconds</option>
+        <option value="60" selected>60 seconds</option>
+        <option value="90">90 seconds</option>
+        <option value="120">120 seconds</option>
+      </select>
+    </div>
+    <div class="start-group"><button class="primary" id="startBtn" type="button">Start game</button></div>
+  </section>
+
+  <section class="stats" aria-label="Current game stats">
+    <div class="stat panel"><div><div class="eyebrow">Time left</div><div id="timeValue" class="stat-value">1:00</div></div><span class="stat-icon" aria-hidden="true">◷</span></div>
+    <div class="stat panel"><div><div class="eyebrow">Matches</div><div id="scoreValue" class="stat-value">0</div></div><div class="stat-note">Correct<br />pairs</div></div>
+    <div class="stat panel"><div><div class="eyebrow">Streak</div><div id="streakValue" class="stat-value">0</div></div><div class="stat-note">In a<br />row</div></div>
+    <div class="stat panel"><div><div class="eyebrow">Personal best</div><div id="bestValue" class="stat-value">—</div></div><div class="stat-note">For these<br />settings</div></div>
+  </section>
+  <div class="timer-rail" role="progressbar" aria-label="Time remaining" aria-valuemin="0" aria-valuemax="60" aria-valuenow="60" id="timerRail"><div class="timer-fill" id="timerFill"></div></div>
+
+  <main class="arena panel">
+    <div class="arena-head">
+      <div class="arena-title">
+        <span class="round-badge" id="roundBadge">ROUND 01</span>
+        <div><div class="instruction">Find the matching team</div>
+          <div class="sub-instruction" id="poolInfo">Six-league team catalog</div></div>
+      </div>
+      <div class="arena-actions">
+        <button class="outline-btn" type="button" id="quitBtn" disabled>End</button>
+        <button class="outline-btn" type="button" id="pauseBtn" disabled>Pause</button>
+      </div>
+    </div>
+    <div class="card-stage" id="stage">
+      <div class="play-card" id="cardLeft" aria-label="Left card"></div>
+      <span class="vs" aria-hidden="true">VS</span>
+      <div class="play-card" id="cardRight" aria-label="Right card"></div>
+      <div class="stage-shade" id="shade">
+        <div class="shade-icon" id="shadeIcon" aria-hidden="true">◎</div>
+        <h2 id="shadeTitle">One logo. Two cards.</h2>
+        <p id="shadeText">Find the only matching team logo between the two cards. Tap it on either card to score before time runs out.</p>
+        <div class="result-extra" id="resultExtra" hidden></div>
+        <button class="primary" id="shadeBtn" type="button">Let's play</button>
+      </div>
+    </div>
+    <div class="arena-foot">
+      <span class="foot-message" id="feedback" aria-live="polite">Pick a league and press Start game.</span>
+      <div class="foot-controls">
+        <label class="check"><input type="checkbox" id="labelsToggle" /> Team abbreviations</label>
+        <span class="check" id="missInfo">Misses: <b id="missValue">0</b></span>
+      </div>
+    </div>
+  </main>
+  <div class="footer-note"><span>Unofficial fan-made game. Team marks belong to their respective owners.</span>
+    <span id="logoStatus">Logo images from ESPN CDN · abbreviation fallback if unavailable</span></div>
+</div>
+
+<dialog id="rulesDialog" aria-labelledby="rulesHeading">
+  <div class="dialog-body"><div class="eyebrow">Game guide</div><h2 id="rulesHeading">How to play</h2>
+    <p>Each round shows two circular cards. <strong>Exactly one team logo appears on both.</strong> Select that logo on either card to score a match.</p>
+    <ul>
+      <li><strong>ALL 6:</strong> Mix every league. Each card includes as many different leagues as its chosen logo count allows.</li>
+      <li><strong>CORE 4:</strong> NFL, NBA, MLB and NHL only.</li>
+      <li><strong>Single league:</strong> Pick NFL, NBA, MLB, NHL, college football (CFB) or Division I men’s college basketball (CBB). CFB includes ESPN-mapped FBS and FCS teams; CBB uses the 2025–26 Division I field.</li>
+      <li><strong>Difficulty:</strong> 4, 6, or 8 logos on each card. More logos make matching harder.</li>
+      <li><strong>Timer:</strong> Score as many matches as you can in 30–120 seconds. Wrong taps count as misses and cost 1 second.</li>
+      <li><strong>Fair timer:</strong> The countdown pauses briefly while the next pair of logos is prepared, and you can manually pause the game.</li>
+    </ul>
+    <p>High scores are saved in this browser separately for each league, difficulty and timer combination. Logo images need internet access; abbreviations are used if they cannot load.</p>
+    <div class="dialog-foot"><button class="primary" id="closeRulesBtn" type="button">Close</button></div>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  'use strict';
+
+  // Explicit teams avoid unreliable live ESPN API/CORS requests.
+  // Item format: "team display name|ESPN logo slug|optional alternative slugs".
+  const RAW = {
+    NFL: [
+      'Arizona Cardinals|ari','Atlanta Falcons|atl','Baltimore Ravens|bal','Buffalo Bills|buf',
+      'Carolina Panthers|car','Chicago Bears|chi','Cincinnati Bengals|cin','Cleveland Browns|cle',
+      'Dallas Cowboys|dal','Denver Broncos|den','Detroit Lions|det','Green Bay Packers|gb',
+      'Houston Texans|hou','Indianapolis Colts|ind','Jacksonville Jaguars|jax','Kansas City Chiefs|kc',
+      'Las Vegas Raiders|lv','Los Angeles Chargers|lac','Los Angeles Rams|lar','Miami Dolphins|mia',
+      'Minnesota Vikings|min','New England Patriots|ne','New Orleans Saints|no','New York Giants|nyg',
+      'New York Jets|nyj','Philadelphia Eagles|phi','Pittsburgh Steelers|pit','San Francisco 49ers|sf',
+      'Seattle Seahawks|sea','Tampa Bay Buccaneers|tb','Tennessee Titans|ten','Washington Commanders|wsh'
+    ],
+    NBA: [
+      'Atlanta Hawks|atl','Boston Celtics|bos','Brooklyn Nets|bkn','Charlotte Hornets|cha',
+      'Chicago Bulls|chi','Cleveland Cavaliers|cle','Dallas Mavericks|dal','Denver Nuggets|den',
+      'Detroit Pistons|det','Golden State Warriors|gs|gsw','Houston Rockets|hou','Indiana Pacers|ind',
+      'Los Angeles Clippers|lac','Los Angeles Lakers|lal','Memphis Grizzlies|mem','Miami Heat|mia',
+      'Milwaukee Bucks|mil','Minnesota Timberwolves|min','New Orleans Pelicans|no|nop','New York Knicks|ny|nyk',
+      'Oklahoma City Thunder|okc','Orlando Magic|orl','Philadelphia 76ers|phi','Phoenix Suns|phx',
+      'Portland Trail Blazers|por','Sacramento Kings|sac','San Antonio Spurs|sa|sas',
+      'Toronto Raptors|tor','Utah Jazz|utah|uta','Washington Wizards|wsh'
+    ],
+    MLB: [
+      'Arizona Diamondbacks|ari','Athletics|oak|ath','Atlanta Braves|atl','Baltimore Orioles|bal',
+      'Boston Red Sox|bos','Chicago Cubs|chc','Chicago White Sox|chw','Cincinnati Reds|cin',
+      'Cleveland Guardians|cle','Colorado Rockies|col','Detroit Tigers|det','Houston Astros|hou',
+      'Kansas City Royals|kc','Los Angeles Angels|laa','Los Angeles Dodgers|lad','Miami Marlins|mia',
+      'Milwaukee Brewers|mil','Minnesota Twins|min','New York Mets|nym','New York Yankees|nyy',
+      'Philadelphia Phillies|phi','Pittsburgh Pirates|pit','San Diego Padres|sd','San Francisco Giants|sf',
+      'Seattle Mariners|sea','St. Louis Cardinals|stl','Tampa Bay Rays|tb','Texas Rangers|tex',
+      'Toronto Blue Jays|tor','Washington Nationals|wsh'
+    ],
+    NHL: [
+      'Anaheim Ducks|ana','Boston Bruins|bos','Buffalo Sabres|buf','Calgary Flames|cgy',
+      'Carolina Hurricanes|car','Chicago Blackhawks|chi','Colorado Avalanche|col','Columbus Blue Jackets|cbj',
+      'Dallas Stars|dal','Detroit Red Wings|det','Edmonton Oilers|edm','Florida Panthers|fla',
+      'Los Angeles Kings|la|lak','Minnesota Wild|min','Montreal Canadiens|mtl','Nashville Predators|nsh',
+      'New Jersey Devils|nj|njd','New York Islanders|nyi','New York Rangers|nyr','Ottawa Senators|ott',
+      'Philadelphia Flyers|phi','Pittsburgh Penguins|pit','San Jose Sharks|sj|sjs','Seattle Kraken|sea',
+      'St. Louis Blues|stl','Tampa Bay Lightning|tb|tbl','Toronto Maple Leafs|tor',
+      'Utah Mammoth|utah|uta','Vancouver Canucks|van','Vegas Golden Knights|vgk',
+      'Washington Capitals|wsh','Winnipeg Jets|wpg'
+    ]
+  };
+  // Embedded college-team snapshots; ESPN NCAA numeric IDs. No CORS API requests.
+  // College basketball: 2025–26 Division I teams; football: mapped FBS/FCS programs.
+  RAW.CFB = ["Abilene Christian Wildcats|2000","Alabama A&M Bulldogs|2010","Alabama State Hornets|2011","Albany State University|2013","Alcorn State Braves|2016","App State Mountaineers|2026","Arizona State Sun Devils|9","Arkansas State Red Wolves|2032","Auburn Tigers|2","Ball State Cardinals|2050","Baylor Bears|239","Bethune-Cookman Wildcats|2065","Boise State Broncos|68","Boston College Eagles|103","Bowling Green Falcons|189","BYU Cougars|252","Brown Bears|225","Bryant Bulldogs|2803","Bucknell Bison|2083","Cal Poly Mustangs|13","Fresno State Bulldogs|278","Campbell Fighting Camels|2097","Central Connecticut Blue Devils|2115","Central Michigan Chippewas|2117","Clemson Tigers|228","Coastal Carolina Chanticleers|324","Colgate Raiders|2142","Holy Cross Crusaders|107","William & Mary Tribe|2729","Colorado State Rams|36","Cornell Big Red|172","Dartmouth Big Green|159","Davidson Wildcats|2166","Delaware State Hornets|2169","Drake Bulldogs|2181","Duke Blue Devils|150","East Carolina Pirates|151","East Tennessee State Buccaneers|2193","Eastern Illinois Panthers|2197","Eastern Kentucky Colonels|2198","Eastern Michigan Eagles|2199","Eastern Washington Eagles|331","Elon Phoenix|2210","Florida Atlantic Owls|2226","Florida State Seminoles|52","Furman Paladins|231","Gardner-Webb Runnin' Bulldogs|2241","Georgia Tech Yellow Jackets|59","Georgia Southern Eagles|290","Grambling Tigers|2755","Hampton Pirates|2261","Harvard Crimson|108","Idaho State Bengals|304","Illinois State Redbirds|2287","Indiana State Sycamores|282","Indiana Hoosiers|84","Iowa State Cyclones|66","Jackson State Tigers|2296","Jacksonville State Gamecocks|55","James Madison Dukes|256","Kansas State Wildcats|2306","Kennesaw State Owls|338","Kent State Golden Flashes|2309","Lafayette Leopards|322","Lamar Cardinals|2320","Lehigh Mountain Hawks|2329","Liberty Flames|2335","Lindenwood Lions|2815","Long Island University|2341","LSU Tigers|99","Louisiana Tech Bulldogs|2348","Marist Red Foxes|2368","Marshall Thundering Herd|276","McNeese Cowboys|2377","Mercer Bears|2382","Merrimack Warriors|2771","Miami (OH) RedHawks|193","Michigan State Spartans|127","Middle Tennessee Blue Raiders|2393","Mississippi State Bulldogs|344","Missouri State Bears|2623","Monmouth Hawks|2405","Montana State Bobcats|147","Morehead State Eagles|2413","Murray State Racers|93","New Mexico State Aggies|166","Nicholls Colonels|2447","North Carolina A&T Aggies|2448","North Dakota State Bison|2449","Northern Arizona Lumberjacks|2464","Northern Illinois Huskies|2459","Northwestern State Demons|2466","Northwestern Wildcats|77","Ohio Bobcats|195","Oklahoma State Cowboys|197","Old Dominion Monarchs|295","Oregon State Beavers|204","Penn State Nittany Lions|213","Prairie View A&M Panthers|2504","Princeton Tigers|163","Purdue Boilermakers|2509","Rice Owls|242","Rutgers Scarlet Knights|164","Sacred Heart Pioneers|2529","St. Francis (PA) Red Flash|2598","Sam Houston Bearkats|2534","South Carolina State Bulldogs|2569","South Dakota State Jackrabbits|2571","Southeast Missouri State Redhawks|2546","SE Louisiana Lions|2545","Southern Illinois Salukis|79","SMU Mustangs|2567","Stanford Cardinal|24","Stephen F. Austin Lumberjacks|2617","Stetson Hatters|56","Stonehill Skyhawks|284","Stony Brook Seawolves|2619","Syracuse Orange|183","Tarleton State Texans|2627","Temple Owls|218","Tennessee Tech Golden Eagles|2635","Texas A&M Aggies|245","East Texas A&M Lions|2837","TCU Horned Frogs|2628","Texas State Bobcats|326","Texas Tech Red Raiders|2641","The Citadel Bulldogs|2643","Ohio State Buckeyes|194","Towson Tigers|119","Troy University|3237","Air Force Falcons|2005","Army Black Knights|349","Navy Midshipmen|2426","UAlbany Great Danes|399","Akron Zips|2006","Alabama Crimson Tide|333","UAB Blazers|5","Arizona Wildcats|12","Arkansas Razorbacks|8","Arkansas-Pine Bluff Golden Lions|2029","California Golden Bears|25","UC Davis Aggies|302","UCLA Bruins|26","Central Arkansas Bears|2110","UCF Knights|2116","Cincinnati Bearcats|2132","Colorado Buffaloes|38","UConn Huskies|41","Dayton Flyers|2168","Delaware Blue Hens|48","Florida Gators|57","Georgia Bulldogs|61","Hawai'i Rainbow Warriors|62","Houston Cougars|248","Idaho Vandals|70","Illinois Fighting Illini|356","Iowa Hawkeyes|2294","Kansas Jayhawks|2305","Kentucky Wildcats|96","Louisiana Ragin' Cajuns|309","UL Monroe Warhawks|2433","Louisville Cardinals|97","Maine Black Bears|311","Maryland Terrapins|120","Massachusetts Minutemen|113","Miami Hurricanes|2390","Michigan Wolverines|130","Minnesota Golden Gophers|135","Ole Miss Rebels|145","Missouri Tigers|142","Montana Grizzlies|149","Nebraska Cornhuskers|158","Nevada Wolf Pack|2440","New Hampshire Wildcats|160","New Mexico Lobos|167","North Alabama Lions|2453","North Carolina Tar Heels|153","North Dakota Fighting Hawks|155","North Texas Mean Green|249","Northern Colorado Bears|2458","Northern Iowa Panthers|2460","Notre Dame Fighting Irish|87","Oklahoma Sooners|201","Oregon Ducks|2483","Pittsburgh Panthers|221","Rhode Island Rams|227","Richmond Spiders|257","South Alabama Jaguars|6","South Carolina Gamecocks|2579","South Dakota Coyotes|233","South Florida Bulls|58","USC Trojans|30","Southern Miss Golden Eagles|2572","University of St. Francis|2595","St. Thomas Tommies|2900","Chattanooga Mocs|236","UT Martin Skyhawks|2630","Tennessee Volunteers|2633","Texas Longhorns|251","UTEP Miners|2638","Toledo Rockets|2649","Tulsa Golden Hurricane|202","Utah Utes|254","Virginia Cavaliers|258","Washington Huskies|264","West Georgia Wolves|2698","Wisconsin Badgers|275","Wyoming Cowboys|2751","Utah State Aggies|328","Utah Tech Trailblazers|3101","Valparaiso Beacons|2674","Vanderbilt Commodores|238","Virginia Tech Hokies|259","Wake Forest Demon Deacons|154","Washington State Cougars|265","Weber State Wildcats|2692","West Virginia Mountaineers|277","Western Carolina Catamounts|2717","Western Illinois Leathernecks|2710","Western Kentucky Hilltoppers|98","Western Michigan Broncos|2711","Wofford Terriers|2747","Yale Bulldogs|43","Youngstown State Penguins|2754"];
+  RAW.CBB = ["USC Trojans|30","Southern Illinois Salukis|79","SIU Edwardsville Cougars|2565","SMU Mustangs|2567","Southern Miss Golden Eagles|2572","Southern Jaguars|2582","Southern Utah Thunderbirds|253","Missouri State Bears|2623","Texas State Bobcats|326","Louisiana Ragin' Cajuns|309","Stanford Cardinal|24","Stephen F. Austin Lumberjacks|2617","Stony Brook Seawolves|2619","Syracuse Orange|183","Temple Owls|218","Tennessee State Tigers|2634","Tennessee Tech Golden Eagles|2635","Chattanooga Mocs|236","Tennessee Volunteers|2633","UT Martin Skyhawks|2630","Texas A&M Aggies|245","TCU Horned Frogs|2628","Texas Southern Tigers|2640","Texas Tech Red Raiders|2641","UT Arlington Mavericks|250","Texas Longhorns|251","UTEP Miners|2638","UTSA Roadrunners|2636","Toledo Rockets|2649","Towson Tigers|119","Troy Trojans|2653","Tulane Green Wave|2655","Tulsa Golden Hurricane|202","Air Force Falcons|2005","Army Black Knights|349","Navy Midshipmen|2426","Utah State Aggies|328","Utah Utes|254","Valparaiso Beacons|2674","Vanderbilt Commodores|238","Villanova Wildcats|222","VCU Rams|2670","VMI Keydets|2678","Virginia Tech Hokies|259","Virginia Cavaliers|258","Wake Forest Demon Deacons|154","Washington State Cougars|265","Washington Huskies|264","Weber State Wildcats|2692","West Virginia Mountaineers|277","Western Carolina Catamounts|2717","Western Illinois Leathernecks|2710","Western Michigan Broncos|2711","Wichita State Shockers|2724","William & Mary Tribe|2729","Winthrop Eagles|2737","Green Bay Phoenix|2739","Wisconsin Badgers|275","Milwaukee Panthers|270","Wright State Raiders|2750","Wyoming Cowboys|2751","Xavier Musketeers|2752","Youngstown State Penguins|2754","Central Arkansas Bears|2110","East Texas A&M Lions|2837","Southern Indiana Screaming Eagles|88","Stonehill Skyhawks|284","Iowa State Cyclones|66","James Madison Dukes|256","Longwood Lancers|2344","Charleston Cougars|232","Grand Canyon Lopes|2253","Akron Zips|2006","UAB Blazers|5","Auburn Tigers|2","Long Beach State Beach|299","McNeese Cowboys|2377","Montana State Bobcats|147","Morehead State Eagles|2413","Colgate Raiders|2142","UConn Huskies|41","Drake Bulldogs|2181","Duquesne Dukes|2184","Grambling Tigers|2755","Howard Bison|47","Illinois Fighting Illini|356","New Mexico Lobos|167","NC State Wolfpack|152","Oakland Golden Grizzlies|2473","Oregon Ducks|2483","Saint Mary's Gaels|2608","Saint Peter's Peacocks|2612","Samford Bulldogs|2535","South Dakota State Jackrabbits|2571","Stetson Hatters|56","Vermont Catamounts|261","Wagner Seahawks|2681","Western Kentucky Hilltoppers|98","Yale Bulldogs|43","Mercyhurst Lakers|2385","West Georgia Wolves|2698","Le Moyne Dolphins|2330","Queens University Royals|2511","Lindenwood Lions|2815","Indiana State Sycamores|282","Indiana Hoosiers|84","Purdue Fort Wayne Mastodons|2870","Iona Gaels|314","Iowa Hawkeyes|2294","Jackson State Tigers|2296","Jacksonville State Gamecocks|55","Jacksonville Dolphins|294","Kansas State Wildcats|2306","Kansas Jayhawks|2305","Kent State Golden Flashes|2309","Kentucky Wildcats|96","La Salle Explorers|2325","Lafayette Leopards|322","Lamar Cardinals|2320","Lehigh Mountain Hawks|2329","Liberty Flames|2335","Long Island University Sharks|112358","LSU Tigers|99","Louisiana Tech Bulldogs|2348","Louisville Cardinals|97","UMass Lowell River Hawks|2349","Elon Phoenix|2210","Gardner-Webb Runnin' Bulldogs|2241","Kennesaw State Owls|338","Presbyterian Blue Hose|2506","Seattle U Redhawks|2547","Arkansas-Pine Bluff Golden Lions|2029","IU Indianapolis Jaguars|85","Kansas City Roos|140","North Florida Ospreys|2454","Incarnate Word Cardinals|2916","Wofford Terriers|2747","South Carolina Upstate Spartans|2908","Belmont Bruins|2057","High Point Panthers|2272","Texas A&M-Corpus Christi Islanders|357","Lipscomb Bisons|288","Florida Gulf Coast Eagles|526","Utah Valley Wolverines|3084","North Alabama Lions|2453","Abilene Christian Wildcats|2000","Alabama A&M Bulldogs|2010","Alabama State Hornets|2011","Alabama Crimson Tide|333","UAlbany Great Danes|399","Alcorn State Braves|2016","American University Eagles|44","App State Mountaineers|2026","Arizona State Sun Devils|9","Arizona Wildcats|12","Arkansas State Red Wolves|2032","Arkansas Razorbacks|8","Little Rock Trojans|2031","Austin Peay Governors|2046","Ball State Cardinals|2050","Charleston Southern Buccaneers|2127","Baylor Bears|239","Bethune-Cookman Wildcats|2065","Binghamton Bearcats|2066","Boise State Broncos|68","Boston College Eagles|103","Boston University Terriers|104","Bowling Green Falcons|189","Bradley Braves|71","BYU Cougars|252","Brown Bears|225","Bryant Bulldogs|2803","Bucknell Bison|2083","Buffalo Bulls|2084","Butler Bulldogs|2086","Cal Poly Mustangs|13","Cal State Bakersfield Roadrunners|2934","Fresno State Bulldogs|278","Cal State Fullerton Titans|2239","Cal State Northridge Matadors|2463","Sacramento State Hornets|16","UC Santa Barbara Gauchos|2540","California Golden Bears|25","Loyola Maryland Greyhounds|2352","Loyola Marymount Lions|2351","Loyola Chicago Ramblers|2350","Maine Black Bears|311","Manhattan Jaspers|2363","Marist Red Foxes|2368","Marquette Golden Eagles|269","Marshall Thundering Herd|276","UMBC Retrievers|2378","Maryland Terrapins|120","Maryland Eastern Shore Hawks|2379","Massachusetts Minutemen|113","Memphis Tigers|235","Mercer Bears|2382","Miami (OH) RedHawks|193","Miami Hurricanes|2390","Michigan State Spartans|127","Michigan Wolverines|130","Middle Tennessee Blue Raiders|2393","Minnesota Golden Gophers|135","Mississippi State Bulldogs|344","Mississippi Valley State Delta Devils|2400","Ole Miss Rebels|145","Missouri Tigers|142","Monmouth Hawks|2405","Montana Grizzlies|149","Morgan State Bears|2415","Mount St. Mary's Mountaineers|116","Murray State Racers|93","UNC Asheville Bulldogs|2427","North Carolina Tar Heels|153","Charlotte 49ers|2429","UNC Greensboro Spartans|2430","UNC Wilmington Seahawks|350","Nebraska Cornhuskers|158","Omaha Mavericks|2437","UNLV Rebels|2439","Nevada Wolf Pack|2440","UC Davis Aggies|302","UC Irvine Anteaters|300","UCLA Bruins|26","UC Riverside Highlanders|27","Campbell Fighting Camels|2097","Canisius Golden Griffins|2099","Central Connecticut Blue Devils|2115","UCF Knights|2116","Central Michigan Chippewas|2117","Chicago State Cougars|2130","Cincinnati Bearcats|2132","The Citadel Bulldogs|2643","Clemson Tigers|228","Cleveland State Vikings|325","Coastal Carolina Chanticleers|324","Colorado State Rams|36","Colorado Buffaloes|38","Columbia Lions|171","Coppin State Eagles|2154","Cornell Big Red|172","Creighton Bluejays|156","Dartmouth Big Green|159","Davidson Wildcats|2166","Dayton Flyers|2168","DePaul Blue Demons|305","Delaware State Hornets|2169","Delaware Blue Hens|48","Denver Pioneers|2172","Detroit Mercy Titans|2174","Drexel Dragons|2182","Duke Blue Devils|150","East Carolina Pirates|151","East Tennessee State Buccaneers|2193","Eastern Illinois Panthers|2197","Eastern Kentucky Colonels|2198","Eastern Michigan Eagles|2199","Eastern Washington Eagles|331","Evansville Purple Aces|339","Fairfield Stags|2217","Fairleigh Dickinson Knights|161","Florida A&M Rattlers|50","Florida Atlantic Owls|2226","Florida International Panthers|2229","Florida State Seminoles|52","Florida Gators|57","Fordham Rams|2230","Furman Paladins|231","George Mason Patriots|2244","George Washington Revolutionaries|45","Georgetown Hoyas|46","Georgia Southern Eagles|290","Georgia State Panthers|2247","Georgia Tech Yellow Jackets|59","Georgia Bulldogs|61","Gonzaga Bulldogs|2250","Hampton Pirates|2261","Harvard Crimson|108","Hawai'i Rainbow Warriors|62","Hofstra Pride|2275","Holy Cross Crusaders|107","Houston Christian Huskies|2277","Houston Cougars|248","Idaho State Bengals|304","Idaho Vandals|70","Illinois State Redbirds|2287","UIC Flames|82","New Hampshire Wildcats|160","NJIT Highlanders|2885","New Mexico State Aggies|166","LSU New Orleans Privateers|2443","Niagara Purple Eagles|315","Nicholls Colonels|2447","Norfolk State Spartans|2450","North Carolina A&T Aggies|2448","North Carolina Central Eagles|2428","North Dakota State Bison|2449","North Dakota Fighting Hawks|155","North Texas Mean Green|249","UL Monroe Warhawks|2433","Northeastern Huskies|111","Northern Arizona Lumberjacks|2464","Northern Colorado Bears|2458","Northern Illinois Huskies|2459","Northern Iowa Panthers|2460","Northern Kentucky Norse|94","Northwestern State Demons|2466","Northwestern Wildcats|77","Notre Dame Fighting Irish|87","Ohio State Buckeyes|194","Ohio Bobcats|195","Oklahoma State Cowboys|197","Oklahoma Sooners|201","Old Dominion Monarchs|295","Oral Roberts Golden Eagles|198","Oregon State Beavers|204","Pacific Tigers|279","UT Rio Grande Valley Vaqueros|292","Penn State Nittany Lions|213","Pennsylvania Quakers|219","Pepperdine Waves|2492","Pittsburgh Panthers|221","Portland State Vikings|2502","Portland Pilots|2501","Prairie View A&M Panthers|2504","Princeton Tigers|163","Providence Friars|2507","Purdue Boilermakers|2509","Quinnipiac Bobcats|2514","Radford Highlanders|2515","Rhode Island Rams|227","Rice Owls|242","Richmond Spiders|257","Rider Broncs|2520","Robert Morris Colonials|2523","Rutgers Scarlet Knights|164","Sacred Heart Pioneers|2529","St. Bonaventure Bonnies|179","St. Francis (PA) Red Flash|2598","St. John's Red Storm|2599","Saint Joseph's Hawks|2603","Saint Louis Billikens|139","Sam Houston Bearkats|2534","San Diego State Aztecs|21","San Diego Toreros|301","San Francisco Dons|2539","San José State Spartans|23","California Baptist Lancers|2856","Merrimack Warriors|2771","Bellarmine Knights|91","UC San Diego Tritons|28","Utah Tech Trailblazers|3101","Tarleton State Texans|2627","St. Thomas Tommies|2900","Santa Clara Broncos|2541","Seton Hall Pirates|2550","Siena Saints|2561","South Alabama Jaguars|6","South Carolina State Bulldogs|2569","South Carolina Gamecocks|2579","South Dakota Coyotes|233","South Florida Bulls|58","Southeast Missouri State Redhawks|2546","SE Louisiana Lions|2545","New Haven Chargers|2441"];
+  const PRO_LEAGUES = ['NFL','NBA','MLB','NHL'];
+  const LEAGUES = [...PRO_LEAGUES,'CFB','CBB'];
+  const NHL_CODES = {la:'LAK',nj:'NJD',sj:'SJS',tb:'TBL',utah:'UTA'};
+  function collegeCode(name){
+    const words=name.replace(/[^a-zA-Z0-9 ]/g,' ').split(' ').filter(Boolean);
+    return (words.length>1?words.slice(0,2).map(w=>w.slice(0,2)).join(''):words[0]?.slice(0,4)||'TEAM').toUpperCase();
+  }
+  function collegeLogo(id){return `https://a.espncdn.com/i/teamlogos/ncaa/500/${id}.png`;}
+
+  const teams = Object.fromEntries(LEAGUES.map(league => [league, RAW[league].map(line => {
+    const [name, slug, ...alternativeSlugs] = line.split('|');
+    return Object.freeze({id:`${league}:${slug}`,league,name,slug,slugs:[slug,...alternativeSlugs],
+      code:league==='CFB'||league==='CBB'?collegeCode(name):slug.toUpperCase(),
+      logoCandidates:[
+        ...(league==='CFB'||league==='CBB'?[collegeLogo(slug)]:[slug,...alternativeSlugs].map(s => `https://a.espncdn.com/i/teamlogos/${league.toLowerCase()}/500/${s}.png`)),
+        ...(league==='NHL'?[`https://assets.nhle.com/logos/nhl/svg/${NHL_CODES[slug]||slug.toUpperCase()}_dark.svg`]:[])
+      ]});
+  })]));
+  const allTeams = LEAGUES.flatMap(l => teams[l]);
+  const proTeams = PRO_LEAGUES.flatMap(l=>teams[l]);
+  const $ = id => document.getElementById(id);
+  const UI = {
+    leagues:[...document.querySelectorAll('[data-league]')], diff:$('difficulty'),duration:$('duration'),
+    start:$('startBtn'),shade:$('shade'),shadeIcon:$('shadeIcon'),shadeTitle:$('shadeTitle'),shadeText:$('shadeText'),shadeBtn:$('shadeBtn'),
+    left:$('cardLeft'),right:$('cardRight'),time:$('timeValue'),score:$('scoreValue'),streak:$('streakValue'),best:$('bestValue'),
+    fill:$('timerFill'),rail:$('timerRail'),round:$('roundBadge'),pool:$('poolInfo'),pause:$('pauseBtn'),
+    feedback:$('feedback'),misses:$('missValue'),sound:$('soundBtn'),labels:$('labelsToggle'),
+    resultExtra:$('resultExtra'),logoStatus:$('logoStatus'),rules:$('rulesDialog'),quit:$('quitBtn')
+  };
+  const state = {
+    league:'ALL',perCard:6,duration:60,status:'idle',round:0,score:0,streak:0,maxStreak:0,misses:0,
+    remainingMs:60000,deadline:0,interval:0,session:0,current:null,answerBag:[],lastIds:new Set(),
+    sound:false,labels:false,logoCache:new Map(),audio:null
+  };
+  const storage = {
+    read(key,fallback) { try { const v=localStorage.getItem('logoMatch.v1.'+key);return v===null?fallback:JSON.parse(v); } catch{return fallback;} },
+    write(key,value) { try {localStorage.setItem('logoMatch.v1.'+key,JSON.stringify(value));}catch{/* private browsing / quota */} }
+  };
+  state.sound = !!storage.read('sound',false);
+  state.labels = !!storage.read('labels',false);
+  state.league = ['ALL','PRO',...LEAGUES].includes(storage.read('league','ALL'))?storage.read('league','ALL'):'ALL';
+  const storedDiff = Number(storage.read('difficulty',6));
+  state.perCard = [4,6,8].includes(storedDiff)?storedDiff:6;
+  const storedDuration=Number(storage.read('duration',60));
+  state.duration=[30,60,90,120].includes(storedDuration)?storedDuration:60;
+  state.remainingMs=state.duration*1000;
+
+  function rand(max) {return Math.floor(Math.random()*max);}
+  function shuffled(items) {const a=[...items];for(let i=a.length-1;i>0;i--){const j=rand(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
+  function key() {return `${state.league}.${state.perCard}.${state.duration}`;}
+  function formatTime(ms) {const s=Math.ceil(Math.max(0,ms)/1000);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}
+  function activePool() {return state.league==='ALL'?allTeams:state.league==='PRO'?proTeams:teams[state.league];}
+
+  // For this solo two-card variant, every generated round uses one common team and
+  // distinct distractors. That guarantees exactly one match without requiring a
+  // 57-symbol global projective-plane deck (which would exclude many teams).
+  function makeRound(pool,perCard,league,answer) {
+    if(pool.length<2*perCard-1)throw new Error('Insufficient teams for two distinct cards');
+    const common=answer || pool[rand(pool.length)];
+    const used=new Set([common.id]);
+    const left=[common],right=[common];
+    const pick=(source,target) => {
+      const candidates=shuffled(source.filter(t=>!used.has(t.id)));
+      if(!candidates.length)throw new Error('Not enough unique logos');
+      const team=candidates.find(t=>!state.lastIds.has(t.id))||candidates[0];
+      used.add(team.id);target.push(team);
+    };
+    if(league==='ALL'||league==='PRO'){
+      const eligible=league==='PRO'?PRO_LEAGUES:LEAGUES;
+      const quota=Math.min(perCard,eligible.length);
+      for(const leagueName of shuffled(eligible.filter(l=>l!==common.league)).slice(0,quota-1)){
+        pick(pool.filter(t=>t.league===leagueName),left);
+        pick(pool.filter(t=>t.league===leagueName),right);
+      }
+    }
+    while(left.length<perCard)pick(pool,left);
+    while(right.length<perCard)pick(pool,right);
+    const a=shuffled(left), b=shuffled(right);
+    const shared=a.filter(t=>b.some(x=>x.id===t.id));
+    if(a.length!==perCard||b.length!==perCard||new Set(a.map(t=>t.id)).size!==perCard||
+        new Set(b.map(t=>t.id)).size!==perCard||shared.length!==1||shared[0].id!==common.id) {
+      throw new Error('Round invariant failed: cards must have exactly one shared team');
+    }
+    if(league==='ALL'||league==='PRO'){
+      const expected=Math.min(perCard,league==='PRO'?PRO_LEAGUES.length:LEAGUES.length);
+      if([a,b].some(card=>new Set(card.map(t=>t.league)).size<expected))
+        throw new Error('Mixed-league round missing league coverage');
+    }
+    return {left:a,right:b,answer:common,displayIds:used};
+  }
+
+  function drawAnswer(pool) {
+    if(!state.answerBag.length)state.answerBag=shuffled(pool);
+    const chosen=state.answerBag.pop();
+    return chosen;
+  }
+
+  function setMessage(message,type='') {
+    UI.feedback.textContent=message;
+    UI.feedback.className='foot-message'+(type?' '+type:'');
+  }
+  function applySettings() {
+    UI.leagues.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.league===state.league)));
+    UI.diff.value=String(state.perCard); UI.duration.value=String(state.duration);
+    UI.sound.textContent=state.sound?'Sound on':'Sound off';
+    UI.sound.setAttribute('aria-pressed',String(state.sound));
+    UI.sound.setAttribute('aria-label',state.sound?'Turn sound off':'Turn sound on');
+    UI.labels.checked=state.labels;
+    UI.pool.textContent=state.league==='ALL'?`${allTeams.length} teams · six leagues`:state.league==='PRO'?
+      `${proTeams.length} teams · core four leagues`:`${teams[state.league].length} teams · ${state.league} only`;
+    const busy=['loading','playing','paused'].includes(state.status);
+    UI.leagues.forEach(b=>b.disabled=busy);UI.diff.disabled=busy;UI.duration.disabled=busy;
+    UI.pause.disabled=!['playing','paused'].includes(state.status);
+    UI.quit.disabled=!['playing','paused','loading','transitioning'].includes(state.status);
+    document.body.classList.toggle('in-game',busy||state.status==='transitioning');
+    UI.pause.textContent=state.status==='paused'?'Resume':'Pause';
+    UI.start.textContent=busy?'New game':'Start game';
+    UI.start.disabled=state.status==='loading';
+    UI.shadeBtn.disabled=false;
+    const best=Number(storage.read('best.'+key(),0));
+    UI.best.textContent=best>0?String(best):'—';
+  }
+  function drawStats() {
+    UI.time.textContent=formatTime(state.remainingMs);
+    UI.time.classList.toggle('low',state.remainingMs<=10000);
+    UI.score.textContent=String(state.score);UI.streak.textContent=String(state.streak);
+    UI.misses.textContent=String(state.misses);
+    UI.round.textContent=`ROUND ${String(Math.max(1,state.round)).padStart(2,'0')}`;
+    const fraction=Math.min(1,Math.max(0,state.remainingMs/(state.duration*1000)));
+    UI.fill.style.width=`${fraction*100}%`;UI.fill.classList.toggle('low',fraction<=1/6);
+    UI.rail.setAttribute('aria-valuemax',String(state.duration));
+    UI.rail.setAttribute('aria-valuenow',String(Math.ceil(state.remainingMs/1000)));
+  }
+  function showShade(type,title,body,buttonText,icon='◎') {
+    UI.shade.hidden=false;UI.shade.dataset.type=type;
+    UI.shadeIcon.textContent=icon;UI.shadeIcon.hidden=type==='loading';
+    UI.shadeTitle.textContent=title;UI.shadeText.textContent=body;UI.shadeBtn.textContent=buttonText;
+    UI.shadeBtn.hidden=type==='loading';
+    UI.resultExtra.hidden=true;
+    if(type==='loading') {
+      UI.shadeIcon.hidden=true;
+      if(!$('spinner')){const el=document.createElement('div');el.id='spinner';el.className='load-spinner';UI.shade.prepend(el);}
+      $('spinner').hidden=false;
+    } else if($('spinner'))$('spinner').hidden=true;
+  }
+  function hideShade(){UI.shade.hidden=true;}
+  function stopClock(){
+    if(state.interval){clearInterval(state.interval);state.interval=0;}
+    if(state.status==='playing')state.remainingMs=Math.max(0,state.deadline-performance.now());
+  }
+  function tick(){
+    if(state.status!=='playing')return;
+    state.remainingMs=Math.max(0,state.deadline-performance.now());drawStats();
+    if(state.remainingMs<=0)finishGame();
+  }
+  function runClock(){
+    if(state.remainingMs<=0){finishGame();return;}
+    state.status='playing';state.deadline=performance.now()+state.remainingMs;
+    state.interval=setInterval(tick,60);
+    applySettings();drawStats();
+  }
+  function playNote(kind) {
+    if(!state.sound)return;
+    try {
+      const AudioContext=window.AudioContext||window.webkitAudioContext;
+      if(!AudioContext)return;
+      if(!state.audio)state.audio=new AudioContext();
+      if(state.audio.state==='suspended')state.audio.resume();
+      const ctx=state.audio,now=ctx.currentTime;
+      const osc=ctx.createOscillator(),gain=ctx.createGain();
+      osc.type='sine';osc.frequency.setValueAtTime(kind==='yes'?520:260,now);
+      osc.frequency.exponentialRampToValueAtTime(kind==='yes'?760:180,now+.11);
+      gain.gain.setValueAtTime(.045,now);gain.gain.exponentialRampToValueAtTime(.001,now+.15);
+      osc.connect(gain);gain.connect(ctx.destination);osc.start(now);osc.stop(now+.16);
+    }catch{/* Audio is an optional enhancement. */}
+  }
+
+  // Resolve optional ESPN CDN slug aliases and fall back to text without hiding teams.
+  function imageOnce(url,timeout=1700) {
+    return new Promise(resolve=>{
+      const img=new Image();let completed=false;
+      const finish=ok=>{if(completed)return;completed=true;clearTimeout(wait);img.onload=img.onerror=null;resolve(ok);};
+      const wait=setTimeout(()=>finish(false),timeout);
+      img.onload=()=>finish(true);img.onerror=()=>finish(false);
+      img.referrerPolicy='no-referrer';img.src=url;
+    });
+  }
+  async function resolveLogo(team){
+    if(state.logoCache.has(team.id))return state.logoCache.get(team.id);
+    for(const url of team.logoCandidates){
+      if(await imageOnce(url)){state.logoCache.set(team.id,url);return url;}
+    }
+    state.logoCache.set(team.id,null);return null;
+  }
+  async function prepareLogos(round){
+    const unique=[...new Map([...round.left,...round.right].map(t=>[t.id,t])).values()];
+    await Promise.all(unique.map(resolveLogo));
+    const fallback=unique.filter(t=>state.logoCache.get(t.id)===null).length;
+    UI.logoStatus.textContent=fallback
+      ?`${fallback} logo${fallback!==1?'s':''} unavailable this round · showing team abbreviations`
+      :'Logo images from ESPN CDN · abbreviations if unavailable';
+  }
+
+  const placements={
+    4:[[-.22,-.22],[.22,-.22],[-.22,.22],[.22,.22]],
+    6:[[-.20,-.28],[.21,-.28],[-.31,.025],[.30,.025],[-.18,.29],[.18,.29]],
+    8:[[0,0],[-.21,-.30],[.21,-.30],[-.325,-.07],[.325,-.07],[-.255,.235],[.255,.235],[0,.35]]
+  };
+  function renderCard(element,list) {
+    element.replaceChildren();element.classList.remove('match');
+    const n=list.length,coords=shuffled(placements[n]);
+    for(let i=0;i<n;i++){
+      const team=list[i],pos=coords[i],btn=document.createElement('button');
+      btn.type='button';btn.className='symbol';btn.dataset.id=team.id;btn.dataset.label=String(state.labels);
+      btn.title=`${team.name} (${team.league})`;
+      btn.setAttribute('aria-label',`${team.league}: ${team.name}`);
+      btn.style.left=`${50+pos[0]*100}%`;btn.style.top=`${50+pos[1]*100}%`;
+      btn.style.width=`${n===4?26:n===6?23:18.5}%`;
+      btn.style.height=`${n===4?26:n===6?23:18.5}%`;
+      btn.style.setProperty('--rot',`${rand(25)-12}deg`);
+      const src=state.logoCache.get(team.id);
+      if(src){
+        const img=document.createElement('img');img.src=src;img.alt='';img.draggable=false;
+        img.onerror=()=>{img.remove();const fallback=makeFallback(team);btn.prepend(fallback);};
+        btn.append(img);
+      }else btn.append(makeFallback(team));
+      const name=document.createElement('span');name.className='label-text';name.textContent=`${team.league} · ${team.code}`;
+      btn.append(name);
+      btn.addEventListener('click',()=>handleGuess(team,btn));
+      element.append(btn);
+    }
+  }
+  function makeFallback(team){
+    const el=document.createElement('span');el.className='fallback';
+    const code=document.createElement('span');code.textContent=team.code;
+    const league=document.createElement('em');league.textContent=team.league;
+    el.append(code,league);return el;
+  }
+  function paintRound(round){renderCard(UI.left,round.left);renderCard(UI.right,round.right);}
+
+  async function nextRound(session){
+    if(session!==state.session)return;
+    state.status='loading';applySettings();
+    showShade('loading','Preparing logos','Loading the next pair. Your timer is paused.','','');
+    try {
+      const pool=activePool();
+      const answer=drawAnswer(pool);
+      const round=makeRound(pool,state.perCard,state.league,answer);
+      await prepareLogos(round);
+      if(session!==state.session)return;
+      state.current=round;
+      state.lastIds=round.displayIds;
+      state.round++;
+      paintRound(round);drawStats();
+      if(document.hidden){
+        state.status='paused';
+        showShade('paused','Game paused','Return to this tab and resume when ready.','Resume','Ⅱ');
+        applySettings();
+      } else {
+        hideShade();runClock();
+      }
+      setMessage('Tap the logo that appears on both cards.');
+    } catch(err) {
+      if(session!==state.session)return;
+      console.error('Unable to prepare round',err);
+      state.status='ended';showShade('ended','Could not load the round','Try starting a new game.','Try again','!');
+      applySettings();
+    }
+  }
+  function startGame() {
+    stopClock();state.session++;
+    state.perCard=Number(UI.diff.value);state.duration=Number(UI.duration.value);
+    state.round=0;state.score=0;state.streak=0;state.maxStreak=0;state.misses=0;
+    state.remainingMs=state.duration*1000;state.answerBag=[];state.lastIds=new Set();state.current=null;
+    UI.left.replaceChildren();UI.right.replaceChildren();
+    storage.write('league',state.league);storage.write('duration',state.duration);storage.write('difficulty',state.perCard);
+    drawStats();setMessage('Preparing your first matching pair…');
+    nextRound(state.session);
+  }
+  function handleGuess(team,btn) {
+    if(state.status!=='playing'||!state.current)return;
+    if(team.id!==state.current.answer.id) {
+      state.misses++;state.streak=0;state.remainingMs=Math.max(0,state.deadline-performance.now()-1000);
+      state.deadline=performance.now()+state.remainingMs;
+      btn.classList.add('miss');setTimeout(()=>btn.classList.remove('miss'),300);
+      setMessage('Not a match · 1 second penalty','bad');playNote('no');drawStats();
+      if(state.remainingMs<=0)finishGame();
+      return;
+    }
+    stopClock();state.status='transitioning'; // Stops another tap scoring the same round.
+    state.score++;state.streak++;state.maxStreak=Math.max(state.maxStreak,state.streak);
+    btn.classList.add('found');UI.left.classList.add('match');UI.right.classList.add('match');
+    setMessage(`Correct! ${team.name} · ${team.league}`,'good');playNote('yes');drawStats();
+    const session=state.session;
+    setTimeout(()=>{if(session===state.session&&state.status==='transitioning')nextRound(session);},260);
+  }
+  function finishGame() {
+    if(state.status==='ended'||state.status==='idle')return;
+    stopClock();state.remainingMs=0;state.status='ended';state.session++;drawStats();
+    const old=Number(storage.read('best.'+key(),0));
+    if(state.score>old)storage.write('best.'+key(),state.score);
+    const record=state.score>old;
+    showShade('ended',record?'New personal best!':'Time’s up!',
+      `${state.score} correct match${state.score===1?'':'es'} in ${state.duration} seconds.`,
+      'Play again',record?'★':'⌛');
+    UI.resultExtra.hidden=false;
+    UI.resultExtra.replaceChildren();
+    for(const [label,val] of [['Longest streak',state.maxStreak],['Misses',state.misses],['League',state.league==='ALL'?'All 6':state.league==='PRO'?'Core 4':state.league]]){
+      const span=document.createElement('span');span.append(document.createTextNode(label+' '));
+      const b=document.createElement('b');b.textContent=String(val);span.append(b);UI.resultExtra.append(span);
+    }
+    if(record)setMessage('New personal best!','good');
+    else setMessage('Game complete. Change settings or play again.');
+    applySettings();
+  }
+  function pauseGame() {
+    if(state.status==='playing'){
+      stopClock();state.status='paused';showShade('paused','Game paused','Your timer is stopped. Resume whenever you are ready.','Resume','Ⅱ');
+      applySettings();setMessage('Game paused.');
+    }else if(state.status==='paused')resumeGame();
+  }
+  function resumeGame() {
+    if(state.status!=='paused')return;hideShade();runClock();setMessage('Find the matching logo.');
+  }
+  function refreshIdle() {
+    if(['playing','loading','paused','transitioning'].includes(state.status))return;
+    state.remainingMs=state.duration*1000;
+    drawStats();applySettings();
+  }
+  function applyLabelPreference() {
+    document.querySelectorAll('.symbol').forEach(b=>b.dataset.label=String(state.labels));
+    storage.write('labels',state.labels);
+  }
+
+  // Click wiring
+  UI.leagues.forEach(b=>b.addEventListener('click',()=>{state.league=b.dataset.league;storage.write('league',state.league);refreshIdle();}));
+  UI.diff.addEventListener('change',()=>{state.perCard=Number(UI.diff.value);storage.write('difficulty',state.perCard);refreshIdle();});
+  UI.duration.addEventListener('change',()=>{state.duration=Number(UI.duration.value);storage.write('duration',state.duration);refreshIdle();});
+  UI.start.addEventListener('click',startGame);
+  UI.shadeBtn.addEventListener('click',()=>{
+    if(state.status==='paused')resumeGame();
+    else if(state.status==='idle'||state.status==='ended')startGame();
+  });
+  UI.pause.addEventListener('click',pauseGame);
+  UI.quit.addEventListener('click',finishGame);
+  UI.sound.addEventListener('click',()=>{state.sound=!state.sound;storage.write('sound',state.sound);applySettings();});
+  UI.labels.addEventListener('change',()=>{state.labels=UI.labels.checked;applyLabelPreference();});
+  $('rulesBtn').addEventListener('click',()=>{
+    if(state.status==='playing')pauseGame();
+    UI.rules.showModal();
+  });
+  $('closeRulesBtn').addEventListener('click',()=>UI.rules.close());
+  UI.rules.addEventListener('click',e=>{if(e.target===UI.rules)UI.rules.close();});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden&&state.status==='playing')pauseGame();
+  });
+  window.addEventListener('pagehide',()=>{if(state.status==='playing')pauseGame();});
+
+  // Public self-test interface for offline automated validation of every game mode.
+  window.SportsLogoMatchTest=Object.freeze({
+    counts:Object.freeze(Object.fromEntries(LEAGUES.map(l=>[l,teams[l].length]))),
+    total:allTeams.length,
+    check(loops=300){
+      const report=[];
+      for(const league of ['ALL','PRO',...LEAGUES]){
+        const pool=league==='ALL'?allTeams:league==='PRO'?proTeams:teams[league];
+        for(const n of [4,6,8]){
+          for(let j=0;j<loops;j++)makeRound(pool,n,league);
+          report.push({league,logosPerCard:n,checked:loops,passed:true});
+        }
+      }
+      return report;
+    }
+  });
+
+  // Initial view
+  applySettings();drawStats();
+  showShade('idle','One logo. Two cards.',
+    'Find the only matching team logo between the two cards. Tap it on either card to score before time runs out.',
+    'Let’s play','◎');
+})();
+</script>
+</body>
+</html>
